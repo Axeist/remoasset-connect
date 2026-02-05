@@ -71,11 +71,11 @@ export function LeadsChart({
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">No lead data yet</div>
             )}
-            <div className="flex flex-wrap justify-center gap-4 mt-4">
+            <div className="flex flex-wrap justify-center gap-x-8 gap-y-3 mt-6 px-2">
               {statusData.map((item) => (
-                <div key={item.name} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-sm text-muted-foreground">{item.name}</span>
+                <div key={item.name} className="flex items-center gap-2 min-w-0 shrink-0">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">{item.name}</span>
                 </div>
               ))}
             </div>
