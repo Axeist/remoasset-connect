@@ -94,12 +94,7 @@ export function AppSidebar({
       <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
         <SheetContent side="left" className="w-64 p-0 bg-sidebar text-sidebar-foreground border-sidebar-border">
           <div className="h-16 flex items-center px-4 border-b border-sidebar-border">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-                <span className="text-white font-bold text-sm">RA</span>
-              </div>
-              <span className="font-display font-bold text-lg">RemoAsset</span>
-            </div>
+            <img src="/logo.png" alt="RemoAsset" className="h-8 w-auto object-contain" />
           </div>
           <SidebarNav onNavigate={() => onMobileOpenChange?.(false)} />
         </SheetContent>
@@ -115,13 +110,10 @@ export function AppSidebar({
       )}
     >
       <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
-        {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-              <span className="text-white font-bold text-sm">RA</span>
-            </div>
-            <span className="font-display font-bold text-lg">RemoAsset</span>
-          </div>
+        {collapsed ? (
+          <img src="/favicon.png" alt="RemoAsset" className="h-8 w-8 object-contain flex-shrink-0" />
+        ) : (
+          <img src="/logo.png" alt="RemoAsset" className="h-8 w-auto object-contain" />
         )}
         <Button
           variant="ghost"

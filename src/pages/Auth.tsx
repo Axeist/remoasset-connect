@@ -118,9 +118,7 @@ export default function Auth() {
       
       <Card className="w-full max-w-md relative z-10 card-shadow-lg">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mb-2">
-            <span className="text-white font-bold text-xl">RA</span>
-          </div>
+          <img src="/logo.png" alt="RemoAsset" className="mx-auto h-12 w-auto object-contain mb-2" />
           <CardTitle className="font-display text-2xl">RemoAsset VRM</CardTitle>
           <CardDescription>Vendor Resource Management</CardDescription>
         </CardHeader>
