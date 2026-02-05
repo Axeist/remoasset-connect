@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getActivityScorePoints, clampLeadScore } from '@/lib/leadScore';
 
 const activityTypeConfig = {
   call: { icon: Phone, label: 'Call', color: 'bg-primary/10 text-primary' },
@@ -336,8 +337,10 @@ export default function LeadDetail() {
           <TabsContent value="activity" className="mt-6">
             <LeadActivityTab
               leadId={id!}
+              currentLeadScore={lead.lead_score ?? 50}
               activities={activities}
               onRefresh={fetchActivities}
+              onLeadUpdated={fetchLead}
             />
           </TabsContent>
 
@@ -391,12 +394,16 @@ export default function LeadDetail() {
 
 function LeadActivityTab({
   leadId,
+  currentLeadScore,
   activities,
   onRefresh,
+  onLeadUpdated,
 }: {
   leadId: string;
+  currentLeadScore: number;
   activities: LeadActivity[];
   onRefresh: () => void;
+  onLeadUpdated: () => void;
 }) {
   const [type, setType] = useState<'call' | 'email' | 'meeting' | 'note'>('call');
   const [description, setDescription] = useState('');
@@ -408,20 +415,26 @@ function LeadActivityTab({
     e.preventDefault();
     if (!description.trim()) return;
     setSubmitting(true);
+    const desc = description.trim();
     const { error } = await supabase.from('lead_activities').insert({
       lead_id: leadId,
       user_id: user!.id,
       activity_type: type,
-      description: description.trim(),
+      description: desc,
     });
-    setSubmitting(false);
     if (error) {
+      setSubmitting(false);
       toast({ variant: 'destructive', title: 'Error', description: error.message });
       return;
     }
+    const points = getActivityScorePoints(type, desc);
+    const newScore = clampLeadScore(currentLeadScore + points);
+    await supabase.from('leads').update({ lead_score: newScore }).eq('id', leadId);
+    setSubmitting(false);
     setDescription('');
-    toast({ title: 'Activity added' });
+    toast({ title: 'Activity added', description: points > 0 ? `Lead score +${points} (now ${newScore})` : undefined });
     onRefresh();
+    onLeadUpdated();
   };
 
   return (

@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Settings,
   Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -19,6 +20,7 @@ const navItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'employee'] },
   { title: 'Leads', url: '/leads', icon: Users, roles: ['admin', 'employee'] },
   { title: 'My Tasks', url: '/tasks', icon: CheckSquare, roles: ['admin', 'employee'] },
+  { title: 'Settings', url: '/settings', icon: Settings, roles: ['admin', 'employee'] },
   { title: 'Admin Panel', url: '/admin', icon: Shield, roles: ['admin'] },
 ];
 
