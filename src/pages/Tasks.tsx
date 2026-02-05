@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Calendar, List, LayoutGrid } from 'lucide-react';
+import { Plus, Calendar, List, LayoutGrid, AlertCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,10 +24,15 @@ const priorityColors: Record<string, string> = {
 type DueFilter = 'all' | 'overdue' | 'today' | 'week';
 type StatusFilter = 'all' | 'pending' | 'completed';
 
+// Extended TaskRecord to include assignee profile
+interface TaskWithAssignee extends TaskRecord {
+  assignee?: { full_name: string } | null;
+}
+
 export default function Tasks() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [tasks, setTasks] = useState<TaskRecord[]>([]);
+  const [tasks, setTasks] = useState<TaskWithAssignee[]>([]);
   const [leads, setLeads] = useState<{ id: string; company_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -50,14 +55,14 @@ export default function Tasks() {
   useEffect(() => {
     if (user) {
       fetchTasks();
-      supabase
-        .from('leads')
-        .select('id, company_name')
-        .eq('owner_id', user.id)
-        .order('company_name')
-        .then(({ data }) => setLeads(data ?? []));
+      // Fetch leads based on admin status
+      const leadsQuery = supabase.from('leads').select('id, company_name').order('company_name');
+      if (!isAdmin) {
+        leadsQuery.eq('owner_id', user.id);
+      }
+      leadsQuery.then(({ data }) => setLeads(data ?? []));
     }
-  }, [user, filters]);
+  }, [user, filters, isAdmin]);
 
   const fetchTasks = async () => {
     if (!user) return;
@@ -73,14 +78,19 @@ export default function Tasks() {
         is_completed,
         lead_id,
         assignee_id,
-        lead:leads(company_name)
+        lead:leads(company_name),
+        assignee:profiles!tasks_assignee_id_fkey(full_name)
       `)
-      .eq('assignee_id', user.id)
       .order('due_date', { ascending: true });
+    
+    // If not admin, only show own tasks
+    if (!isAdmin) {
+      query.eq('assignee_id', user.id);
+    }
 
     const { data, error } = await query;
     if (!error && data) {
-      let list = data as TaskRecord[];
+      let list = data as TaskWithAssignee[];
       const now = new Date();
       const todayStart = startOfDay(now);
       const todayEnd = endOfDay(now);
@@ -128,8 +138,12 @@ export default function Tasks() {
       <div className="space-y-8">
         <div className="animate-fade-in-up flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">My Tasks</h1>
-            <p className="text-muted-foreground mt-1.5">Track and manage your daily tasks</p>
+            <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
+              {isAdmin ? 'All Tasks' : 'My Tasks'}
+            </h1>
+            <p className="text-muted-foreground mt-1.5">
+              {isAdmin ? 'Track and manage all team tasks' : 'Track and manage your daily tasks'}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={() => setViewMode('list')} className={cn(viewMode === 'list' && 'bg-muted')}>
@@ -221,6 +235,7 @@ export default function Tasks() {
                         task={task}
                         onToggle={toggleTask}
                         onClick={() => { if (task.lead_id) navigate(`/leads/${task.lead_id}`); else { setDetailTask(task); setDetailOpen(true); } }}
+                        isAdmin={isAdmin}
                       />
                     ))
                   )}
@@ -245,6 +260,7 @@ export default function Tasks() {
                         task={task}
                         onToggle={toggleTask}
                         onClick={() => { if (task.lead_id) navigate(`/leads/${task.lead_id}`); else { setDetailTask(task); setDetailOpen(true); } }}
+                        isAdmin={isAdmin}
                       />
                     ))
                   )}
@@ -266,12 +282,13 @@ export default function Tasks() {
                   <p className="text-muted-foreground text-center py-8">No pending tasks. You're all caught up!</p>
                 ) : (
                   <div className="space-y-3">
-                    {                    pendingTasks.map((task) => (
+                    {pendingTasks.map((task) => (
                       <TaskItem
                         key={task.id}
                         task={task}
                         onToggle={toggleTask}
                         onClick={() => { if (task.lead_id) navigate(`/leads/${task.lead_id}`); else { setDetailTask(task); setDetailOpen(true); } }}
+                        isAdmin={isAdmin}
                       />
                     ))}
                   </div>
@@ -290,12 +307,13 @@ export default function Tasks() {
                   <p className="text-muted-foreground text-center py-8">No completed tasks yet.</p>
                 ) : (
                   <div className="space-y-3">
-                    {                    completedTasks.map((task) => (
+                    {completedTasks.map((task) => (
                       <TaskItem
                         key={task.id}
                         task={task}
                         onToggle={toggleTask}
                         onClick={() => { if (task.lead_id) navigate(`/leads/${task.lead_id}`); else { setDetailTask(task); setDetailOpen(true); } }}
+                        isAdmin={isAdmin}
                       />
                     ))}
                   </div>
@@ -327,11 +345,15 @@ function TaskItem({
   task,
   onToggle,
   onClick,
+  isAdmin,
 }: {
-  task: TaskRecord;
+  task: TaskWithAssignee;
   onToggle: (id: string, completed: boolean) => void;
   onClick: () => void;
+  isAdmin?: boolean;
 }) {
+  const isOverdue = task.due_date && !task.is_completed && isBefore(new Date(task.due_date), new Date());
+  
   return (
     <div
       className={cn(
@@ -347,7 +369,14 @@ function TaskItem({
         className="mt-1"
       />
       <div className="flex-1 min-w-0">
-        <p className={cn('font-medium', task.is_completed && 'line-through')}>{task.title}</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className={cn('font-medium', task.is_completed && 'line-through')}>{task.title}</p>
+          {isAdmin && task.assignee?.full_name && (
+            <Badge variant="outline" className="text-xs">
+              {task.assignee.full_name}
+            </Badge>
+          )}
+        </div>
         {task.lead_id && task.lead && (
           <Link
             to={`/leads/${task.lead_id}`}
@@ -357,13 +386,19 @@ function TaskItem({
             {task.lead.company_name}
           </Link>
         )}
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
           <Badge className={priorityColors[task.priority] ?? 'bg-muted'}>{task.priority}</Badge>
           {task.due_date && (
             <span className="text-xs text-muted-foreground flex items-center gap-1">
               <Calendar className="h-3 w-3" />
               {format(new Date(task.due_date), 'MMM d')}
             </span>
+          )}
+          {isOverdue && (
+            <Badge variant="destructive" className="text-xs gap-1">
+              <AlertCircle className="h-3 w-3" />
+              Overdue
+            </Badge>
           )}
         </div>
       </div>
@@ -375,11 +410,15 @@ function TaskCard({
   task,
   onToggle,
   onClick,
+  isAdmin,
 }: {
-  task: TaskRecord;
+  task: TaskWithAssignee;
   onToggle: (id: string, completed: boolean) => void;
   onClick: () => void;
+  isAdmin?: boolean;
 }) {
+  const isOverdue = task.due_date && !task.is_completed && isBefore(new Date(task.due_date), new Date());
+  
   return (
     <div
       className={cn(
@@ -395,7 +434,14 @@ function TaskCard({
           onClick={(e) => e.stopPropagation()}
         />
         <div className="flex-1 min-w-0">
-          <p className={cn('font-medium text-sm', task.is_completed && 'line-through')}>{task.title}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className={cn('font-medium text-sm', task.is_completed && 'line-through')}>{task.title}</p>
+            {isAdmin && task.assignee?.full_name && (
+              <Badge variant="outline" className="text-xs">
+                {task.assignee.full_name}
+              </Badge>
+            )}
+          </div>
           {task.lead_id && task.lead && (
             <Link
               to={`/leads/${task.lead_id}`}
@@ -405,10 +451,16 @@ function TaskCard({
               {task.lead.company_name}
             </Link>
           )}
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <Badge className={cn('text-xs', priorityColors[task.priority] ?? 'bg-muted')}>{task.priority}</Badge>
             {task.due_date && (
               <span className="text-xs text-muted-foreground">{format(new Date(task.due_date), 'MMM d')}</span>
+            )}
+            {isOverdue && (
+              <Badge variant="destructive" className="text-xs gap-1">
+                <AlertCircle className="h-3 w-3" />
+                Overdue
+              </Badge>
             )}
           </div>
         </div>
