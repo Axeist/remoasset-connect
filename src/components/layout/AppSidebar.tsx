@@ -29,7 +29,7 @@ const navItems = [
   { title: 'Leads', url: '/leads', icon: Users, roles: ['admin', 'employee'] },
   { title: 'My Tasks', url: '/tasks', icon: CheckSquare, roles: ['admin', 'employee'] },
   { title: 'Follow-ups', url: '/follow-ups', icon: CalendarCheck, roles: ['admin', 'employee'] },
-  { title: 'Team Activity', url: '/admin/team-activity', icon: Activity, roles: ['admin'] },
+  { title: 'Activity Monitor', url: '/admin/team-activity', icon: Activity, roles: ['admin', 'employee'] },
   { title: 'Notifications', url: '/notifications', icon: Bell, roles: ['admin', 'employee'] },
   { title: 'Reports', url: '/reports', icon: BarChart3, roles: ['admin', 'employee'] },
   { title: 'Help', url: '/help', icon: HelpCircle, roles: ['admin', 'employee'] },

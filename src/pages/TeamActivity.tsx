@@ -46,28 +46,26 @@ const priorityColors: Record<string, string> = {
 };
 
 export default function TeamActivity() {
-  const { user, isAdmin } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [followUps, setFollowUps] = useState<FollowUpWithDetails[]>([]);
   const [tasks, setTasks] = useState<TaskWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const isAdmin = role === 'admin';
 
   useEffect(() => {
-    if (!isAdmin) {
-      navigate('/dashboard');
-      return;
-    }
     if (user) {
       fetchData();
     }
-  }, [user, isAdmin, navigate]);
+  }, [user]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch all follow-ups
-      const { data: followUpsData, error: followUpsError } = await supabase
+      // Build queries based on admin status
+      const followUpsQuery = supabase
         .from('follow_ups')
         .select(`
           id,
@@ -82,12 +80,7 @@ export default function TeamActivity() {
         `)
         .order('scheduled_at', { ascending: true });
 
-      if (followUpsError) {
-        toast({ variant: 'destructive', title: 'Error fetching follow-ups', description: followUpsError.message });
-      }
-
-      // Fetch all tasks
-      const { data: tasksData, error: tasksError } = await supabase
+      const tasksQuery = supabase
         .from('tasks')
         .select(`
           id,
@@ -102,14 +95,29 @@ export default function TeamActivity() {
         `)
         .order('due_date', { ascending: true });
 
-      if (tasksError) {
-        toast({ variant: 'destructive', title: 'Error fetching tasks', description: tasksError.message });
+      // Filter by user if not admin
+      if (!isAdmin && user) {
+        followUpsQuery.eq('user_id', user.id);
+        tasksQuery.eq('assignee_id', user.id);
+      }
+
+      const [followUpsRes, tasksRes] = await Promise.all([
+        followUpsQuery,
+        tasksQuery
+      ]);
+
+      if (followUpsRes.error) {
+        toast({ variant: 'destructive', title: 'Error fetching follow-ups', description: followUpsRes.error.message });
+      }
+
+      if (tasksRes.error) {
+        toast({ variant: 'destructive', title: 'Error fetching tasks', description: tasksRes.error.message });
       }
 
       // Fetch user profiles
       const userIds = new Set<string>();
-      (followUpsData || []).forEach(f => userIds.add(f.user_id));
-      (tasksData || []).forEach(t => userIds.add(t.assignee_id));
+      (followUpsRes.data || []).forEach(f => userIds.add(f.user_id));
+      (tasksRes.data || []).forEach(t => userIds.add(t.assignee_id));
 
       const { data: profiles } = await supabase
         .from('profiles')
@@ -122,12 +130,12 @@ export default function TeamActivity() {
       }, {} as Record<string, { full_name: string }>);
 
       // Enrich data with profiles
-      const enrichedFollowUps = (followUpsData || []).map(f => ({
+      const enrichedFollowUps = (followUpsRes.data || []).map(f => ({
         ...f,
         profile: profileMap[f.user_id] || null
       }));
 
-      const enrichedTasks = (tasksData || []).map(t => ({
+      const enrichedTasks = (tasksRes.data || []).map(t => ({
         ...t,
         assignee: profileMap[t.assignee_id] || null
       }));
@@ -156,18 +164,97 @@ export default function TeamActivity() {
   const upcomingTasks = tasks.filter(t => (!t.due_date || !isBefore(new Date(t.due_date), now)) && !t.is_completed);
   const completedTasks = tasks.filter(t => t.is_completed);
 
+  // Calculate insights
+  const totalFollowUps = followUps.length;
+  const totalTasks = tasks.length;
+  const completionRate = totalTasks > 0 
+    ? Math.round((completedTasks.length / totalTasks) * 100) 
+    : 0;
+  const followUpCompletionRate = totalFollowUps > 0
+    ? Math.round((completedFollowUps.length / totalFollowUps) * 100)
+    : 0;
+
   return (
     <AppLayout>
       <div className="space-y-8">
         <div className="animate-fade-in-up">
-          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">Team Activity</h1>
-          <p className="text-muted-foreground mt-1.5">Monitor all team tasks and follow-ups</p>
+          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
+            {isAdmin ? 'Team Activity' : 'My Activity'}
+          </h1>
+          <p className="text-muted-foreground mt-1.5">
+            {isAdmin ? 'Monitor all team tasks and follow-ups' : 'Track your tasks and follow-ups'}
+          </p>
         </div>
 
         {loading ? (
           <Skeleton className="h-96 w-full" />
         ) : (
-          <Tabs defaultValue="follow-ups" className="space-y-6">
+          <>
+            {/* Key Insights */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-fade-in-up">
+              <Card className="card-shadow">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Overdue Follow-ups</p>
+                      <p className="text-2xl font-bold text-destructive mt-1">{overdueFollowUps.length}</p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
+                      <AlertCircle className="h-6 w-6 text-destructive" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="card-shadow">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Overdue Tasks</p>
+                      <p className="text-2xl font-bold text-destructive mt-1">{overdueTasks.length}</p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
+                      <AlertCircle className="h-6 w-6 text-destructive" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="card-shadow">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Task Completion</p>
+                      <p className="text-2xl font-bold text-primary mt-1">{completionRate}%</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {completedTasks.length} of {totalTasks}
+                      </p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <CheckSquare className="h-6 w-6 text-primary" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="card-shadow">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Follow-up Rate</p>
+                      <p className="text-2xl font-bold text-primary mt-1">{followUpCompletionRate}%</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {completedFollowUps.length} of {totalFollowUps}
+                      </p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Calendar className="h-6 w-6 text-primary" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            <Tabs defaultValue="follow-ups" className="space-y-6">
             <TabsList>
               <TabsTrigger value="follow-ups" className="gap-2">
                 <Calendar className="h-4 w-4" />
@@ -322,7 +409,8 @@ export default function TeamActivity() {
                 </CardContent>
               </Card>
             </TabsContent>
-          </Tabs>
+            </Tabs>
+          </>
         )}
       </div>
     </AppLayout>
