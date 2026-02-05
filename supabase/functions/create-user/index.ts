@@ -1,144 +1,119 @@
-// Supabase Edge Function: create-user
-// Only admins can call this. Creates a new user with email/password and assigns role.
-import { createClient } from 'supabase';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+}
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
-  try {
-    // Get environment variables
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Create Supabase admin client
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    {
       auth: {
         autoRefreshToken: false,
-        persistSession: false
+        persistSession: false,
+        detectSessionInUrl: false
       }
-    });
-
-    // Verify caller authorization
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
+  )
 
-    // Verify caller is admin
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  try {
+    // Get the authorization header from the request
+    const authHeader = req.headers.get('Authorization')!
     
-    if (authError || !caller) {
+    // Get the user from the auth header
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    )
+
+    if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      )
     }
 
-    // Check admin role
-    const { data: roleRow, error: roleCheckError } = await supabaseAdmin
+    // Check if caller is admin
+    const { data: callerRole } = await supabaseClient
       .from('user_roles')
       .select('role')
-      .eq('user_id', caller.id)
-      .single();
+      .eq('user_id', user.id)
+      .single()
 
-    if (roleCheckError || roleRow?.role !== 'admin') {
+    if (callerRole?.role !== 'admin') {
       return new Response(
-        JSON.stringify({ error: 'Admin access required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+        JSON.stringify({ error: 'Admin role required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+      )
     }
 
-    const body = await req.json();
-    const { email, password, full_name, role } = body as { email?: string; password?: string; full_name?: string; role?: string };
+    // Parse request body
+    const { email, password, full_name, role } = await req.json()
 
     if (!email || !password) {
       return new Response(
-        JSON.stringify({ error: 'email and password required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+        JSON.stringify({ error: 'Email and password are required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
     }
 
-    const newRole = role === 'admin' ? 'admin' : 'employee';
-
-    const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-      email,
-      password,
+    // Create new user with admin privileges
+    const { data: newUserData, error: createError } = await supabaseClient.auth.admin.createUser({
+      email: email,
+      password: password,
       email_confirm: true,
-      user_metadata: { full_name: full_name || '' },
-    });
+      user_metadata: {
+        full_name: full_name || ''
+      }
+    })
 
-    if (createError) {
+    if (createError || !newUserData.user) {
       return new Response(
-        JSON.stringify({ error: createError.message }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+        JSON.stringify({ error: createError?.message || 'Failed to create user' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
     }
 
-    // Check if role row exists, if not insert, otherwise update
-    const { data: existingRole } = await supabase
+    const newUserId = newUserData.user.id
+    const userRole = role === 'admin' ? 'admin' : 'employee'
+
+    // Insert or update user role
+    const { error: roleError } = await supabaseClient
       .from('user_roles')
-      .select('id')
-      .eq('user_id', newUser.user.id)
-      .maybeSingle();
-
-    let roleError;
-    if (existingRole) {
-      const { error } = await supabase
-        .from('user_roles')
-        .update({ role: newRole })
-        .eq('user_id', newUser.user.id);
-      roleError = error;
-    } else {
-      const { error } = await supabase
-        .from('user_roles')
-        .insert({ user_id: newUser.user.id, role: newRole });
-      roleError = error;
-    }
+      .upsert(
+        { user_id: newUserId, role: userRole },
+        { onConflict: 'user_id' }
+      )
 
     if (roleError) {
       return new Response(
         JSON.stringify({ error: 'User created but role assignment failed: ' + roleError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
     }
 
-    // Also create profile entry
-    await supabase
+    // Create profile
+    await supabaseClient
       .from('profiles')
-      .upsert({ 
-        user_id: newUser.user.id, 
-        full_name: full_name || null 
-      }, { 
-        onConflict: 'user_id' 
-      });
+      .upsert(
+        { user_id: newUserId, full_name: full_name || null },
+        { onConflict: 'user_id' }
+      )
 
     return new Response(
-      JSON.stringify({ success: true, user_id: newUser.user.id }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (e) {
+      JSON.stringify({ success: true, user_id: newUserId }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+    )
+
+  } catch (error) {
     return new Response(
-      JSON.stringify({ error: String(e) }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      JSON.stringify({ error: error.message || 'Internal server error' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    )
   }
-});
+})
