@@ -7,7 +7,7 @@ import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
 import { LeadImportDialog } from '@/components/leads/LeadImportDialog';
 import { BulkActionsDialog } from '@/components/leads/BulkActionsDialog';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Upload, UserPlus, Tag, Trash2 } from 'lucide-react';
+import { Plus, Download, Upload, UserPlus, Tag, Trash2, List } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { safeFormat } from '@/lib/date';
@@ -23,10 +23,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
-const PAGE_SIZE = 10;
 type SortField = 'company_name' | 'created_at' | 'lead_score' | 'contact_name';
 type SortOrder = 'asc' | 'desc';
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export default function Leads() {
   const { role } = useAuth();
@@ -41,6 +49,7 @@ export default function Leads() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [ownerOptions, setOwnerOptions] = useState<{ id: string; full_name: string | null }[]>([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [sortBy, setSortBy] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -80,7 +89,7 @@ export default function Leads() {
 
   useEffect(() => {
     fetchLeads();
-  }, [filters, page, sortBy, sortOrder]);
+  }, [filters, page, pageSize, sortBy, sortOrder]);
 
   const handleFiltersChange = (newFilters: LeadsFiltersState) => {
     setFilters(newFilters);
@@ -107,7 +116,7 @@ export default function Leads() {
         { count: 'exact' }
       )
       .order(sortBy, { ascending: sortOrder === 'asc' })
-      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+      .range((page - 1) * pageSize, page * pageSize - 1);
 
     if (filters.search) {
       query = query.or(`company_name.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
@@ -230,7 +239,32 @@ export default function Leads() {
         </div>
 
         {/* Filters */}
-        <LeadsFilters filters={filters} onFiltersChange={handleFiltersChange} ownerOptions={ownerOptions} />
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+          <div className="flex-1 w-full">
+            <LeadsFilters filters={filters} onFiltersChange={handleFiltersChange} ownerOptions={ownerOptions} />
+          </div>
+          <div className="flex items-center gap-2">
+            <List className="h-4 w-4 text-muted-foreground" />
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[120px] h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size} per page
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         {/* Bulk actions toolbar */}
         {selectedIds.size > 0 && (
@@ -271,7 +305,7 @@ export default function Leads() {
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           page={page}
-          pageSize={PAGE_SIZE}
+          pageSize={pageSize}
           totalCount={totalCount}
           onPageChange={setPage}
         />

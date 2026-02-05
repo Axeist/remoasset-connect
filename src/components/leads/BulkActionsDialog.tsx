@@ -57,7 +57,7 @@ export function BulkActionsDialog({
           .from('profiles')
           .select('user_id, full_name')
           .in('user_id', rolesRes.data.map((r) => r.user_id));
-        setOwners(profiles ?? []);
+        setOwners((profiles ?? []).map(p => ({ id: p.user_id, full_name: p.full_name })));
       }
     })();
   }, [open]);
@@ -86,6 +86,10 @@ export function BulkActionsDialog({
     }
     if (action === 'owner' && selectedOwnerId) {
       const { data: leadsData } = await supabase.from('leads').select('company_name').in('id', leadIds);
+      const { data: userData } = await supabase.auth.getUser();
+      const newOwnerName = owners.find(o => o.id === selectedOwnerId)?.full_name || 'Unknown';
+      
+      // Send notification
       await supabase.from('notifications').insert({
         user_id: selectedOwnerId,
         title: 'Leads assigned to you',
@@ -94,6 +98,17 @@ export function BulkActionsDialog({
           : `${leadIds.length} leads have been assigned to you.`,
         type: 'lead',
       });
+      
+      // Log activity for each lead
+      if (userData.user) {
+        const activities = leadIds.map(leadId => ({
+          lead_id: leadId,
+          user_id: userData.user.id,
+          activity_type: 'note',
+          description: `Lead reassigned to ${newOwnerName} via bulk action`,
+        }));
+        await supabase.from('lead_activities').insert(activities);
+      }
     }
     setSubmitting(false);
     toast({ title: 'Updated', description: `${leadIds.length} lead(s) updated.` });
