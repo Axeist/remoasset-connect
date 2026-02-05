@@ -13,12 +13,14 @@ import {
   LogOut,
   Settings,
   Shield,
+  Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Badge } from '@/components/ui/badge';
 
 const navItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'employee'] },
@@ -41,6 +43,7 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
   const location = useLocation();
   const { role, signOut, user } = useAuth();
   const filteredNav = navItems.filter((item) => item.roles.includes(role || 'employee'));
+  const isAdmin = role === 'admin';
 
   return (
     <>
@@ -54,35 +57,53 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
               to={item.url}
               onClick={onNavigate}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
+                'flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200',
                 isActive
                   ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg'
-                  : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                  : 'text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-foreground'
               )}
             >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
+              <span
+                className={cn(
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors',
+                  isActive ? 'bg-white/20' : 'bg-sidebar-accent/50'
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+              </span>
               {!collapsed && <span className="font-medium">{item.title}</span>}
             </NavLink>
           );
         })}
       </nav>
-      <div className="p-4 border-t border-sidebar-border">
+      <div className="p-3 border-t border-sidebar-border">
         {!collapsed && user && (
-          <div className="mb-3 px-2">
-            <p className="text-sm font-medium truncate">{user.email}</p>
-            <p className="text-xs text-sidebar-foreground/60 capitalize">{role}</p>
+          <div className="mb-3 rounded-xl bg-sidebar-accent/60 p-3 border border-sidebar-border/50">
+            <div className="flex items-center gap-2 text-sidebar-foreground/90 mb-2">
+              <Mail className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
+              <p className="text-sm font-medium truncate">{user.email}</p>
+            </div>
+            <Badge
+              variant={isAdmin ? 'default' : 'secondary'}
+              className={cn(
+                'w-fit text-xs font-medium capitalize',
+                isAdmin && 'bg-sidebar-primary text-sidebar-primary-foreground border-0'
+              )}
+            >
+              {role ?? 'Employee'}
+            </Badge>
           </div>
         )}
         <Button
           variant="ghost"
           onClick={signOut}
           className={cn(
-            'w-full text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground',
-            collapsed ? 'px-0 justify-center' : 'justify-start'
+            'w-full rounded-xl text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium transition-all duration-200',
+            collapsed ? 'px-0 justify-center h-10' : 'justify-start gap-2 h-10'
           )}
         >
-          <LogOut className="h-5 w-5" />
-          {!collapsed && <span className="ml-3">Sign Out</span>}
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && <span>Sign Out</span>}
         </Button>
       </div>
     </>
@@ -103,7 +124,7 @@ export function AppSidebar({
     return (
       <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
         <SheetContent side="left" className="w-64 p-0 bg-sidebar text-sidebar-foreground border-sidebar-border">
-          <div className="h-16 flex items-center px-4 border-b border-sidebar-border">
+          <div className="h-16 flex items-center px-4 border-b border-sidebar-border bg-sidebar-accent/20">
             <img src="/logo.png" alt="RemoAsset" className="h-8 w-auto object-contain" />
           </div>
           <SidebarNav onNavigate={() => onMobileOpenChange?.(false)} />
@@ -119,7 +140,7 @@ export function AppSidebar({
         collapsed ? 'w-16' : 'w-64'
       )}
     >
-      <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
+      <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border bg-sidebar-accent/10">
         {collapsed ? (
           <img src="/favicon.png" alt="RemoAsset" className="h-8 w-8 object-contain flex-shrink-0" />
         ) : (
@@ -129,7 +150,7 @@ export function AppSidebar({
           variant="ghost"
           size="icon"
           onClick={() => setCollapsed(!collapsed)}
-          className="text-sidebar-foreground hover:bg-sidebar-accent"
+          className="text-sidebar-foreground hover:bg-sidebar-accent rounded-lg transition-colors"
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>

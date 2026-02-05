@@ -42,15 +42,18 @@ export default function Dashboard() {
 
   return (
     <AppLayout>
-      <div className="space-y-8">
-        {/* Header */}
-        <div className="animate-fade-in-up">
-          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
-            {isAdmin ? 'Admin Dashboard' : 'My Dashboard'}
-          </h1>
-          <p className="text-muted-foreground mt-1.5">
-            {isAdmin ? 'Overview of all team activities and leads' : 'Your personal performance overview'}
-          </p>
+      <div className="space-y-8 relative">
+        {/* Header with subtle gradient glow (login theme) */}
+        <div className="relative rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm px-6 py-5 animate-fade-in-up">
+          <div className="absolute inset-0 rounded-2xl bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,hsl(var(--primary)/0.08),transparent)] pointer-events-none" />
+          <div className="relative">
+            <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
+              {isAdmin ? 'Admin Dashboard' : 'My Dashboard'}
+            </h1>
+            <p className="text-muted-foreground mt-1.5">
+              {isAdmin ? 'Overview of all team activities and leads' : 'Your personal performance overview'}
+            </p>
+          </div>
         </div>
 
         {/* KPI Cards */}
@@ -88,9 +91,9 @@ export default function Dashboard() {
         {/* Employee: Upcoming Tasks & Reminders + My Hot Leads */}
         {!isAdmin && (
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
+            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover animate-fade-in-up animate-fade-in-up-delay-4">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 font-display">
                   <Calendar className="h-5 w-5" />
                   Upcoming Tasks & Reminders
                 </CardTitle>
@@ -130,9 +133,9 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
-            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
+            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover animate-fade-in-up animate-fade-in-up-delay-5">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 font-display">
                   <Flame className="h-5 w-5 text-orange-500" />
                   My Hot Leads
                 </CardTitle>
@@ -166,9 +169,9 @@ export default function Dashboard() {
 
         {/* Admin: Quick Access leads table */}
         {isAdmin && (
-          <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
+          <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover animate-fade-in-up animate-fade-in-up-delay-4">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Quick Access — Leads</CardTitle>
+              <CardTitle className="font-display">Quick Access — Leads</CardTitle>
               <Button variant="outline" size="sm" asChild>
                 <Link to="/leads" className="gap-1">
                   View all
