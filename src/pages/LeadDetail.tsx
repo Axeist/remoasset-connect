@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
 import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
+import { AddFollowUpDialog } from '@/components/leads/AddFollowUpDialog';
+import { UploadDocumentDialog } from '@/components/leads/UploadDocumentDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
 import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -216,8 +218,8 @@ export default function LeadDetail() {
             <TabsTrigger value="activity">Activity</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="followups">Follow-ups</TabsTrigger>
-            <TabsTrigger value="notes">Notes</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
+            <TabsTrigger value="notes">Notes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-6">
@@ -362,6 +364,10 @@ export default function LeadDetail() {
             <LeadFollowUpsTab leadId={id!} followUps={followUps} onRefresh={fetchFollowUps} onActivityLogged={fetchActivities} />
           </TabsContent>
 
+          <TabsContent value="documents" className="mt-6">
+            <LeadDocumentsTab leadId={id!} />
+          </TabsContent>
+
           <TabsContent value="notes" className="mt-6">
             <Card className="card-shadow">
               <CardHeader>
@@ -376,10 +382,6 @@ export default function LeadDetail() {
                 </p>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="documents" className="mt-6">
-            <LeadDocumentsTab leadId={id!} />
           </TabsContent>
         </Tabs>
 
@@ -667,11 +669,7 @@ function LeadFollowUpsTab({
   onActivityLogged?: () => void;
 }) {
   const { user } = useAuth();
-  const { toast } = useToast();
-  const [scheduledAt, setScheduledAt] = useState('');
-  const [reminderType, setReminderType] = useState<'one-time' | 'recurring'>('one-time');
-  const [notes, setNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   const upcoming = followUps.filter((f) => !f.is_completed);
   const past = followUps.filter((f) => f.is_completed);
@@ -691,85 +689,18 @@ function LeadFollowUpsTab({
     onRefresh();
   };
 
-  const scheduleFollowUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!scheduledAt) {
-      toast({ variant: 'destructive', title: 'Select date and time' });
-      return;
-    }
-    setSubmitting(true);
-    const scheduledDate = new Date(scheduledAt);
-    const { error } = await supabase.from('follow_ups').insert({
-      lead_id: leadId,
-      user_id: user!.id,
-      scheduled_at: scheduledDate.toISOString(),
-      reminder_type: reminderType,
-      notes: notes.trim() || null,
-    });
-    setSubmitting(false);
-    if (error) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
-      return;
-    }
-    if (user?.id) {
-      await supabase.from('lead_activities').insert({
-        lead_id: leadId,
-        user_id: user.id,
-        activity_type: 'note',
-        description: `Follow-up scheduled for ${safeFormat(scheduledDate.toISOString(), 'PPp')}${notes.trim() ? `: ${notes.trim()}` : ''}`,
-      });
-      onActivityLogged?.();
-    }
-    toast({ title: 'Follow-up scheduled' });
-    setScheduledAt('');
-    setNotes('');
-    onRefresh();
-  };
-
   return (
     <Card className="card-shadow">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Follow-ups</CardTitle>
-        <form onSubmit={scheduleFollowUp} className="flex flex-wrap items-end gap-2">
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Date & time</label>
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Type</label>
-            <select
-              value={reminderType}
-              onChange={(e) => setReminderType(e.target.value as 'one-time' | 'recurring')}
-              className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-            >
-              <option value="one-time">One-time</option>
-              <option value="recurring">Recurring</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Notes</label>
-            <input
-              type="text"
-              placeholder="Notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm min-w-[120px]"
-            />
-          </div>
-          <Button type="submit" size="sm" disabled={!scheduledAt || submitting}>
-            Schedule
-          </Button>
-        </form>
+        <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+          Schedule follow-up
+        </Button>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           {followUps.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No follow-ups scheduled. Use the form above to add one.</p>
+            <p className="text-muted-foreground text-sm">No follow-ups scheduled. Schedule one using the button above.</p>
           ) : (
             <>
               {upcoming.map((f) => (
@@ -796,6 +727,15 @@ function LeadFollowUpsTab({
           )}
         </div>
       </CardContent>
+      <AddFollowUpDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        leadId={leadId}
+        onSuccess={() => {
+          onRefresh();
+          onActivityLogged?.();
+        }}
+      />
     </Card>
   );
 }
@@ -819,14 +759,10 @@ const DOCUMENT_TYPE_OPTIONS = [
 ] as const;
 
 function LeadDocumentsTab({ leadId }: { leadId: string }) {
-  const { user } = useAuth();
   const { toast } = useToast();
   const [documents, setDocuments] = useState<LeadDocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [docType, setDocType] = useState<'nda' | 'pricing' | 'custom'>('nda');
-  const [customName, setCustomName] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 
   const fetchDocuments = async () => {
     const { data, error } = await supabase
@@ -847,44 +783,6 @@ function LeadDocumentsTab({ leadId }: { leadId: string }) {
     fetchDocuments();
   }, [leadId]);
 
-  const handleUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file || !user) return;
-    if (docType === 'custom' && !customName.trim()) {
-      toast({ variant: 'destructive', title: 'Name required', description: 'Enter a name for the custom document.' });
-      return;
-    }
-    setUploading(true);
-    const ext = file.name.split('.').pop() ?? '';
-    const path = `${leadId}/${crypto.randomUUID()}.${ext}`;
-    const { error: uploadError } = await supabase.storage.from('lead-documents').upload(path, file, { upsert: false });
-    if (uploadError) {
-      toast({ variant: 'destructive', title: 'Upload failed', description: uploadError.message });
-      setUploading(false);
-      return;
-    }
-    const { error: insertError } = await supabase.from('lead_documents').insert({
-      lead_id: leadId,
-      document_type: docType,
-      custom_name: docType === 'custom' ? customName.trim() : null,
-      file_path: path,
-      file_name: file.name,
-      file_size: file.size,
-      uploaded_by: user.id,
-    });
-    if (insertError) {
-      toast({ variant: 'destructive', title: 'Error', description: insertError.message });
-      setUploading(false);
-      return;
-    }
-    toast({ title: 'Document uploaded' });
-    setFile(null);
-    setCustomName('');
-    setDocType('nda');
-    fetchDocuments();
-    setUploading(false);
-  };
-
   const handleView = async (doc: LeadDocumentRow) => {
     const { data, error } = await supabase.storage.from('lead-documents').createSignedUrl(doc.file_path, 60);
     if (error) {
@@ -901,48 +799,20 @@ function LeadDocumentsTab({ leadId }: { leadId: string }) {
 
   return (
     <Card className="card-shadow">
-      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
           <FileUp className="h-5 w-5" />
           Documents
         </CardTitle>
-        <form onSubmit={handleUpload} className="flex flex-wrap items-end gap-2">
-          <select
-            value={docType}
-            onChange={(e) => setDocType(e.target.value as 'nda' | 'pricing' | 'custom')}
-            className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-          >
-            {DOCUMENT_TYPE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          {docType === 'custom' && (
-            <input
-              type="text"
-              placeholder="Document name"
-              value={customName}
-              onChange={(e) => setCustomName(e.target.value)}
-              className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm min-w-[140px]"
-            />
-          )}
-          <input
-            type="file"
-            accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="text-sm file:mr-2 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground"
-          />
-          <Button type="submit" size="sm" disabled={!file || uploading}>
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Upload'}
-          </Button>
-        </form>
+        <Button size="sm" onClick={() => setUploadDialogOpen(true)}>
+          Upload document
+        </Button>
       </CardHeader>
       <CardContent>
         {loading ? (
           <p className="text-muted-foreground text-sm">Loading documents...</p>
         ) : documents.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No documents yet. Upload an NDA, Pricing, or custom document above.</p>
+          <p className="text-muted-foreground text-sm">No documents yet. Upload an NDA, Pricing, or custom document using the button above.</p>
         ) : (
           <ul className="divide-y divide-border">
             {documents.map((doc) => (
@@ -965,6 +835,12 @@ function LeadDocumentsTab({ leadId }: { leadId: string }) {
           </ul>
         )}
       </CardContent>
+      <UploadDocumentDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        leadId={leadId}
+        onSuccess={fetchDocuments}
+      />
     </Card>
   );
 }
