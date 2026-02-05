@@ -13,6 +13,10 @@ import LeadDetail from "./pages/LeadDetail";
 import Tasks from "./pages/Tasks";
 import Admin from "./pages/Admin";
 import Settings from "./pages/Settings";
+import Notifications from "./pages/Notifications";
+import Reports from "./pages/Reports";
+import Help from "./pages/Help";
+import FollowUps from "./pages/FollowUps";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +37,10 @@ const App = () => (
             <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
             <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+            <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
+            <Route path="/follow-ups" element={<ProtectedRoute><FollowUps /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
