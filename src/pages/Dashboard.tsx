@@ -70,8 +70,8 @@ export default function Dashboard() {
         </div>
 
         {/* Charts & Activity */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 animate-fade-in-up animate-fade-in-up-delay-2">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="animate-fade-in-up animate-fade-in-up-delay-2">
             <LeadsChart
               isAdmin={isAdmin}
               statusData={statusData}

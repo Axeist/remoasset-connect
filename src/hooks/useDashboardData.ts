@@ -36,6 +36,7 @@ export interface RecentActivityItem {
   user: string;
   time: string;
   leadName?: string;
+  leadId?: string;
 }
 
 export interface UpcomingTaskItem {
@@ -257,6 +258,7 @@ export function useDashboardData() {
           user: profileMap[a.user_id] ?? 'Unknown',
           time: formatDistanceToNowShort(new Date(a.created_at)),
           leadName: leadMap[a.lead_id],
+          leadId: a.lead_id,
         }));
         setRecentActivities(items);
       } else {

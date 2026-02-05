@@ -1,5 +1,7 @@
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Phone, Mail, Calendar, FileText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Phone, Mail, Calendar, FileText, ExternalLink } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { RecentActivityItem } from '@/hooks/useDashboardData';
@@ -46,7 +48,7 @@ export function RecentActivity({ activities = [], loading = false }: RecentActiv
                 const colorClass = colorMap[activity.type as keyof typeof colorMap] ?? 'bg-muted text-muted-foreground';
                 return (
                   <div key={activity.id} className="flex items-start gap-3">
-                    <div className={cn('p-2 rounded-lg', colorClass)}>
+                    <div className={cn('p-2 rounded-lg shrink-0', colorClass)}>
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -56,6 +58,14 @@ export function RecentActivity({ activities = [], loading = false }: RecentActiv
                         {activity.leadName && ` • ${activity.leadName}`}
                       </p>
                     </div>
+                    {activity.leadId && (
+                      <Button variant="ghost" size="sm" className="shrink-0 gap-1" asChild>
+                        <Link to={`/leads/${activity.leadId}`}>
+                          View
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 );
               })
