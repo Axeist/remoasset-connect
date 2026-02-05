@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { parseCsv, normalizeHeader } from '@/lib/csv';
-import { Loader2, Upload, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { Loader2, Upload, FileSpreadsheet, AlertCircle, Download } from 'lucide-react';
 import type { LeadStatusOption, CountryOption } from '@/types/lead';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -214,8 +214,16 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
             <FileSpreadsheet className="h-5 w-5" />
             Import leads from CSV
           </DialogTitle>
-          <DialogDescription>
-            Upload a CSV with columns like Vendor Name, Country, Website, Contact Mail, Contact Number, Status, and Notes. Headers can match the sample file.
+          <DialogDescription className="space-y-2">
+            <span className="block">Upload a CSV with columns like Vendor Name, Country, Website, Contact Mail, Contact Number, Status, and Notes.</span>
+            <a
+              href="/leads-import-sample.csv"
+              download="leads-import-sample.csv"
+              className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium"
+            >
+              <Download className="h-4 w-4" />
+              Download sample CSV
+            </a>
           </DialogDescription>
         </DialogHeader>
 
