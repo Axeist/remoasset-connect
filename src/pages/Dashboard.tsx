@@ -42,13 +42,13 @@ export default function Dashboard() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-8">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">
+        <div className="animate-fade-in-up">
+          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
             {isAdmin ? 'Admin Dashboard' : 'My Dashboard'}
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1.5">
             {isAdmin ? 'Overview of all team activities and leads' : 'Your personal performance overview'}
           </p>
         </div>
@@ -59,14 +59,19 @@ export default function Dashboard() {
             ? Array.from({ length: 4 }).map((_, i) => (
                 <Skeleton key={i} className="h-32 rounded-xl" />
               ))
-            : kpiCards.map((kpi) => (
-                <KPICard key={kpi.title} {...kpi} />
+            : kpiCards.map((kpi, i) => (
+                <div
+                  key={kpi.title}
+                  className={`animate-fade-in-up opacity-0 ${i === 0 ? 'animate-fade-in-up-delay-1' : i === 1 ? 'animate-fade-in-up-delay-2' : i === 2 ? 'animate-fade-in-up-delay-3' : 'animate-fade-in-up-delay-4'}`}
+                >
+                  <KPICard {...kpi} />
+                </div>
               ))}
         </div>
 
         {/* Charts & Activity */}
         <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 animate-fade-in-up animate-fade-in-up-delay-2">
             <LeadsChart
               isAdmin={isAdmin}
               statusData={statusData}
@@ -75,7 +80,7 @@ export default function Dashboard() {
               loading={loading}
             />
           </div>
-          <div>
+          <div className="animate-fade-in-up animate-fade-in-up-delay-3">
             <RecentActivity activities={recentActivities} loading={loading} />
           </div>
         </div>
@@ -83,7 +88,7 @@ export default function Dashboard() {
         {/* Employee: Upcoming Tasks & Reminders + My Hot Leads */}
         {!isAdmin && (
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="card-shadow">
+            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
@@ -111,7 +116,7 @@ export default function Dashboard() {
                       <li key={f.id} className="flex items-center justify-between text-sm">
                         <span className="flex items-center gap-1.5 truncate flex-1">
                           <Bell className="h-4 w-4 text-muted-foreground" />
-                          <Link to="/tasks" className="font-medium hover:underline">
+                          <Link to="/follow-ups" className="font-medium hover:underline">
                             Follow-up
                           </Link>
                           {f.notes && <span className="text-muted-foreground truncate">— {f.notes}</span>}
@@ -125,7 +130,7 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
-            <Card className="card-shadow">
+            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Flame className="h-5 w-5 text-orange-500" />
@@ -161,7 +166,7 @@ export default function Dashboard() {
 
         {/* Admin: Quick Access leads table */}
         {isAdmin && (
-          <Card className="card-shadow">
+          <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Quick Access — Leads</CardTitle>
               <Button variant="outline" size="sm" asChild>

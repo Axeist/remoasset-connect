@@ -27,7 +27,7 @@ export function LeadsChart({
   const hasCountry = countryData.length > 0;
 
   return (
-    <Card className="card-shadow">
+    <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
       <CardHeader>
         <CardTitle className="font-display">Lead Analytics</CardTitle>
       </CardHeader>

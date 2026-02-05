@@ -151,4 +151,37 @@
   .card-shadow-lg {
     box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.5s ease-out forwards;
+  }
+  .animate-fade-in-up-delay-1 { animation-delay: 0.1s; }
+  .animate-fade-in-up-delay-2 { animation-delay: 0.15s; }
+  .animate-fade-in-up-delay-3 { animation-delay: 0.2s; }
+  .animate-fade-in-up-delay-4 { animation-delay: 0.25s; }
+  .animate-fade-in-up-delay-5 { animation-delay: 0.3s; }
+  .animate-fade-in-up-delay-6 { animation-delay: 0.35s; }
+  .animate-fade-in-up-delay-7 { animation-delay: 0.4s; }
+
+  .animate-inner-card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .animate-inner-card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.08), 0 2px 4px rgb(0 0 0 / 0.04);
+  }
+  .dark .animate-inner-card-hover:hover {
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.2);
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

@@ -23,7 +23,7 @@ export function KPICard({ title, value, change, icon: Icon, variant }: KPICardPr
 
   return (
     <div className={cn(
-      "relative overflow-hidden rounded-xl p-6 text-white card-shadow-lg",
+      "relative overflow-hidden rounded-xl p-6 text-white card-shadow-lg transition-transform duration-200 hover:scale-[1.02]",
       variantStyles[variant]
     )}>
       {/* Background decoration */}

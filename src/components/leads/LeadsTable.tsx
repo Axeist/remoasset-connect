@@ -106,7 +106,7 @@ export function LeadsTable({
   }
 
   return (
-    <Card className="card-shadow overflow-hidden">
+    <Card className="card-shadow overflow-hidden rounded-xl border-border/80">
       <CardContent className="p-0">
         <Table>
           <TableHeader>
