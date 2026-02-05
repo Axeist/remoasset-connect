@@ -144,12 +144,22 @@ export function AppSidebar({
   if (isMobile) {
     return (
       <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
-        <SheetContent side="left" className="w-72 p-0 bg-sidebar text-sidebar-foreground border-sidebar-border">
-          <div className="px-4 py-4 border-b border-sidebar-border/50 bg-gradient-to-br from-sidebar-accent/15 to-sidebar-accent/5">
-            <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain mb-1.5" />
-            <p className="text-xs text-sidebar-foreground/70 font-serif font-semibold tracking-wider leading-tight">
-              Vendor Resource Management
-            </p>
+        <SheetContent side="left" className="w-[270px] p-0 bg-sidebar text-sidebar-foreground border-sidebar-border">
+          <div className="relative px-4 py-5 border-b border-sidebar-border/40 overflow-hidden">
+            {/* Decorative background elements */}
+            <div className="absolute inset-0 bg-gradient-to-br from-sidebar-primary/5 via-transparent to-sidebar-accent/5" />
+            <div className="absolute -top-10 -right-10 w-32 h-32 bg-sidebar-primary/5 rounded-full blur-2xl" />
+            <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-sidebar-accent/5 rounded-full blur-2xl" />
+            
+            <div className="relative z-10">
+              <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
+              <div className="flex items-center gap-1.5">
+                <div className="h-[1px] w-6 bg-gradient-to-r from-sidebar-primary/40 to-transparent" />
+                <p className="text-[11px] text-sidebar-foreground/80 font-serif italic font-medium tracking-widest uppercase">
+                  Vendor Resource Management
+                </p>
+              </div>
+            </div>
           </div>
           <SidebarNav onNavigate={() => onMobileOpenChange?.(false)} />
         </SheetContent>
@@ -160,26 +170,34 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        'h-screen bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-300 sticky top-0',
-        collapsed ? 'w-16' : 'w-72'
+        'h-screen bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-300 sticky top-0 border-r border-sidebar-border/30',
+        collapsed ? 'w-16' : 'w-[270px]'
       )}
     >
-      <div className="flex items-center justify-between px-4 py-4 border-b border-sidebar-border/50 bg-gradient-to-br from-sidebar-accent/15 to-sidebar-accent/5">
+      <div className="relative flex items-center justify-between px-4 py-5 border-b border-sidebar-border/40 overflow-hidden">
+        {/* Decorative background elements */}
+        <div className="absolute inset-0 bg-gradient-to-br from-sidebar-primary/5 via-transparent to-sidebar-accent/5" />
+        <div className="absolute -top-10 -right-10 w-32 h-32 bg-sidebar-primary/5 rounded-full blur-2xl" />
+        <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-sidebar-accent/5 rounded-full blur-2xl" />
+        
         {collapsed ? (
-          <img src="/favicon.png" alt="RemoAsset" className="h-9 w-9 object-contain flex-shrink-0" />
+          <img src="/favicon.png" alt="RemoAsset" className="h-9 w-9 object-contain flex-shrink-0 relative z-10" />
         ) : (
-          <div className="flex-1 min-w-0">
-            <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain mb-1.5" />
-            <p className="text-xs text-sidebar-foreground/70 font-serif font-semibold tracking-wider leading-tight">
-              Vendor Resource Management
-            </p>
+          <div className="flex-1 min-w-0 relative z-10">
+            <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
+            <div className="flex items-center gap-1.5">
+              <div className="h-[1px] w-6 bg-gradient-to-r from-sidebar-primary/40 to-transparent" />
+              <p className="text-[11px] text-sidebar-foreground/80 font-serif italic font-medium tracking-widest uppercase">
+                Vendor Resource Management
+              </p>
+            </div>
           </div>
         )}
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setCollapsed(!collapsed)}
-          className="h-7 w-7 shrink-0 text-sidebar-foreground hover:bg-sidebar-accent/50 rounded-md transition-colors"
+          className="h-7 w-7 shrink-0 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 rounded-md transition-all relative z-10"
         >
           {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
         </Button>
