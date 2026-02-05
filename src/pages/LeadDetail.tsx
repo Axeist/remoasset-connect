@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
+import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
-import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2 } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
@@ -15,7 +16,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { safeFormat } from '@/lib/date';
-import { getActivityScorePoints, clampLeadScore } from '@/lib/leadScore';
 
 const activityTypeConfig = {
   call: { icon: Phone, label: 'Call', color: 'bg-primary/10 text-primary' },
@@ -31,6 +31,7 @@ interface LeadActivity {
   created_at: string;
   user_id: string;
   profile?: { full_name: string | null };
+  attachments?: { type: 'url' | 'file'; url: string; name?: string }[];
 }
 
 interface LeadTask {
@@ -104,7 +105,7 @@ export default function LeadDetail() {
     if (!id) return;
     const { data } = await supabase
       .from('lead_activities')
-      .select('id, activity_type, description, created_at, user_id')
+      .select('id, activity_type, description, created_at, user_id, attachments')
       .eq('lead_id', id)
       .order('created_at', { ascending: false });
     if (data?.length) {
@@ -405,64 +406,15 @@ function LeadActivityTab({
   onRefresh: () => void;
   onLeadUpdated: () => void;
 }) {
-  const [type, setType] = useState<'call' | 'email' | 'meeting' | 'note'>('call');
-  const [description, setDescription] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const { user } = useAuth();
-  const { toast } = useToast();
-
-  const addActivity = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!description.trim()) return;
-    setSubmitting(true);
-    const desc = description.trim();
-    const { error } = await supabase.from('lead_activities').insert({
-      lead_id: leadId,
-      user_id: user!.id,
-      activity_type: type,
-      description: desc,
-    });
-    if (error) {
-      setSubmitting(false);
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
-      return;
-    }
-    const points = getActivityScorePoints(type, desc);
-    const newScore = clampLeadScore(currentLeadScore + points);
-    await supabase.from('leads').update({ lead_score: newScore }).eq('id', leadId);
-    setSubmitting(false);
-    setDescription('');
-    toast({ title: 'Activity added', description: points > 0 ? `Lead score +${points} (now ${newScore})` : undefined });
-    onRefresh();
-    onLeadUpdated();
-  };
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   return (
     <Card className="card-shadow">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Activity log</CardTitle>
-        <form onSubmit={addActivity} className="flex flex-wrap items-center gap-2">
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as typeof type)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <option value="call">Call</option>
-            <option value="email">Email</option>
-            <option value="meeting">Meeting</option>
-            <option value="note">Note</option>
-          </select>
-          <input
-            type="text"
-            placeholder="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[200px]"
-          />
-          <Button type="submit" size="sm" disabled={!description.trim() || submitting}>
-            Add
-          </Button>
-        </form>
+        <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+          Add activity
+        </Button>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -472,9 +424,10 @@ function LeadActivityTab({
             activities.map((a) => {
               const config = activityTypeConfig[a.activity_type as keyof typeof activityTypeConfig] ?? activityTypeConfig.note;
               const Icon = config.icon;
+              const attachments = (a.attachments ?? []) as { type: 'url' | 'file'; url: string; name?: string }[];
               return (
                 <div key={a.id} className="flex items-start gap-3">
-                  <div className={cn('p-2 rounded-lg', config.color)}>
+                  <div className={cn('p-2 rounded-lg shrink-0', config.color)}>
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -482,6 +435,28 @@ function LeadActivityTab({
                     <p className="text-xs text-muted-foreground">
                       {a.profile?.full_name ?? 'Unknown'} • {safeFormat(a.created_at, 'PPp')}
                     </p>
+                    {attachments.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {attachments.map((att, i) => {
+                          let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
+                          if (att.type === 'url' && !att.name) {
+                            try { label = new URL(att.url).hostname; } catch { /* keep Link */ }
+                          }
+                          return (
+                            <a
+                              key={i}
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                            >
+                              {att.type === 'file' ? <Paperclip className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
+                              {label}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -489,6 +464,16 @@ function LeadActivityTab({
           )}
         </div>
       </CardContent>
+      <AddActivityDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        leadId={leadId}
+        currentLeadScore={currentLeadScore}
+        onSuccess={() => {
+          onRefresh();
+          onLeadUpdated();
+        }}
+      />
     </Card>
   );
 }

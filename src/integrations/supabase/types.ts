@@ -79,6 +79,7 @@ export type Database = {
       lead_activities: {
         Row: {
           activity_type: string
+          attachments: Json
           created_at: string
           description: string
           id: string
@@ -87,6 +88,7 @@ export type Database = {
         }
         Insert: {
           activity_type: string
+          attachments?: Json
           created_at?: string
           description: string
           id?: string
@@ -95,6 +97,7 @@ export type Database = {
         }
         Update: {
           activity_type?: string
+          attachments?: Json
           created_at?: string
           description?: string
           id?: string
