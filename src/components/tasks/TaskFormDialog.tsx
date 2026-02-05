@@ -153,6 +153,14 @@ export function TaskFormDialog({
         toast({ variant: 'destructive', title: 'Error', description: error.message });
         return;
       }
+      if (payload.lead_id && user?.id) {
+        await supabase.from('lead_activities').insert({
+          lead_id: payload.lead_id,
+          user_id: user.id,
+          activity_type: 'note',
+          description: `Task created: ${payload.title}`,
+        });
+      }
       toast({ title: 'Task created' });
     }
     onOpenChange(false);

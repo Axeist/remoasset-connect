@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
 import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
-import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
@@ -342,6 +342,7 @@ export default function LeadDetail() {
               activities={activities}
               onRefresh={fetchActivities}
               onLeadUpdated={fetchLead}
+              isAdmin={isAdmin}
             />
           </TabsContent>
 
@@ -351,12 +352,13 @@ export default function LeadDetail() {
               leadName={lead.company_name}
               tasks={tasks}
               onRefresh={fetchTasks}
+              onActivityLogged={fetchActivities}
               onAddTask={() => setTaskFormOpen(true)}
             />
           </TabsContent>
 
           <TabsContent value="followups" className="mt-6">
-            <LeadFollowUpsTab leadId={id!} followUps={followUps} onRefresh={fetchFollowUps} />
+            <LeadFollowUpsTab leadId={id!} followUps={followUps} onRefresh={fetchFollowUps} onActivityLogged={fetchActivities} />
           </TabsContent>
 
           <TabsContent value="notes" className="mt-6">
@@ -386,7 +388,10 @@ export default function LeadDetail() {
           open={taskFormOpen}
           onOpenChange={setTaskFormOpen}
           defaultLeadId={id}
-          onSuccess={fetchTasks}
+          onSuccess={() => {
+            fetchTasks();
+            fetchActivities();
+          }}
         />
       </div>
     </AppLayout>
@@ -399,14 +404,27 @@ function LeadActivityTab({
   activities,
   onRefresh,
   onLeadUpdated,
+  isAdmin,
 }: {
   leadId: string;
   currentLeadScore: number;
   activities: LeadActivity[];
   onRefresh: () => void;
   onLeadUpdated: () => void;
+  isAdmin?: boolean;
 }) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const { toast } = useToast();
+
+  const handleDeleteActivity = async (activityId: string) => {
+    const { error } = await supabase.from('lead_activities').delete().eq('id', activityId);
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      return;
+    }
+    toast({ title: 'Activity removed' });
+    onRefresh();
+  };
 
   return (
     <Card className="card-shadow">
@@ -426,7 +444,7 @@ function LeadActivityTab({
               const Icon = config.icon;
               const attachments = (a.attachments ?? []) as { type: 'url' | 'file'; url: string; name?: string }[];
               return (
-                <div key={a.id} className="flex items-start gap-3">
+                <div key={a.id} className="flex items-start gap-3 group">
                   <div className={cn('p-2 rounded-lg shrink-0', config.color)}>
                     <Icon className="h-4 w-4" />
                   </div>
@@ -458,6 +476,20 @@ function LeadActivityTab({
                       </div>
                     )}
                   </div>
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 opacity-70 hover:opacity-100 hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteActivity(a.id);
+                      }}
+                      title="Delete activity"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               );
             })
@@ -483,12 +515,14 @@ function LeadTasksTab({
   leadName,
   tasks,
   onRefresh,
+  onActivityLogged,
   onAddTask,
 }: {
   leadId: string;
   leadName: string;
   tasks: LeadTask[];
   onRefresh: () => void;
+  onActivityLogged?: () => void;
   onAddTask?: () => void;
 }) {
   const { user } = useAuth();
@@ -497,7 +531,17 @@ function LeadTasksTab({
   const completed = tasks.filter((t) => t.is_completed);
 
   const toggleTask = async (taskId: string, is_completed: boolean) => {
-    await supabase.from('tasks').update({ is_completed }).eq('id', taskId);
+    const task = tasks.find((t) => t.id === taskId);
+    const { error } = await supabase.from('tasks').update({ is_completed }).eq('id', taskId);
+    if (!error && task && user?.id && leadId) {
+      await supabase.from('lead_activities').insert({
+        lead_id: leadId,
+        user_id: user.id,
+        activity_type: 'note',
+        description: is_completed ? `Task completed: ${task.title}` : `Task reopened: ${task.title}`,
+      });
+      onActivityLogged?.();
+    }
     onRefresh();
   };
 
@@ -565,10 +609,12 @@ function LeadFollowUpsTab({
   leadId,
   followUps,
   onRefresh,
+  onActivityLogged,
 }: {
   leadId: string;
   followUps: LeadFollowUp[];
   onRefresh: () => void;
+  onActivityLogged?: () => void;
 }) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -581,7 +627,17 @@ function LeadFollowUpsTab({
   const past = followUps.filter((f) => f.is_completed);
 
   const markDone = async (followUpId: string) => {
-    await supabase.from('follow_ups').update({ is_completed: true }).eq('id', followUpId);
+    const fu = followUps.find((f) => f.id === followUpId);
+    const { error } = await supabase.from('follow_ups').update({ is_completed: true }).eq('id', followUpId);
+    if (!error && fu && user?.id) {
+      await supabase.from('lead_activities').insert({
+        lead_id: leadId,
+        user_id: user.id,
+        activity_type: 'note',
+        description: `Follow-up completed (scheduled for ${safeFormat(fu.scheduled_at, 'PPp')})`,
+      });
+      onActivityLogged?.();
+    }
     onRefresh();
   };
 
@@ -592,10 +648,11 @@ function LeadFollowUpsTab({
       return;
     }
     setSubmitting(true);
+    const scheduledDate = new Date(scheduledAt);
     const { error } = await supabase.from('follow_ups').insert({
       lead_id: leadId,
       user_id: user!.id,
-      scheduled_at: new Date(scheduledAt).toISOString(),
+      scheduled_at: scheduledDate.toISOString(),
       reminder_type: reminderType,
       notes: notes.trim() || null,
     });
@@ -603,6 +660,15 @@ function LeadFollowUpsTab({
     if (error) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
       return;
+    }
+    if (user?.id) {
+      await supabase.from('lead_activities').insert({
+        lead_id: leadId,
+        user_id: user.id,
+        activity_type: 'note',
+        description: `Follow-up scheduled for ${safeFormat(scheduledDate.toISOString(), 'PPp')}${notes.trim() ? `: ${notes.trim()}` : ''}`,
+      });
+      onActivityLogged?.();
     }
     toast({ title: 'Follow-up scheduled' });
     setScheduledAt('');
