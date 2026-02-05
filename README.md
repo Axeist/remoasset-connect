@@ -1,5 +1,9 @@
 # Welcome to your Lovable project
 
+## Database: Migrating to your own Supabase
+
+To use **your own** Supabase project instead of the Lovable-provisioned one, see **[docs/MIGRATION_TO_SUPABASE.md](docs/MIGRATION_TO_SUPABASE.md)**. You’ll create a Supabase project, run the migration SQL, and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env` (use `.env.example` as a template).
+
 ## Project info
 
 **URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
