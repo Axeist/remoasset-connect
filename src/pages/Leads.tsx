@@ -4,9 +4,10 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { LeadsTable } from '@/components/leads/LeadsTable';
 import { LeadsFilters, type LeadsFiltersState } from '@/components/leads/LeadsFilters';
 import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
+import { LeadImportDialog } from '@/components/leads/LeadImportDialog';
 import { BulkActionsDialog } from '@/components/leads/BulkActionsDialog';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, ArrowUpDown, UserPlus, Tag } from 'lucide-react';
+import { Plus, Download, Upload, UserPlus, Tag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Lead } from '@/types/lead';
@@ -21,6 +22,7 @@ export default function Leads() {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [bulkAction, setBulkAction] = useState<'status' | 'owner' | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [ownerOptions, setOwnerOptions] = useState<{ id: string; full_name: string | null }[]>([]);
@@ -181,6 +183,10 @@ export default function Leads() {
             <p className="text-muted-foreground mt-1">Manage and track your sales leads</p>
           </div>
           <div className="flex gap-3">
+            <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4" />
+              Import
+            </Button>
             <Button variant="outline" className="gap-2" onClick={() => exportCsv(false)} disabled={totalCount === 0}>
               <Download className="h-4 w-4" />
               Export
@@ -234,6 +240,7 @@ export default function Leads() {
         />
 
         <LeadFormDialog open={formOpen} onOpenChange={setFormOpen} onSuccess={fetchLeads} />
+        <LeadImportDialog open={importOpen} onOpenChange={setImportOpen} onSuccess={fetchLeads} />
         <BulkActionsDialog
           open={bulkAction !== null}
           onOpenChange={(open) => !open && setBulkAction(null)}
