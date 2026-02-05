@@ -5,12 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { safeFormat } from '@/lib/date';
-import { Calendar, CheckSquare, AlertCircle, Check, ExternalLink } from 'lucide-react';
-import { format, isBefore } from 'date-fns';
+import { Calendar, CheckSquare, AlertCircle, Check, ExternalLink, Filter, X } from 'lucide-react';
+import { format, isBefore, isAfter, startOfDay, endOfDay } from 'date-fns';
 
 interface FollowUpWithDetails {
   id: string;
@@ -52,14 +55,35 @@ export default function TeamActivity() {
   const [followUps, setFollowUps] = useState<FollowUpWithDetails[]>([]);
   const [tasks, setTasks] = useState<TaskWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [employees, setEmployees] = useState<{ user_id: string; full_name: string }[]>([]);
+  
+  // Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'overdue' | 'upcoming' | 'completed'>('all');
+  const [employeeFilter, setEmployeeFilter] = useState<string>('all');
+  const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
   
   const isAdmin = role === 'admin';
 
   useEffect(() => {
     if (user) {
       fetchData();
+      if (isAdmin) {
+        fetchEmployees();
+      }
     }
-  }, [user]);
+  }, [user, isAdmin]);
+
+  const fetchEmployees = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('user_id, full_name')
+      .order('full_name');
+    if (data) {
+      setEmployees(data);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -154,37 +178,218 @@ export default function TeamActivity() {
 
   const now = new Date();
 
+  // Apply filters
+  const filterFollowUps = (items: FollowUpWithDetails[]) => {
+    return items.filter(item => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = 
+          item.lead?.company_name?.toLowerCase().includes(query) ||
+          item.notes?.toLowerCase().includes(query) ||
+          item.profile?.full_name?.toLowerCase().includes(query);
+        if (!matchesSearch) return false;
+      }
+      
+      // Employee filter (admin only)
+      if (isAdmin && employeeFilter !== 'all' && item.user_id !== employeeFilter) {
+        return false;
+      }
+      
+      return true;
+    });
+  };
+
+  const filterTasks = (items: TaskWithDetails[]) => {
+    return items.filter(item => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = 
+          item.title?.toLowerCase().includes(query) ||
+          item.description?.toLowerCase().includes(query) ||
+          item.lead?.company_name?.toLowerCase().includes(query) ||
+          item.assignee?.full_name?.toLowerCase().includes(query);
+        if (!matchesSearch) return false;
+      }
+      
+      // Employee filter (admin only)
+      if (isAdmin && employeeFilter !== 'all' && item.assignee_id !== employeeFilter) {
+        return false;
+      }
+      
+      // Priority filter
+      if (priorityFilter !== 'all' && item.priority !== priorityFilter) {
+        return false;
+      }
+      
+      return true;
+    });
+  };
+
+  const filteredFollowUps = filterFollowUps(followUps);
+  const filteredTasks = filterTasks(tasks);
+
   // Categorize follow-ups
-  const overdueFollowUps = followUps.filter(f => !f.is_completed && new Date(f.scheduled_at) < now);
-  const upcomingFollowUps = followUps.filter(f => !f.is_completed && new Date(f.scheduled_at) >= now);
-  const completedFollowUps = followUps.filter(f => f.is_completed);
+  const overdueFollowUps = filteredFollowUps.filter(f => !f.is_completed && new Date(f.scheduled_at) < now);
+  const upcomingFollowUps = filteredFollowUps.filter(f => !f.is_completed && new Date(f.scheduled_at) >= now);
+  const completedFollowUps = filteredFollowUps.filter(f => f.is_completed);
 
   // Categorize tasks
-  const overdueTasks = tasks.filter(t => t.due_date && !t.is_completed && isBefore(new Date(t.due_date), now));
-  const upcomingTasks = tasks.filter(t => (!t.due_date || !isBefore(new Date(t.due_date), now)) && !t.is_completed);
-  const completedTasks = tasks.filter(t => t.is_completed);
+  const overdueTasks = filteredTasks.filter(t => t.due_date && !t.is_completed && isBefore(new Date(t.due_date), now));
+  const upcomingTasks = filteredTasks.filter(t => (!t.due_date || !isBefore(new Date(t.due_date), now)) && !t.is_completed);
+  const completedTasks = filteredTasks.filter(t => t.is_completed);
 
-  // Calculate insights
+  // Apply status filter
+  const getFilteredFollowUpsByStatus = () => {
+    switch (statusFilter) {
+      case 'overdue': return overdueFollowUps;
+      case 'upcoming': return upcomingFollowUps;
+      case 'completed': return completedFollowUps;
+      default: return filteredFollowUps;
+    }
+  };
+
+  const getFilteredTasksByStatus = () => {
+    switch (statusFilter) {
+      case 'overdue': return overdueTasks;
+      case 'upcoming': return upcomingTasks;
+      case 'completed': return completedTasks;
+      default: return filteredTasks;
+    }
+  };
+
+  const displayFollowUps = getFilteredFollowUpsByStatus();
+  const displayTasks = getFilteredTasksByStatus();
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setEmployeeFilter('all');
+    setPriorityFilter('all');
+  };
+
+  const hasActiveFilters = searchQuery || statusFilter !== 'all' || employeeFilter !== 'all' || priorityFilter !== 'all';
+
+  // Calculate insights (using original unfiltered data for KPIs)
   const totalFollowUps = followUps.length;
   const totalTasks = tasks.length;
+  const allCompletedTasks = tasks.filter(t => t.is_completed);
+  const allCompletedFollowUps = followUps.filter(f => f.is_completed);
+  const allOverdueFollowUps = followUps.filter(f => !f.is_completed && new Date(f.scheduled_at) < now);
+  const allOverdueTasks = tasks.filter(t => t.due_date && !t.is_completed && isBefore(new Date(t.due_date), now));
+  
   const completionRate = totalTasks > 0 
-    ? Math.round((completedTasks.length / totalTasks) * 100) 
+    ? Math.round((allCompletedTasks.length / totalTasks) * 100) 
     : 0;
   const followUpCompletionRate = totalFollowUps > 0
-    ? Math.round((completedFollowUps.length / totalFollowUps) * 100)
+    ? Math.round((allCompletedFollowUps.length / totalFollowUps) * 100)
     : 0;
 
   return (
     <AppLayout>
       <div className="space-y-8">
-        <div className="animate-fade-in-up">
-          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
-            {isAdmin ? 'Team Activity' : 'My Activity'}
-          </h1>
-          <p className="text-muted-foreground mt-1.5">
-            {isAdmin ? 'Monitor all team tasks and follow-ups' : 'Track your tasks and follow-ups'}
-          </p>
+        <div className="animate-fade-in-up flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
+              {isAdmin ? 'Team Activity' : 'My Activity'}
+            </h1>
+            <p className="text-muted-foreground mt-1.5">
+              {isAdmin ? 'Monitor all team tasks and follow-ups' : 'Track your tasks and follow-ups'}
+            </p>
+          </div>
+          <Button
+            variant={showFilters ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="gap-2"
+          >
+            <Filter className="h-4 w-4" />
+            Filters
+            {hasActiveFilters && (
+              <Badge variant="secondary" className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center">
+                !
+              </Badge>
+            )}
+          </Button>
         </div>
+
+        {/* Filters Panel */}
+        {showFilters && (
+          <Card className="card-shadow animate-fade-in-up">
+            <CardContent className="pt-6">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Search</label>
+                  <Input
+                    placeholder="Search by name, lead, notes..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Status</label>
+                  <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="overdue">Overdue</SelectItem>
+                      <SelectItem value="upcoming">Upcoming</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {isAdmin && (
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Employee</label>
+                    <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Employees</SelectItem>
+                        {employees.map(emp => (
+                          <SelectItem key={emp.user_id} value={emp.user_id}>
+                            {emp.full_name || 'Unknown'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Priority</label>
+                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Priorities</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {hasActiveFilters && (
+                <div className="mt-4 flex justify-end">
+                  <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-2">
+                    <X className="h-4 w-4" />
+                    Clear Filters
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {loading ? (
           <Skeleton className="h-96 w-full" />
@@ -197,7 +402,7 @@ export default function TeamActivity() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Overdue Follow-ups</p>
-                      <p className="text-2xl font-bold text-destructive mt-1">{overdueFollowUps.length}</p>
+                      <p className="text-2xl font-bold text-destructive mt-1">{allOverdueFollowUps.length}</p>
                     </div>
                     <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
                       <AlertCircle className="h-6 w-6 text-destructive" />
@@ -211,7 +416,7 @@ export default function TeamActivity() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Overdue Tasks</p>
-                      <p className="text-2xl font-bold text-destructive mt-1">{overdueTasks.length}</p>
+                      <p className="text-2xl font-bold text-destructive mt-1">{allOverdueTasks.length}</p>
                     </div>
                     <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
                       <AlertCircle className="h-6 w-6 text-destructive" />
@@ -227,7 +432,7 @@ export default function TeamActivity() {
                       <p className="text-sm font-medium text-muted-foreground">Task Completion</p>
                       <p className="text-2xl font-bold text-primary mt-1">{completionRate}%</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {completedTasks.length} of {totalTasks}
+                        {allCompletedTasks.length} of {totalTasks}
                       </p>
                     </div>
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -244,7 +449,7 @@ export default function TeamActivity() {
                       <p className="text-sm font-medium text-muted-foreground">Follow-up Rate</p>
                       <p className="text-2xl font-bold text-primary mt-1">{followUpCompletionRate}%</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {completedFollowUps.length} of {totalFollowUps}
+                        {allCompletedFollowUps.length} of {totalFollowUps}
                       </p>
                     </div>
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -255,22 +460,32 @@ export default function TeamActivity() {
               </Card>
             </div>
             <Tabs defaultValue="follow-ups" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="follow-ups" className="gap-2">
-                <Calendar className="h-4 w-4" />
-                Follow-ups
-                <Badge variant="secondary" className="ml-1">{followUps.length}</Badge>
-              </TabsTrigger>
-              <TabsTrigger value="tasks" className="gap-2">
-                <CheckSquare className="h-4 w-4" />
-                Tasks
-                <Badge variant="secondary" className="ml-1">{tasks.length}</Badge>
-              </TabsTrigger>
-            </TabsList>
+              <TabsList>
+                <TabsTrigger value="follow-ups" className="gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Follow-ups
+                  <Badge variant="secondary" className="ml-1">{displayFollowUps.length}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="tasks" className="gap-2">
+                  <CheckSquare className="h-4 w-4" />
+                  Tasks
+                  <Badge variant="secondary" className="ml-1">{displayTasks.length}</Badge>
+                </TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="follow-ups" className="space-y-6">
-              {/* Overdue Follow-ups */}
-              {overdueFollowUps.length > 0 && (
+              <TabsContent value="follow-ups" className="space-y-6">
+                {displayFollowUps.length === 0 ? (
+                  <Card className="card-shadow">
+                    <CardContent className="py-12">
+                      <p className="text-center text-muted-foreground">
+                        {hasActiveFilters ? 'No follow-ups match your filters' : 'No follow-ups found'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : statusFilter === 'all' ? (
+                  <>
+                    {/* Overdue Follow-ups */}
+                    {overdueFollowUps.length > 0 && (
                 <Card className="card-shadow rounded-xl border-destructive/50 bg-destructive/5">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-destructive">
@@ -340,8 +555,18 @@ export default function TeamActivity() {
             </TabsContent>
 
             <TabsContent value="tasks" className="space-y-6">
-              {/* Overdue Tasks */}
-              {overdueTasks.length > 0 && (
+              {displayTasks.length === 0 ? (
+                <Card className="card-shadow">
+                  <CardContent className="py-12">
+                    <p className="text-center text-muted-foreground">
+                      {hasActiveFilters ? 'No tasks match your filters' : 'No tasks found'}
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : statusFilter === 'all' ? (
+                <>
+                  {/* Overdue Tasks */}
+                  {overdueTasks.length > 0 && (
                 <Card className="card-shadow rounded-xl border-destructive/50 bg-destructive/5">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-destructive">

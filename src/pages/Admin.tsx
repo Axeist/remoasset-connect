@@ -705,7 +705,7 @@ export default function Admin() {
               <CardContent>
                 <div className="flex flex-wrap gap-2">
                   {statuses.map((status) => (
-                    <Badge
+                    <Badge 
                       key={status.id}
                       style={{ backgroundColor: status.color }}
                       className="text-white border-0 gap-2 pr-1"

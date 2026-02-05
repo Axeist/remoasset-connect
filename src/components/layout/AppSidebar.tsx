@@ -68,8 +68,10 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
     <>
       <nav className="flex-1 py-4 px-2.5 space-y-1">
         {filteredNav.map((item) => {
-          const isActive =
-            location.pathname === item.url || location.pathname.startsWith(item.url + '/');
+          // For /admin, only match exact path, not sub-paths like /admin/team-activity
+          const isActive = item.url === '/admin'
+            ? location.pathname === item.url
+            : location.pathname === item.url || location.pathname.startsWith(item.url + '/');
           return (
             <NavLink
               key={item.title}
