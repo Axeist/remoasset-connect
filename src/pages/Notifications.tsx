@@ -75,11 +75,11 @@ export default function Notifications() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="space-y-8">
+        <div className="animate-fade-in-up flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-display font-bold text-foreground">Notifications</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">Notifications</h1>
+            <p className="text-muted-foreground mt-1.5">
               {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
             </p>
           </div>
@@ -91,9 +91,9 @@ export default function Notifications() {
           )}
         </div>
 
-        <Card className="card-shadow">
+        <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
+            <CardTitle className="flex items-center gap-2 text-lg font-display">
               <Bell className="h-5 w-5" />
               All notifications
             </CardTitle>

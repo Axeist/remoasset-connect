@@ -125,11 +125,11 @@ export default function Tasks() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="space-y-8">
+        <div className="animate-fade-in-up flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-display font-bold text-foreground">My Tasks</h1>
-            <p className="text-muted-foreground mt-1">Track and manage your daily tasks</p>
+            <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">My Tasks</h1>
+            <p className="text-muted-foreground mt-1.5">Track and manage your daily tasks</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={() => setViewMode('list')} className={cn(viewMode === 'list' && 'bg-muted')}>
@@ -146,7 +146,7 @@ export default function Tasks() {
         </div>
 
         {/* Filters */}
-        <Card className="card-shadow">
+        <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
           <CardContent className="p-4">
             <div className="flex flex-wrap items-center gap-4">
               <Select value={filters.due} onValueChange={(v) => setFilters((f) => ({ ...f, due: v as DueFilter }))}>
@@ -203,7 +203,7 @@ export default function Tasks() {
           <p className="text-muted-foreground text-center py-8">Loading...</p>
         ) : viewMode === 'kanban' ? (
           <div className="grid gap-6 md:grid-cols-2">
-            <Card className="card-shadow">
+            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <span>To do</span>
@@ -227,7 +227,7 @@ export default function Tasks() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="card-shadow">
+            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <span>Done</span>
@@ -254,7 +254,7 @@ export default function Tasks() {
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="card-shadow">
+            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <span>Pending</span>
@@ -278,7 +278,7 @@ export default function Tasks() {
                 )}
               </CardContent>
             </Card>
-            <Card className="card-shadow">
+            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <span>Completed</span>

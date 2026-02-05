@@ -89,11 +89,11 @@ export default function Reports() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="space-y-8">
+        <div className="animate-fade-in-up flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-display font-bold text-foreground">Reports</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">Reports</h1>
+            <p className="text-muted-foreground mt-1.5">
               {isAdmin ? 'Pipeline and team analytics' : 'Your pipeline summary'}
             </p>
           </div>
@@ -104,12 +104,12 @@ export default function Reports() {
         </div>
 
         {loading ? (
-          <Skeleton className="h-80 w-full rounded-xl" />
+          <Skeleton className="h-80 w-full rounded-xl animate-fade-in-up animate-fade-in-up-delay-1" />
         ) : (
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="card-shadow">
+            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover animate-fade-in-up animate-fade-in-up-delay-2">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 font-display">
                   <PieChart className="h-5 w-5" />
                   Leads by status
                 </CardTitle>
@@ -132,9 +132,9 @@ export default function Reports() {
               </CardContent>
             </Card>
 
-            <Card className="card-shadow">
+            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover animate-fade-in-up animate-fade-in-up-delay-3">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 font-display">
                   <BarChart3 className="h-5 w-5" />
                   Leads by country
                 </CardTitle>
@@ -157,9 +157,9 @@ export default function Reports() {
             </Card>
 
             {isAdmin && teamActivity.length > 0 && (
-              <Card className="card-shadow lg:col-span-2">
+              <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover lg:col-span-2 animate-fade-in-up animate-fade-in-up-delay-4">
                 <CardHeader>
-                  <CardTitle>Team activity</CardTitle>
+                  <CardTitle className="font-display">Team activity</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={280}>

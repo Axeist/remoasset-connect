@@ -11,13 +11,13 @@ import { HelpCircle, FileUp, Shield, LayoutDashboard, Users, CheckSquare, Bell }
 export default function Help() {
   return (
     <AppLayout>
-      <div className="space-y-6 animate-fade-in max-w-3xl">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-foreground flex items-center gap-2">
+      <div className="space-y-8 max-w-3xl">
+        <div className="animate-fade-in-up">
+          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
             <HelpCircle className="h-8 w-8" />
             Help
           </h1>
-          <p className="text-muted-foreground mt-1">Getting started and common tasks</p>
+          <p className="text-muted-foreground mt-1.5">Getting started and common tasks</p>
         </div>
 
         <Accordion type="single" collapsible className="w-full">

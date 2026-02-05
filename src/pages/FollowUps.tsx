@@ -77,11 +77,11 @@ export default function FollowUps() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="space-y-8">
+        <div className="animate-fade-in-up flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-display font-bold text-foreground">Follow-ups</h1>
-            <p className="text-muted-foreground mt-1">Your scheduled lead follow-ups</p>
+            <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">Follow-ups</h1>
+            <p className="text-muted-foreground mt-1.5">Your scheduled lead follow-ups</p>
           </div>
           <div className="flex gap-2">
             {(['upcoming', 'past', 'all'] as const).map((f) => (
@@ -99,9 +99,9 @@ export default function FollowUps() {
           </div>
         </div>
 
-        <Card className="card-shadow">
+        <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 font-display">
               <Calendar className="h-5 w-5" />
               {filter === 'upcoming' ? 'Upcoming' : filter === 'past' ? 'Past' : 'All'} follow-ups
             </CardTitle>

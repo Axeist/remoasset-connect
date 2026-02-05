@@ -40,7 +40,7 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
   };
 
   return (
-    <Card className="card-shadow">
+    <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
       <CardContent className="p-4">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           {/* Search */}

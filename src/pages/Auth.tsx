@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Mail, Lock, User, Eye, EyeOff, BarChart3, Users, Shield, Zap } from 'lucide-react';
 
 const ALLOWED_SIGNUP_DOMAIN = 'remoasset.com';
 
@@ -119,43 +119,68 @@ export default function Auth() {
     <div className="min-h-screen flex">
       {/* Left: Branding — visible on larger screens */}
       <div className="hidden lg:flex lg:w-[48%] xl:w-[52%] relative overflow-hidden bg-sidebar flex-col justify-between p-12 xl:p-16">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--sidebar-primary)/0.25),transparent)]" />
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\' fill=\'%23fff\'/%3E%3C/g%3E%3C/svg%3E")' }} />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--sidebar-primary)/0.3),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_80%_80%,hsl(var(--accent)/0.15),transparent)]" />
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\' fill=\'%23fff\'/%3E%3C/g%3E%3C/svg%3E")' }} />
         <div className="relative z-10 animate-fade-in-right">
-          <img src="/logo.png" alt="RemoAsset" className="h-10 w-auto object-contain" />
+          <img src="/logo.png" alt="RemoAsset" className="h-10 w-auto object-contain drop-shadow-sm" />
         </div>
-        <div className="relative z-10 space-y-6 animate-fade-in-up animate-fade-in-up-delay-1">
-          <h1 className="font-display text-3xl xl:text-4xl font-bold text-sidebar-foreground tracking-tight">
-            Vendor Resource Management
-          </h1>
-          <p className="text-sidebar-foreground/70 text-lg max-w-md leading-relaxed">
-            Manage leads, track activities, and close deals in one place.
-          </p>
-          <div className="flex gap-6 pt-4">
-            <div className="flex items-center gap-2 text-sidebar-foreground/60 text-sm">
-              <span className="h-2 w-2 rounded-full bg-primary" />
-              Lead pipeline
-            </div>
-            <div className="flex items-center gap-2 text-sidebar-foreground/60 text-sm">
-              <span className="h-2 w-2 rounded-full bg-accent" />
-              Tasks & follow-ups
-            </div>
+        <div className="relative z-10 space-y-8">
+          <div className="space-y-6 animate-fade-in-right animate-fade-in-right-delay-1">
+            <h1 className="font-display text-3xl xl:text-4xl font-bold text-sidebar-foreground tracking-tight leading-tight">
+              Vendor Resource Management
+            </h1>
+            <p className="text-sidebar-foreground/80 text-lg max-w-md leading-relaxed">
+              Manage leads, track activities, and close deals in one place. Built for teams that move fast.
+            </p>
           </div>
+          <ul className="space-y-4 animate-fade-in-right animate-fade-in-right-delay-2">
+            <li className="flex items-center gap-3 text-sidebar-foreground/90">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/20 text-primary">
+                <Users className="h-5 w-5" />
+              </span>
+              <span><strong className="text-sidebar-foreground">Lead pipeline</strong> — Track status, score, and ownership</span>
+            </li>
+            <li className="flex items-center gap-3 text-sidebar-foreground/90">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20 text-accent">
+                <BarChart3 className="h-5 w-5" />
+              </span>
+              <span><strong className="text-sidebar-foreground">Tasks & follow-ups</strong> — Never miss a touchpoint</span>
+            </li>
+            <li className="flex items-center gap-3 text-sidebar-foreground/90">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/20 text-success">
+                <Zap className="h-5 w-5" />
+              </span>
+              <span><strong className="text-sidebar-foreground">Activity timeline</strong> — Calls, emails, meetings in one log</span>
+            </li>
+            <li className="flex items-center gap-3 text-sidebar-foreground/90">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sidebar-primary/20 text-sidebar-primary">
+                <Shield className="h-5 w-5" />
+              </span>
+              <span><strong className="text-sidebar-foreground">Secure & role-based</strong> — Admin controls and team visibility</span>
+            </li>
+          </ul>
+          <p className="text-sidebar-foreground/50 text-sm pt-4 animate-fade-in-up animate-fade-in-up-delay-2">
+            Trusted by teams to centralize vendor and lead workflows.
+          </p>
         </div>
       </div>
 
       {/* Right: Form */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-background">
-        <div className="w-full max-w-[400px] animate-fade-in-up">
-          <div className="lg:hidden mb-8">
-            <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain" />
-          </div>
-          <div className="mb-8">
-            <h2 className="font-display text-2xl font-bold text-foreground tracking-tight">Welcome back</h2>
-            <p className="text-muted-foreground mt-1">Sign in or create an account to continue.</p>
-          </div>
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-background relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_0%_50%,hsl(var(--primary)/0.06),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_70%_at_100%_80%,hsl(var(--accent)/0.05),transparent)]" />
+        <div className="w-full max-w-[420px] relative z-10">
+          <div className="rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm shadow-xl shadow-black/5 p-8 sm:p-10 animate-fade-in-up">
+            <div className="lg:hidden mb-6">
+              <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain" />
+            </div>
+            <div className="mb-8">
+              <h2 className="font-display text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Welcome back</h2>
+              <p className="text-muted-foreground mt-2">Sign in or create an account to continue.</p>
+            </div>
 
-          <Tabs defaultValue="login" className="w-full">
+            <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2 h-11 bg-muted/60 p-1 rounded-xl">
               <TabsTrigger value="login" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all duration-200">
                 Sign in
@@ -313,6 +338,7 @@ export default function Auth() {
               </form>
             </TabsContent>
           </Tabs>
+          </div>
         </div>
       </div>
     </div>
