@@ -73,16 +73,16 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   };
 
   return (
-    <header className="h-14 border-b border-border/50 bg-card px-3 md:px-4 flex items-center justify-between gap-2 md:gap-3">
+    <header className="h-14 border-b border-border/50 bg-card px-4 md:px-5 flex items-center justify-between gap-2 md:gap-3">
       {onMenuClick && isMobile && (
-        <Button variant="ghost" size="icon" onClick={onMenuClick} className="shrink-0 h-8 w-8">
-          <Menu className="h-[18px] w-[18px]" />
+        <Button variant="ghost" size="icon" onClick={onMenuClick} className="shrink-0 h-9 w-9">
+          <Menu className="h-[19px] w-[19px]" />
           <span className="sr-only">Open menu</span>
         </Button>
       )}
       {/* Search */}
       <div className="relative flex-1 max-w-md min-w-0">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           type="search"
           placeholder="Search leads, tasks..."
@@ -93,26 +93,26 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
               navigate(`/leads?search=${encodeURIComponent(searchQuery.trim())}`);
             }
           }}
-          className="pl-9 h-9 text-sm bg-background"
+          className="pl-10 h-9 text-sm bg-background"
         />
       </div>
 
       {/* Theme + Notifications */}
-      <div className="flex items-center gap-0.5 shrink-0">
+      <div className="flex items-center gap-1 shrink-0">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="relative h-8 w-8"
+          className="relative h-9 w-9"
         >
-          <Sun className="h-[18px] w-[18px] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-[18px] w-[18px] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <Sun className="h-[19px] w-[19px] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-[19px] w-[19px] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           <span className="sr-only">Toggle theme</span>
         </Button>
         <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="relative h-8 w-8">
-            <Bell className="h-[18px] w-[18px]" />
+          <Button variant="ghost" size="icon" className="relative h-9 w-9">
+            <Bell className="h-[19px] w-[19px]" />
             {unreadCount > 0 && (
               <Badge 
                 className="absolute -top-0.5 -right-0.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] gradient-accent border-0"
