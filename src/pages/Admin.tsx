@@ -6,7 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Users, Settings, BarChart3, Download, ExternalLink } from 'lucide-react';
+import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink } from 'lucide-react';
+import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
 import { AddUserDialog } from '@/components/admin/AddUserDialog';
@@ -199,21 +200,29 @@ export default function Admin() {
           <p className="text-muted-foreground mt-1">Manage users, settings, and system configuration</p>
         </div>
 
-        <Tabs defaultValue="users">
+        <Tabs defaultValue="profile">
           <TabsList>
+            <TabsTrigger value="profile" className="gap-2">
+              <User className="h-4 w-4" />
+              Profile
+            </TabsTrigger>
             <TabsTrigger value="users" className="gap-2">
               <Users className="h-4 w-4" />
               Users
             </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
+            <TabsTrigger value="configuration" className="gap-2">
+              <Sliders className="h-4 w-4" />
+              Configuration
             </TabsTrigger>
             <TabsTrigger value="analytics" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               Analytics
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="profile" className="mt-6 space-y-6 max-w-2xl">
+            <ProfileCard />
+          </TabsContent>
 
           <TabsContent value="users" className="mt-6">
             <Card className="card-shadow">
@@ -273,7 +282,7 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="settings" className="mt-6 space-y-6">
+          <TabsContent value="configuration" className="mt-6 space-y-6">
             <Card className="card-shadow">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Lead Statuses</CardTitle>
