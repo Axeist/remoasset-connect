@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink, FileDown, Activity, Calendar, CheckSquare, Trash2, ArrowRight } from 'lucide-react';
+import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink, FileDown, Activity, Calendar, CheckSquare, Trash2 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
@@ -767,26 +767,6 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="analytics" className="mt-6 space-y-6">
-            <Card className="card-shadow border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-display font-semibold text-lg">Team Activity Monitor</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      View all team tasks and follow-ups with overdue highlighting
-                    </p>
-                  </div>
-                  <Button 
-                    className="gap-2 gradient-primary"
-                    onClick={() => navigate('/admin/team-activity')}
-                  >
-                    View Team Activity
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
             <div className="flex justify-between items-start gap-4 flex-wrap">
               <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" className="gap-2" onClick={generateSampleLeadsCSV}>
