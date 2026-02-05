@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ interface FollowUpRow {
 
 export default function FollowUps() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [followUps, setFollowUps] = useState<FollowUpRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,14 +116,18 @@ export default function FollowUps() {
             ) : (
               <ul className="divide-y divide-border">
                 {displayed.map((f) => (
-                  <li key={f.id} className="py-4 first:pt-0 flex flex-wrap items-center justify-between gap-2">
+                  <li
+                    key={f.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/leads/${f.lead_id}`)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/leads/${f.lead_id}`); } }}
+                    className="py-4 first:pt-0 flex flex-wrap items-center justify-between gap-2 cursor-pointer hover:bg-muted/50 -mx-2 px-2 rounded-lg transition-colors"
+                  >
                     <div className="min-w-0">
-                      <Link
-                        to={`/leads/${f.lead_id}`}
-                        className="font-medium text-primary hover:underline"
-                      >
+                      <p className="font-medium text-primary">
                         {f.lead?.company_name ?? 'Unknown lead'}
-                      </Link>
+                      </p>
                       <p className="text-sm text-muted-foreground mt-0.5">
                         {safeFormat(f.scheduled_at, 'PPp')}
                         {f.notes && ` · ${f.notes}`}
@@ -140,7 +145,7 @@ export default function FollowUps() {
                       </div>
                     </div>
                     {!f.is_completed && (
-                      <Button variant="outline" size="sm" onClick={() => markDone(f.id)}>
+                      <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); markDone(f.id); }}>
                         Mark done
                       </Button>
                     )}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ type StatusFilter = 'all' | 'pending' | 'completed';
 
 export default function Tasks() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [leads, setLeads] = useState<{ id: string; company_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -219,7 +220,7 @@ export default function Tasks() {
                         key={task.id}
                         task={task}
                         onToggle={toggleTask}
-                        onClick={() => { setDetailTask(task); setDetailOpen(true); }}
+                        onClick={() => { task.lead_id ? navigate(`/leads/${task.lead_id}`) : (setDetailTask(task); setDetailOpen(true)); }}
                       />
                     ))
                   )}
@@ -243,7 +244,7 @@ export default function Tasks() {
                         key={task.id}
                         task={task}
                         onToggle={toggleTask}
-                        onClick={() => { setDetailTask(task); setDetailOpen(true); }}
+                        onClick={() => { task.lead_id ? navigate(`/leads/${task.lead_id}`) : (setDetailTask(task); setDetailOpen(true)); }}
                       />
                     ))
                   )}
@@ -265,12 +266,12 @@ export default function Tasks() {
                   <p className="text-muted-foreground text-center py-8">No pending tasks. You're all caught up!</p>
                 ) : (
                   <div className="space-y-3">
-                    {pendingTasks.map((task) => (
+                    {                    pendingTasks.map((task) => (
                       <TaskItem
                         key={task.id}
                         task={task}
                         onToggle={toggleTask}
-                        onClick={() => { setDetailTask(task); setDetailOpen(true); }}
+                        onClick={() => { task.lead_id ? navigate(`/leads/${task.lead_id}`) : (setDetailTask(task); setDetailOpen(true)); }}
                       />
                     ))}
                   </div>
@@ -289,12 +290,12 @@ export default function Tasks() {
                   <p className="text-muted-foreground text-center py-8">No completed tasks yet.</p>
                 ) : (
                   <div className="space-y-3">
-                    {completedTasks.map((task) => (
+                    {                    completedTasks.map((task) => (
                       <TaskItem
                         key={task.id}
                         task={task}
                         onToggle={toggleTask}
-                        onClick={() => { setDetailTask(task); setDetailOpen(true); }}
+                        onClick={() => { task.lead_id ? navigate(`/leads/${task.lead_id}`) : (setDetailTask(task); setDetailOpen(true)); }}
                       />
                     ))}
                   </div>

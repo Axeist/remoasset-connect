@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
 import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
-import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2 } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
@@ -107,7 +107,7 @@ export default function LeadDetail() {
       .from('lead_activities')
       .select('id, activity_type, description, created_at, user_id, attachments')
       .eq('lead_id', id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: true });
     if (data?.length) {
       const userIds = [...new Set(data.map((a) => a.user_id))];
       const { data: profiles } = await supabase
@@ -211,12 +211,13 @@ export default function LeadDetail() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="followups">Follow-ups</TabsTrigger>
             <TabsTrigger value="notes">Notes</TabsTrigger>
+            <TabsTrigger value="documents">Documents</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-6">
@@ -376,6 +377,10 @@ export default function LeadDetail() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="documents" className="mt-6">
+            <LeadDocumentsTab leadId={id!} />
+          </TabsContent>
         </Tabs>
 
         <LeadFormDialog
@@ -398,6 +403,14 @@ export default function LeadDetail() {
   );
 }
 
+const activityTypeFilterOptions = [
+  { value: 'all', label: 'All' },
+  { value: 'call', label: 'Call' },
+  { value: 'email', label: 'Email' },
+  { value: 'meeting', label: 'Meeting' },
+  { value: 'note', label: 'Note' },
+] as const;
+
 function LeadActivityTab({
   leadId,
   currentLeadScore,
@@ -414,7 +427,13 @@ function LeadActivityTab({
   isAdmin?: boolean;
 }) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<string>('all');
   const { toast } = useToast();
+
+  const filteredActivities =
+    typeFilter === 'all'
+      ? activities
+      : activities.filter((a) => a.activity_type === typeFilter);
 
   const handleDeleteActivity = async (activityId: string) => {
     const { error } = await supabase.from('lead_activities').delete().eq('id', activityId);
@@ -428,73 +447,104 @@ function LeadActivityTab({
 
   return (
     <Card className="card-shadow">
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <CardTitle>Activity log</CardTitle>
-        <Button size="sm" onClick={() => setAddDialogOpen(true)}>
-          Add activity
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+          >
+            {activityTypeFilterOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+            Add activity
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {activities.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No activities yet.</p>
-          ) : (
-            activities.map((a) => {
-              const config = activityTypeConfig[a.activity_type as keyof typeof activityTypeConfig] ?? activityTypeConfig.note;
-              const Icon = config.icon;
-              const attachments = (a.attachments ?? []) as { type: 'url' | 'file'; url: string; name?: string }[];
-              return (
-                <div key={a.id} className="flex items-start gap-3 group">
-                  <div className={cn('p-2 rounded-lg shrink-0', config.color)}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{a.description}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {a.profile?.full_name ?? 'Unknown'} • {safeFormat(a.created_at, 'PPp')}
-                    </p>
-                    {attachments.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {attachments.map((att, i) => {
-                          let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
-                          if (att.type === 'url' && !att.name) {
-                            try { label = new URL(att.url).hostname; } catch { /* keep Link */ }
-                          }
-                          return (
-                            <a
-                              key={i}
-                              href={att.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                            >
-                              {att.type === 'file' ? <Paperclip className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
-                              {label}
-                            </a>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  {isAdmin && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0 opacity-70 hover:opacity-100 hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteActivity(a.id);
-                      }}
-                      title="Delete activity"
+        {filteredActivities.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            {activities.length === 0 ? 'No activities yet.' : `No ${typeFilter} activities.`}
+          </p>
+        ) : (
+          <div className="relative pl-6">
+            {/* Timeline vertical line */}
+            <div className="absolute left-[11px] top-2 bottom-2 w-px bg-border" />
+            <div className="space-y-0">
+              {filteredActivities.map((a) => {
+                const config = activityTypeConfig[a.activity_type as keyof typeof activityTypeConfig] ?? activityTypeConfig.note;
+                const Icon = config.icon;
+                const attachments = (a.attachments ?? []) as { type: 'url' | 'file'; url: string; name?: string }[];
+                return (
+                  <div key={a.id} className="relative flex items-start gap-3 group pb-6 last:pb-0">
+                    {/* Timeline dot */}
+                    <div
+                      className={cn(
+                        'absolute left-0 z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-background shadow-sm',
+                        config.color
+                      )}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
+                      <Icon className="h-3 w-3" />
+                    </div>
+                    <div className="flex-1 min-w-0 pl-2">
+                      <div className="rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground">{a.description}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'PPp')}
+                            </p>
+                            {attachments.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {attachments.map((att, i) => {
+                                  let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
+                                  if (att.type === 'url' && !att.name) {
+                                    try { label = new URL(att.url).hostname; } catch { /* keep Link */ }
+                                  }
+                                  return (
+                                    <a
+                                      key={i}
+                                      href={att.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                    >
+                                      {att.type === 'file' ? <Paperclip className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
+                                      {label}
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 opacity-70 hover:opacity-100 hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteActivity(a.id);
+                              }}
+                              title="Delete activity"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </CardContent>
       <AddActivityDialog
         open={addDialogOpen}
@@ -745,6 +795,175 @@ function LeadFollowUpsTab({
             </>
           )}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface LeadDocumentRow {
+  id: string;
+  lead_id: string;
+  document_type: string;
+  custom_name: string | null;
+  file_path: string;
+  file_name: string;
+  file_size: number | null;
+  uploaded_at: string;
+  uploaded_by: string;
+}
+
+const DOCUMENT_TYPE_OPTIONS = [
+  { value: 'nda', label: 'NDA' },
+  { value: 'pricing', label: 'Pricing' },
+  { value: 'custom', label: 'Custom' },
+] as const;
+
+function LeadDocumentsTab({ leadId }: { leadId: string }) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [documents, setDocuments] = useState<LeadDocumentRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [docType, setDocType] = useState<'nda' | 'pricing' | 'custom'>('nda');
+  const [customName, setCustomName] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+
+  const fetchDocuments = async () => {
+    const { data, error } = await supabase
+      .from('lead_documents')
+      .select('id, lead_id, document_type, custom_name, file_path, file_name, file_size, uploaded_at, uploaded_by')
+      .eq('lead_id', leadId)
+      .order('uploaded_at', { ascending: false });
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      setDocuments([]);
+    } else {
+      setDocuments((data as LeadDocumentRow[]) ?? []);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [leadId]);
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file || !user) return;
+    if (docType === 'custom' && !customName.trim()) {
+      toast({ variant: 'destructive', title: 'Name required', description: 'Enter a name for the custom document.' });
+      return;
+    }
+    setUploading(true);
+    const ext = file.name.split('.').pop() ?? '';
+    const path = `${leadId}/${crypto.randomUUID()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from('lead-documents').upload(path, file, { upsert: false });
+    if (uploadError) {
+      toast({ variant: 'destructive', title: 'Upload failed', description: uploadError.message });
+      setUploading(false);
+      return;
+    }
+    const { error: insertError } = await supabase.from('lead_documents').insert({
+      lead_id: leadId,
+      document_type: docType,
+      custom_name: docType === 'custom' ? customName.trim() : null,
+      file_path: path,
+      file_name: file.name,
+      file_size: file.size,
+      uploaded_by: user.id,
+    });
+    if (insertError) {
+      toast({ variant: 'destructive', title: 'Error', description: insertError.message });
+      setUploading(false);
+      return;
+    }
+    toast({ title: 'Document uploaded' });
+    setFile(null);
+    setCustomName('');
+    setDocType('nda');
+    fetchDocuments();
+    setUploading(false);
+  };
+
+  const handleView = async (doc: LeadDocumentRow) => {
+    const { data, error } = await supabase.storage.from('lead-documents').createSignedUrl(doc.file_path, 60);
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener');
+  };
+
+  const displayName = (doc: LeadDocumentRow) => {
+    if (doc.document_type === 'custom' && doc.custom_name) return doc.custom_name;
+    return DOCUMENT_TYPE_OPTIONS.find((o) => o.value === doc.document_type)?.label ?? doc.document_type;
+  };
+
+  return (
+    <Card className="card-shadow">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <CardTitle className="flex items-center gap-2">
+          <FileUp className="h-5 w-5" />
+          Documents
+        </CardTitle>
+        <form onSubmit={handleUpload} className="flex flex-wrap items-end gap-2">
+          <select
+            value={docType}
+            onChange={(e) => setDocType(e.target.value as 'nda' | 'pricing' | 'custom')}
+            className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+          >
+            {DOCUMENT_TYPE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          {docType === 'custom' && (
+            <input
+              type="text"
+              placeholder="Document name"
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm min-w-[140px]"
+            />
+          )}
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="text-sm file:mr-2 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground"
+          />
+          <Button type="submit" size="sm" disabled={!file || uploading}>
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Upload'}
+          </Button>
+        </form>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <p className="text-muted-foreground text-sm">Loading documents...</p>
+        ) : documents.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No documents yet. Upload an NDA, Pricing, or custom document above.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {documents.map((doc) => (
+              <li key={doc.id} className="py-3 first:pt-0 flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium">{displayName(doc)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {doc.file_name}
+                    {doc.file_size != null && ` · ${(doc.file_size / 1024).toFixed(1)} KB`}
+                    {' · '}
+                    {safeFormat(doc.uploaded_at, 'PPp')}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" className="gap-1" onClick={() => handleView(doc)}>
+                  <ExternalLink className="h-3 w-3" />
+                  View
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   );
