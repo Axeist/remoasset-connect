@@ -143,7 +143,7 @@ export default function FollowUps() {
                 {filter === 'upcoming' ? 'No upcoming follow-ups.' : 
                  filter === 'overdue' ? 'No overdue follow-ups.' : 
                  filter === 'completed' ? 'No completed follow-ups.' : 
-                 'No follow-ups yet. Schedule one from a lead's Follow-ups tab.'}
+                 'No follow-ups yet. Schedule one from a lead\'s Follow-ups tab.'}
               </p>
             ) : (
               <ul className="divide-y divide-border">
