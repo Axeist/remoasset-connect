@@ -193,15 +193,16 @@ export default function Admin() {
   };
 
   const generateSampleLeadsCSV = async () => {
-    // Get the two users
-    const userEmails = ['pranesh@remoasset.com', 'ranjith@remoasset.com'];
-    const { data: userData } = await supabase.auth.admin.listUsers();
-    const targetUsers = userData?.users.filter(u => userEmails.includes(u.email || '')) || [];
+    // Get all users from user_roles table
+    const { data: allRoles } = await supabase.from('user_roles').select('user_id');
     
-    if (targetUsers.length < 2) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not find the specified users.' });
+    if (!allRoles || allRoles.length < 2) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Need at least 2 users in the system.' });
       return;
     }
+    
+    // Take first 2 users
+    const targetUsers = allRoles.slice(0, 2).map(r => ({ id: r.user_id }));
 
     const companies = [
       'Tech Solutions Inc', 'Global Ventures Ltd', 'Innovation Corp', 'Digital Systems', 'Cloud Services Inc',
