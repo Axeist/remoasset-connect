@@ -70,8 +70,8 @@ export default function Dashboard() {
         </div>
 
         {/* Charts & Activity */}
-        <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
-          <div className="animate-fade-in-up animate-fade-in-up-delay-2 min-h-0 flex">
+        <div className="grid gap-6 lg:grid-cols-[1fr_1fr] lg:items-stretch">
+          <div className="animate-fade-in-up animate-fade-in-up-delay-2 min-h-0 min-w-0 flex w-full">
             <LeadsChart
               isAdmin={isAdmin}
               statusData={statusData}
@@ -80,7 +80,7 @@ export default function Dashboard() {
               loading={loading}
             />
           </div>
-          <div className="animate-fade-in-up animate-fade-in-up-delay-3 min-h-0 flex">
+          <div className="animate-fade-in-up animate-fade-in-up-delay-3 min-h-0 min-w-0 flex w-full">
             <RecentActivity activities={recentActivities} loading={loading} />
           </div>
         </div>

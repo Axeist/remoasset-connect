@@ -27,7 +27,7 @@ interface RecentActivityProps {
 
 export function RecentActivity({ activities = [], loading = false }: RecentActivityProps) {
   return (
-    <Card className="card-shadow h-full rounded-xl border-border/80 animate-inner-card-hover">
+    <Card className="card-shadow h-full w-full rounded-xl border-border/80 animate-inner-card-hover">
       <CardHeader>
         <CardTitle className="font-display">Recent Activity</CardTitle>
       </CardHeader>
