@@ -155,7 +155,7 @@ export function AppSidebar({
               <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
               <div className="flex items-center gap-1.5">
                 <div className="h-[1px] w-6 bg-gradient-to-r from-sidebar-primary/40 to-transparent" />
-                <p className="text-[11px] text-sidebar-foreground/80 font-serif italic font-medium tracking-widest uppercase">
+                <p className="text-[11px] text-sidebar-foreground/75 font-medium tracking-wider uppercase">
                   Vendor Resource Management
                 </p>
               </div>
@@ -187,7 +187,7 @@ export function AppSidebar({
             <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
             <div className="flex items-center gap-1.5">
               <div className="h-[1px] w-6 bg-gradient-to-r from-sidebar-primary/40 to-transparent" />
-              <p className="text-[11px] text-sidebar-foreground/80 font-serif italic font-medium tracking-widest uppercase">
+              <p className="text-[11px] text-sidebar-foreground/75 font-medium tracking-wider uppercase">
                 Vendor Resource Management
               </p>
             </div>
