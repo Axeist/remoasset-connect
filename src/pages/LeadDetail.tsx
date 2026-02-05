@@ -9,7 +9,7 @@ import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 import { AddFollowUpDialog } from '@/components/leads/AddFollowUpDialog';
 import { UploadDocumentDialog } from '@/components/leads/UploadDocumentDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
-import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2 } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
@@ -18,6 +18,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { safeFormat } from '@/lib/date';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const activityTypeConfig = {
   call: { icon: Phone, label: 'Call', color: 'bg-primary/10 text-primary' },
@@ -66,6 +76,8 @@ export default function LeadDetail() {
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [ownerOptions, setOwnerOptions] = useState<{ id: string; full_name: string | null }[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const isAdmin = role === 'admin';
 
@@ -170,6 +182,19 @@ export default function LeadDetail() {
     fetchFollowUps();
   };
 
+  const handleDelete = async () => {
+    if (!id || !isAdmin) return;
+    setDeleting(true);
+    const { error } = await supabase.from('leads').delete().eq('id', id);
+    setDeleting(false);
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      return;
+    }
+    toast({ title: 'Lead deleted', description: 'Lead has been removed successfully.' });
+    navigate('/leads');
+  };
+
   if (loading || !lead) {
     return (
       <AppLayout>
@@ -207,9 +232,17 @@ export default function LeadDetail() {
               </p>
             </div>
           </div>
-          <Button variant="outline" onClick={() => setEditOpen(true)}>
-            Edit Lead
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
+              Edit Lead
+            </Button>
+            {isAdmin && (
+              <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteDialogOpen(true)}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            )}
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -400,6 +433,36 @@ export default function LeadDetail() {
             fetchActivities();
           }}
         />
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                Delete lead?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete "<strong>{lead.company_name}</strong>" and all associated activities, tasks, follow-ups, and documents. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                disabled={deleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete permanently'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );

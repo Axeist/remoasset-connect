@@ -131,11 +131,30 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
     };
 
     if (lead) {
+      // Track changes for activity log
+      const changes: string[] = [];
+      if (lead.company_name !== values.company_name) changes.push(`Company name: ${lead.company_name} → ${values.company_name}`);
+      if (lead.contact_name !== (values.contact_name || null)) changes.push(`Contact name: ${lead.contact_name || 'None'} → ${values.contact_name || 'None'}`);
+      if (lead.email !== (values.email || null)) changes.push(`Email: ${lead.email || 'None'} → ${values.email || 'None'}`);
+      if (lead.phone !== (values.phone || null)) changes.push(`Phone: ${lead.phone || 'None'} → ${values.phone || 'None'}`);
+      if (lead.lead_score !== values.lead_score) changes.push(`Lead score: ${lead.lead_score} → ${values.lead_score}`);
+      
       const { error } = await supabase.from('leads').update(payload).eq('id', lead.id);
       if (error) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
         return;
       }
+      
+      // Log activity if there were changes
+      if (changes.length > 0 && user) {
+        await supabase.from('lead_activities').insert({
+          lead_id: lead.id,
+          user_id: user.id,
+          activity_type: 'note',
+          description: `Lead updated: ${changes.join(', ')}`,
+        });
+      }
+      
       toast({ title: 'Lead updated', description: 'Changes saved successfully.' });
     } else {
       const { error } = await supabase.from('leads').insert(payload);

@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink } from 'lucide-react';
+import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink, FileDown } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
@@ -192,6 +192,95 @@ export default function Admin() {
     toast({ title: 'Report exported' });
   };
 
+  const generateSampleLeadsCSV = async () => {
+    // Get the two users
+    const userEmails = ['pranesh@remoasset.com', 'ranjith@remoasset.com'];
+    const { data: userData } = await supabase.auth.admin.listUsers();
+    const targetUsers = userData?.users.filter(u => userEmails.includes(u.email || '')) || [];
+    
+    if (targetUsers.length < 2) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not find the specified users.' });
+      return;
+    }
+
+    const companies = [
+      'Tech Solutions Inc', 'Global Ventures Ltd', 'Innovation Corp', 'Digital Systems', 'Cloud Services Inc',
+      'Smart Tech LLC', 'Future Industries', 'Dynamic Solutions', 'Prime Technologies', 'Elite Enterprises',
+      'Apex Solutions', 'Nexus Group', 'Vertex Systems', 'Quantum Labs', 'Stellar Corp',
+      'Horizon Tech', 'Summit Solutions', 'Peak Innovations', 'Core Systems', 'Prime Digital',
+      'Wave Technologies', 'Spark Ventures', 'Pulse Industries', 'Flow Systems', 'Bright Solutions',
+      'Swift Tech', 'Bold Enterprises', 'Sharp Innovations', 'Clear Systems', 'Fast Solutions',
+      'Blue Ocean Tech', 'Green Field Corp', 'Red Rock Systems', 'Silver Line Inc', 'Gold Standard LLC',
+      'Crystal Solutions', 'Diamond Tech', 'Platinum Group', 'Bronze Industries', 'Iron Systems',
+      'Steel Works Inc', 'Copper Solutions', 'Zinc Technologies', 'Titanium Corp', 'Aluminum Group',
+      'Carbon Systems', 'Silicon Labs', 'Nitrogen Tech', 'Oxygen Solutions', 'Hydrogen Industries'
+    ];
+
+    const contacts = [
+      'John Smith', 'Jane Doe', 'Michael Johnson', 'Sarah Williams', 'David Brown',
+      'Emily Davis', 'James Wilson', 'Lisa Anderson', 'Robert Taylor', 'Maria Garcia',
+      'William Martinez', 'Jessica Rodriguez', 'Thomas Lee', 'Linda White', 'Christopher Harris',
+      'Barbara Clark', 'Daniel Lewis', 'Nancy Walker', 'Matthew Hall', 'Betty Allen',
+      'Anthony Young', 'Sandra King', 'Mark Wright', 'Margaret Lopez', 'Donald Hill',
+      'Ashley Scott', 'Paul Green', 'Kimberly Adams', 'Andrew Baker', 'Elizabeth Nelson',
+      'Joshua Carter', 'Helen Mitchell', 'Brian Roberts', 'Laura Turner', 'Kevin Phillips',
+      'Carol Campbell', 'George Parker', 'Dorothy Evans', 'Eric Edwards', 'Michelle Collins',
+      'Stephen Stewart', 'Susan Sanchez', 'Jason Morris', 'Angela Rogers', 'Jeffrey Reed',
+      'Deborah Cook', 'Ryan Morgan', 'Donna Bell', 'Jacob Murphy', 'Karen Bailey'
+    ];
+
+    // Get statuses and countries
+    const [statusesRes, countriesRes] = await Promise.all([
+      supabase.from('lead_statuses').select('id').limit(4),
+      supabase.from('countries').select('id').limit(10),
+    ]);
+
+    const statusIds = statusesRes.data?.map(s => s.id) || [];
+    const countryIds = countriesRes.data?.map(c => c.id) || [];
+
+    const rows: string[][] = [
+      ['company_name', 'contact_name', 'email', 'phone', 'website', 'status_id', 'country_id', 'lead_score', 'owner_id', 'notes']
+    ];
+
+    // Generate 100 leads for each user
+    targetUsers.forEach((user, userIdx) => {
+      for (let i = 0; i < 100; i++) {
+        const companyName = `${companies[i % companies.length]} ${userIdx + 1}-${i + 1}`;
+        const contactName = contacts[i % contacts.length];
+        const email = `${contactName.toLowerCase().replace(' ', '.')}@${companyName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
+        const phone = `+1 ${Math.floor(Math.random() * 900 + 100)} ${Math.floor(Math.random() * 900 + 100)} ${Math.floor(Math.random() * 9000 + 1000)}`;
+        const website = `https://${companyName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
+        const statusId = statusIds[Math.floor(Math.random() * statusIds.length)] || '';
+        const countryId = countryIds[Math.floor(Math.random() * countryIds.length)] || '';
+        const leadScore = Math.floor(Math.random() * 70) + 30; // 30-100
+        const notes = `Sample lead ${i + 1} for testing purposes`;
+
+        rows.push([
+          companyName,
+          contactName,
+          email,
+          phone,
+          website,
+          statusId,
+          countryId,
+          String(leadScore),
+          user.id,
+          notes
+        ]);
+      }
+    });
+
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sample-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: 'Sample CSV generated', description: '200 sample leads ready for import.' });
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
@@ -356,7 +445,11 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="analytics" className="mt-6 space-y-6">
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" className="gap-2" onClick={generateSampleLeadsCSV}>
+                <FileDown className="h-4 w-4" />
+                Generate sample leads CSV
+              </Button>
               <Button variant="outline" size="sm" className="gap-2" onClick={exportAnalytics}>
                 <Download className="h-4 w-4" />
                 Export report

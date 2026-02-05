@@ -7,17 +7,30 @@ import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
 import { LeadImportDialog } from '@/components/leads/LeadImportDialog';
 import { BulkActionsDialog } from '@/components/leads/BulkActionsDialog';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Upload, UserPlus, Tag } from 'lucide-react';
+import { Plus, Download, Upload, UserPlus, Tag, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { safeFormat } from '@/lib/date';
 import type { Lead } from '@/types/lead';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const PAGE_SIZE = 10;
 type SortField = 'company_name' | 'created_at' | 'lead_score' | 'contact_name';
 type SortOrder = 'asc' | 'desc';
 
 export default function Leads() {
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -30,6 +43,8 @@ export default function Leads() {
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [filters, setFilters] = useState<LeadsFiltersState>({
     search: searchParams.get('search') ?? '',
     status: '',
@@ -174,6 +189,21 @@ export default function Leads() {
     toast({ title: 'Exported', description: `${toExport.length} lead(s) exported.` });
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0 || !isAdmin) return;
+    setDeleting(true);
+    const { error } = await supabase.from('leads').delete().in('id', [...selectedIds]);
+    setDeleting(false);
+    setDeleteDialogOpen(false);
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      return;
+    }
+    toast({ title: 'Leads deleted', description: `${selectedIds.size} lead(s) have been removed.` });
+    setSelectedIds(new Set());
+    fetchLeads();
+  };
+
   return (
     <AppLayout>
       <div className="space-y-8">
@@ -218,6 +248,12 @@ export default function Leads() {
               <Download className="h-4 w-4" />
               Export selected
             </Button>
+            {isAdmin && (
+              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteDialogOpen(true)}>
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            )}
             <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
               Clear
             </Button>
@@ -249,6 +285,26 @@ export default function Leads() {
           leadIds={[...selectedIds]}
           onSuccess={bulkUpdateSuccess}
         />
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {selectedIds.size} lead(s)?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete the selected leads and all associated data (activities, tasks, follow-ups, documents). This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleBulkDelete}
+                disabled={deleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting ? 'Deleting...' : 'Delete permanently'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );
