@@ -28,125 +28,156 @@ export default function Reports() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const leadsQuery = supabase.from('leads').select('id, status_id, country_id, owner_id, lead_score');
-      if (!isAdmin) {
-        leadsQuery.eq('owner_id', user.id);
-      }
-      const { data: leads } = await leadsQuery;
-      const leadList = leads ?? [];
-
-      const { data: statusRows } = await supabase.from('lead_statuses').select('id, name, color');
-      const statusMap = (statusRows ?? []).reduce((acc, s) => { acc[s.id] = { name: s.name, color: s.color }; return acc; }, {} as Record<string, { name: string; color: string }>);
-      const statusCounts: Record<string, { count: number; color: string }> = {};
-      leadList.forEach((l: { status_id: string | null }) => {
-        const s = l.status_id ? statusMap[l.status_id] : null;
-        const name = s?.name ?? 'Unassigned';
-        const color = s?.color ?? '#6B7280';
-        if (!statusCounts[name]) statusCounts[name] = { count: 0, color };
-        statusCounts[name].count++;
-      });
-      setByStatus(Object.entries(statusCounts).map(([name, { count, color }]) => ({ name, value: count, color })));
-
-      const { data: countryRows } = await supabase.from('countries').select('id, code');
-      const countryMap = (countryRows ?? []).reduce((acc, c) => { acc[c.id] = c.code; return acc; }, {} as Record<string, string>);
-      const countryCounts: Record<string, number> = {};
-      leadList.forEach((l: { country_id: string | null }) => {
-        const code = l.country_id ? (countryMap[l.country_id] ?? 'Other') : 'Other';
-        countryCounts[code] = (countryCounts[code] ?? 0) + 1;
-      });
-      setByCountry(Object.entries(countryCounts).map(([name, leads]) => ({ name, leads })));
-
-      if (isAdmin) {
-        const { data: activities } = await supabase.from('lead_activities').select('user_id');
-        const counts: Record<string, number> = {};
-        (activities ?? []).forEach((a: { user_id: string }) => {
-          counts[a.user_id] = (counts[a.user_id] ?? 0) + 1;
-        });
-        const userIds = Object.keys(counts);
-        if (userIds.length > 0) {
-          const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
-          const names = (profiles ?? []).reduce((acc, p) => { acc[p.user_id] = p.full_name || 'Unknown'; return acc; }, {} as Record<string, string>);
-          setTeamActivity(userIds.map((uid) => ({ name: names[uid] ?? uid.slice(0, 8), activities: counts[uid] })));
+      try {
+        // Batch 1: Fetch basic data in parallel
+        const leadsQuery = supabase.from('leads').select('id, status_id, country_id, owner_id, lead_score');
+        if (!isAdmin) {
+          leadsQuery.eq('owner_id', user.id);
         }
 
-        // Lead score distribution
-        const scoreCounts = { '0-25': 0, '26-50': 0, '51-75': 0, '76-100': 0 };
-        leadList.forEach((l: { lead_score?: number | null }) => {
-          const score = l.lead_score ?? 0;
-          if (score <= 25) scoreCounts['0-25']++;
-          else if (score <= 50) scoreCounts['26-50']++;
-          else if (score <= 75) scoreCounts['51-75']++;
-          else scoreCounts['76-100']++;
-        });
-        setLeadScoreDistribution(Object.entries(scoreCounts).map(([range, count]) => ({ range, count })));
+        const [leadsRes, statusRows, countryRows] = await Promise.all([
+          leadsQuery,
+          supabase.from('lead_statuses').select('id, name, color'),
+          supabase.from('countries').select('id, code, name'),
+        ]);
 
-        // Activity trends over last 14 days
-        const days = Array.from({ length: 14 }, (_, i) => subDays(new Date(), 13 - i));
-        const trends = await Promise.all(
-          days.map(async (day) => {
-            const start = startOfDay(day).toISOString();
-            const end = endOfDay(day).toISOString();
-            const { data } = await supabase.from('lead_activities').select('activity_type').gte('created_at', start).lte('created_at', end);
+        const leadList = leadsRes.data ?? [];
+
+        // Process status data
+        const statusMap = (statusRows.data ?? []).reduce((acc, s) => { acc[s.id] = { name: s.name, color: s.color }; return acc; }, {} as Record<string, { name: string; color: string }>);
+        const statusCounts: Record<string, { count: number; color: string }> = {};
+        leadList.forEach((l: { status_id: string | null }) => {
+          const s = l.status_id ? statusMap[l.status_id] : null;
+          const name = s?.name ?? 'Unassigned';
+          const color = s?.color ?? '#6B7280';
+          if (!statusCounts[name]) statusCounts[name] = { count: 0, color };
+          statusCounts[name].count++;
+        });
+        setByStatus(Object.entries(statusCounts).map(([name, { count, color }]) => ({ name, value: count, color })));
+
+        // Process country data
+        const countryMap = (countryRows.data ?? []).reduce((acc, c) => { acc[c.id] = c.code; return acc; }, {} as Record<string, string>);
+        const countryCounts: Record<string, number> = {};
+        leadList.forEach((l: { country_id: string | null }) => {
+          const code = l.country_id ? (countryMap[l.country_id] ?? 'Other') : 'Other';
+          countryCounts[code] = (countryCounts[code] ?? 0) + 1;
+        });
+        setByCountry(Object.entries(countryCounts).map(([name, leads]) => ({ name, leads })));
+
+        // Show initial charts immediately
+        setLoading(false);
+
+        // Batch 2: Fetch additional analytics in background
+        if (isAdmin) {
+          // Fetch all admin analytics in parallel
+          const [activitiesRes, allLeadsForConv, statusesForConv] = await Promise.all([
+            supabase.from('lead_activities').select('user_id, activity_type, created_at'),
+            supabase.from('leads').select('owner_id, status_id'),
+            supabase.from('lead_statuses').select('id, name'),
+          ]);
+
+          const activities = activitiesRes.data ?? [];
+          const counts: Record<string, number> = {};
+          activities.forEach((a: { user_id: string }) => {
+            counts[a.user_id] = (counts[a.user_id] ?? 0) + 1;
+          });
+          const userIds = Object.keys(counts);
+          
+          // Fetch profiles for users with activities
+          let names: Record<string, string> = {};
+          if (userIds.length > 0) {
+            const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
+            names = (profiles ?? []).reduce((acc, p) => { acc[p.user_id] = p.full_name || 'Unknown'; return acc; }, {} as Record<string, string>);
+            setTeamActivity(userIds.map((uid) => ({ name: names[uid] ?? uid.slice(0, 8), activities: counts[uid] })));
+          }
+
+          // Lead score distribution (from existing leadList)
+          const scoreCounts = { '0-25': 0, '26-50': 0, '51-75': 0, '76-100': 0 };
+          leadList.forEach((l: { lead_score?: number | null }) => {
+            const score = l.lead_score ?? 0;
+            if (score <= 25) scoreCounts['0-25']++;
+            else if (score <= 50) scoreCounts['26-50']++;
+            else if (score <= 75) scoreCounts['51-75']++;
+            else scoreCounts['76-100']++;
+          });
+          setLeadScoreDistribution(Object.entries(scoreCounts).map(([range, count]) => ({ range, count })));
+
+          // Activity trends over last 14 days (optimized - process all at once)
+          const days = Array.from({ length: 14 }, (_, i) => subDays(new Date(), 13 - i));
+          const trends = days.map(day => {
+            const start = startOfDay(day);
+            const end = endOfDay(day);
+            const dayActivities = activities.filter((a: { created_at: string }) => {
+              const actDate = new Date(a.created_at);
+              return actDate >= start && actDate <= end;
+            });
             const counts = { calls: 0, emails: 0, meetings: 0 };
-            (data ?? []).forEach((a: { activity_type: string }) => {
+            dayActivities.forEach((a: { activity_type: string }) => {
               if (a.activity_type === 'call') counts.calls++;
               else if (a.activity_type === 'email') counts.emails++;
               else if (a.activity_type === 'meeting') counts.meetings++;
             });
             return { date: format(day, 'MM/dd'), ...counts };
-          })
-        );
-        setActivityTrends(trends);
-
-        // Top performers with conversion rate
-        const { data: allLeadsForConv } = await supabase.from('leads').select('owner_id, status_id');
-        const { data: statusesForConv } = await supabase.from('lead_statuses').select('id, name');
-        const statusNames = (statusesForConv ?? []).reduce((acc, s) => { acc[s.id] = s.name; return acc; }, {} as Record<string, string>);
-        const leadsPerUser: Record<string, number> = {};
-        const wonPerUser: Record<string, number> = {};
-        (allLeadsForConv ?? []).forEach((l: { owner_id: string | null; status_id: string | null }) => {
-          if (!l.owner_id) return;
-          leadsPerUser[l.owner_id] = (leadsPerUser[l.owner_id] ?? 0) + 1;
-          const statusName = l.status_id ? statusNames[l.status_id] : null;
-          if (statusName?.toLowerCase().includes('won')) wonPerUser[l.owner_id] = (wonPerUser[l.owner_id] ?? 0) + 1;
-        });
-        const performers = userIds.map((uid) => ({
-          name: names[uid] ?? uid.slice(0, 8),
-          activities: counts[uid],
-          leads: leadsPerUser[uid] ?? 0,
-          conversionRate: leadsPerUser[uid] ? `${Math.round(((wonPerUser[uid] ?? 0) / leadsPerUser[uid]) * 100)}%` : '0%',
-        })).sort((a, b) => b.activities - a.activities).slice(0, 5);
-        setTopPerformers(performers);
-      } else {
-        // Employee: My activity breakdown + performance summary
-        const myLeadIds = leadList.map((l: { id?: string }) => l.id).filter(Boolean);
-        if (myLeadIds.length > 0) {
-          const { data: myActivities } = await supabase.from('lead_activities').select('activity_type').in('lead_id', myLeadIds);
-          const actCounts = { call: 0, email: 0, meeting: 0, note: 0 };
-          (myActivities ?? []).forEach((a: { activity_type: string }) => {
-            if (a.activity_type in actCounts) actCounts[a.activity_type as keyof typeof actCounts]++;
           });
-          const colors = { call: 'hsl(var(--primary))', email: 'hsl(var(--accent))', meeting: 'hsl(var(--success))', note: 'hsl(var(--warning))' };
-          setMyActivityBreakdown(
-            (Object.keys(actCounts) as Array<keyof typeof actCounts>)
-              .filter((k) => actCounts[k] > 0)
-              .map((k) => ({ name: k, value: actCounts[k], color: colors[k] }))
-          );
-          const totalAct = Object.values(actCounts).reduce((s, v) => s + v, 0);
+          setActivityTrends(trends);
 
-          const avgScore = leadList.length > 0 ? leadList.reduce((sum: number, l: { lead_score?: number | null }) => sum + (l.lead_score ?? 0), 0) / leadList.length : 0;
+          // Top performers with conversion rate
+          const statusNames = (statusesForConv.data ?? []).reduce((acc, s) => { acc[s.id] = s.name; return acc; }, {} as Record<string, string>);
+          const leadsPerUser: Record<string, number> = {};
+          const wonPerUser: Record<string, number> = {};
+          (allLeadsForConv.data ?? []).forEach((l: { owner_id: string | null; status_id: string | null }) => {
+            if (!l.owner_id) return;
+            leadsPerUser[l.owner_id] = (leadsPerUser[l.owner_id] ?? 0) + 1;
+            const statusName = l.status_id ? statusNames[l.status_id] : null;
+            if (statusName?.toLowerCase().includes('won')) wonPerUser[l.owner_id] = (wonPerUser[l.owner_id] ?? 0) + 1;
+          });
+          const performers = userIds.map((uid) => ({
+            name: names[uid] ?? uid.slice(0, 8),
+            activities: counts[uid],
+            leads: leadsPerUser[uid] ?? 0,
+            conversionRate: leadsPerUser[uid] ? `${Math.round(((wonPerUser[uid] ?? 0) / leadsPerUser[uid]) * 100)}%` : '0%',
+          })).sort((a, b) => b.activities - a.activities).slice(0, 5);
+          setTopPerformers(performers);
+        } else {
+          // Employee: My activity breakdown + performance summary
+          const myLeadIds = leadList.map((l: { id?: string }) => l.id).filter(Boolean);
+          if (myLeadIds.length > 0) {
+            const [myActivitiesRes, myTasksRes, myStatusesRes] = await Promise.all([
+              supabase.from('lead_activities').select('activity_type').in('lead_id', myLeadIds),
+              supabase.from('tasks').select('is_completed').eq('assignee_id', user.id),
+              supabase.from('leads').select('status:lead_statuses(name)').eq('owner_id', user.id),
+            ]);
 
-          const { data: myTasks } = await supabase.from('tasks').select('is_completed').eq('assignee_id', user.id);
-          const completed = (myTasks ?? []).filter((t: { is_completed: boolean }) => t.is_completed).length;
+            // Activity breakdown
+            const actCounts = { call: 0, email: 0, meeting: 0, note: 0 };
+            (myActivitiesRes.data ?? []).forEach((a: { activity_type: string }) => {
+              if (a.activity_type in actCounts) actCounts[a.activity_type as keyof typeof actCounts]++;
+            });
+            const colors = { call: 'hsl(var(--primary))', email: 'hsl(var(--accent))', meeting: 'hsl(var(--success))', note: 'hsl(var(--warning))' };
+            setMyActivityBreakdown(
+              (Object.keys(actCounts) as Array<keyof typeof actCounts>)
+                .filter((k) => actCounts[k] > 0)
+                .map((k) => ({ name: k, value: actCounts[k], color: colors[k] }))
+            );
+            const totalAct = Object.values(actCounts).reduce((s, v) => s + v, 0);
 
-          const { data: myStatuses } = await supabase.from('leads').select('status:lead_statuses(name)').eq('owner_id', user.id);
-          const won = (myStatuses ?? []).filter((l: { status?: { name?: string } }) => l.status?.name?.toLowerCase().includes('won')).length;
-          const convRate = leadList.length > 0 ? `${Math.round((won / leadList.length) * 100)}%` : '0%';
+            // Average lead score
+            const avgScore = leadList.length > 0 ? leadList.reduce((sum: number, l: { lead_score?: number | null }) => sum + (l.lead_score ?? 0), 0) / leadList.length : 0;
 
-          setMyPerformance({ totalActivities: totalAct, avgLeadScore: Math.round(avgScore), tasksCompleted: completed, conversionRate: convRate });
+            // Tasks completed
+            const completed = (myTasksRes.data ?? []).filter((t: { is_completed: boolean }) => t.is_completed).length;
+
+            // Conversion rate
+            const won = (myStatusesRes.data ?? []).filter((l: { status?: { name?: string } }) => l.status?.name?.toLowerCase().includes('won')).length;
+            const convRate = leadList.length > 0 ? `${Math.round((won / leadList.length) * 100)}%` : '0%';
+
+            setMyPerformance({ totalActivities: totalAct, avgLeadScore: Math.round(avgScore), tasksCompleted: completed, conversionRate: convRate });
+          }
         }
+      } catch (error) {
+        console.error('Reports loading error:', error);
+        setLoading(false);
       }
-      setLoading(false);
     })();
   }, [user?.id, isAdmin]);
 
