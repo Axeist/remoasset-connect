@@ -73,17 +73,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { error: roleError } = await supabase
+    // Check if role row exists, if not insert, otherwise update
+    const { data: existingRole } = await supabase
       .from('user_roles')
-      .update({ role: newRole })
-      .eq('user_id', newUser.user.id);
+      .select('id')
+      .eq('user_id', newUser.user.id)
+      .maybeSingle();
+
+    let roleError;
+    if (existingRole) {
+      const { error } = await supabase
+        .from('user_roles')
+        .update({ role: newRole })
+        .eq('user_id', newUser.user.id);
+      roleError = error;
+    } else {
+      const { error } = await supabase
+        .from('user_roles')
+        .insert({ user_id: newUser.user.id, role: newRole });
+      roleError = error;
+    }
 
     if (roleError) {
       return new Response(
-        JSON.stringify({ error: 'User created but role update failed: ' + roleError.message }),
+        JSON.stringify({ error: 'User created but role assignment failed: ' + roleError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Also create profile entry
+    await supabase
+      .from('profiles')
+      .upsert({ 
+        user_id: newUser.user.id, 
+        full_name: full_name || null 
+      }, { 
+        onConflict: 'user_id' 
+      });
 
     return new Response(
       JSON.stringify({ success: true, user_id: newUser.user.id }),

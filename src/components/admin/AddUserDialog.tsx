@@ -63,12 +63,21 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: AddUserDialogPr
           role,
         }),
       });
-      const data = await res.json().catch(() => ({}));
+      
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+      }
+      
+      console.log('Create user response:', { status: res.status, data });
+      
       if (!res.ok) {
         toast({
           variant: 'destructive',
           title: 'Failed to create user',
-          description: data.error || res.statusText,
+          description: data.error || data.message || res.statusText || 'Unknown error',
         });
         setSubmitting(false);
         return;
