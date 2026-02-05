@@ -20,6 +20,7 @@ Use **Leads** → **Import** to upload a CSV file. The importer accepts the colu
 | `contact_designation` | Contact Designation, Designation | Job title. |
 | `status` | Status, Lead Status | Lead status **name**. Must match a status in **Admin → Settings → Lead statuses** (e.g. New, Qualified, Email sent). If missing or unknown, first status is used. |
 | `lead_score` | Score, Lead Score | Number 1–100. Default: 50. |
+| `lead_owner` | Lead Owner, Owner, Assigned to | **Full name** of the team member who should own the lead. Must match exactly the name in **Admin → Users** (e.g. Ranjith Kirloskar). If empty or no match, the lead is assigned to you (the importer) or left unassigned. |
 | `notes` | Notes, Note | Free-text notes. |
 | `followup_stage` | Followup stage, Follow-up stage | Imported into lead **notes** as "Follow-up: &lt;value&gt;" (e.g. No Touch, 2nd follow up). |
 | `call_booked` | Call booked | Imported into lead **notes** as "Call: &lt;value&gt;". |
@@ -29,7 +30,8 @@ Use **Leads** → **Import** to upload a CSV file. The importer accepts the colu
 1. **One row per lead** — No merged cells. Flatten so each row has its own Vendor Name and Country.
 2. **Country & status** — Add the same country and status names in **Admin → Settings** if they don’t exist yet.
 3. **Invalid email** — Rows with placeholder or invalid email (e.g. `??????????????????`) are skipped; fix or remove them before import.
-4. **Extra columns** — Columns not listed above are ignored. You can keep "Call booked", "Followup stage", or extra note columns; map them as above or combine into `notes`.
+4. **Lead owner** — Use the exact full name as shown in Admin → Users. If the name doesn’t match any team member, the lead is assigned to you (or unassigned if you’re not logged in).
+5. **Extra columns** — Columns not listed above are ignored. You can keep "Call booked", "Followup stage", or extra note columns; map them as above or combine into `notes`.
 
 ## Sample file
 

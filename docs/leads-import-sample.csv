@@ -1,11 +1,11 @@
-company_name,country,website,email,phone,contact_name,contact_designation,status,lead_score,followup_stage,notes
-"It technology",India,https://example.com,raj@example.com,+91 9876543210,Raj Kumar,Sales Manager,New,50,No Touch,Initial outreach
-"Getac's Global Network",Singapore,https://www.getac.com/intl/contact/,sales@getac.com,861053670738,,,Contacted,60,call has been arranged,
-Technology Rental,Singapore,https://technologyrental.sg/,sales@technologyrental.com,65 3158 6117,,,New,45,No Touch,3 Stores With Refurbished shop
-JK Tech,Singapore,https://www.dcom.com.sg,info@dcom.com.sg,6568416868,JK Lee,Director,Qualified,70,2nd follow up,WhatsApp conversation ongoing
-Laptop House,Singapore,https://www.laptophouse.sg/,sales@laptophouse.sg,6591151460,,,Contacted,55,No Touch,
-Monitor System,India,https://www.monitor.rs/,prodaja@monitor.rs,381637244868,,,New,50,3rd follow up,7 Stores
-PC Shop - Magazin Računalni Sistemi d.o.,Germany,https://www.pcshop.hr/,pcshop@pcshop.hr,385(0)21543 630,,,New,40,No Touch,
-DDStore LTD,United Kingdom,https://ddstore.mk/,sales@ddstore.mk,(02) 3 100 700,,,New,50,To Be Initiated,
-Arisa Computers,Indonesia,https://arisacomputer.com/,arisacomp@gmail.com,8111041840,,,Contacted,60,2nd follow up,
-MSI Thailand e-store,Japan,https://th-store.msi.com/,info@msithailand.com,061-393-3443,,,New,45,No Touch,
+company_name,country,website,email,phone,contact_name,contact_designation,status,lead_score,lead_owner,followup_stage,notes
+"It technology",India,https://example.com,raj@example.com,+91 9876543210,Raj Kumar,Sales Manager,New,50,,No Touch,Initial outreach
+"Getac's Global Network",Singapore,https://www.getac.com/intl/contact/,sales@getac.com,861053670738,,,Contacted,60,,call has been arranged,
+Technology Rental,Singapore,https://technologyrental.sg/,sales@technologyrental.com,65 3158 6117,,,New,45,,No Touch,3 Stores With Refurbished shop
+JK Tech,Singapore,https://www.dcom.com.sg,info@dcom.com.sg,6568416868,JK Lee,Director,Qualified,70,,2nd follow up,WhatsApp conversation ongoing
+Laptop House,Singapore,https://www.laptophouse.sg/,sales@laptophouse.sg,6591151460,,,Contacted,55,,No Touch,
+Monitor System,India,https://www.monitor.rs/,prodaja@monitor.rs,381637244868,,,New,50,,3rd follow up,7 Stores
+PC Shop - Magazin Računalni Sistemi d.o.,Germany,https://www.pcshop.hr/,pcshop@pcshop.hr,385(0)21543 630,,,New,40,,No Touch,
+DDStore LTD,United Kingdom,https://ddstore.mk/,sales@ddstore.mk,(02) 3 100 700,,,New,50,,To Be Initiated,
+Arisa Computers,Indonesia,https://arisacomputer.com/,arisacomp@gmail.com,8111041840,,,Contacted,60,,2nd follow up,
+MSI Thailand e-store,Japan,https://th-store.msi.com/,info@msithailand.com,061-393-3443,,,New,45,,No Touch,

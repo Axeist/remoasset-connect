@@ -18,6 +18,11 @@ import type { LeadStatusOption, CountryOption } from '@/types/lead';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_SCORE = 50;
 
+interface OwnerOption {
+  id: string;
+  full_name: string | null;
+}
+
 interface ParsedRow {
   company_name: string;
   website: string | null;
@@ -29,6 +34,7 @@ interface ParsedRow {
   status_id: string | null;
   lead_score: number;
   notes: string | null;
+  owner_id: string | null;
   error?: string;
 }
 
@@ -46,6 +52,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
   const [headers, setHeaders] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<LeadStatusOption[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([]);
   const [importing, setImporting] = useState(false);
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
 
@@ -56,12 +63,22 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
     setHeaders([]);
     setStep('upload');
     (async () => {
-      const [sRes, cRes] = await Promise.all([
+      const [sRes, cRes, rolesRes] = await Promise.all([
         supabase.from('lead_statuses').select('id, name, color, sort_order').order('sort_order'),
         supabase.from('countries').select('id, name, code').order('name'),
+        supabase.from('user_roles').select('user_id'),
       ]);
       if (sRes.data) setStatuses(sRes.data);
       if (cRes.data) setCountries(cRes.data);
+      if (rolesRes.data?.length) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', rolesRes.data.map((r) => r.user_id));
+        setOwnerOptions((profiles ?? []).map((p) => ({ id: p.user_id, full_name: p.full_name })));
+      } else {
+        setOwnerOptions([]);
+      }
     })();
   }, [open]);
 
@@ -86,6 +103,15 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
     const n = parseInt(value.trim(), 10);
     if (Number.isNaN(n)) return DEFAULT_SCORE;
     return Math.max(1, Math.min(100, n));
+  };
+
+  const resolveOwner = (value: string | null): string | null => {
+    if (!value || !value.trim()) return null;
+    const v = value.trim().toLowerCase();
+    const found = ownerOptions.find(
+      (o) => o.full_name?.trim().toLowerCase() === v
+    );
+    return found?.id ?? null;
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,6 +168,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
 
         const countryId = resolveCountry(get('country'));
         const statusId = resolveStatus(get('status')) ?? firstStatusId;
+        const ownerId = resolveOwner(get('lead_owner'));
 
         parsed.push({
           company_name: companyName || '(Unknown)',
@@ -154,6 +181,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
           status_id: statusId,
           lead_score: parseScore(get('lead_score')),
           notes,
+          owner_id: ownerId,
           error,
         });
       }
@@ -184,7 +212,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
       status_id: r.status_id,
       lead_score: r.lead_score,
       notes: r.notes,
-      owner_id: user?.id ?? null,
+      owner_id: r.owner_id ?? user?.id ?? null,
     }));
 
     const BATCH = 50;
@@ -215,7 +243,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
             Import leads from CSV
           </DialogTitle>
           <DialogDescription className="space-y-2">
-            <span className="block">Upload a CSV with columns like Vendor Name, Country, Website, Contact Mail, Contact Number, Status, and Notes.</span>
+            <span className="block">Upload a CSV with columns like Vendor Name, Country, Website, Contact Mail, Contact Number, Status, Lead Owner, and Notes.</span>
             <a
               href="/leads-import-sample.csv"
               download="leads-import-sample.csv"
@@ -261,6 +289,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                     <th className="text-left p-2 font-medium">Company</th>
                     <th className="text-left p-2 font-medium">Country</th>
                     <th className="text-left p-2 font-medium">Status</th>
+                    <th className="text-left p-2 font-medium">Owner</th>
                     <th className="text-left p-2 font-medium">Email</th>
                     <th className="text-left p-2 w-20">Score</th>
                     <th className="text-left p-2 w-24">Result</th>
@@ -272,6 +301,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                       <td className="p-2">{r.company_name}</td>
                       <td className="p-2">{countries.find((c) => c.id === r.country_id)?.name ?? (r.country_id ? '?' : '—')}</td>
                       <td className="p-2">{statuses.find((s) => s.id === r.status_id)?.name ?? '—'}</td>
+                      <td className="p-2">{ownerOptions.find((o) => o.id === r.owner_id)?.full_name ?? (r.owner_id ? '?' : '—')}</td>
                       <td className="p-2">{r.email ?? '—'}</td>
                       <td className="p-2">{r.lead_score}</td>
                       <td className="p-2">

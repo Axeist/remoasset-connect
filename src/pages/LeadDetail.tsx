@@ -281,6 +281,13 @@ export default function LeadDetail() {
                       value={lead.owner_id ?? ''}
                       onChange={async (e) => {
                         const ownerId = e.target.value || null;
+                        if (ownerId === (lead.owner_id ?? '')) return;
+                        const previousName = lead.owner_id
+                          ? (ownerOptions.find((o) => o.id === lead.owner_id)?.full_name ?? 'Unknown')
+                          : 'Unassigned';
+                        const newName = ownerId
+                          ? (ownerOptions.find((o) => o.id === ownerId)?.full_name ?? 'Unknown')
+                          : 'Unassigned';
                         const { error } = await supabase
                           .from('leads')
                           .update({ owner_id: ownerId })
@@ -289,6 +296,12 @@ export default function LeadDetail() {
                           toast({ variant: 'destructive', title: 'Error', description: error.message });
                           return;
                         }
+                        await supabase.from('lead_activities').insert({
+                          lead_id: lead.id,
+                          user_id: user!.id,
+                          activity_type: 'note',
+                          description: `Lead reassigned from ${previousName} to ${newName}.`,
+                        });
                         if (ownerId) {
                           await supabase.from('notifications').insert({
                             user_id: ownerId,
@@ -299,6 +312,7 @@ export default function LeadDetail() {
                         }
                         toast({ title: 'Owner updated' });
                         fetchLead();
+                        fetchActivities();
                       }}
                       className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                     >

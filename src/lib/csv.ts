@@ -93,6 +93,10 @@ const HEADER_ALIASES: Record<string, string> = {
   'follow-up stage': 'followup_stage',
   'call booked': 'call_booked',
   call_booked: 'call_booked',
+  lead_owner: 'lead_owner',
+  'lead owner': 'lead_owner',
+  owner: 'lead_owner',
+  'assigned to': 'lead_owner',
 };
 
 export function normalizeHeader(header: string): string {
