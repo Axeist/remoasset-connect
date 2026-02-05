@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -13,7 +13,7 @@ import {
   LogOut,
   Settings,
   Shield,
-  Mail,
+  User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
 
 const navItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'employee'] },
@@ -44,10 +45,24 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
   const { role, signOut, user } = useAuth();
   const filteredNav = navItems.filter((item) => item.roles.includes(role || 'employee'));
   const isAdmin = role === 'admin';
+  const [fullName, setFullName] = useState<string>('');
+
+  useEffect(() => {
+    if (user) {
+      supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('user_id', user.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.full_name) setFullName(data.full_name);
+        });
+    }
+  }, [user]);
 
   return (
     <>
-      <nav className="flex-1 py-4 px-2 space-y-1">
+      <nav className="flex-1 py-3 px-2 space-y-0.5">
         {filteredNav.map((item) => {
           const isActive =
             location.pathname === item.url || location.pathname.startsWith(item.url + '/');
@@ -57,37 +72,36 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
               to={item.url}
               onClick={onNavigate}
               className={cn(
-                'flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200',
+                'flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-200 group',
                 isActive
-                  ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg'
-                  : 'text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                  : 'text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
               )}
             >
-              <span
-                className={cn(
-                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors',
-                  isActive ? 'bg-white/20' : 'bg-sidebar-accent/50'
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-              </span>
-              {!collapsed && <span className="font-medium">{item.title}</span>}
+              <item.icon className={cn('h-[18px] w-[18px] shrink-0', isActive && 'text-sidebar-primary-foreground')} />
+              {!collapsed && <span className="text-sm font-medium">{item.title}</span>}
             </NavLink>
           );
         })}
       </nav>
-      <div className="p-3 border-t border-sidebar-border">
+      <div className="p-2.5 border-t border-sidebar-border/50">
         {!collapsed && user && (
-          <div className="mb-3 rounded-xl bg-sidebar-accent/60 p-3 border border-sidebar-border/50">
-            <div className="flex items-center gap-2 text-sidebar-foreground/90 mb-2">
-              <Mail className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
-              <p className="text-sm font-medium truncate">{user.email}</p>
+          <div className="mb-2.5 rounded-lg bg-gradient-to-br from-sidebar-accent/40 to-sidebar-accent/20 p-2.5 border border-sidebar-border/30">
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/15">
+                <User className="h-3.5 w-3.5 text-sidebar-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-sidebar-foreground truncate">
+                  {fullName || 'User'}
+                </p>
+              </div>
             </div>
             <Badge
               variant={isAdmin ? 'default' : 'secondary'}
               className={cn(
-                'w-fit text-xs font-medium capitalize',
-                isAdmin && 'bg-sidebar-primary text-sidebar-primary-foreground border-0'
+                'h-5 px-2 text-[10px] font-semibold capitalize tracking-wide',
+                isAdmin && 'bg-sidebar-primary text-sidebar-primary-foreground border-0 shadow-sm'
               )}
             >
               {role ?? 'Employee'}
@@ -98,11 +112,11 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
           variant="ghost"
           onClick={signOut}
           className={cn(
-            'w-full rounded-xl text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium transition-all duration-200',
-            collapsed ? 'px-0 justify-center h-10' : 'justify-start gap-2 h-10'
+            'w-full rounded-lg text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground font-medium transition-all duration-200 text-sm',
+            collapsed ? 'px-0 justify-center h-9' : 'justify-start gap-2 h-9'
           )}
         >
-          <LogOut className="h-4 w-4 shrink-0" />
+          <LogOut className="h-[18px] w-[18px] shrink-0" />
           {!collapsed && <span>Sign Out</span>}
         </Button>
       </div>
@@ -124,8 +138,8 @@ export function AppSidebar({
     return (
       <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
         <SheetContent side="left" className="w-64 p-0 bg-sidebar text-sidebar-foreground border-sidebar-border">
-          <div className="h-16 flex items-center px-4 border-b border-sidebar-border bg-sidebar-accent/20">
-            <img src="/logo.png" alt="RemoAsset" className="h-8 w-auto object-contain" />
+          <div className="h-14 flex items-center px-3 border-b border-sidebar-border/50 bg-sidebar-accent/10">
+            <img src="/logo.png" alt="RemoAsset" className="h-7 w-auto object-contain" />
           </div>
           <SidebarNav onNavigate={() => onMobileOpenChange?.(false)} />
         </SheetContent>
@@ -140,19 +154,19 @@ export function AppSidebar({
         collapsed ? 'w-16' : 'w-64'
       )}
     >
-      <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border bg-sidebar-accent/10">
+      <div className="h-14 flex items-center justify-between px-3 border-b border-sidebar-border/50 bg-sidebar-accent/10">
         {collapsed ? (
-          <img src="/favicon.png" alt="RemoAsset" className="h-8 w-8 object-contain flex-shrink-0" />
+          <img src="/favicon.png" alt="RemoAsset" className="h-7 w-7 object-contain flex-shrink-0" />
         ) : (
-          <img src="/logo.png" alt="RemoAsset" className="h-8 w-auto object-contain" />
+          <img src="/logo.png" alt="RemoAsset" className="h-7 w-auto object-contain" />
         )}
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setCollapsed(!collapsed)}
-          className="text-sidebar-foreground hover:bg-sidebar-accent rounded-lg transition-colors"
+          className="h-7 w-7 text-sidebar-foreground hover:bg-sidebar-accent/50 rounded-md transition-colors"
         >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
         </Button>
       </div>
       <SidebarNav collapsed={collapsed} />
