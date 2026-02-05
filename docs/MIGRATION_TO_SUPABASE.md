@@ -40,12 +40,12 @@ You can do either **A** (Dashboard) or **B** (CLI).
 1. In Supabase Dashboard: **Settings** → **API**.
 2. Copy:
    - **Project URL** → `VITE_SUPABASE_URL`
-   - **anon public** key → `VITE_SUPABASE_PUBLISHABLE_KEY`
+   - **anon public** key → `VITE_SUPABASE_ANON_KEY`
 3. In this repo, create or update `.env` (see `.env.example`):
 
    ```env
    VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-   VITE_SUPABASE_PUBLISHABLE_KEY=your_anon_public_key
+   VITE_SUPABASE_ANON_KEY=your_anon_public_key
    ```
 
 4. Restart the dev server so Vite picks up the new env.
@@ -83,7 +83,7 @@ Set these **Environment Variables** in your Vercel project (Settings → Environ
 | Name | Value |
 |------|--------|
 | `VITE_SUPABASE_URL` | `https://snashlomudlvooanyqwt.supabase.co` |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Your Supabase anon (public) key from Dashboard → Settings → API |
+| `VITE_SUPABASE_ANON_KEY` | Your Supabase anon (public) key from Dashboard → Settings → API |
 
 Add them for **Production**, **Preview**, and **Development** if you use Vercel preview deployments. Redeploy after saving so the build picks up the new variables.
 
@@ -93,7 +93,7 @@ Add them for **Production**, **Preview**, and **Development** if you use Vercel 
 |------|--------|
 | 1 | Create project at supabase.com |
 | 2 | Run migration SQL (Dashboard or `supabase db push`) |
-| 3 | Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env` (and on Vercel) |
+| 3 | Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env` (and on Vercel) |
 | 4 | (Optional) Export/import data from Lovable project |
 | 5 | (Optional) Link CLI via `supabase link` or `config.toml` |
 
