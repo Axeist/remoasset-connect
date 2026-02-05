@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -346,7 +347,15 @@ function TaskItem({
       />
       <div className="flex-1 min-w-0">
         <p className={cn('font-medium', task.is_completed && 'line-through')}>{task.title}</p>
-        {task.lead && <p className="text-sm text-muted-foreground">{task.lead.company_name}</p>}
+        {task.lead_id && task.lead && (
+          <Link
+            to={`/leads/${task.lead_id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-sm text-primary hover:underline"
+          >
+            {task.lead.company_name}
+          </Link>
+        )}
         <div className="flex items-center gap-2 mt-2">
           <Badge className={priorityColors[task.priority] ?? 'bg-muted'}>{task.priority}</Badge>
           {task.due_date && (
@@ -386,7 +395,15 @@ function TaskCard({
         />
         <div className="flex-1 min-w-0">
           <p className={cn('font-medium text-sm', task.is_completed && 'line-through')}>{task.title}</p>
-          {task.lead && <p className="text-xs text-muted-foreground">{task.lead.company_name}</p>}
+          {task.lead_id && task.lead && (
+            <Link
+              to={`/leads/${task.lead_id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-primary hover:underline block"
+            >
+              {task.lead.company_name}
+            </Link>
+          )}
           <div className="flex items-center gap-2 mt-1">
             <Badge className={cn('text-xs', priorityColors[task.priority] ?? 'bg-muted')}>{task.priority}</Badge>
             {task.due_date && (

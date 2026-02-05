@@ -8,8 +8,9 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Calendar, Trash2 } from 'lucide-react';
+import { Calendar, Trash2, ExternalLink } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,9 +75,17 @@ export function TaskDetailDialog({
             <DialogTitle className={cn(task.is_completed && 'line-through text-muted-foreground')}>
               {task.title}
             </DialogTitle>
-            <DialogDescription>
-              {task.lead && (
-                <span className="text-foreground font-medium">{task.lead.company_name}</span>
+            <DialogDescription asChild>
+              {task.lead_id && task.lead ? (
+                <Link
+                  to={`/leads/${task.lead_id}`}
+                  className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium"
+                >
+                  {task.lead.company_name}
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+              ) : (
+                <span>No lead linked</span>
               )}
             </DialogDescription>
           </DialogHeader>
