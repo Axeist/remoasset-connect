@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink, FileDown, Activity } from 'lucide-react';
+import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink, FileDown, Activity, Calendar, CheckSquare, Trash2 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
@@ -60,6 +60,8 @@ export default function Admin() {
   const [editingCountry, setEditingCountry] = useState<Country | null>(null);
   const [deleteStatus, setDeleteStatus] = useState<Status | null>(null);
   const [deleteCountry, setDeleteCountry] = useState<Country | null>(null);
+  const [deleteFollowUpsDialog, setDeleteFollowUpsDialog] = useState(false);
+  const [deleteTasksDialog, setDeleteTasksDialog] = useState(false);
   const [analytics, setAnalytics] = useState<{
     byStatus: { name: string; value: number; color: string }[];
     byCountry: { name: string; leads: number }[];
@@ -395,6 +397,212 @@ export default function Admin() {
     }
   };
 
+  const generateFollowUps = async () => {
+    try {
+      const { data: leads } = await supabase
+        .from('leads')
+        .select('id, company_name, owner_id')
+        .not('owner_id', 'is', null)
+        .limit(200);
+
+      if (!leads || leads.length === 0) {
+        toast({ variant: 'destructive', title: 'No leads found', description: 'Import leads first before generating follow-ups.' });
+        return;
+      }
+
+      const followUpNotes = [
+        'Schedule product demo and prepare pricing proposal.',
+        'Send case studies and discuss implementation timeline.',
+        'Follow up on budget approval and contract terms.',
+        'Call to address remaining technical questions.',
+        'Meeting with decision makers to finalize agreement.',
+        'Check in on evaluation progress and next steps.',
+        'Share additional resources and arrange executive presentation.',
+        'Discuss onboarding process and training requirements.',
+      ];
+
+      const followUps = [];
+      const now = new Date();
+
+      for (const lead of leads) {
+        // Generate 1-3 follow-ups per lead
+        const followUpCount = Math.floor(Math.random() * 3) + 1;
+        
+        for (let i = 0; i < followUpCount; i++) {
+          const daysAhead = Math.floor(Math.random() * 14) + 1; // 1-14 days ahead
+          const scheduledAt = new Date(now);
+          scheduledAt.setDate(scheduledAt.getDate() + daysAhead);
+          scheduledAt.setHours(Math.floor(Math.random() * 7) + 10); // 10 AM - 5 PM
+          scheduledAt.setMinutes([0, 15, 30, 45][Math.floor(Math.random() * 4)]);
+
+          const notes = followUpNotes[Math.floor(Math.random() * followUpNotes.length)];
+          const isCompleted = Math.random() < 0.3; // 30% completed
+
+          followUps.push({
+            lead_id: lead.id,
+            user_id: lead.owner_id,
+            scheduled_at: scheduledAt.toISOString(),
+            reminder_type: 'one-time',
+            notes,
+            is_completed: isCompleted,
+          });
+        }
+      }
+
+      const BATCH_SIZE = 50;
+      let inserted = 0;
+      
+      for (let i = 0; i < followUps.length; i += BATCH_SIZE) {
+        const batch = followUps.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from('follow_ups').insert(batch);
+        
+        if (error) {
+          toast({ variant: 'destructive', title: 'Error', description: error.message });
+          return;
+        }
+        inserted += batch.length;
+      }
+
+      toast({ 
+        title: 'Follow-ups generated', 
+        description: `${inserted} follow-ups created for ${leads.length} leads.` 
+      });
+    } catch (error) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error', 
+        description: error instanceof Error ? error.message : 'Failed to generate follow-ups' 
+      });
+    }
+  };
+
+  const generateTasks = async () => {
+    try {
+      const { data: leads } = await supabase
+        .from('leads')
+        .select('id, company_name, owner_id')
+        .not('owner_id', 'is', null)
+        .limit(200);
+
+      if (!leads || leads.length === 0) {
+        toast({ variant: 'destructive', title: 'No leads found', description: 'Import leads first before generating tasks.' });
+        return;
+      }
+
+      const taskTemplates = [
+        { title: 'Prepare product demo', description: 'Set up demo environment and customize presentation for client needs.', priority: 'high' },
+        { title: 'Send pricing proposal', description: 'Create detailed pricing breakdown and payment terms document.', priority: 'high' },
+        { title: 'Schedule follow-up call', description: 'Coordinate with client for next discussion on requirements.', priority: 'medium' },
+        { title: 'Research client industry', description: 'Gather insights on industry trends and competitors.', priority: 'low' },
+        { title: 'Prepare case studies', description: 'Compile relevant success stories and ROI examples.', priority: 'medium' },
+        { title: 'Technical requirements review', description: 'Analyze technical specs and integration needs.', priority: 'high' },
+        { title: 'Contract preparation', description: 'Draft contract with legal team review.', priority: 'urgent' },
+        { title: 'Schedule stakeholder meeting', description: 'Arrange meeting with all decision makers.', priority: 'high' },
+        { title: 'Send product brochure', description: 'Email detailed product information and features.', priority: 'low' },
+        { title: 'Competitor analysis', description: 'Compare our solution against alternatives they are considering.', priority: 'medium' },
+      ];
+
+      const tasks = [];
+      const now = new Date();
+
+      for (const lead of leads) {
+        // Generate 2-4 tasks per lead
+        const taskCount = Math.floor(Math.random() * 3) + 2;
+        const usedTasks = new Set<number>();
+        
+        for (let i = 0; i < taskCount; i++) {
+          let templateIdx;
+          do {
+            templateIdx = Math.floor(Math.random() * taskTemplates.length);
+          } while (usedTasks.has(templateIdx) && usedTasks.size < taskTemplates.length);
+          usedTasks.add(templateIdx);
+
+          const template = taskTemplates[templateIdx];
+          const daysAhead = Math.floor(Math.random() * 10) + 1; // 1-10 days ahead
+          const dueDate = new Date(now);
+          dueDate.setDate(dueDate.getDate() + daysAhead);
+          
+          const isCompleted = Math.random() < 0.4; // 40% completed
+
+          tasks.push({
+            title: template.title,
+            description: template.description,
+            lead_id: lead.id,
+            assignee_id: lead.owner_id,
+            due_date: dueDate.toISOString(),
+            priority: template.priority,
+            is_completed: isCompleted,
+          });
+        }
+      }
+
+      const BATCH_SIZE = 50;
+      let inserted = 0;
+      
+      for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
+        const batch = tasks.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from('tasks').insert(batch);
+        
+        if (error) {
+          toast({ variant: 'destructive', title: 'Error', description: error.message });
+          return;
+        }
+        inserted += batch.length;
+      }
+
+      toast({ 
+        title: 'Tasks generated', 
+        description: `${inserted} tasks created for ${leads.length} leads.` 
+      });
+    } catch (error) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error', 
+        description: error instanceof Error ? error.message : 'Failed to generate tasks' 
+      });
+    }
+  };
+
+  const deleteAllFollowUps = async () => {
+    try {
+      const { error } = await supabase.from('follow_ups').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      
+      if (error) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message });
+        return;
+      }
+
+      toast({ title: 'All follow-ups deleted', description: 'All follow-ups have been removed from the system.' });
+      fetchAnalytics();
+    } catch (error) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error', 
+        description: error instanceof Error ? error.message : 'Failed to delete follow-ups' 
+      });
+    }
+  };
+
+  const deleteAllTasks = async () => {
+    try {
+      const { error } = await supabase.from('tasks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      
+      if (error) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message });
+        return;
+      }
+
+      toast({ title: 'All tasks deleted', description: 'All tasks have been removed from the system.' });
+      fetchAnalytics();
+    } catch (error) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error', 
+        description: error instanceof Error ? error.message : 'Failed to delete tasks' 
+      });
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
@@ -559,19 +767,49 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="analytics" className="mt-6 space-y-6">
-            <div className="flex justify-end gap-2 flex-wrap">
-              <Button variant="outline" size="sm" className="gap-2" onClick={generateSampleLeadsCSV}>
-                <FileDown className="h-4 w-4" />
-                Generate sample CSV
-              </Button>
-              <Button variant="outline" size="sm" className="gap-2" onClick={generateActivityLogs}>
-                <Activity className="h-4 w-4" />
-                Generate activity logs
-              </Button>
-              <Button variant="outline" size="sm" className="gap-2" onClick={exportAnalytics}>
-                <Download className="h-4 w-4" />
-                Export report
-              </Button>
+            <div className="flex justify-between items-start gap-4 flex-wrap">
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="outline" size="sm" className="gap-2" onClick={generateSampleLeadsCSV}>
+                  <FileDown className="h-4 w-4" />
+                  Generate sample CSV
+                </Button>
+                <Button variant="outline" size="sm" className="gap-2" onClick={generateActivityLogs}>
+                  <Activity className="h-4 w-4" />
+                  Generate activities
+                </Button>
+                <Button variant="outline" size="sm" className="gap-2" onClick={generateFollowUps}>
+                  <Calendar className="h-4 w-4" />
+                  Generate follow-ups
+                </Button>
+                <Button variant="outline" size="sm" className="gap-2" onClick={generateTasks}>
+                  <CheckSquare className="h-4 w-4" />
+                  Generate tasks
+                </Button>
+                <Button variant="outline" size="sm" className="gap-2" onClick={exportAnalytics}>
+                  <Download className="h-4 w-4" />
+                  Export report
+                </Button>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="gap-2" 
+                  onClick={() => setDeleteFollowUpsDialog(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete all follow-ups
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="gap-2" 
+                  onClick={() => setDeleteTasksDialog(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete all tasks
+                </Button>
+              </div>
             </div>
             <div className="grid gap-6 md:grid-cols-2">
               <Card className="card-shadow">
@@ -697,6 +935,50 @@ export default function Admin() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleDeleteCountry} className="bg-destructive text-destructive-foreground">
                 Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog open={deleteFollowUpsDialog} onOpenChange={setDeleteFollowUpsDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete all follow-ups?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete all follow-ups in the system. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={() => {
+                  deleteAllFollowUps();
+                  setDeleteFollowUpsDialog(false);
+                }} 
+                className="bg-destructive text-destructive-foreground"
+              >
+                Delete All
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog open={deleteTasksDialog} onOpenChange={setDeleteTasksDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete all tasks?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete all tasks in the system. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={() => {
+                  deleteAllTasks();
+                  setDeleteTasksDialog(false);
+                }} 
+                className="bg-destructive text-destructive-foreground"
+              >
+                Delete All
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
