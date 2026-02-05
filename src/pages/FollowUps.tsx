@@ -46,8 +46,7 @@ export default function FollowUps() {
         notes,
         is_completed,
         created_at,
-        lead:leads(company_name),
-        profile:profiles!follow_ups_user_id_fkey(full_name)
+        lead:leads(company_name)
       `)
       .order('scheduled_at', { ascending: true });
     
@@ -63,7 +62,30 @@ export default function FollowUps() {
       setLoading(false);
       return;
     }
-    setFollowUps((data as FollowUpRow[]) ?? []);
+
+    // Fetch user profiles for admin view
+    if (isAdmin && data && data.length > 0) {
+      const userIds = [...new Set(data.map(f => f.user_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .in('user_id', userIds);
+      
+      const profileMap = (profiles || []).reduce((acc, p) => {
+        acc[p.user_id] = { full_name: p.full_name };
+        return acc;
+      }, {} as Record<string, { full_name: string }>);
+
+      const enrichedData = data.map(f => ({
+        ...f,
+        profile: profileMap[f.user_id] || null
+      }));
+      
+      setFollowUps(enrichedData as FollowUpRow[]);
+    } else {
+      setFollowUps((data as FollowUpRow[]) ?? []);
+    }
+    
     setLoading(false);
   };
 

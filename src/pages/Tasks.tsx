@@ -78,8 +78,7 @@ export default function Tasks() {
         is_completed,
         lead_id,
         assignee_id,
-        lead:leads(company_name),
-        assignee:profiles!tasks_assignee_id_fkey(full_name)
+        lead:leads(company_name)
       `)
       .order('due_date', { ascending: true });
     
@@ -91,6 +90,26 @@ export default function Tasks() {
     const { data, error } = await query;
     if (!error && data) {
       let list = data as TaskWithAssignee[];
+      
+      // Fetch assignee profiles for admin view
+      if (isAdmin && data.length > 0) {
+        const assigneeIds = [...new Set(data.map(t => t.assignee_id))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', assigneeIds);
+        
+        const profileMap = (profiles || []).reduce((acc, p) => {
+          acc[p.user_id] = { full_name: p.full_name };
+          return acc;
+        }, {} as Record<string, { full_name: string }>);
+
+        list = list.map(t => ({
+          ...t,
+          assignee: profileMap[t.assignee_id] || null
+        }));
+      }
+      
       const now = new Date();
       const todayStart = startOfDay(now);
       const todayEnd = endOfDay(now);
