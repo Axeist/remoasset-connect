@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink, FileDown } from 'lucide-react';
+import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink, FileDown, Activity } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
@@ -193,7 +193,7 @@ export default function Admin() {
   };
 
   const generateSampleLeadsCSV = async () => {
-    // Get all users from user_roles table
+    // Get all users from user_roles table with their names
     const { data: allRoles } = await supabase.from('user_roles').select('user_id');
     
     if (!allRoles || allRoles.length < 2) {
@@ -201,8 +201,13 @@ export default function Admin() {
       return;
     }
     
-    // Take first 2 users
-    const targetUsers = allRoles.slice(0, 2).map(r => ({ id: r.user_id }));
+    // Get profile names for the first 2 users
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('user_id, full_name')
+      .in('user_id', allRoles.slice(0, 2).map(r => r.user_id));
+    
+    const targetUsers = (profiles || []).slice(0, 2);
 
     const companies = [
       'Tech Solutions Inc', 'Global Ventures Ltd', 'Innovation Corp', 'Digital Systems', 'Cloud Services Inc',
@@ -218,54 +223,56 @@ export default function Admin() {
     ];
 
     const contacts = [
-      'John Smith', 'Jane Doe', 'Michael Johnson', 'Sarah Williams', 'David Brown',
-      'Emily Davis', 'James Wilson', 'Lisa Anderson', 'Robert Taylor', 'Maria Garcia',
-      'William Martinez', 'Jessica Rodriguez', 'Thomas Lee', 'Linda White', 'Christopher Harris',
-      'Barbara Clark', 'Daniel Lewis', 'Nancy Walker', 'Matthew Hall', 'Betty Allen',
-      'Anthony Young', 'Sandra King', 'Mark Wright', 'Margaret Lopez', 'Donald Hill',
-      'Ashley Scott', 'Paul Green', 'Kimberly Adams', 'Andrew Baker', 'Elizabeth Nelson',
-      'Joshua Carter', 'Helen Mitchell', 'Brian Roberts', 'Laura Turner', 'Kevin Phillips',
-      'Carol Campbell', 'George Parker', 'Dorothy Evans', 'Eric Edwards', 'Michelle Collins',
-      'Stephen Stewart', 'Susan Sanchez', 'Jason Morris', 'Angela Rogers', 'Jeffrey Reed',
-      'Deborah Cook', 'Ryan Morgan', 'Donna Bell', 'Jacob Murphy', 'Karen Bailey'
+      { name: 'John Smith', designation: 'CEO' },
+      { name: 'Jane Doe', designation: 'CTO' },
+      { name: 'Michael Johnson', designation: 'VP Sales' },
+      { name: 'Sarah Williams', designation: 'Director' },
+      { name: 'David Brown', designation: 'Manager' },
+      { name: 'Emily Davis', designation: 'COO' },
+      { name: 'James Wilson', designation: 'CFO' },
+      { name: 'Lisa Anderson', designation: 'VP Operations' },
+      { name: 'Robert Taylor', designation: 'Head of IT' },
+      { name: 'Maria Garcia', designation: 'Procurement Manager' },
     ];
 
-    // Get statuses and countries
+    // Get statuses and countries with names
     const [statusesRes, countriesRes] = await Promise.all([
-      supabase.from('lead_statuses').select('id').limit(4),
-      supabase.from('countries').select('id').limit(10),
+      supabase.from('lead_statuses').select('id, name'),
+      supabase.from('countries').select('id, name, code'),
     ]);
 
-    const statusIds = statusesRes.data?.map(s => s.id) || [];
-    const countryIds = countriesRes.data?.map(c => c.id) || [];
+    const statuses = statusesRes.data || [];
+    const countries = countriesRes.data || [];
 
+    // CSV headers matching import format
     const rows: string[][] = [
-      ['company_name', 'contact_name', 'email', 'phone', 'website', 'status_id', 'country_id', 'lead_score', 'owner_id', 'notes']
+      ['company_name', 'contact_name', 'contact_designation', 'email', 'phone', 'website', 'country', 'status', 'lead_score', 'lead_owner', 'notes']
     ];
 
     // Generate 100 leads for each user
     targetUsers.forEach((user, userIdx) => {
       for (let i = 0; i < 100; i++) {
-        const companyName = `${companies[i % companies.length]} ${userIdx + 1}-${i + 1}`;
-        const contactName = contacts[i % contacts.length];
-        const email = `${contactName.toLowerCase().replace(' ', '.')}@${companyName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
-        const phone = `+1 ${Math.floor(Math.random() * 900 + 100)} ${Math.floor(Math.random() * 900 + 100)} ${Math.floor(Math.random() * 9000 + 1000)}`;
-        const website = `https://${companyName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
-        const statusId = statusIds[Math.floor(Math.random() * statusIds.length)] || '';
-        const countryId = countryIds[Math.floor(Math.random() * countryIds.length)] || '';
+        const companyName = `${companies[i % companies.length]}`;
+        const contact = contacts[i % contacts.length];
+        const email = `${contact.name.toLowerCase().replace(' ', '.')}@${companyName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
+        const phone = `+1-${String(Math.floor(Math.random() * 900 + 100))}-${String(Math.floor(Math.random() * 900 + 100))}-${String(Math.floor(Math.random() * 9000 + 1000))}`;
+        const website = `https://www.${companyName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
+        const status = statuses[Math.floor(Math.random() * statuses.length)]?.name || 'New';
+        const country = countries[Math.floor(Math.random() * countries.length)]?.name || 'United States';
         const leadScore = Math.floor(Math.random() * 70) + 30; // 30-100
-        const notes = `Sample lead ${i + 1} for testing purposes`;
+        const notes = `Initial outreach completed. Interested in our enterprise solutions. Follow-up scheduled for next week.`;
 
         rows.push([
           companyName,
-          contactName,
+          contact.name,
+          contact.designation,
           email,
           phone,
           website,
-          statusId,
-          countryId,
+          country,
+          status,
           String(leadScore),
-          user.id,
+          user.full_name || user.user_id,
           notes
         ]);
       }
@@ -279,7 +286,113 @@ export default function Admin() {
     a.download = `sample-leads-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast({ title: 'Sample CSV generated', description: '200 sample leads ready for import.' });
+    toast({ 
+      title: 'Sample CSV generated', 
+      description: `200 sample leads ready for import. After importing, use "Generate Activity Logs" to add simulated activities.` 
+    });
+  };
+
+  const generateActivityLogs = async () => {
+    try {
+      // Get all leads owned by users (not unassigned)
+      const { data: leads } = await supabase
+        .from('leads')
+        .select('id, company_name, owner_id')
+        .not('owner_id', 'is', null)
+        .limit(200);
+
+      if (!leads || leads.length === 0) {
+        toast({ variant: 'destructive', title: 'No leads found', description: 'Import leads first before generating activity logs.' });
+        return;
+      }
+
+      const activityTypes = ['call', 'email', 'meeting', 'note'];
+      const descriptions = {
+        call: [
+          'Initial discovery call completed. Discussed their current vendor management challenges.',
+          'Follow-up call to address technical questions about our platform.',
+          'Product demo call scheduled for next week.',
+          'Called to discuss pricing and contract terms.',
+          'Quick check-in call. They need more time to evaluate.',
+        ],
+        email: [
+          'Sent introduction email with company overview and case studies.',
+          'Forwarded product brochure and pricing information.',
+          'Shared success story from similar industry client.',
+          'Sent meeting invitation for product demonstration.',
+          'Follow-up email with answers to their technical questions.',
+        ],
+        meeting: [
+          'In-person meeting at their office. Met with procurement team.',
+          'Virtual product demonstration completed. Very positive response.',
+          'Stakeholder meeting with decision makers. Discussed implementation timeline.',
+          'Contract negotiation meeting. Terms under review.',
+          'Final presentation to executive board. Awaiting decision.',
+        ],
+        note: [
+          'Lead shows strong interest. Budget approved for Q1.',
+          'Competitor evaluation in progress. Following up next month.',
+          'Requested additional references and case studies.',
+          'Internal approval process started. Expected decision in 2 weeks.',
+          'Positive feedback from technical team. Moving forward with POC.',
+        ],
+      };
+
+      const activities = [];
+      const now = new Date();
+
+      for (const lead of leads) {
+        // Generate 3-7 activities per lead
+        const activityCount = Math.floor(Math.random() * 5) + 3;
+        
+        for (let i = 0; i < activityCount; i++) {
+          const activityType = activityTypes[Math.floor(Math.random() * activityTypes.length)];
+          const descArray = descriptions[activityType as keyof typeof descriptions];
+          const description = descArray[Math.floor(Math.random() * descArray.length)];
+          
+          // Create activities spread over the last 30 days
+          const daysAgo = Math.floor(Math.random() * 30);
+          const createdAt = new Date(now);
+          createdAt.setDate(createdAt.getDate() - daysAgo);
+          createdAt.setHours(Math.floor(Math.random() * 9) + 9); // 9 AM - 6 PM
+          createdAt.setMinutes(Math.floor(Math.random() * 60));
+
+          activities.push({
+            lead_id: lead.id,
+            user_id: lead.owner_id,
+            activity_type: activityType,
+            description,
+            created_at: createdAt.toISOString(),
+          });
+        }
+      }
+
+      // Insert activities in batches
+      const BATCH_SIZE = 50;
+      let inserted = 0;
+      
+      for (let i = 0; i < activities.length; i += BATCH_SIZE) {
+        const batch = activities.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from('lead_activities').insert(batch);
+        
+        if (error) {
+          toast({ variant: 'destructive', title: 'Error', description: error.message });
+          return;
+        }
+        inserted += batch.length;
+      }
+
+      toast({ 
+        title: 'Activity logs generated', 
+        description: `${inserted} activities created for ${leads.length} leads.` 
+      });
+    } catch (error) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error', 
+        description: error instanceof Error ? error.message : 'Failed to generate activities' 
+      });
+    }
   };
 
   return (
@@ -446,10 +559,14 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="analytics" className="mt-6 space-y-6">
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 flex-wrap">
               <Button variant="outline" size="sm" className="gap-2" onClick={generateSampleLeadsCSV}>
                 <FileDown className="h-4 w-4" />
-                Generate sample leads CSV
+                Generate sample CSV
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2" onClick={generateActivityLogs}>
+                <Activity className="h-4 w-4" />
+                Generate activity logs
               </Button>
               <Button variant="outline" size="sm" className="gap-2" onClick={exportAnalytics}>
                 <Download className="h-4 w-4" />
