@@ -106,9 +106,9 @@ export default function Settings() {
           <CardContent className="space-y-6">
             <div className="flex items-center gap-4">
               <Avatar className="h-20 w-20">
-                <AvatarImage src={avatarUrl || undefined} alt={fullName || user?.email ?? ''} />
+                <AvatarImage src={avatarUrl || undefined} alt={(fullName || user?.email) ?? ''} />
                 <AvatarFallback className="text-lg bg-primary/10 text-primary">
-                  {(fullName || user?.email ?? 'U').slice(0, 2).toUpperCase()}
+                  {((fullName || user?.email) ?? 'U').slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="text-sm text-muted-foreground">
