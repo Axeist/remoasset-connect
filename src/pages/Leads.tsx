@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Download, Upload, UserPlus, Tag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { safeFormat } from '@/lib/date';
 import type { Lead } from '@/types/lead';
 
 const PAGE_SIZE = 10;
@@ -160,7 +161,7 @@ export default function Leads() {
       l.status?.name ?? '',
       l.lead_score ?? '',
       l.country?.name ?? '',
-      new Date(l.created_at).toLocaleDateString(),
+      safeFormat(l.created_at, 'PP', '-'),
     ]);
     const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

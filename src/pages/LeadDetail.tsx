@@ -11,10 +11,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { safeFormat } from '@/lib/date';
 import { getActivityScorePoints, clampLeadScore } from '@/lib/leadScore';
 
 const activityTypeConfig = {
@@ -328,7 +328,7 @@ export default function LeadDetail() {
                 )}
                 <div className="space-y-1 sm:col-span-2">
                   <p className="text-sm text-muted-foreground">Last updated</p>
-                  <p className="font-medium">{format(new Date(lead.updated_at), 'PPp')}</p>
+                  <p className="font-medium">{safeFormat(lead.updated_at, 'PPp')}</p>
                 </div>
               </CardContent>
             </Card>
@@ -363,7 +363,7 @@ export default function LeadDetail() {
               <CardHeader>
                 <CardTitle>Notes</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {lead.updated_at && `Last updated ${format(new Date(lead.updated_at), 'PP')}`}
+                  {lead.updated_at && `Last updated ${safeFormat(lead.updated_at, 'PP')}`}
                 </p>
               </CardHeader>
               <CardContent>
@@ -480,7 +480,7 @@ function LeadActivityTab({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{a.description}</p>
                     <p className="text-xs text-muted-foreground">
-                      {a.profile?.full_name ?? 'Unknown'} • {format(new Date(a.created_at), 'PPp')}
+                      {a.profile?.full_name ?? 'Unknown'} • {safeFormat(a.created_at, 'PPp')}
                     </p>
                   </div>
                 </div>
@@ -546,7 +546,7 @@ function LeadTasksTab({
                   <div className="flex-1">
                     <p className="font-medium">{t.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {t.due_date ? format(new Date(t.due_date), 'PP') : 'No due date'} • {t.priority}
+                      {t.due_date ? safeFormat(t.due_date, 'PP') : 'No due date'} • {t.priority}
                     </p>
                   </div>
                 </div>
@@ -674,7 +674,7 @@ function LeadFollowUpsTab({
               {upcoming.map((f) => (
                 <div key={f.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
                   <div>
-                    <p className="font-medium">{format(new Date(f.scheduled_at), 'PPp')}</p>
+                    <p className="font-medium">{safeFormat(f.scheduled_at, 'PPp')}</p>
                     <p className="text-xs text-muted-foreground">{f.reminder_type}</p>
                     {f.notes && <p className="text-sm text-muted-foreground mt-1">{f.notes}</p>}
                   </div>
@@ -686,7 +686,7 @@ function LeadFollowUpsTab({
               {past.map((f) => (
                 <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30 opacity-70">
                   <div>
-                    <p className="font-medium line-through">{format(new Date(f.scheduled_at), 'PPp')}</p>
+                    <p className="font-medium line-through">{safeFormat(f.scheduled_at, 'PPp')}</p>
                     <p className="text-xs text-muted-foreground">{f.reminder_type}</p>
                   </div>
                 </div>

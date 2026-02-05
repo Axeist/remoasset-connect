@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/pagination';
 import { Button } from '@/components/ui/button';
 import type { Lead } from '@/types/lead';
-import { format } from 'date-fns';
+import { safeFormat } from '@/lib/date';
 import { ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -192,10 +192,10 @@ export function LeadsTable({
                   ) : '-'}
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
-                  {format(new Date(lead.updated_at), 'MMM d, yyyy')}
+                  {safeFormat(lead.updated_at, 'MMM d, yyyy')}
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
-                  {format(new Date(lead.created_at), 'MMM d, yyyy')}
+                  {safeFormat(lead.created_at, 'MMM d, yyyy')}
                 </TableCell>
               </TableRow>
             ))}
