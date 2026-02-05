@@ -212,6 +212,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
       status_id: r.status_id,
       lead_score: r.lead_score,
       notes: r.notes,
+      // Empty lead_owner in CSV → assign to current user (importer)
       owner_id: r.owner_id ?? user?.id ?? null,
     }));
 

@@ -20,7 +20,7 @@ Use **Leads** → **Import** to upload a CSV file. The importer accepts the colu
 | `contact_designation` | Contact Designation, Designation | Job title. |
 | `status` | Status, Lead Status | Lead status **name**. Must match a status in **Admin → Settings → Lead statuses** (e.g. New, Qualified, Email sent). If missing or unknown, first status is used. |
 | `lead_score` | Score, Lead Score | Number 1–100. Default: 50. |
-| `lead_owner` | Lead Owner, Owner, Assigned to | **Full name** of the team member who should own the lead. Must match exactly the name in **Admin → Users** (e.g. Ranjith Kirloskar). If empty or no match, the lead is assigned to you (the importer) or left unassigned. |
+| `lead_owner` | Lead Owner, Owner, Assigned to | **Full name** of the team member who should own the lead. Must match exactly the name in **Admin → Users** (e.g. Ranjith Kirloskar). **If empty, the lead is assigned to you** (the user who is importing—your profile is set as owner). If the name doesn’t match any team member, the lead is also assigned to you. |
 | `notes` | Notes, Note | Free-text notes. |
 | `followup_stage` | Followup stage, Follow-up stage | Imported into lead **notes** as "Follow-up: &lt;value&gt;" (e.g. No Touch, 2nd follow up). |
 | `call_booked` | Call booked | Imported into lead **notes** as "Call: &lt;value&gt;". |
