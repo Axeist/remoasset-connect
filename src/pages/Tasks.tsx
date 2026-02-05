@@ -220,7 +220,7 @@ export default function Tasks() {
                         key={task.id}
                         task={task}
                         onToggle={toggleTask}
-                        onClick={() => { task.lead_id ? navigate(`/leads/${task.lead_id}`) : (setDetailTask(task); setDetailOpen(true)); }}
+                        onClick={() => { if (task.lead_id) navigate(`/leads/${task.lead_id}`); else { setDetailTask(task); setDetailOpen(true); } }}
                       />
                     ))
                   )}
@@ -244,7 +244,7 @@ export default function Tasks() {
                         key={task.id}
                         task={task}
                         onToggle={toggleTask}
-                        onClick={() => { task.lead_id ? navigate(`/leads/${task.lead_id}`) : (setDetailTask(task); setDetailOpen(true)); }}
+                        onClick={() => { if (task.lead_id) navigate(`/leads/${task.lead_id}`); else { setDetailTask(task); setDetailOpen(true); } }}
                       />
                     ))
                   )}
@@ -271,7 +271,7 @@ export default function Tasks() {
                         key={task.id}
                         task={task}
                         onToggle={toggleTask}
-                        onClick={() => { task.lead_id ? navigate(`/leads/${task.lead_id}`) : (setDetailTask(task); setDetailOpen(true)); }}
+                        onClick={() => { if (task.lead_id) navigate(`/leads/${task.lead_id}`); else { setDetailTask(task); setDetailOpen(true); } }}
                       />
                     ))}
                   </div>
@@ -295,7 +295,7 @@ export default function Tasks() {
                         key={task.id}
                         task={task}
                         onToggle={toggleTask}
-                        onClick={() => { task.lead_id ? navigate(`/leads/${task.lead_id}`) : (setDetailTask(task); setDetailOpen(true)); }}
+                        onClick={() => { if (task.lead_id) navigate(`/leads/${task.lead_id}`); else { setDetailTask(task); setDetailOpen(true); } }}
                       />
                     ))}
                   </div>
