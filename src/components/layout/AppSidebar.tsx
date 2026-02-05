@@ -88,17 +88,17 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
       </nav>
       <div className="p-3 border-t border-sidebar-border/50">
         {!collapsed && user && (
-          <div className="mb-3 rounded-lg bg-gradient-to-br from-sidebar-accent/40 to-sidebar-accent/20 p-3 border border-sidebar-border/30">
-            <div className="flex items-center gap-2.5 mb-2">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/15">
-                <User className="h-4 w-4 text-sidebar-primary" />
+          <div className="mb-3 rounded-xl bg-gradient-to-br from-sidebar-primary/10 via-sidebar-accent/30 to-sidebar-accent/10 p-3.5 border border-sidebar-border/40 shadow-lg">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sidebar-primary to-sidebar-primary/80 shadow-md">
+                <User className="h-5 w-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-sidebar-foreground truncate">
+                <p className="text-sm font-bold text-sidebar-foreground truncate mb-0.5">
                   {fullName || 'User'}
                 </p>
                 {designation && (
-                  <p className="text-xs text-sidebar-foreground/60 truncate">
+                  <p className="text-xs text-sidebar-foreground/70 truncate font-medium">
                     {designation}
                   </p>
                 )}
@@ -107,8 +107,8 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
             <Badge
               variant={isAdmin ? 'default' : 'secondary'}
               className={cn(
-                'h-5 px-2.5 text-[10px] font-semibold capitalize tracking-wide',
-                isAdmin && 'bg-sidebar-primary text-sidebar-primary-foreground border-0 shadow-sm'
+                'h-6 px-3 text-[11px] font-bold capitalize tracking-wider shadow-sm',
+                isAdmin && 'bg-gradient-to-r from-sidebar-primary to-sidebar-primary/90 text-white border-0'
               )}
             >
               {role ?? 'Employee'}
@@ -145,9 +145,9 @@ export function AppSidebar({
     return (
       <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
         <SheetContent side="left" className="w-72 p-0 bg-sidebar text-sidebar-foreground border-sidebar-border">
-          <div className="px-4 py-3 border-b border-sidebar-border/50 bg-sidebar-accent/10">
-            <img src="/logo.png" alt="RemoAsset" className="h-7 w-auto object-contain mb-1" />
-            <p className="text-[10px] text-sidebar-foreground/60 font-medium tracking-wide">
+          <div className="px-4 py-4 border-b border-sidebar-border/50 bg-gradient-to-br from-sidebar-accent/15 to-sidebar-accent/5">
+            <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain mb-1.5" />
+            <p className="text-xs text-sidebar-foreground/70 font-serif font-semibold tracking-wider leading-tight">
               Vendor Resource Management
             </p>
           </div>
@@ -164,13 +164,13 @@ export function AppSidebar({
         collapsed ? 'w-16' : 'w-72'
       )}
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border/50 bg-sidebar-accent/10">
+      <div className="flex items-center justify-between px-4 py-4 border-b border-sidebar-border/50 bg-gradient-to-br from-sidebar-accent/15 to-sidebar-accent/5">
         {collapsed ? (
-          <img src="/favicon.png" alt="RemoAsset" className="h-8 w-8 object-contain flex-shrink-0" />
+          <img src="/favicon.png" alt="RemoAsset" className="h-9 w-9 object-contain flex-shrink-0" />
         ) : (
           <div className="flex-1 min-w-0">
-            <img src="/logo.png" alt="RemoAsset" className="h-7 w-auto object-contain mb-1" />
-            <p className="text-[10px] text-sidebar-foreground/60 font-medium tracking-wide">
+            <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain mb-1.5" />
+            <p className="text-xs text-sidebar-foreground/70 font-serif font-semibold tracking-wider leading-tight">
               Vendor Resource Management
             </p>
           </div>
