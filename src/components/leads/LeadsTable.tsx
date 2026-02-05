@@ -1,17 +1,86 @@
+import { useNavigate } from 'react-router-dom';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Lead } from '@/pages/Leads';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
+import { Button } from '@/components/ui/button';
+import type { Lead } from '@/types/lead';
 import { format } from 'date-fns';
+import { ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+type SortField = 'company_name' | 'created_at' | 'lead_score' | 'contact_name';
+type SortOrder = 'asc' | 'desc';
 
 interface LeadsTableProps {
   leads: Lead[];
   loading: boolean;
   onRefresh: () => void;
+  sortBy?: SortField;
+  sortOrder?: SortOrder;
+  onSort?: (field: SortField) => void;
+  selectedIds?: Set<string>;
+  onSelectionChange?: (ids: Set<string>) => void;
+  page?: number;
+  pageSize?: number;
+  totalCount?: number;
+  onPageChange?: (page: number) => void;
 }
 
-export function LeadsTable({ leads, loading }: LeadsTableProps) {
+export function LeadsTable({
+  leads,
+  loading,
+  sortBy = 'created_at',
+  sortOrder = 'desc',
+  onSort,
+  selectedIds = new Set(),
+  onSelectionChange,
+  page = 1,
+  pageSize = 10,
+  totalCount = 0,
+  onPageChange,
+}: LeadsTableProps) {
+  const navigate = useNavigate();
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const allSelected = leads.length > 0 && leads.every((l) => selectedIds.has(l.id));
+
+  const toggleRow = (e: React.MouseEvent, leadId: string) => {
+    e.stopPropagation();
+    const next = new Set(selectedIds);
+    if (next.has(leadId)) next.delete(leadId);
+    else next.add(leadId);
+    onSelectionChange?.(next);
+  };
+
+  const toggleAll = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (allSelected) onSelectionChange?.(new Set());
+    else onSelectionChange?.(new Set(leads.map((l) => l.id)));
+  };
+
+  const SortHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => {
+    const active = sortBy === field;
+    return (
+      <TableHead
+        className={cn(onSort && 'cursor-pointer hover:bg-muted/50 select-none')}
+        onClick={() => onSort?.(field)}
+      >
+        <div className="flex items-center gap-1">
+          {children}
+          {onSort && (active ? sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" /> : null)}
+        </div>
+      </TableHead>
+    );
+  };
+
   if (loading) {
     return (
       <Card className="card-shadow">
@@ -42,17 +111,41 @@ export function LeadsTable({ leads, loading }: LeadsTableProps) {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead>Company</TableHead>
-              <TableHead>Contact</TableHead>
+              {onSelectionChange && (
+                <TableHead className="w-10" onClick={toggleAll}>
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={() => (allSelected ? onSelectionChange(new Set()) : onSelectionChange(new Set(leads.map((l) => l.id))))}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </TableHead>
+              )}
+              <SortHeader field="company_name">Company</SortHeader>
+              <SortHeader field="contact_name">Contact</SortHeader>
               <TableHead>Status</TableHead>
-              <TableHead>Score</TableHead>
+              <SortHeader field="lead_score">Score</SortHeader>
+              <TableHead>Owner</TableHead>
               <TableHead>Country</TableHead>
-              <TableHead>Created</TableHead>
+              <TableHead>Last Activity</TableHead>
+              <SortHeader field="created_at">Created</SortHeader>
             </TableRow>
           </TableHeader>
           <TableBody>
             {leads.map((lead) => (
-              <TableRow key={lead.id} className="cursor-pointer hover:bg-muted/30 transition-colors">
+              <TableRow
+                key={lead.id}
+                className="cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => navigate(`/leads/${lead.id}`)}
+              >
+                {onSelectionChange && (
+                  <TableCell onClick={(e) => toggleRow(e, lead.id)}>
+                    <Checkbox
+                      checked={selectedIds.has(lead.id)}
+                      onCheckedChange={() => {}}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </TableCell>
+                )}
                 <TableCell>
                   <div>
                     <p className="font-medium">{lead.company_name}</p>
@@ -67,10 +160,7 @@ export function LeadsTable({ leads, loading }: LeadsTableProps) {
                 </TableCell>
                 <TableCell>
                   {lead.status ? (
-                    <Badge 
-                      style={{ backgroundColor: lead.status.color }} 
-                      className="text-white border-0"
-                    >
+                    <Badge style={{ backgroundColor: lead.status.color }} className="text-white border-0">
                       {lead.status.name}
                     </Badge>
                   ) : (
@@ -80,13 +170,16 @@ export function LeadsTable({ leads, loading }: LeadsTableProps) {
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <div className="w-full max-w-[60px] h-2 bg-muted rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className="h-full gradient-primary"
                         style={{ width: `${lead.lead_score || 0}%` }}
                       />
                     </div>
                     <span className="text-sm font-medium">{lead.lead_score || 0}</span>
                   </div>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {lead.owner?.full_name ?? '-'}
                 </TableCell>
                 <TableCell>
                   {lead.country ? (
@@ -98,13 +191,54 @@ export function LeadsTable({ leads, loading }: LeadsTableProps) {
                     </span>
                   ) : '-'}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="text-muted-foreground text-sm">
+                  {format(new Date(lead.updated_at), 'MMM d, yyyy')}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">
                   {format(new Date(lead.created_at), 'MMM d, yyyy')}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+        {onPageChange && totalCount > pageSize && (
+          <div className="flex items-center justify-between px-4 py-3 border-t">
+            <p className="text-sm text-muted-foreground">
+              Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalCount)} of {totalCount}
+            </p>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onPageChange(page - 1)}
+                    disabled={page <= 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                </PaginationItem>
+                <PaginationItem>
+                  <span className="px-2 text-sm">
+                    Page {page} of {totalPages}
+                  </span>
+                </PaginationItem>
+                <PaginationItem>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onPageChange(page + 1)}
+                    disabled={page >= totalPages}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -6,20 +6,22 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
-interface Filters {
+export interface LeadsFiltersState {
   search: string;
   status: string;
   country: string;
+  owner: string;
   scoreMin: number;
   scoreMax: number;
 }
 
 interface LeadsFiltersProps {
-  filters: Filters;
-  onFiltersChange: (filters: Filters) => void;
+  filters: LeadsFiltersState;
+  onFiltersChange: (filters: LeadsFiltersState) => void;
+  ownerOptions: { id: string; full_name: string | null }[];
 }
 
-export function LeadsFilters({ filters, onFiltersChange }: LeadsFiltersProps) {
+export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFiltersProps) {
   const [statuses, setStatuses] = useState<{ id: string; name: string; color: string }[]>([]);
   const [countries, setCountries] = useState<{ id: string; name: string }[]>([]);
 
@@ -40,7 +42,7 @@ export function LeadsFilters({ filters, onFiltersChange }: LeadsFiltersProps) {
   return (
     <Card className="card-shadow">
       <CardContent className="p-4">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -54,7 +56,7 @@ export function LeadsFilters({ filters, onFiltersChange }: LeadsFiltersProps) {
 
           {/* Status */}
           <Select 
-            value={filters.status} 
+            value={filters.status || 'all'} 
             onValueChange={(value) => onFiltersChange({ ...filters, status: value === 'all' ? '' : value })}
           >
             <SelectTrigger>
@@ -75,7 +77,7 @@ export function LeadsFilters({ filters, onFiltersChange }: LeadsFiltersProps) {
 
           {/* Country */}
           <Select 
-            value={filters.country} 
+            value={filters.country || 'all'} 
             onValueChange={(value) => onFiltersChange({ ...filters, country: value === 'all' ? '' : value })}
           >
             <SelectTrigger>
@@ -86,6 +88,25 @@ export function LeadsFilters({ filters, onFiltersChange }: LeadsFiltersProps) {
               {countries.map((country) => (
                 <SelectItem key={country.id} value={country.id}>
                   {country.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Owner */}
+          <Select 
+            value={filters.owner || 'all'} 
+            onValueChange={(value) => onFiltersChange({ ...filters, owner: value === 'all' ? '' : value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="All Owners" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Owners</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {ownerOptions.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.full_name || o.id}
                 </SelectItem>
               ))}
             </SelectContent>

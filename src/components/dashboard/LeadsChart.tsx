@@ -1,44 +1,40 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { StatusChartItem, CountryChartItem, ActivityChartItem } from '@/hooks/useDashboardData';
 
-const statusData = [
-  { name: 'New', value: 35, color: '#3B82F6' },
-  { name: 'Contacted', value: 28, color: '#8B5CF6' },
-  { name: 'Qualified', value: 22, color: '#F59E0B' },
-  { name: 'Proposal', value: 18, color: '#06B6D4' },
-  { name: 'Won', value: 15, color: '#10B981' },
-  { name: 'Lost', value: 8, color: '#EF4444' },
-];
-
-const countryData = [
-  { name: 'US', leads: 45 },
-  { name: 'UK', leads: 32 },
-  { name: 'AU', leads: 24 },
-  { name: 'IN', leads: 28 },
-  { name: 'CA', leads: 18 },
-  { name: 'DE', leads: 12 },
-];
-
-const activityData = [
-  { name: 'Mon', calls: 12, emails: 24, meetings: 4 },
-  { name: 'Tue', calls: 18, emails: 32, meetings: 6 },
-  { name: 'Wed', calls: 15, emails: 28, meetings: 5 },
-  { name: 'Thu', calls: 22, emails: 35, meetings: 8 },
-  { name: 'Fri', calls: 16, emails: 26, meetings: 3 },
-];
+const defaultStatusData: StatusChartItem[] = [];
+const defaultCountryData: CountryChartItem[] = [];
+const defaultActivityData: ActivityChartItem[] = [];
 
 interface LeadsChartProps {
   isAdmin: boolean;
+  statusData?: StatusChartItem[];
+  countryData?: CountryChartItem[];
+  activityData?: ActivityChartItem[];
+  loading?: boolean;
 }
 
-export function LeadsChart({ isAdmin }: LeadsChartProps) {
+export function LeadsChart({
+  isAdmin,
+  statusData = defaultStatusData,
+  countryData = defaultCountryData,
+  activityData = defaultActivityData,
+  loading = false,
+}: LeadsChartProps) {
+  const hasStatus = statusData.length > 0;
+  const hasCountry = countryData.length > 0;
+
   return (
     <Card className="card-shadow">
       <CardHeader>
         <CardTitle className="font-display">Lead Analytics</CardTitle>
       </CardHeader>
       <CardContent>
+        {loading ? (
+          <Skeleton className="h-[300px] w-full" />
+        ) : (
         <Tabs defaultValue="status">
           <TabsList className="mb-4">
             <TabsTrigger value="status">By Status</TabsTrigger>
@@ -47,6 +43,7 @@ export function LeadsChart({ isAdmin }: LeadsChartProps) {
           </TabsList>
           
           <TabsContent value="status" className="h-[300px]">
+            {hasStatus ? (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -71,6 +68,9 @@ export function LeadsChart({ isAdmin }: LeadsChartProps) {
                 />
               </PieChart>
             </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">No lead data yet</div>
+            )}
             <div className="flex flex-wrap justify-center gap-4 mt-4">
               {statusData.map((item) => (
                 <div key={item.name} className="flex items-center gap-2">
@@ -82,6 +82,7 @@ export function LeadsChart({ isAdmin }: LeadsChartProps) {
           </TabsContent>
           
           <TabsContent value="country" className="h-[300px]">
+            {hasCountry ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={countryData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -97,10 +98,14 @@ export function LeadsChart({ isAdmin }: LeadsChartProps) {
                 <Bar dataKey="leads" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">No country data yet</div>
+            )}
           </TabsContent>
           
           {isAdmin && (
             <TabsContent value="activity" className="h-[300px]">
+              {activityData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={activityData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -118,9 +123,13 @@ export function LeadsChart({ isAdmin }: LeadsChartProps) {
                   <Line type="monotone" dataKey="meetings" stroke="hsl(var(--success))" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">No activity data yet</div>
+              )}
             </TabsContent>
           )}
         </Tabs>
+        )}
       </CardContent>
     </Card>
   );

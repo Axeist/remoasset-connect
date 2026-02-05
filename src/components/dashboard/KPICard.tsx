@@ -19,6 +19,7 @@ const variantStyles = {
 export function KPICard({ title, value, change, icon: Icon, variant }: KPICardProps) {
   const isPositive = change.startsWith('+');
   const isNeutral = change === '0';
+  const showChange = change !== undefined && change !== '';
 
   return (
     <div className={cn(
@@ -33,12 +34,14 @@ export function KPICard({ title, value, change, icon: Icon, variant }: KPICardPr
           <div className="p-2 bg-white/20 rounded-lg">
             <Icon className="h-5 w-5" />
           </div>
-          <span className={cn(
-            "text-sm font-medium px-2 py-1 rounded-full",
-            isNeutral ? "bg-white/20" : isPositive ? "bg-white/20" : "bg-white/20"
-          )}>
-            {change}
-          </span>
+          {showChange && (
+            <span className={cn(
+              "text-sm font-medium px-2 py-1 rounded-full",
+              isNeutral ? "bg-white/20" : isPositive ? "bg-white/20" : "bg-white/20"
+            )}>
+              {change}
+            </span>
+          )}
         </div>
         
         <div>
