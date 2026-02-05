@@ -552,9 +552,35 @@ export default function TeamActivity() {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+                  </>
+                ) : (
+                  <Card className="card-shadow rounded-xl border-border/80">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5" />
+                        {statusFilter === 'overdue' && 'Overdue Follow-ups'}
+                        {statusFilter === 'upcoming' && 'Upcoming Follow-ups'}
+                        {statusFilter === 'completed' && 'Completed Follow-ups'}
+                        <Badge variant="secondary">{displayFollowUps.length}</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {displayFollowUps.map(f => (
+                          <FollowUpItem 
+                            key={f.id} 
+                            followUp={f} 
+                            isOverdue={statusFilter === 'overdue'} 
+                            navigate={navigate} 
+                          />
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
 
-            <TabsContent value="tasks" className="space-y-6">
+              <TabsContent value="tasks" className="space-y-6">
               {displayTasks.length === 0 ? (
                 <Card className="card-shadow">
                   <CardContent className="py-12">
@@ -633,6 +659,32 @@ export default function TeamActivity() {
                   )}
                 </CardContent>
               </Card>
+                </>
+              ) : (
+                <Card className="card-shadow rounded-xl border-border/80">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <CheckSquare className="h-5 w-5" />
+                      {statusFilter === 'overdue' && 'Overdue Tasks'}
+                      {statusFilter === 'upcoming' && 'Pending Tasks'}
+                      {statusFilter === 'completed' && 'Completed Tasks'}
+                      <Badge variant="secondary">{displayTasks.length}</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {displayTasks.map(t => (
+                        <TaskItem 
+                          key={t.id} 
+                          task={t} 
+                          isOverdue={statusFilter === 'overdue'} 
+                          navigate={navigate} 
+                        />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
             </Tabs>
           </>
