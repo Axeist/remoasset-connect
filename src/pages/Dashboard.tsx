@@ -4,7 +4,7 @@ import { KPICard } from '@/components/dashboard/KPICard';
 import { LeadsChart } from '@/components/dashboard/LeadsChart';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
 import { useDashboardData } from '@/hooks/useDashboardData';
-import { Users, Target, Flame, CheckSquare, Calendar, Bell, ArrowRight } from 'lucide-react';
+import { Users, Target, Flame, CheckSquare, Calendar, Bell, ArrowRight, TrendingUp, Activity, Award } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,10 @@ export default function Dashboard() {
     upcomingFollowUps,
     hotLeadsList,
     quickAccessLeads,
+    topPerformers,
+    myActivityBreakdown,
+    myTasksCompleted,
+    myTasksTotal,
     loading,
     isAdmin,
   } = useDashboardData();
@@ -220,6 +224,151 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {/* Admin: Top Performers */}
+        {isAdmin && (
+          <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover animate-fade-in-up animate-fade-in-up-delay-5">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Award className="h-5 w-5 text-primary" />
+                <CardTitle className="font-display">Top Performers</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-32 w-full" />
+              ) : topPerformers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No data yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {topPerformers.map((performer, idx) => (
+                    <div
+                      key={performer.userId}
+                      className="flex items-center justify-between p-3 rounded-lg bg-accent/20 border border-border/50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <p className="font-medium">{performer.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {performer.leads} lead{performer.leads !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="gap-1">
+                          <Activity className="h-3 w-3" />
+                          {performer.activities}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Employee: My Activity Breakdown */}
+        {!isAdmin && (
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover animate-fade-in-up animate-fade-in-up-delay-6">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  <CardTitle className="font-display">My Activity Breakdown</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <Skeleton className="h-48 w-full" />
+                ) : myActivityBreakdown.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No activities yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-center h-48">
+                      <svg viewBox="0 0 200 200" className="w-full h-full max-w-[200px]">
+                        {(() => {
+                          const total = myActivityBreakdown.reduce((sum, item) => sum + item.count, 0);
+                          let currentAngle = -90;
+                          return myActivityBreakdown.map((item) => {
+                            const percentage = (item.count / total) * 100;
+                            const angle = (percentage / 100) * 360;
+                            const startAngle = currentAngle;
+                            const endAngle = currentAngle + angle;
+                            currentAngle = endAngle;
+
+                            const startX = 100 + 80 * Math.cos((startAngle * Math.PI) / 180);
+                            const startY = 100 + 80 * Math.sin((startAngle * Math.PI) / 180);
+                            const endX = 100 + 80 * Math.cos((endAngle * Math.PI) / 180);
+                            const endY = 100 + 80 * Math.sin((endAngle * Math.PI) / 180);
+                            const largeArc = angle > 180 ? 1 : 0;
+
+                            return (
+                              <path
+                                key={item.type}
+                                d={`M 100 100 L ${startX} ${startY} A 80 80 0 ${largeArc} 1 ${endX} ${endY} Z`}
+                                fill={item.color}
+                                opacity="0.9"
+                              />
+                            );
+                          });
+                        })()}
+                        <circle cx="100" cy="100" r="50" fill="hsl(var(--card))" />
+                      </svg>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {myActivityBreakdown.map((item) => (
+                        <div key={item.type} className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          <span className="text-sm capitalize">{item.type}s: {item.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover animate-fade-in-up animate-fade-in-up-delay-6">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <CheckSquare className="h-5 w-5 text-success" />
+                  <CardTitle className="font-display">Task Completion</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <Skeleton className="h-48 w-full" />
+                ) : (
+                  <div className="space-y-4">
+                    <div className="text-center py-6">
+                      <div className="text-5xl font-bold text-primary mb-2">
+                        {myTasksTotal > 0 ? Math.round((myTasksCompleted / myTasksTotal) * 100) : 0}%
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {myTasksCompleted} of {myTasksTotal} tasks completed
+                      </p>
+                    </div>
+                    <div className="w-full bg-secondary/30 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-primary to-primary/70 h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: myTasksTotal > 0 ? `${(myTasksCompleted / myTasksTotal) * 100}%` : '0%',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </AppLayout>
