@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Edit2, Users, Settings, BarChart3, Download, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
+import { AddUserDialog } from '@/components/admin/AddUserDialog';
 import { StatusFormDialog } from '@/components/admin/StatusFormDialog';
 import { CountryFormDialog } from '@/components/admin/CountryFormDialog';
 import {
@@ -51,6 +52,7 @@ export default function Admin() {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
   const [editUser, setEditUser] = useState<TeamMember | null>(null);
+  const [addUserOpen, setAddUserOpen] = useState(false);
   const [statusFormOpen, setStatusFormOpen] = useState(false);
   const [editingStatus, setEditingStatus] = useState<Status | null>(null);
   const [countryFormOpen, setCountryFormOpen] = useState(false);
@@ -217,7 +219,10 @@ export default function Admin() {
             <Card className="card-shadow">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Team Members</CardTitle>
-                <p className="text-sm text-muted-foreground">Have new users sign up at /auth, then assign a role here.</p>
+                <Button size="sm" className="gap-2 gradient-primary" onClick={() => setAddUserOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Add user
+                </Button>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -431,6 +436,7 @@ export default function Admin() {
           fullName={editUser?.full_name ?? null}
           onSuccess={fetchData}
         />
+        <AddUserDialog open={addUserOpen} onOpenChange={setAddUserOpen} onSuccess={fetchData} />
         <StatusFormDialog
           open={statusFormOpen}
           onOpenChange={(open) => { setStatusFormOpen(open); if (!open) setEditingStatus(null); }}
