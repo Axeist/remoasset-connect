@@ -1,6 +1,6 @@
 // Supabase Edge Function: create-user
 // Only admins can call this. Creates a new user with email/password and assigns role.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'supabase';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
