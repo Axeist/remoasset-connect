@@ -11,12 +11,14 @@
  * Get the service role key from: Supabase Dashboard → Project Settings → API → service_role (secret)
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createRequire } from 'module';
 import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(join(__dirname, '..', 'package.json'));
+const { createClient } = require('@supabase/supabase-js');
 
 // Load .env from project root if present
 function loadEnv() {
