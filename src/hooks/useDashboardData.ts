@@ -338,8 +338,16 @@ function formatDistanceToNowShort(date: Date): string {
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
-  if (diffMins < 60) return `${diffMins} min ago`;
-  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-  if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
-  return format(date, 'MMM d');
+  
+  // Show "just now" for less than 1 minute
+  if (diffMins < 1) return 'just now';
+  
+  // Show mins ago for 1-60 minutes
+  if (diffMins < 60) return `${diffMins} mins ago`;
+  
+  // Show hrs ago for 60 minutes to 24 hours
+  if (diffHours < 24) return `${diffHours} hrs ago`;
+  
+  // Show days ago for anything over 24 hours
+  return `${diffDays} days ago`;
 }
