@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -76,18 +77,25 @@ export default function Auth() {
       return;
     }
     setIsLoading(true);
-    const { error } = await signIn(loginForm.email, loginForm.password);
-    setIsLoading(false);
+    const { error, user: signedInUser } = await signIn(loginForm.email, loginForm.password);
     if (error) {
+      setIsLoading(false);
       toast({
         variant: 'destructive',
         title: 'Login failed',
         description: error.message === 'Invalid login credentials' ? 'Invalid email or password.' : error.message,
       });
-    } else {
-      toast({ title: 'Welcome back!' });
-      setShowSuccessSplash(true);
+      return;
     }
+    let displayName = signedInUser?.user_metadata?.full_name || signedInUser?.email?.split('@')[0] || '';
+    if (signedInUser?.id) {
+      const { data: profile } = await supabase.from('profiles').select('full_name').eq('user_id', signedInUser.id).maybeSingle();
+      if (profile?.full_name?.trim()) displayName = profile.full_name.trim();
+    }
+    if (!displayName) displayName = 'there';
+    setIsLoading(false);
+    toast({ title: `Welcome back, ${displayName}!` });
+    setShowSuccessSplash(true);
   };
 
   const handleSignup = async (e: React.FormEvent) => {

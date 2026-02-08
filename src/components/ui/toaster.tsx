@@ -15,7 +15,7 @@ export function Toaster() {
             <div className="flex shrink-0 items-center justify-center rounded-full p-1.5 bg-primary/10 text-primary group-[.destructive]:bg-destructive/20 group-[.destructive]:text-destructive-foreground">
               <Icon className="h-5 w-5" />
             </div>
-            <div className="grid min-w-0 flex-1 gap-0.5">
+            <div className="grid min-w-0 flex-1 gap-0.5 content-center">
               {title && <ToastTitle>{title}</ToastTitle>}
               {description && <ToastDescription>{description}</ToastDescription>}
             </div>
