@@ -18,13 +18,22 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, 
   Area, AreaChart, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
 } from 'recharts';
-import { format, subDays, startOfDay, endOfDay, differenceInDays } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, differenceInDays, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, eachMonthOfInterval, eachHourOfInterval, subMonths, subYears } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+type TimeRange = 'hourly' | 'weekly' | 'monthly' | 'yearly';
 
 export default function Reports() {
   const { user, role } = useAuth();
   const { toast } = useToast();
   const isAdmin = role === 'admin';
   const [loading, setLoading] = useState(true);
+  
+  // Time range filters
+  const [timeRange, setTimeRange] = useState<TimeRange>('weekly');
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const currentYear = new Date().getFullYear();
+  const availableYears = Array.from({ length: 5 }, (_, i) => currentYear - i);
   
   // Existing state
   const [byStatus, setByStatus] = useState<{ name: string; value: number; color: string }[]>([]);
@@ -61,6 +70,89 @@ export default function Reports() {
   }[]>([]);
   const [leadVelocity, setLeadVelocity] = useState<{ stage: string; avgDays: number }[]>([]);
   const [activityHeatmap, setActivityHeatmap] = useState<{ name: string; value: number }[]>([]);
+
+  // Helper function to generate productivity data based on time range
+  const generateProductivityData = (
+    activities: any[],
+    tasks: any[],
+    followUps: any[],
+    range: TimeRange,
+    year: number
+  ) => {
+    const now = new Date();
+    let intervals: Date[] = [];
+    let formatString = '';
+
+    switch (range) {
+      case 'hourly':
+        // Last 24 hours
+        const dayStart = startOfDay(now);
+        const dayEnd = endOfDay(now);
+        intervals = eachHourOfInterval({ start: dayStart, end: dayEnd });
+        formatString = 'HH:00';
+        break;
+      
+      case 'weekly':
+        // Last 7 days
+        intervals = Array.from({ length: 7 }, (_, i) => subDays(now, 6 - i));
+        formatString = 'EEE';
+        break;
+      
+      case 'monthly':
+        // All months in selected year
+        const yearStart = startOfYear(new Date(year, 0, 1));
+        const yearEnd = endOfYear(new Date(year, 11, 31));
+        intervals = eachMonthOfInterval({ start: yearStart, end: yearEnd });
+        formatString = 'MMM';
+        break;
+      
+      case 'yearly':
+        // Last 5 years
+        intervals = Array.from({ length: 5 }, (_, i) => new Date(year - 4 + i, 0, 1));
+        formatString = 'yyyy';
+        break;
+    }
+
+    return intervals.map(interval => {
+      let start: Date, end: Date;
+      
+      if (range === 'hourly') {
+        start = interval;
+        end = new Date(interval.getTime() + 60 * 60 * 1000 - 1);
+      } else if (range === 'monthly') {
+        start = startOfMonth(interval);
+        end = endOfMonth(interval);
+      } else if (range === 'yearly') {
+        start = startOfYear(interval);
+        end = endOfYear(interval);
+      } else {
+        start = startOfDay(interval);
+        end = endOfDay(interval);
+      }
+
+      const periodActivities = activities.filter((a: { created_at: string }) => {
+        const d = new Date(a.created_at);
+        return d >= start && d <= end;
+      }).length;
+
+      const periodTasks = tasks.filter((t: { created_at: string }) => {
+        const d = new Date(t.created_at);
+        return d >= start && d <= end;
+      }).length;
+
+      const periodFollowUps = followUps.filter((f: { created_at: string }) => {
+        const d = new Date(f.created_at);
+        return d >= start && d <= end;
+      }).length;
+
+      return {
+        day: format(interval, formatString),
+        activities: periodActivities,
+        tasks: periodTasks,
+        followUps: periodFollowUps,
+      };
+    });
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -262,31 +354,9 @@ export default function Reports() {
           })).filter(d => d.activities > 0);
           setTimeDistribution(timeDistData);
 
-          // NEW: Weekly productivity
-          const last7Days = Array.from({ length: 7 }, (_, i) => subDays(new Date(), 6 - i));
-          const weeklyData = last7Days.map(day => {
-            const start = startOfDay(day);
-            const end = endOfDay(day);
-            const dayActivities = activities.filter((a: { created_at: string }) => {
-              const d = new Date(a.created_at);
-              return d >= start && d <= end;
-            }).length;
-            const dayTasks = tasks.filter((t: { created_at: string }) => {
-              const d = new Date(t.created_at);
-              return d >= start && d <= end;
-            }).length;
-            const dayFollowUps = followUps.filter((f: { created_at: string }) => {
-              const d = new Date(f.created_at);
-              return d >= start && d <= end;
-            }).length;
-            return {
-              day: format(day, 'EEE'),
-              activities: dayActivities,
-              tasks: dayTasks,
-              followUps: dayFollowUps,
-            };
-          });
-          setWeeklyProductivity(weeklyData);
+          // Calculate productivity data based on time range
+          const productivityData = generateProductivityData(activities, tasks, followUps, timeRange, selectedYear);
+          setWeeklyProductivity(productivityData);
 
           // NEW: Lead velocity (avg days in each stage)
           const stageVelocity: Record<string, { total: number; count: number }> = {};
@@ -393,31 +463,9 @@ export default function Reports() {
             })).filter(d => d.activities > 0);
             setTimeDistribution(timeDistData);
 
-            // Weekly productivity
-            const last7Days = Array.from({ length: 7 }, (_, i) => subDays(new Date(), 6 - i));
-            const weeklyData = last7Days.map(day => {
-              const start = startOfDay(day);
-              const end = endOfDay(day);
-              const dayActivities = myActivities.filter((a: { created_at: string }) => {
-                const d = new Date(a.created_at);
-                return d >= start && d <= end;
-              }).length;
-              const dayTasks = myTasks.filter((t: { created_at: string }) => {
-                const d = new Date(t.created_at);
-                return d >= start && d <= end;
-              }).length;
-              const dayFollowUps = myFollowUps.filter((f: { created_at: string }) => {
-                const d = new Date(f.created_at);
-                return d >= start && d <= end;
-              }).length;
-              return {
-                day: format(day, 'EEE'),
-                activities: dayActivities,
-                tasks: dayTasks,
-                followUps: dayFollowUps,
-              };
-            });
-            setWeeklyProductivity(weeklyData);
+            // Calculate productivity data based on time range
+            const productivityData = generateProductivityData(myActivities, myTasks, myFollowUps, timeRange, selectedYear);
+            setWeeklyProductivity(productivityData);
           }
         }
       } catch (error) {
@@ -425,7 +473,7 @@ export default function Reports() {
         setLoading(false);
       }
     })();
-  }, [user?.id, isAdmin]);
+  }, [user?.id, isAdmin, timeRange, selectedYear]);
 
   const exportReport = () => {
     const rows = [
@@ -569,11 +617,45 @@ export default function Reports() {
               {/* Weekly Productivity Trend */}
               <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover lg:col-span-2 animate-fade-in-up animate-fade-in-up-delay-3">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 font-display">
-                    <Calendar className="h-5 w-5" />
-                    Weekly Productivity Overview
-                  </CardTitle>
-                  <CardDescription>Last 7 days activity breakdown</CardDescription>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 font-display">
+                        <Calendar className="h-5 w-5" />
+                        Productivity Overview
+                      </CardTitle>
+                      <CardDescription>
+                        {timeRange === 'hourly' && 'Last 24 hours activity breakdown'}
+                        {timeRange === 'weekly' && 'Last 7 days activity breakdown'}
+                        {timeRange === 'monthly' && `${selectedYear} monthly activity breakdown`}
+                        {timeRange === 'yearly' && 'Last 5 years activity breakdown'}
+                      </CardDescription>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
+                        <SelectTrigger className="w-[130px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="hourly">Hourly</SelectItem>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                          <SelectItem value="yearly">Yearly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {(timeRange === 'monthly' || timeRange === 'yearly') && (
+                        <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                          <SelectTrigger className="w-[100px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableYears.map(year => (
+                              <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {weeklyProductivity.length === 0 ? (
