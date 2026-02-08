@@ -1,10 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Globe2, TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Globe2, TrendingUp, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 const geoUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
@@ -36,8 +37,35 @@ function getCountryCodeFromGeo(geo: any): string {
   return alpha2 ? alpha2.toUpperCase() : '';
 }
 
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 8;
+const ZOOM_STEP = 1.35;
+
 export function WorldDemographics({ data, loading }: WorldDemographicsProps) {
   const [tooltipContent, setTooltipContent] = useState('');
+  const [position, setPosition] = useState({ coordinates: [0, 20] as [number, number], zoom: 1 });
+
+  const handleZoomIn = useCallback(() => {
+    setPosition((p) => ({
+      ...p,
+      zoom: Math.min(p.zoom * ZOOM_STEP, MAX_ZOOM),
+    }));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setPosition((p) => ({
+      ...p,
+      zoom: Math.max(p.zoom / ZOOM_STEP, MIN_ZOOM),
+    }));
+  }, []);
+
+  const handleResetView = useCallback(() => {
+    setPosition({ coordinates: [0, 20], zoom: 1 });
+  }, []);
+
+  const handleMoveEnd = useCallback((pos: { coordinates: [number, number]; zoom: number }) => {
+    setPosition(pos);
+  }, []);
 
   // Create a map of country codes to data (our DB uses 2-letter codes, e.g. UK, IN, SG, AE)
   const countryMap = data.reduce((acc, country) => {
@@ -99,9 +127,7 @@ export function WorldDemographics({ data, loading }: WorldDemographicsProps) {
     );
   }
 
-  const topCountries = [...data]
-    .sort((a, b) => b.totalLeads - a.totalLeads)
-    .slice(0, 5);
+  const allCountriesSorted = [...data].sort((a, b) => b.totalLeads - a.totalLeads);
 
   return (
     <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover [--map-no-leads:hsl(var(--muted))] [--map-stroke:hsl(var(--border))]">
@@ -121,21 +147,24 @@ export function WorldDemographics({ data, loading }: WorldDemographicsProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* World Map - large and theme-aware for dark mode */}
-        <div className="relative w-full h-[520px] min-h-[420px] rounded-xl overflow-hidden border border-border bg-muted/20">
+        {/* World Map with zoom controls and animations */}
+        <div className="relative w-full h-[520px] min-h-[420px] rounded-xl overflow-hidden border border-border bg-muted/20 animate-fade-in-up world-map-wrap">
           <ComposableMap
-            projectionConfig={{
-              scale: 165,
-            }}
-            className="w-full h-full"
+            projectionConfig={{ scale: 165 }}
+            className="w-full h-full transition-transform duration-300"
           >
-            <ZoomableGroup center={[0, 20]} zoom={1}>
+            <ZoomableGroup
+              center={position.coordinates}
+              zoom={position.zoom}
+              onMoveEnd={handleMoveEnd}
+              minZoom={MIN_ZOOM}
+              maxZoom={MAX_ZOOM}
+            >
               <Geographies geography={geoUrl}>
                 {({ geographies }) =>
-                  geographies.map((geo) => {
+                  geographies.map((geo, i) => {
                     const countryCode = getCountryCodeFromGeo(geo);
                     const countryData = countryCode ? countryMap[countryCode] : null;
-                    
                     return (
                       <Geography
                         key={geo.rsmKey}
@@ -144,22 +173,23 @@ export function WorldDemographics({ data, loading }: WorldDemographicsProps) {
                         stroke="hsl(var(--border))"
                         strokeWidth={0.85}
                         style={{
-                          default: { outline: 'none' },
+                          default: {
+                            outline: 'none',
+                            transition: 'fill 0.25s ease, filter 0.2s ease',
+                          },
                           hover: {
-                            fill: countryData && countryData.totalLeads > 0 
-                              ? 'hsl(var(--accent))' 
+                            fill: countryData && countryData.totalLeads > 0
+                              ? 'hsl(var(--accent))'
                               : 'hsl(var(--muted))',
                             outline: 'none',
                             cursor: countryData && countryData.totalLeads > 0 ? 'pointer' : 'default',
+                            filter: 'brightness(1.08)',
+                            transition: 'fill 0.2s ease, filter 0.2s ease',
                           },
                           pressed: { outline: 'none' },
                         }}
-                        onMouseEnter={() => {
-                          setTooltipContent(getTooltipContent(geo));
-                        }}
-                        onMouseLeave={() => {
-                          setTooltipContent('');
-                        }}
+                        onMouseEnter={() => setTooltipContent(getTooltipContent(geo))}
+                        onMouseLeave={() => setTooltipContent('')}
                         data-tooltip-id="world-map-tooltip"
                         data-tooltip-content={getTooltipContent(geo)}
                       />
@@ -169,65 +199,110 @@ export function WorldDemographics({ data, loading }: WorldDemographicsProps) {
               </Geographies>
             </ZoomableGroup>
           </ComposableMap>
+
+          {/* Zoom and reset controls */}
+          <div className="absolute bottom-4 right-4 flex flex-col gap-2 rounded-lg border border-border/80 bg-card/95 p-1.5 shadow-lg backdrop-blur-sm">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-md hover:bg-primary/10 hover:text-primary transition-all duration-200"
+              onClick={handleZoomIn}
+              aria-label="Zoom in"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-md hover:bg-primary/10 hover:text-primary transition-all duration-200"
+              onClick={handleZoomOut}
+              aria-label="Zoom out"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-md hover:bg-primary/10 hover:text-primary transition-all duration-200"
+              onClick={handleResetView}
+              aria-label="Reset view"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          </div>
+
           <Tooltip
             id="world-map-tooltip"
             place="top"
             className="!bg-popover !text-popover-foreground !border !border-border !rounded-lg !px-3 !py-2 !text-sm !opacity-100 !shadow-lg"
-            style={{
-              whiteSpace: 'pre-line',
-              zIndex: 1000,
-            }}
+            style={{ whiteSpace: 'pre-line', zIndex: 1000 }}
           />
         </div>
 
-        {/* Top Countries List */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-foreground">Top Countries</h4>
-          <div className="space-y-2">
-            {topCountries.map((country, idx) => (
-              <div
-                key={country.countryCode}
-                className="flex items-center justify-between p-3 rounded-lg bg-accent/10 border border-border/50 hover:bg-accent/20 transition-colors"
-              >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-semibold text-xs shrink-0">
-                    {idx + 1}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{country.countryName}</p>
-                    <div className="flex items-center gap-2 mt-1 overflow-x-auto scrollbar-thin">
-                      {country.statusBreakdown.map((status) => (
-                        <Badge
-                          key={status.statusName}
-                          style={{ backgroundColor: status.color }}
-                          className="text-white border-0 text-xs shrink-0"
-                        >
-                          {status.statusName}: {status.count}
-                        </Badge>
-                      ))}
+        {/* All countries from database - scrollable list */}
+        <div className="space-y-3 animate-fade-in-up animate-fade-in-up-delay-1">
+          <h4 className="text-sm font-semibold text-foreground">
+            All Countries ({allCountriesSorted.length})
+          </h4>
+          <div className="max-h-[320px] overflow-y-auto overflow-x-hidden rounded-xl border border-border/60 bg-muted/5 pr-1 scrollbar-thin">
+            <div className="space-y-2 p-1">
+              {allCountriesSorted.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">No country data yet.</p>
+              ) : (
+                allCountriesSorted.map((country, idx) => (
+                  <div
+                    key={country.countryCode}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/80 p-3 shadow-sm transition-all duration-200 hover:border-primary/30 hover:shadow-md hover:bg-accent/5"
+                    style={{
+                      animation: 'fade-in-up 0.4s ease-out backwards',
+                      animationDelay: `${Math.min(idx * 30, 400)}ms`,
+                      animationFillMode: 'backwards',
+                    }}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-xs">
+                        {idx + 1}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{country.countryName}</p>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {country.statusBreakdown.map((status) => (
+                            <Badge
+                              key={status.statusName}
+                              style={{ backgroundColor: status.color }}
+                              className="text-white border-0 text-xs shrink-0"
+                            >
+                              {status.statusName}: {status.count}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
                     </div>
+                    <Badge variant="secondary" className="shrink-0">
+                      {country.totalLeads} leads
+                    </Badge>
                   </div>
-                </div>
-                <Badge variant="secondary" className="shrink-0 ml-3">
-                  {country.totalLeads} leads
-                </Badge>
-              </div>
-            ))}
+                ))
+              )}
+            </div>
           </div>
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
+        <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground animate-fade-in-up animate-fade-in-up-delay-2">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(var(--primary) / 0.2)' }} />
+            <div className="h-4 w-4 rounded shadow-sm" style={{ backgroundColor: 'hsl(var(--primary) / 0.35)' }} />
             <span>Low</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(var(--primary) / 0.5)' }} />
+            <div className="h-4 w-4 rounded shadow-sm" style={{ backgroundColor: 'hsl(var(--primary) / 0.55)' }} />
             <span>Medium</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(var(--primary))' }} />
+            <div className="h-4 w-4 rounded shadow-sm" style={{ backgroundColor: 'hsl(var(--primary))' }} />
             <span>High</span>
           </div>
         </div>
