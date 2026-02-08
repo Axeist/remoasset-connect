@@ -30,11 +30,22 @@ import {
 } from '@/components/ui/alert-dialog';
 
 const activityTypeConfig = {
-  call: { icon: Phone, label: 'Call', color: 'bg-primary/10 text-primary' },
-  email: { icon: Mail, label: 'Email', color: 'bg-accent/10 text-accent' },
-  meeting: { icon: Calendar, label: 'Meeting', color: 'bg-success/10 text-success' },
-  note: { icon: FileText, label: 'Note', color: 'bg-warning/10 text-warning' },
+  call: { icon: Phone, label: 'Call', color: 'bg-primary/10 text-primary', score: 6 },
+  email: { icon: Mail, label: 'Email', color: 'bg-accent/10 text-accent', score: 3 },
+  meeting: { icon: Calendar, label: 'Meeting', color: 'bg-success/10 text-success', score: 5 },
+  note: { icon: FileText, label: 'Note', color: 'bg-warning/10 text-warning', score: 2 },
 };
+
+/** Lead score points for activity types. Notes get score from description (Task/Follow-up/Lead updated). */
+function getActivityScore(activity: LeadActivity): number {
+  const config = activityTypeConfig[activity.activity_type as keyof typeof activityTypeConfig] ?? activityTypeConfig.note;
+  if (activity.activity_type === 'note' && activity.description) {
+    if (activity.description.startsWith('Task completed:') || activity.description.startsWith('Follow-up completed')) return 5;
+    if (activity.description.startsWith('Task created:') || activity.description.startsWith('Task reopened:')) return 3;
+    if (activity.description.startsWith('Lead updated:')) return 1;
+  }
+  return config.score;
+}
 
 interface LeadActivity {
   id: string;
@@ -617,20 +628,25 @@ function LeadActivityTab({
                               </div>
                             )}
                           </div>
-                          {isAdmin && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 shrink-0 opacity-70 hover:opacity-100 hover:text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteActivity(a.id);
-                              }}
-                              title="Delete activity"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="secondary" className="font-semibold tabular-nums text-success border-success/30 bg-success/10">
+                              +{getActivityScore(a)}
+                            </Badge>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 shrink-0 opacity-70 hover:opacity-100 hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteActivity(a.id);
+                                }}
+                                title="Delete activity"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -717,12 +733,15 @@ function LeadTasksTab({
                     onChange={() => toggleTask(t.id, true)}
                     className="rounded"
                   />
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <p className="font-medium">{t.title}</p>
                     <p className="text-xs text-muted-foreground">
                       {t.due_date ? safeFormat(t.due_date, 'PP') : 'No due date'} • {t.priority}
                     </p>
                   </div>
+                  <Badge variant="secondary" className="shrink-0 font-semibold tabular-nums text-success border-success/30 bg-success/10">
+                    +3
+                  </Badge>
                 </div>
               ))}
               {completed.map((t) => (
@@ -736,10 +755,13 @@ function LeadTasksTab({
                     onChange={() => toggleTask(t.id, false)}
                     className="rounded"
                   />
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <p className="font-medium line-through">{t.title}</p>
                     <p className="text-xs text-muted-foreground">{t.priority}</p>
                   </div>
+                  <Badge variant="secondary" className="shrink-0 font-semibold tabular-nums text-success border-success/30 bg-success/10">
+                    +5
+                  </Badge>
                 </div>
               ))}
             </>
@@ -797,23 +819,31 @@ function LeadFollowUpsTab({
           ) : (
             <>
               {upcoming.map((f) => (
-                <div key={f.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
-                  <div>
+                <div key={f.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card">
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium">{safeFormat(f.scheduled_at, 'PPp')}</p>
                     <p className="text-xs text-muted-foreground">{f.reminder_type}</p>
                     {f.notes && <p className="text-sm text-muted-foreground mt-1">{f.notes}</p>}
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => markDone(f.id)}>
-                    Mark done
-                  </Button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="secondary" className="font-semibold tabular-nums text-success border-success/30 bg-success/10">
+                      +2
+                    </Badge>
+                    <Button size="sm" variant="outline" onClick={() => markDone(f.id)}>
+                      Mark done
+                    </Button>
+                  </div>
                 </div>
               ))}
               {past.map((f) => (
-                <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30 opacity-70">
-                  <div>
+                <div key={f.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-muted/30 opacity-70">
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium line-through">{safeFormat(f.scheduled_at, 'PPp')}</p>
                     <p className="text-xs text-muted-foreground">{f.reminder_type}</p>
                   </div>
+                  <Badge variant="secondary" className="shrink-0 font-semibold tabular-nums text-success border-success/30 bg-success/10">
+                    +5
+                  </Badge>
                 </div>
               ))}
             </>
