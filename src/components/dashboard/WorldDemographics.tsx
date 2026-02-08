@@ -48,22 +48,21 @@ export function WorldDemographics({ data, loading }: WorldDemographicsProps) {
 
   const maxLeads = Math.max(...data.map(c => c.totalLeads), 1);
 
-  // Get color intensity based on lead count
+  // Get color intensity based on lead count (theme-aware for dark mode)
   const getCountryColor = (geo: any) => {
     const countryCode = getCountryCodeFromGeo(geo);
     const countryData = countryCode ? countryMap[countryCode] : null;
     
     if (!countryData || countryData.totalLeads === 0) {
-      return '#f5f5f5';
+      return 'var(--map-no-leads)'; // CSS variable for light/dark
     }
 
     const intensity = countryData.totalLeads / maxLeads;
     
-    // Use a gradient from light to dark primary color
     if (intensity > 0.75) return 'hsl(var(--primary))';
-    if (intensity > 0.5) return 'hsl(var(--primary) / 0.7)';
-    if (intensity > 0.25) return 'hsl(var(--primary) / 0.4)';
-    return 'hsl(var(--primary) / 0.2)';
+    if (intensity > 0.5) return 'hsl(var(--primary) / 0.8)';
+    if (intensity > 0.25) return 'hsl(var(--primary) / 0.55)';
+    return 'hsl(var(--primary) / 0.35)';
   };
 
   const getTooltipContent = (geo: any) => {
@@ -92,7 +91,7 @@ export function WorldDemographics({ data, loading }: WorldDemographicsProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[400px] flex items-center justify-center bg-muted/30 rounded-lg animate-pulse">
+          <div className="h-[520px] min-h-[420px] flex items-center justify-center bg-muted/30 rounded-lg animate-pulse">
             <Globe2 className="h-12 w-12 text-muted-foreground/30" />
           </div>
         </CardContent>
@@ -105,7 +104,7 @@ export function WorldDemographics({ data, loading }: WorldDemographicsProps) {
     .slice(0, 5);
 
   return (
-    <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
+    <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover [--map-no-leads:hsl(var(--muted))] [--map-stroke:hsl(var(--border))]">
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -122,11 +121,11 @@ export function WorldDemographics({ data, loading }: WorldDemographicsProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* World Map */}
-        <div className="relative w-full h-[400px] bg-muted/10 rounded-lg overflow-hidden border border-border/50">
+        {/* World Map - large and theme-aware for dark mode */}
+        <div className="relative w-full h-[520px] min-h-[420px] rounded-xl overflow-hidden border border-border bg-muted/20">
           <ComposableMap
             projectionConfig={{
-              scale: 147,
+              scale: 165,
             }}
             className="w-full h-full"
           >
@@ -134,22 +133,22 @@ export function WorldDemographics({ data, loading }: WorldDemographicsProps) {
               <Geographies geography={geoUrl}>
                 {({ geographies }) =>
                   geographies.map((geo) => {
-                    const isoCode = geo.properties.ISO_A3 || geo.id;
-                    const countryData = countryMap[isoCode];
+                    const countryCode = getCountryCodeFromGeo(geo);
+                    const countryData = countryCode ? countryMap[countryCode] : null;
                     
                     return (
                       <Geography
                         key={geo.rsmKey}
                         geography={geo}
                         fill={getCountryColor(geo)}
-                        stroke="#ffffff"
-                        strokeWidth={0.5}
+                        stroke="hsl(var(--border))"
+                        strokeWidth={0.85}
                         style={{
                           default: { outline: 'none' },
                           hover: {
                             fill: countryData && countryData.totalLeads > 0 
                               ? 'hsl(var(--accent))' 
-                              : '#e5e5e5',
+                              : 'hsl(var(--muted))',
                             outline: 'none',
                             cursor: countryData && countryData.totalLeads > 0 ? 'pointer' : 'default',
                           },
