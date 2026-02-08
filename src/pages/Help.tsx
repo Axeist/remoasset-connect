@@ -28,9 +28,9 @@ import {
 export default function Help() {
   return (
     <AppLayout>
-      <div className="space-y-8 max-w-4xl">
-        {/* Header */}
-        <div className="animate-fade-in-up">
+      <div className="w-full min-h-[calc(100vh-4rem)]">
+        {/* Header - full width */}
+        <div className="animate-fade-in-up mb-8">
           <div className="flex items-center gap-3 mb-2">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
               <HelpCircle className="h-6 w-6 text-primary" />
@@ -44,54 +44,15 @@ export default function Help() {
               </p>
             </div>
           </div>
-          <p className="text-muted-foreground text-sm leading-relaxed">
+          <p className="text-muted-foreground text-sm leading-relaxed max-w-3xl">
             This guide covers every feature of the platform: managing leads, tracking activities, running reports, and administrative controls. Use the sections below to find step-by-step instructions and best practices.
           </p>
         </div>
 
-        {/* Table of contents */}
-        <Card className="card-shadow rounded-xl border-border/80 animate-fade-in-up animate-fade-in-up-delay-1">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
-              Contents
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2 sm:grid-cols-2">
-            <Link to="#getting-started" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
-              <ChevronRight className="h-4 w-4 shrink-0" />
-              Getting started & navigation
-            </Link>
-            <Link to="#leads" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
-              <ChevronRight className="h-4 w-4 shrink-0" />
-              Leads management
-            </Link>
-            <Link to="#import" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
-              <ChevronRight className="h-4 w-4 shrink-0" />
-              CSV import & export
-            </Link>
-            <Link to="#tasks-followups" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
-              <ChevronRight className="h-4 w-4 shrink-0" />
-              Tasks & follow-ups
-            </Link>
-            <Link to="#reports" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
-              <ChevronRight className="h-4 w-4 shrink-0" />
-              Reports & analytics
-            </Link>
-            <Link to="#admin" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
-              <ChevronRight className="h-4 w-4 shrink-0" />
-              Admin panel
-            </Link>
-            <Link to="#notifications" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
-              <ChevronRight className="h-4 w-4 shrink-0" />
-              Notifications
-            </Link>
-            <Link to="#quick-links" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
-              <ChevronRight className="h-4 w-4 shrink-0" />
-              Quick links
-            </Link>
-          </CardContent>
-        </Card>
+        {/* Two-column layout: main content + sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 lg:gap-10">
+          {/* Main content - accordion */}
+          <div className="min-w-0">
 
         <Accordion type="single" collapsible className="w-full space-y-2" defaultValue={['getting-started']}>
           <AccordionItem value="getting-started" id="getting-started" className="border rounded-xl px-4 bg-card/50">
@@ -303,43 +264,89 @@ export default function Help() {
             </AccordionContent>
           </AccordionItem>
         </Accordion>
+          </div>
 
-        {/* Quick links & tips */}
-        <Card id="quick-links" className="card-shadow rounded-xl border-border/80 animate-fade-in-up animate-fade-in-up-delay-2">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              Quick links
-            </CardTitle>
-            <CardDescription>Jump to the main sections of the application</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-              <Link to="/dashboard" className="text-primary hover:underline font-medium">Dashboard</Link>
-              <Link to="/leads" className="text-primary hover:underline font-medium">Leads</Link>
-              <Link to="/tasks" className="text-primary hover:underline font-medium">My Tasks</Link>
-              <Link to="/follow-ups" className="text-primary hover:underline font-medium">Follow-ups</Link>
-              <Link to="/admin/team-activity" className="text-primary hover:underline font-medium">Activity Monitor</Link>
-              <Link to="/reports" className="text-primary hover:underline font-medium">Reports</Link>
-              <Link to="/notifications" className="text-primary hover:underline font-medium">Notifications</Link>
-              <Link to="/settings" className="text-primary hover:underline font-medium">Settings</Link>
-              <Link to="/admin" className="text-primary hover:underline font-medium">Admin Panel</Link>
-            </div>
-            <div className="rounded-lg border border-border/60 bg-muted/20 p-4 text-sm">
-              <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                Best practices
-              </h4>
-              <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                <li>Log every call, email, and meeting on the lead so the activity feed and lead score stay accurate.</li>
-                <li>Use filters on the Leads page to focus on a status, owner, or vendor type instead of scrolling.</li>
-                <li>Schedule follow-ups right after a call or meeting so you don’t lose track of next steps.</li>
-                <li>Check the Activity Monitor (admins) and Reports regularly to spot overdue items and trends.</li>
-                <li>Export reports periodically for your own records or for sharing with stakeholders.</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
+          {/* Sidebar - Contents & Quick links */}
+          <aside className="space-y-6 lg:sticky lg:top-24 self-start">
+            <Card className="card-shadow rounded-xl border-border/80">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <BookOpen className="h-4 w-4" />
+                  Contents
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                <a href="#getting-started" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
+                  <ChevronRight className="h-4 w-4 shrink-0" />
+                  Getting started & navigation
+                </a>
+                <a href="#leads" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
+                  <ChevronRight className="h-4 w-4 shrink-0" />
+                  Leads management
+                </a>
+                <a href="#import" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
+                  <ChevronRight className="h-4 w-4 shrink-0" />
+                  CSV import & export
+                </a>
+                <a href="#tasks-followups" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
+                  <ChevronRight className="h-4 w-4 shrink-0" />
+                  Tasks & follow-ups
+                </a>
+                <a href="#reports" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
+                  <ChevronRight className="h-4 w-4 shrink-0" />
+                  Reports & analytics
+                </a>
+                <a href="#admin" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
+                  <ChevronRight className="h-4 w-4 shrink-0" />
+                  Admin panel
+                </a>
+                <a href="#notifications" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
+                  <ChevronRight className="h-4 w-4 shrink-0" />
+                  Notifications
+                </a>
+                <a href="#quick-links" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors py-1">
+                  <ChevronRight className="h-4 w-4 shrink-0" />
+                  Quick links
+                </a>
+              </CardContent>
+            </Card>
+            <Card id="quick-links" className="card-shadow rounded-xl border-border/80">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Zap className="h-4 w-4" />
+                  Quick links
+                </CardTitle>
+                <CardDescription>Jump to the main sections of the application</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-x-3 gap-y-2 text-sm">
+                  <Link to="/dashboard" className="text-primary hover:underline font-medium">Dashboard</Link>
+                  <Link to="/leads" className="text-primary hover:underline font-medium">Leads</Link>
+                  <Link to="/tasks" className="text-primary hover:underline font-medium">My Tasks</Link>
+                  <Link to="/follow-ups" className="text-primary hover:underline font-medium">Follow-ups</Link>
+                  <Link to="/admin/team-activity" className="text-primary hover:underline font-medium">Activity</Link>
+                  <Link to="/reports" className="text-primary hover:underline font-medium">Reports</Link>
+                  <Link to="/notifications" className="text-primary hover:underline font-medium">Notifications</Link>
+                  <Link to="/settings" className="text-primary hover:underline font-medium">Settings</Link>
+                  <Link to="/admin" className="text-primary hover:underline font-medium">Admin</Link>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-4 text-sm">
+                  <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    Best practices
+                  </h4>
+                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                    <li>Log every call, email, and meeting on the lead so the activity feed and lead score stay accurate.</li>
+                    <li>Use filters on the Leads page to focus on a status, owner, or vendor type instead of scrolling.</li>
+                    <li>Schedule follow-ups right after a call or meeting so you don’t lose track of next steps.</li>
+                    <li>Check the Activity Monitor (admins) and Reports regularly to spot overdue items and trends.</li>
+                    <li>Export reports periodically for your own records or for sharing with stakeholders.</li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+          </aside>
+        </div>
       </div>
     </AppLayout>
   );
