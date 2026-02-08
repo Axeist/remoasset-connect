@@ -15,6 +15,7 @@ import {
   Shield,
   User,
   Activity,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -130,6 +131,25 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
           <LogOut className="h-[19px] w-[19px] shrink-0" />
           {!collapsed && <span>Sign Out</span>}
         </Button>
+        <a
+          href="https://cuephoriatech.in"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            'mt-3 w-full flex items-center justify-center gap-1.5 rounded-lg py-2 px-2 text-[10px] font-medium text-sidebar-foreground/60 hover:text-sidebar-foreground/90 hover:bg-sidebar-accent/30 transition-all duration-200 border border-sidebar-border/40',
+            collapsed && 'px-1'
+          )}
+          title="Developed by Cuephoria Tech"
+        >
+          {collapsed ? (
+            <span className="text-[9px] font-semibold tracking-tight">CT</span>
+          ) : (
+            <>
+              <span>Developed by Cuephoria Tech</span>
+              <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
+            </>
+          )}
+        </a>
       </div>
     </>
   );
