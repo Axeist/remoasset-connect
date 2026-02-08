@@ -30,20 +30,20 @@ import { Loader2 } from 'lucide-react';
 
 const leadFormSchema = z.object({
   company_name: z.string().min(1, 'Company name is required'),
-  website: z.string().url('Invalid URL').optional().or(z.literal('')),
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
+  website: z.string().min(1, 'Website is required').url('Invalid URL'),
+  email: z.string().min(1, 'Email is required').email('Invalid email'),
   phone: z.string().optional(),
   contact_name: z.string().optional(),
   contact_designation: z.string().optional(),
-  country_id: z.string().uuid().optional().or(z.literal('')),
-  status_id: z.string().uuid().optional().or(z.literal('')),
-  vendor_type: z.string().optional(),
+  country_id: z.string().min(1, 'Country is required').uuid('Invalid country'),
+  status_id: z.string().min(1, 'Status is required').uuid('Invalid status'),
+  vendor_type: z.string().min(1, 'Vendor type is required'),
   warehouse_available: z.boolean().default(false),
   warehouse_location: z.string().optional(),
   warehouse_notes: z.string().optional(),
   warehouse_price: z.string().optional(),
   warehouse_currency: z.string().default('USD'),
-  notes: z.string().optional(),
+  notes: z.string().min(1, 'Notes are required'),
 });
 
 type LeadFormValues = z.infer<typeof leadFormSchema>;
@@ -123,7 +123,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
         phone: '',
         contact_name: '',
         contact_designation: '',
-        country_id: '',
+        country_id: countries[0]?.id ?? '',
         status_id: statuses[0]?.id ?? '',
         vendor_type: '',
         warehouse_available: false,
@@ -139,21 +139,21 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
   const onSubmit = async (values: LeadFormValues) => {
     const payload = {
       company_name: values.company_name,
-      website: values.website || null,
-      email: values.email || null,
+      website: values.website,
+      email: values.email,
       phone: values.phone || null,
       contact_name: values.contact_name || null,
       contact_designation: values.contact_designation || null,
-      country_id: values.country_id || null,
-      status_id: values.status_id || null,
-      vendor_type: values.vendor_type || null,
+      country_id: values.country_id,
+      status_id: values.status_id,
+      vendor_type: values.vendor_type,
       warehouse_available: values.warehouse_available,
       warehouse_location: values.warehouse_available ? (values.warehouse_location || null) : null,
       warehouse_notes: values.warehouse_available ? (values.warehouse_notes || null) : null,
       warehouse_price: values.warehouse_available && values.warehouse_price ? parseFloat(values.warehouse_price) : null,
       warehouse_currency: values.warehouse_available ? values.warehouse_currency : null,
       lead_score: 0,
-      notes: values.notes || null,
+      notes: values.notes,
       ...(lead ? {} : { owner_id: user?.id ?? null }),
     };
 
@@ -225,7 +225,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="website">Website</Label>
+              <Label htmlFor="website">Website *</Label>
               <Input
                 id="website"
                 type="url"
@@ -239,7 +239,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email *</Label>
               <Input
                 id="email"
                 type="email"
@@ -271,7 +271,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Country</Label>
+              <Label>Country *</Label>
               <Select
                 value={form.watch('country_id') || 'all'}
                 onValueChange={(v) => form.setValue('country_id', v === 'all' ? '' : v)}
@@ -288,9 +288,12 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
                   ))}
                 </SelectContent>
               </Select>
+              {form.formState.errors.country_id && (
+                <p className="text-sm text-destructive">{form.formState.errors.country_id.message}</p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label>Vendor Type</Label>
+              <Label>Vendor Type *</Label>
               <Select
                 value={form.watch('vendor_type') || 'none'}
                 onValueChange={(v) => form.setValue('vendor_type', v === 'none' ? '' : v)}
@@ -305,10 +308,13 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
                   <SelectItem value="rental">Rental</SelectItem>
                 </SelectContent>
               </Select>
+              {form.formState.errors.vendor_type && (
+                <p className="text-sm text-destructive">{form.formState.errors.vendor_type.message}</p>
+              )}
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Status</Label>
+            <Label>Status *</Label>
             <Select
               value={form.watch('status_id') || 'all'}
               onValueChange={(v) => form.setValue('status_id', v === 'all' ? '' : v)}
@@ -331,6 +337,9 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
                 ))}
               </SelectContent>
             </Select>
+            {form.formState.errors.status_id && (
+              <p className="text-sm text-destructive">{form.formState.errors.status_id.message}</p>
+            )}
           </div>
           
           {/* Warehouse Section */}
@@ -405,7 +414,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
+            <Label htmlFor="notes">Notes *</Label>
             <Textarea
               id="notes"
               {...form.register('notes')}
@@ -413,6 +422,9 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
               rows={3}
               className="resize-none"
             />
+            {form.formState.errors.notes && (
+              <p className="text-sm text-destructive">{form.formState.errors.notes.message}</p>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
