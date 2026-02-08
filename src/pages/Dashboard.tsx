@@ -3,6 +3,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { LeadsChart } from '@/components/dashboard/LeadsChart';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
+import { WorldDemographics } from '@/components/dashboard/WorldDemographics';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { Users, Target, Flame, CheckSquare, Calendar, Bell, ArrowRight, TrendingUp, Activity, Award } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,6 +27,7 @@ export default function Dashboard() {
     myActivityBreakdown,
     myTasksCompleted,
     myTasksTotal,
+    worldDemographics,
     loading,
     isAdmin,
   } = useDashboardData();
@@ -90,6 +92,11 @@ export default function Dashboard() {
           <div className="animate-fade-in-up animate-fade-in-up-delay-3 min-h-0 min-w-0 flex w-full">
             <RecentActivity activities={recentActivities} loading={loading} />
           </div>
+        </div>
+
+        {/* World Demographics Map */}
+        <div className="animate-fade-in-up animate-fade-in-up-delay-4">
+          <WorldDemographics data={worldDemographics} loading={loading} />
         </div>
 
         {/* Employee: Upcoming Tasks & Reminders + My Hot Leads */}

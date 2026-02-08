@@ -77,6 +77,13 @@ export interface ActivityBreakdownItem {
   color: string;
 }
 
+export interface WorldDemographicsCountry {
+  countryCode: string;
+  countryName: string;
+  totalLeads: number;
+  statusBreakdown: { statusName: string; count: number; color: string }[];
+}
+
 export function useDashboardData() {
   const { user, role } = useAuth();
   const isAdmin = role === 'admin';
@@ -100,6 +107,7 @@ export function useDashboardData() {
   const [myActivityBreakdown, setMyActivityBreakdown] = useState<ActivityBreakdownItem[]>([]);
   const [myTasksCompleted, setMyTasksCompleted] = useState(0);
   const [myTasksTotal, setMyTasksTotal] = useState(0);
+  const [worldDemographics, setWorldDemographics] = useState<WorldDemographicsCountry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -176,6 +184,66 @@ export function useDashboardData() {
           countryCounts[code] = (countryCounts[code] ?? 0) + 1;
         });
         setCountryData(Object.entries(countryCounts).map(([name, leads]) => ({ name, leads })));
+
+        // Fetch world demographics data with status breakdown
+        const worldDemoQuery = supabase
+          .from('leads')
+          .select('country_id, status_id, countries(code, name), lead_statuses(name, color)');
+        if (!isAdmin) (worldDemoQuery as any).eq('owner_id', user.id);
+        
+        const worldDemoRes = await worldDemoQuery;
+        type WorldDemoRow = {
+          country_id: string | null;
+          status_id: string | null;
+          countries: { code: string; name: string } | null;
+          lead_statuses: { name: string; color: string } | null;
+        };
+        
+        const demoData = (worldDemoRes.data as WorldDemoRow[]) ?? [];
+        const worldMap: Record<string, {
+          countryCode: string;
+          countryName: string;
+          totalLeads: number;
+          statuses: Record<string, { name: string; count: number; color: string }>;
+        }> = {};
+        
+        demoData.forEach((row) => {
+          if (!row.countries) return;
+          const code = row.countries.code;
+          const name = row.countries.name;
+          
+          if (!worldMap[code]) {
+            worldMap[code] = {
+              countryCode: code,
+              countryName: name,
+              totalLeads: 0,
+              statuses: {},
+            };
+          }
+          
+          worldMap[code].totalLeads++;
+          
+          const statusName = row.lead_statuses?.name ?? 'Unassigned';
+          const statusColor = row.lead_statuses?.color ?? '#6B7280';
+          
+          if (!worldMap[code].statuses[statusName]) {
+            worldMap[code].statuses[statusName] = { name: statusName, count: 0, color: statusColor };
+          }
+          worldMap[code].statuses[statusName].count++;
+        });
+        
+        const worldDemoArray = Object.values(worldMap).map(country => ({
+          countryCode: country.countryCode,
+          countryName: country.countryName,
+          totalLeads: country.totalLeads,
+          statusBreakdown: Object.values(country.statuses).map(s => ({
+            statusName: s.name,
+            count: s.count,
+            color: s.color,
+          })),
+        }));
+        
+        setWorldDemographics(worldDemoArray);
 
         setLoading(false);
 
@@ -327,6 +395,7 @@ export function useDashboardData() {
     myActivityBreakdown,
     myTasksCompleted,
     myTasksTotal,
+    worldDemographics,
     loading,
     isAdmin,
   };
