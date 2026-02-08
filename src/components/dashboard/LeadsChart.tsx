@@ -63,9 +63,11 @@ export function LeadsChart({
                 <Tooltip 
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
+                    color: 'hsl(var(--card-foreground))',
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px'
                   }} 
+                  labelStyle={{ color: 'hsl(var(--card-foreground))' }}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -93,9 +95,11 @@ export function LeadsChart({
                 <Tooltip 
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
+                    color: 'hsl(var(--card-foreground))',
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px'
                   }} 
+                  labelStyle={{ color: 'hsl(var(--card-foreground))' }}
                 />
                 <Bar dataKey="leads" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -113,12 +117,14 @@ export function LeadsChart({
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
                   <YAxis stroke="hsl(var(--muted-foreground))" />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }} 
+<Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))', 
+                    color: 'hsl(var(--card-foreground))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }} 
+                  labelStyle={{ color: 'hsl(var(--card-foreground))' }}
                   />
                   <Line type="monotone" dataKey="calls" stroke="hsl(var(--primary))" strokeWidth={2} />
                   <Line type="monotone" dataKey="emails" stroke="hsl(var(--accent))" strokeWidth={2} />

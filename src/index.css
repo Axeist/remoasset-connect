@@ -260,3 +260,21 @@
   z-index: 9999 !important;
 }
 
+/* Recharts tooltips: use theme foreground so text is visible in dark mode */
+.recharts-tooltip-wrapper,
+.recharts-default-tooltip {
+  background: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.recharts-default-tooltip .recharts-tooltip-label,
+.recharts-default-tooltip .recharts-tooltip-item {
+  color: hsl(var(--popover-foreground)) !important;
+}
+.recharts-tooltip-item-list .recharts-tooltip-item span:first-child,
+.recharts-tooltip-item-list .recharts-tooltip-item span:last-child {
+  color: inherit !important;
+}
+

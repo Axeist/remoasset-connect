@@ -238,7 +238,7 @@ export function WorldDemographics({ data, loading }: WorldDemographicsProps) {
             id="world-map-tooltip"
             place="top"
             className="!bg-popover !text-popover-foreground !border !border-border !rounded-lg !px-3 !py-2 !text-sm !opacity-100 !shadow-lg"
-            style={{ whiteSpace: 'pre-line', zIndex: 1000 }}
+            style={{ whiteSpace: 'pre-line', zIndex: 1000, color: 'hsl(var(--popover-foreground))' }}
           />
         </div>
 
