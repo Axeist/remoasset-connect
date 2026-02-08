@@ -13,6 +13,8 @@ export interface LeadsFiltersState {
   owner: string;
   scoreMin: number;
   scoreMax: number;
+  vendorType: string;
+  warehouseAvailable: string;
 }
 
 interface LeadsFiltersProps {
@@ -42,7 +44,110 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
   return (
     <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
       <CardContent className="p-4">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {/* Search */}
+          <div className="relative lg:col-span-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search leads..."
+              value={filters.search}
+              onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
+              className="pl-10"
+            />
+          </div>
+
+          {/* Status */}
+          <Select 
+            value={filters.status || 'all'} 
+            onValueChange={(value) => onFiltersChange({ ...filters, status: value === 'all' ? '' : value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              {statuses.map((status) => (
+                <SelectItem key={status.id} value={status.id}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: status.color }} />
+                    {status.name}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Country */}
+          <Select 
+            value={filters.country || 'all'} 
+            onValueChange={(value) => onFiltersChange({ ...filters, country: value === 'all' ? '' : value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="All Countries" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Countries</SelectItem>
+              {countries.map((country) => (
+                <SelectItem key={country.id} value={country.id}>
+                  {country.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Vendor Type */}
+          <Select 
+            value={filters.vendorType || 'all'} 
+            onValueChange={(value) => onFiltersChange({ ...filters, vendorType: value === 'all' ? '' : value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="All Vendor Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Vendor Types</SelectItem>
+              <SelectItem value="new_device">New Device</SelectItem>
+              <SelectItem value="refurbished">Refurbished</SelectItem>
+              <SelectItem value="rental">Rental</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Warehouse Available */}
+          <Select 
+            value={filters.warehouseAvailable || 'all'} 
+            onValueChange={(value) => onFiltersChange({ ...filters, warehouseAvailable: value === 'all' ? '' : value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Warehouse" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Warehouses</SelectItem>
+              <SelectItem value="true">Warehouse Available</SelectItem>
+              <SelectItem value="false">No Warehouse</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Owner */}
+          <Select 
+            value={filters.owner || 'all'} 
+            onValueChange={(value) => onFiltersChange({ ...filters, owner: value === 'all' ? '' : value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="All Owners" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Owners</SelectItem>
+              {ownerOptions.map((owner) => (
+                <SelectItem key={owner.id} value={owner.id}>
+                  {owner.full_name || 'Unnamed'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

@@ -300,6 +300,36 @@ export default function LeadDetail() {
                     {lead.country ? `${lead.country.name} (${lead.country.code})` : '-'}
                   </p>
                 </div>
+                {(lead as any).vendor_type && (
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Vendor Type</p>
+                    <p className="font-medium capitalize">
+                      {(lead as any).vendor_type?.replace('_', ' ') ?? '-'}
+                    </p>
+                  </div>
+                )}
+                {(lead as any).warehouse_available && (
+                  <>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Warehouse Location</p>
+                      <p className="font-medium">{(lead as any).warehouse_location ?? '-'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Warehouse Price</p>
+                      <p className="font-medium">
+                        {(lead as any).warehouse_price 
+                          ? `${(lead as any).warehouse_currency || 'USD'} ${parseFloat((lead as any).warehouse_price).toFixed(2)}`
+                          : '-'}
+                      </p>
+                    </div>
+                    {(lead as any).warehouse_notes && (
+                      <div className="space-y-1 sm:col-span-2">
+                        <p className="text-sm text-muted-foreground">Warehouse Notes</p>
+                        <p className="font-medium">{(lead as any).warehouse_notes}</p>
+                      </div>
+                    )}
+                  </>
+                )}
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Lead score</p>
                   <div className="flex items-center gap-2">
