@@ -255,6 +255,50 @@
   background: hsl(var(--primary) / 0.6);
 }
 
+/* Splash screen animations */
+@keyframes splash-logo-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.92; transform: scale(1.02); }
+}
+.splash-logo-pulse {
+  animation: splash-logo-pulse 2s ease-in-out infinite;
+}
+
+@keyframes splash-icon-float {
+  0%, 100% { transform: translateY(0); opacity: 0.9; }
+  50% { transform: translateY(-4px); opacity: 1; }
+}
+.splash-icon-float {
+  animation: splash-icon-float 2.2s ease-in-out infinite;
+}
+
+@keyframes splash-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+.splash-progress {
+  animation: splash-progress linear forwards;
+  transform-origin: left;
+}
+
+@keyframes splash-success-ring {
+  0% { transform: scale(0.6); opacity: 0; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.splash-success-ring {
+  animation: splash-success-ring 0.5s ease-out forwards;
+}
+
+@keyframes splash-check {
+  0% { opacity: 0; transform: scale(0.5); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.splash-check {
+  animation: splash-check 0.35s ease-out 0.25s forwards;
+  opacity: 0;
+}
+
 /* React Tooltip Styles */
 .react-tooltip {
   z-index: 9999 !important;

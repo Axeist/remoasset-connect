@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminRoute } from "@/components/AdminRoute";
+import { SplashScreen } from "@/components/SplashScreen";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
@@ -22,33 +24,46 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
-            <Route path="/leads/:id" element={<ProtectedRoute><LeadDetail /></ProtectedRoute>} />
-            <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
-            <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
-            <Route path="/admin/team-activity" element={<ProtectedRoute><TeamActivity /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-            <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-            <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
-            <Route path="/follow-ups" element={<ProtectedRoute><FollowUps /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const WELCOME_SPLASH_DURATION = 2800;
+
+const App = () => {
+  const [showWelcomeSplash, setShowWelcomeSplash] = useState(true);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        {showWelcomeSplash && (
+          <SplashScreen
+            variant="welcome"
+            duration={WELCOME_SPLASH_DURATION}
+            onComplete={() => setShowWelcomeSplash(false)}
+          />
+        )}
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
+              <Route path="/leads/:id" element={<ProtectedRoute><LeadDetail /></ProtectedRoute>} />
+              <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
+              <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+              <Route path="/admin/team-activity" element={<ProtectedRoute><TeamActivity /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+              <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
+              <Route path="/follow-ups" element={<ProtectedRoute><FollowUps /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

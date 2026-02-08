@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { SplashScreen } from '@/components/SplashScreen';
 import { Loader2, Mail, Lock, User, Eye, EyeOff, BarChart3, Users, Shield, Zap, ExternalLink } from 'lucide-react';
 
 const ALLOWED_SIGNUP_DOMAIN = 'remoasset.com';
@@ -52,6 +53,7 @@ export default function Auth() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirm, setShowSignupConfirm] = useState(false);
+  const [showSuccessSplash, setShowSuccessSplash] = useState(false);
 
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
@@ -84,7 +86,7 @@ export default function Auth() {
       });
     } else {
       toast({ title: 'Welcome back!' });
-      navigate('/dashboard');
+      setShowSuccessSplash(true);
     }
   };
 
@@ -116,6 +118,17 @@ export default function Auth() {
   };
 
   return (
+    <>
+      {showSuccessSplash && (
+        <SplashScreen
+          variant="success"
+          duration={1800}
+          onComplete={() => {
+            setShowSuccessSplash(false);
+            navigate('/dashboard');
+          }}
+        />
+      )}
     <div className="min-h-screen flex">
       {/* Left: Branding — visible on larger screens */}
       <div className="hidden lg:flex lg:w-[48%] xl:w-[52%] relative overflow-hidden bg-sidebar flex-col justify-between p-12 xl:p-16">
@@ -362,5 +375,6 @@ export default function Auth() {
         </div>
       </div>
     </div>
+    </>
   );
 }
