@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, Lock, User, Eye, EyeOff, BarChart3, Users, Shield, Zap } from 'lucide-react';
+import { Loader2, Mail, Lock, User, Eye, EyeOff, BarChart3, Users, Shield, Zap, ExternalLink } from 'lucide-react';
 
 const ALLOWED_SIGNUP_DOMAIN = 'remoasset.com';
 
@@ -163,6 +163,16 @@ export default function Auth() {
           <p className="text-sidebar-foreground/50 text-sm pt-4 animate-fade-in-up animate-fade-in-up-delay-2">
             Trusted by teams to centralize vendor and lead workflows.
           </p>
+          <a
+            href="https://cuephoriatech.in"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg py-2 px-3 text-sm font-medium text-sidebar-foreground/60 hover:text-sidebar-foreground/90 hover:bg-sidebar-accent/30 transition-all duration-200 border border-sidebar-border/40 animate-fade-in-up animate-fade-in-up-delay-2"
+            title="Developed by Cuephoria Tech"
+          >
+            <span>Developed by Cuephoria Tech</span>
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70" />
+          </a>
         </div>
       </div>
 
@@ -339,6 +349,16 @@ export default function Auth() {
             </TabsContent>
           </Tabs>
           </div>
+          <a
+            href="https://cuephoriatech.in"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 flex items-center justify-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            title="Developed by Cuephoria Tech"
+          >
+            <span>Developed by Cuephoria Tech</span>
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70" />
+          </a>
         </div>
       </div>
     </div>
