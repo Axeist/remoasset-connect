@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
@@ -55,13 +55,16 @@ export default function Auth() {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirm, setShowSignupConfirm] = useState(false);
   const [showSuccessSplash, setShowSuccessSplash] = useState(false);
+  const justLoggedInRef = useRef(false);
 
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user && !showSuccessSplash) navigate('/dashboard');
+    if (!user) return;
+    if (justLoggedInRef.current || showSuccessSplash) return;
+    navigate('/dashboard');
   }, [user, navigate, showSuccessSplash]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -87,15 +90,16 @@ export default function Auth() {
       });
       return;
     }
+    justLoggedInRef.current = true;
+    setShowSuccessSplash(true);
+    setIsLoading(false);
     let displayName = signedInUser?.user_metadata?.full_name || signedInUser?.email?.split('@')[0] || '';
     if (signedInUser?.id) {
       const { data: profile } = await supabase.from('profiles').select('full_name').eq('user_id', signedInUser.id).maybeSingle();
       if (profile?.full_name?.trim()) displayName = profile.full_name.trim();
     }
     if (!displayName) displayName = 'there';
-    setIsLoading(false);
     toast({ title: `Welcome back, ${displayName}!` });
-    setShowSuccessSplash(true);
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -132,6 +136,7 @@ export default function Auth() {
           variant="success"
           duration={2200}
           onComplete={() => {
+            justLoggedInRef.current = false;
             setShowSuccessSplash(false);
             navigate('/dashboard');
           }}
