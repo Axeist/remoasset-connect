@@ -24,7 +24,7 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const WELCOME_SPLASH_DURATION = 2800;
+const WELCOME_SPLASH_DURATION = 3200;
 
 const App = () => {
   const [showWelcomeSplash, setShowWelcomeSplash] = useState(true);

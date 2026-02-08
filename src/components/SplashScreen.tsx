@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Package, MapPin, Settings, RefreshCw, Globe } from 'lucide-react';
+import { Package, MapPin, Settings, RefreshCw } from 'lucide-react';
 
 type SplashVariant = 'welcome' | 'success';
 
@@ -9,9 +9,7 @@ interface SplashScreenProps {
   duration?: number;
 }
 
-const iconClass = 'w-8 h-8 sm:w-10 sm:h-10 text-primary/90';
-
-export function SplashScreen({ variant, onComplete, duration = 2500 }: SplashScreenProps) {
+export function SplashScreen({ variant, onComplete, duration = 3200 }: SplashScreenProps) {
   useEffect(() => {
     const t = setTimeout(() => onComplete?.(), duration);
     return () => clearTimeout(t);
@@ -20,123 +18,126 @@ export function SplashScreen({ variant, onComplete, duration = 2500 }: SplashScr
   if (variant === 'success') {
     return (
       <div
-        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background overflow-hidden"
+        className="splash-wrap fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-splash-dark"
         aria-live="polite"
         aria-label="Login successful"
       >
-        {/* Subtle gradient orbs */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.12),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_80%_80%,hsl(var(--success)/0.08),transparent)]" />
+        {/* Animated mesh gradient background */}
+        <div className="splash-mesh-bg" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_50%,hsl(var(--primary)/0.25),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_80%_20%,hsl(var(--success)/0.2),transparent_50%)]" />
+
+        {/* Floating orbs */}
+        <div className="splash-orb splash-orb-1" />
+        <div className="splash-orb splash-orb-2" />
+        <div className="splash-orb splash-orb-3" />
 
         <div className="relative z-10 flex flex-col items-center justify-center px-6 text-center">
-          {/* Success checkmark circle */}
-          <div className="splash-success-ring mb-8 flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg shadow-primary/30">
-            <svg
-              className="splash-check h-12 w-12 sm:h-14 sm:w-14"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+          {/* Success burst + checkmark */}
+          <div className="relative flex h-28 w-28 items-center justify-center sm:h-32 sm:w-32">
+            <div className="splash-success-burst absolute inset-0 flex items-center justify-center">
+              <span className="splash-burst-dot" />
+              <span className="splash-burst-dot" />
+              <span className="splash-burst-dot" />
+              <span className="splash-burst-dot" />
+              <span className="splash-burst-dot" />
+              <span className="splash-burst-dot" />
+              <span className="splash-burst-dot" />
+              <span className="splash-burst-dot" />
+            </div>
+            <div className="splash-success-ring flex h-28 w-28 sm:h-32 sm:w-32 items-center justify-center rounded-full bg-gradient-to-br from-primary via-primary to-accent text-white shadow-2xl splash-success-glow">
+            <svg className="splash-check h-14 w-14 sm:h-16 sm:w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 13l4 4L19 7" />
             </svg>
+            </div>
           </div>
 
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+          <h1 className="splash-success-title mt-8 font-display text-3xl sm:text-4xl font-bold tracking-tight">
             Welcome back
           </h1>
-          <p className="mt-2 text-muted-foreground text-sm sm:text-base max-w-xs">
+          <p className="mt-3 text-base text-white/70">
             Taking you to your dashboard…
           </p>
-          <img
-            src="/logo.png"
-            alt="RemoAsset"
-            className="mt-8 h-8 w-auto object-contain opacity-60"
-          />
+          <img src="/logo.png" alt="RemoAsset" className="mt-8 h-8 w-auto object-contain opacity-70" />
         </div>
 
-        {/* Loading bar */}
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-muted overflow-hidden">
-          <div
-            className="h-full bg-primary rounded-r-full splash-progress"
-            style={{ animationDuration: `${duration}ms` }}
-          />
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 overflow-hidden">
+          <div className="splash-progress h-full bg-gradient-to-r from-primary to-accent" style={{ animationDuration: `${duration}ms` }} />
         </div>
       </div>
     );
   }
 
-  // Welcome (first load)
+  // Welcome (first load) – exotic loading
   return (
     <div
-      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background overflow-hidden"
+      className="splash-wrap fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-splash-dark"
       aria-live="polite"
       aria-label="Loading RemoAsset"
     >
-      {/* Background gradients */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.15),transparent_50%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_70%_at_100%_0%,hsl(var(--accent)/0.08),transparent)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_50%_at_0%_100%,hsl(var(--primary)/0.06),transparent)]" />
+      {/* Animated mesh / gradient background */}
+      <div className="splash-mesh-bg" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-30%,hsl(var(--primary)/0.3),transparent_50%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_70%_at_100%_0%,hsl(var(--accent)/0.15),transparent)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_0%_100%,hsl(250_80%_50%/0.12),transparent)]" />
+
+      {/* Grid overlay */}
+      <div className="splash-grid" />
+
+      {/* Floating orbs */}
+      <div className="splash-orb splash-orb-1" />
+      <div className="splash-orb splash-orb-2" />
+      <div className="splash-orb splash-orb-3" />
+      <div className="splash-orb splash-orb-4" />
+
+      {/* Floating geometric shapes */}
+      <div className="splash-shape splash-shape-1" />
+      <div className="splash-shape splash-shape-2" />
+      <div className="splash-shape splash-shape-3" />
 
       <div className="relative z-10 flex flex-col items-center justify-center px-6 text-center">
-        {/* Logo with gentle pulse */}
-        <div className="splash-logo-pulse mb-8">
-          <img
-            src="/logo.png"
-            alt="RemoAsset"
-            className="h-14 w-auto object-contain drop-shadow-md sm:h-16"
-          />
+        {/* Logo in glass card with glow */}
+        <div className="splash-logo-wrap">
+          <div className="splash-logo-glow" />
+          <img src="/logo.png" alt="RemoAsset" className="splash-logo-img relative z-10 h-16 w-auto object-contain drop-shadow-lg sm:h-20" />
         </div>
 
-        <h1 className="font-display text-xl sm:text-2xl font-bold text-foreground tracking-tight">
+        <h1 className="splash-headline mt-8 font-display text-2xl font-bold tracking-tight sm:text-3xl">
           Remote IT Asset Management
         </h1>
-        <p className="mt-2 text-muted-foreground text-sm sm:text-base max-w-sm leading-relaxed">
-          Procure, track, manage, and recover hardware for distributed teams worldwide.
+        <p className="splash-tagline mt-3 max-w-md text-sm leading-relaxed text-white/70 sm:text-base">
+          Procure, track, manage & recover hardware for distributed teams worldwide.
         </p>
 
-        {/* Theme icons: procure, track, manage, recover */}
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-6 sm:gap-8 text-muted-foreground/80">
-          <div className="splash-icon-float flex flex-col items-center gap-2" style={{ animationDelay: '0ms' }}>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <Package className={iconClass} />
+        {/* Icon pills */}
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-4 sm:gap-6">
+          {[
+            { Icon: Package, label: 'Procure' },
+            { Icon: MapPin, label: 'Track' },
+            { Icon: Settings, label: 'Manage' },
+            { Icon: RefreshCw, label: 'Recover' },
+          ].map(({ Icon, label }, i) => (
+            <div key={label} className="splash-pill" style={{ animationDelay: `${i * 120}ms` }}>
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm sm:h-12 sm:w-12">
+                <Icon className="h-5 w-5 text-primary sm:h-6 sm:w-6" />
+              </div>
+              <span className="text-xs font-medium text-white/80">{label}</span>
             </div>
-            <span className="text-xs font-medium">Procure</span>
-          </div>
-          <div className="splash-icon-float flex flex-col items-center gap-2" style={{ animationDelay: '150ms' }}>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <MapPin className={iconClass} />
-            </div>
-            <span className="text-xs font-medium">Track</span>
-          </div>
-          <div className="splash-icon-float flex flex-col items-center gap-2" style={{ animationDelay: '300ms' }}>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <Settings className={iconClass} />
-            </div>
-            <span className="text-xs font-medium">Manage</span>
-          </div>
-          <div className="splash-icon-float flex flex-col items-center gap-2" style={{ animationDelay: '450ms' }}>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <RefreshCw className={iconClass} />
-            </div>
-            <span className="text-xs font-medium">Recover</span>
-          </div>
+          ))}
         </div>
 
-        <div className="mt-8 flex items-center gap-2 text-muted-foreground/60 text-xs">
-          <Globe className="h-3.5 w-3.5" />
-          <span>Built for distributed teams</span>
+        {/* Custom loader */}
+        <div className="mt-12 flex flex-col items-center gap-4">
+          <div className="splash-loader-ring">
+            <div className="splash-loader-ring-inner" />
+          </div>
+          <p className="text-xs font-medium uppercase tracking-widest text-white/50">Loading</p>
         </div>
       </div>
 
-      {/* Bottom loading bar */}
-      <div className="absolute bottom-0 left-0 right-0 h-1 bg-muted overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-primary to-accent rounded-r-full splash-progress"
-          style={{ animationDuration: `${duration}ms` }}
-        />
+      {/* Bottom progress */}
+      <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 overflow-hidden">
+        <div className="splash-progress h-full bg-gradient-to-r from-primary via-accent to-primary" style={{ animationDuration: `${duration}ms` }} />
       </div>
     </div>
   );

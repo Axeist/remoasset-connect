@@ -60,8 +60,8 @@ export default function Auth() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user) navigate('/dashboard');
-  }, [user, navigate]);
+    if (user && !showSuccessSplash) navigate('/dashboard');
+  }, [user, navigate, showSuccessSplash]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,7 +122,7 @@ export default function Auth() {
       {showSuccessSplash && (
         <SplashScreen
           variant="success"
-          duration={1800}
+          duration={2200}
           onComplete={() => {
             setShowSuccessSplash(false);
             navigate('/dashboard');
