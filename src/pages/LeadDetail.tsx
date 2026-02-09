@@ -311,11 +311,13 @@ export default function LeadDetail() {
                     {lead.country ? `${lead.country.name} (${lead.country.code})` : '-'}
                   </p>
                 </div>
-                {(lead as any).vendor_type && (
+                {((lead as any).vendor_types?.length > 0 || (lead as any).vendor_type) && (
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Vendor Type</p>
                     <p className="font-medium capitalize">
-                      {(lead as any).vendor_type?.replace('_', ' ') ?? '-'}
+                      {Array.isArray((lead as any).vendor_types) && (lead as any).vendor_types.length > 0
+                        ? (lead as any).vendor_types.map((t: string) => t.replace('_', ' ')).join(', ')
+                        : (lead as any).vendor_type?.replace('_', ' ') ?? '-'}
                     </p>
                   </div>
                 )}

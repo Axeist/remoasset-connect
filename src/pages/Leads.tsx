@@ -110,7 +110,7 @@ export default function Leads() {
         email,
         phone,
         lead_score,
-        vendor_type,
+        vendor_types,
         warehouse_available,
         created_at,
         owner_id,
@@ -129,7 +129,7 @@ export default function Leads() {
     if (filters.country) query = query.eq('country_id', filters.country);
     if (filters.owner === 'unassigned') query = query.is('owner_id', null);
     else if (filters.owner) query = query.eq('owner_id', filters.owner);
-    if (filters.vendorType) query = query.eq('vendor_type', filters.vendorType);
+    if (filters.vendorType) query = query.contains('vendor_types', [filters.vendorType]);
     if (filters.warehouseAvailable === 'true') query = query.eq('warehouse_available', true);
     else if (filters.warehouseAvailable === 'false') query = query.eq('warehouse_available', false);
     query = query.gte('lead_score', filters.scoreMin).lte('lead_score', filters.scoreMax);

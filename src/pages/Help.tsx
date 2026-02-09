@@ -85,7 +85,7 @@ export default function Help() {
                     Leads
                   </h4>
                   <p className="mb-2">
-                    Central place for all leads. Add leads manually (required: company name, website, email, country, status, vendor type, notes; optional: phone, contact name, designation). Use filters (search, status, country, vendor type, warehouse, owner, score range) and choose how many rows per page. Open a lead to view or edit details, log activities (call, email, meeting, note), add tasks and follow-ups, upload documents, and see the full activity log with lead score points (+6 for calls, +3 for email, etc.). Admins can delete individual leads or use bulk actions (e.g. change owner); bulk changes are recorded in the activity feed.
+                    Central place for all leads. Add leads manually (required: company name, website, email, country, status, vendor types (one or more), notes; optional: phone, contact name, designation). Use filters (search, status, country, vendor type, warehouse, owner, score range) and choose how many rows per page. Open a lead to view or edit details, log activities (call, email, meeting, note), add tasks and follow-ups, upload documents, and see the full activity log with lead score points (+6 for calls, +3 for email, etc.). Admins can delete individual leads or use bulk actions (e.g. change owner); bulk changes are recorded in the activity feed.
                   </p>
                   <p className="text-xs text-muted-foreground/90">
                     <strong>Lead score:</strong> Each activity and task/follow-up contributes points (e.g. Call +6, Email +3, Meeting +5). These are shown on the right of each activity and in the Tasks/Follow-ups tabs.
@@ -132,11 +132,11 @@ export default function Help() {
             <AccordionContent className="pb-5 text-sm text-muted-foreground space-y-4">
               <h4 className="font-medium text-foreground">Adding and editing leads</h4>
               <p>
-                Use <strong className="text-foreground">Add lead</strong> to create a new lead. Required fields: Company name, Website, Email, Country, Status, Vendor type (New Device / Refurbished / Rental), and Notes. Optional: Phone, Contact name, Designation. If <strong className="text-foreground">Warehouse available</strong> is turned on, you can add Warehouse location, notes, price, and currency. All edits are logged in the lead’s Activity tab with the fields that changed.
+                Use <strong className="text-foreground">Add lead</strong> to create a new lead. Required fields: Company name, Website, Email, Country, Status, Vendor types — select one or more: New Device, Refurbished, Rental (e.g. both New Device and Refurbished), and Notes. Optional: Phone, Contact name, Designation. If <strong className="text-foreground">Warehouse available</strong> is turned on, you can add Warehouse location, notes, price, and currency. All edits are logged in the lead’s Activity tab with the fields that changed.
               </p>
               <h4 className="font-medium text-foreground mt-4">Lead detail tabs</h4>
               <ul className="list-disc list-inside space-y-1">
-                <li><strong className="text-foreground">Overview</strong> — Company info, contact, country, status, vendor type, warehouse details (if any).</li>
+                <li><strong className="text-foreground">Overview</strong> — Company info, contact, country, status, vendor types, warehouse details (if any).</li>
                 <li><strong className="text-foreground">Activity</strong> — Full log of calls, emails, meetings, notes, and system events (e.g. lead updated, task created). Each row shows the lead score impact (e.g. +6, +3). Filter by type and add new activities.</li>
                 <li><strong className="text-foreground">Tasks</strong> — Tasks linked to this lead. Pending tasks show +3, completed +5. Create tasks from the lead or link existing ones from My Tasks.</li>
                 <li><strong className="text-foreground">Follow-ups</strong> — Scheduled follow-ups. Scheduled items show +2, completed +5. Mark done from here or from the Follow-ups page.</li>

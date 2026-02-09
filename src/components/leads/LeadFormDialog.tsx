@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -37,7 +38,7 @@ const leadFormSchema = z.object({
   contact_designation: z.string().optional(),
   country_id: z.string().min(1, 'Country is required').uuid('Invalid country'),
   status_id: z.string().min(1, 'Status is required').uuid('Invalid status'),
-  vendor_type: z.string().min(1, 'Vendor type is required'),
+  vendor_types: z.array(z.enum(['new_device', 'refurbished', 'rental'])).min(1, 'Select at least one vendor type'),
   warehouse_available: z.boolean().default(false),
   warehouse_location: z.string().optional(),
   warehouse_notes: z.string().optional(),
@@ -70,7 +71,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
       contact_designation: '',
       country_id: '',
       status_id: '',
-      vendor_type: '',
+      vendor_types: [],
       warehouse_available: false,
       warehouse_location: '',
       warehouse_notes: '',
@@ -107,7 +108,11 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
         contact_designation: lead.contact_designation ?? '',
         country_id: lead.country_id ?? '',
         status_id: lead.status_id ?? '',
-        vendor_type: (lead as any).vendor_type ?? '',
+        vendor_types: Array.isArray((lead as any).vendor_types)
+          ? (lead as any).vendor_types
+          : (lead as any).vendor_type
+            ? [(lead as any).vendor_type]
+            : [],
         warehouse_available: (lead as any).warehouse_available ?? false,
         warehouse_location: (lead as any).warehouse_location ?? '',
         warehouse_notes: (lead as any).warehouse_notes ?? '',
@@ -125,7 +130,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
         contact_designation: '',
         country_id: countries[0]?.id ?? '',
         status_id: statuses[0]?.id ?? '',
-        vendor_type: '',
+        vendor_types: [],
         warehouse_available: false,
         warehouse_location: '',
         warehouse_notes: '',
@@ -146,7 +151,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
       contact_designation: values.contact_designation || null,
       country_id: values.country_id,
       status_id: values.status_id,
-      vendor_type: values.vendor_type,
+      vendor_types: values.vendor_types,
       warehouse_available: values.warehouse_available,
       warehouse_location: values.warehouse_available ? (values.warehouse_location || null) : null,
       warehouse_notes: values.warehouse_available ? (values.warehouse_notes || null) : null,
@@ -164,7 +169,9 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
       if (lead.contact_name !== (values.contact_name || null)) changes.push(`Contact name: ${lead.contact_name || 'None'} → ${values.contact_name || 'None'}`);
       if (lead.email !== (values.email || null)) changes.push(`Email: ${lead.email || 'None'} → ${values.email || 'None'}`);
       if (lead.phone !== (values.phone || null)) changes.push(`Phone: ${lead.phone || 'None'} → ${values.phone || 'None'}`);
-      if ((lead as any).vendor_type !== (values.vendor_type || null)) changes.push(`Vendor type updated`);
+      const prevTypes = Array.isArray((lead as any).vendor_types) ? (lead as any).vendor_types : (lead as any).vendor_type ? [(lead as any).vendor_type] : [];
+      const same = prevTypes.length === values.vendor_types.length && values.vendor_types.every((t) => prevTypes.includes(t));
+      if (!same) changes.push(`Vendor types updated`);
       if ((lead as any).warehouse_available !== values.warehouse_available) changes.push(`Warehouse available: ${(lead as any).warehouse_available ? 'Yes' : 'No'} → ${values.warehouse_available ? 'Yes' : 'No'}`);
       
       const { error } = await supabase.from('leads').update(payload).eq('id', lead.id);
@@ -294,22 +301,34 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
             </div>
             <div className="space-y-2">
               <Label>Vendor Type *</Label>
-              <Select
-                value={form.watch('vendor_type') || 'none'}
-                onValueChange={(v) => form.setValue('vendor_type', v === 'none' ? '' : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vendor type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No vendor type</SelectItem>
-                  <SelectItem value="new_device">New Device</SelectItem>
-                  <SelectItem value="refurbished">Refurbished</SelectItem>
-                  <SelectItem value="rental">Rental</SelectItem>
-                </SelectContent>
-              </Select>
-              {form.formState.errors.vendor_type && (
-                <p className="text-sm text-destructive">{form.formState.errors.vendor_type.message}</p>
+              <p className="text-xs text-muted-foreground">Select all that apply (e.g. New Device and Refurbished)</p>
+              <div className="flex flex-wrap gap-4 pt-1">
+                {[
+                  { value: 'new_device' as const, label: 'New Device' },
+                  { value: 'refurbished' as const, label: 'Refurbished' },
+                  { value: 'rental' as const, label: 'Rental' },
+                ].map(({ value, label }) => {
+                  const types = form.watch('vendor_types') ?? [];
+                  const checked = types.includes(value);
+                  return (
+                    <label
+                      key={value}
+                      className="flex items-center gap-2 cursor-pointer text-sm font-medium"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(c) => {
+                          const next = c ? [...types, value] : types.filter((t) => t !== value);
+                          form.setValue('vendor_types', next);
+                        }}
+                      />
+                      {label}
+                    </label>
+                  );
+                })}
+              </div>
+              {form.formState.errors.vendor_types && (
+                <p className="text-sm text-destructive">{form.formState.errors.vendor_types.message}</p>
               )}
             </div>
           </div>
