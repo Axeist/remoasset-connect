@@ -86,17 +86,16 @@ export function AddActivityDialog({
   const hasInvalidUrl = urls.some((u) => u.trim() && !URL_REGEX.test(u.trim()));
 
   const canDraftEmail = type === 'email' && leadEmail?.trim();
-  const mailtoUrl = canDraftEmail
+  const gmailComposeUrl = canDraftEmail
     ? (() => {
-        const to = encodeURIComponent(leadEmail!.trim());
-        const subject = encodeURIComponent(
-          leadCompanyName ? `Re: ${leadCompanyName}` : 'Follow-up'
-        );
-        const greeting = leadContactName?.trim()
-          ? `Hi ${leadContactName.trim()},\n\n`
-          : '';
-        const body = encodeURIComponent(greeting);
-        return `mailto:${to}?subject=${subject}&body=${body}`;
+        const params = new URLSearchParams({
+          view: 'cm',
+          fs: '1',
+          to: leadEmail!.trim(),
+          su: leadCompanyName ? `Re: ${leadCompanyName}` : 'Follow-up',
+          body: leadContactName?.trim() ? `Hi ${leadContactName.trim()},\n\n` : '',
+        });
+        return `https://mail.google.com/mail/?${params.toString()}`;
       })()
     : null;
 
@@ -220,7 +219,7 @@ export function AddActivityDialog({
                     variant="outline"
                     size="sm"
                     className="gap-2"
-                    onClick={() => { window.location.href = mailtoUrl!; }}
+                    onClick={() => window.open(gmailComposeUrl!, '_blank')}
                   >
                     <Mail className="h-4 w-4" />
                     Compose email
