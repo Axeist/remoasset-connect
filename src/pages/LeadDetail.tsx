@@ -422,6 +422,9 @@ export default function LeadDetail() {
               onRefresh={fetchActivities}
               onLeadUpdated={fetchLead}
               isAdmin={isAdmin}
+              leadEmail={lead.email}
+              leadContactName={lead.contact_name}
+              leadCompanyName={lead.company_name}
             />
           </TabsContent>
 
@@ -526,6 +529,9 @@ function LeadActivityTab({
   onRefresh,
   onLeadUpdated,
   isAdmin,
+  leadEmail,
+  leadContactName,
+  leadCompanyName,
 }: {
   leadId: string;
   currentLeadScore: number;
@@ -533,6 +539,9 @@ function LeadActivityTab({
   onRefresh: () => void;
   onLeadUpdated: () => void;
   isAdmin?: boolean;
+  leadEmail?: string | null;
+  leadContactName?: string | null;
+  leadCompanyName?: string;
 }) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -668,6 +677,9 @@ function LeadActivityTab({
           onRefresh();
           onLeadUpdated();
         }}
+        leadEmail={leadEmail}
+        leadContactName={leadContactName}
+        leadCompanyName={leadCompanyName}
       />
     </Card>
   );

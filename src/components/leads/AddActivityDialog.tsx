@@ -22,7 +22,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getActivityScorePoints, clampLeadScore } from '@/lib/leadScore';
-import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip } from 'lucide-react';
+import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail } from 'lucide-react';
 
 export type ActivityType = 'call' | 'email' | 'meeting' | 'note';
 
@@ -49,6 +49,10 @@ interface AddActivityDialogProps {
   leadId: string;
   currentLeadScore: number;
   onSuccess: () => void;
+  /** Lead email for mailto draft when activity type is email */
+  leadEmail?: string | null;
+  leadContactName?: string | null;
+  leadCompanyName?: string;
 }
 
 export function AddActivityDialog({
@@ -57,6 +61,9 @@ export function AddActivityDialog({
   leadId,
   currentLeadScore,
   onSuccess,
+  leadEmail,
+  leadContactName,
+  leadCompanyName,
 }: AddActivityDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -77,6 +84,21 @@ export function AddActivityDialog({
 
   const validUrls = urls.map((u) => u.trim()).filter((u) => u && URL_REGEX.test(u));
   const hasInvalidUrl = urls.some((u) => u.trim() && !URL_REGEX.test(u.trim()));
+
+  const canDraftEmail = type === 'email' && leadEmail?.trim();
+  const mailtoUrl = canDraftEmail
+    ? (() => {
+        const to = encodeURIComponent(leadEmail!.trim());
+        const subject = encodeURIComponent(
+          leadCompanyName ? `Re: ${leadCompanyName}` : 'Follow-up'
+        );
+        const greeting = leadContactName?.trim()
+          ? `Hi ${leadContactName.trim()},\n\n`
+          : '';
+        const body = encodeURIComponent(greeting);
+        return `mailto:${to}?subject=${subject}&body=${body}`;
+      })()
+    : null;
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files ?? []);
@@ -185,6 +207,32 @@ export function AddActivityDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {type === 'email' && (
+            <div className="rounded-lg border border-accent/30 bg-accent/5 p-3 space-y-2">
+              {canDraftEmail ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    To: <span className="font-medium text-foreground">{leadEmail}</span>
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => { window.location.href = mailtoUrl!; }}
+                  >
+                    <Mail className="h-4 w-4" />
+                    Compose email
+                  </Button>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Add the lead&apos;s email in the lead details to quickly compose from here.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="desc">Description *</Label>
