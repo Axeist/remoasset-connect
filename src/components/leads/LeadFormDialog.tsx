@@ -32,7 +32,7 @@ import { Loader2 } from 'lucide-react';
 const leadFormSchema = z.object({
   company_name: z.string().min(1, 'Company name is required'),
   website: z.string().min(1, 'Website is required').url('Invalid URL'),
-  email: z.string().min(1, 'Email is required').email('Invalid email'),
+  email: z.preprocess((v) => (v === '' ? undefined : v), z.string().email('Invalid email').optional()),
   phone: z.string().optional(),
   contact_name: z.string().optional(),
   contact_designation: z.string().optional(),
@@ -44,7 +44,7 @@ const leadFormSchema = z.object({
   warehouse_notes: z.string().optional(),
   warehouse_price: z.string().optional(),
   warehouse_currency: z.string().default('USD'),
-  notes: z.string().min(1, 'Notes are required'),
+  notes: z.string().optional(),
 });
 
 type LeadFormValues = z.infer<typeof leadFormSchema>;
@@ -145,7 +145,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
     const payload = {
       company_name: values.company_name,
       website: values.website,
-      email: values.email,
+      email: values.email?.trim() || null,
       phone: values.phone || null,
       contact_name: values.contact_name || null,
       contact_designation: values.contact_designation || null,
@@ -158,7 +158,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
       warehouse_price: values.warehouse_available && values.warehouse_price ? parseFloat(values.warehouse_price) : null,
       warehouse_currency: values.warehouse_available ? values.warehouse_currency : null,
       lead_score: 0,
-      notes: values.notes,
+      notes: values.notes?.trim() || null,
       ...(lead ? {} : { owner_id: user?.id ?? null }),
     };
 
@@ -246,7 +246,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -433,7 +433,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes *</Label>
+            <Label htmlFor="notes">Notes</Label>
             <Textarea
               id="notes"
               {...form.register('notes')}
