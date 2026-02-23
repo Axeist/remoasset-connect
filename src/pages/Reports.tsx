@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +21,7 @@ import {
 } from 'recharts';
 import { format, subDays, startOfDay, endOfDay, differenceInDays, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, eachMonthOfInterval, eachHourOfInterval, subMonths, subYears } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ProductivityReport } from '@/components/reports/ProductivityReport';
 
 type TimeRange = 'hourly' | 'weekly' | 'monthly' | 'yearly';
 
@@ -504,23 +506,45 @@ export default function Reports() {
     toast({ title: 'Report exported' });
   };
 
+  const [activeTab, setActiveTab] = useState('overview');
+
   return (
     <AppLayout>
-      <div className="space-y-8">
+      <div className="space-y-6">
         <div className="animate-fade-in-up flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
-              {isAdmin ? 'Team Productivity & Analytics' : 'My Performance & Productivity'}
+              {isAdmin ? 'Team Reports & Analytics' : 'My Reports & Analytics'}
             </h1>
             <p className="text-muted-foreground mt-1.5">
               {isAdmin ? 'Comprehensive team insights and productivity metrics' : 'Track your performance and productivity'}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={exportReport} className="gap-2">
-            <Download className="h-4 w-4" />
-            Export Report
-          </Button>
+          {activeTab === 'overview' && (
+            <Button variant="outline" size="sm" onClick={exportReport} className="gap-2">
+              <Download className="h-4 w-4" />
+              Export Report
+            </Button>
+          )}
         </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="overview" className="gap-1.5">
+              <BarChart3 className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="productivity" className="gap-1.5">
+              <Target className="h-4 w-4" />
+              Productivity
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="productivity" className="mt-6">
+            <ProductivityReport />
+          </TabsContent>
+
+          <TabsContent value="overview" className="mt-6">
 
         {loading ? (
           <Skeleton className="h-80 w-full rounded-xl animate-fade-in-up animate-fade-in-up-delay-1" />
@@ -968,6 +992,9 @@ export default function Reports() {
             </div>
           </>
         )}
+
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );
