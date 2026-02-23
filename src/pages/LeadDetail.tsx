@@ -91,12 +91,20 @@ export default function LeadDetail() {
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [ownerOptions, setOwnerOptions] = useState<{ id: string; full_name: string | null }[]>([]);
+  const [statusOptions, setStatusOptions] = useState<{ id: string; name: string; color: string }[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
 
   const isAdmin = role === 'admin';
 
   useEffect(() => {
+    // Fetch statuses for all users
+    (async () => {
+      const { data } = await supabase.from('lead_statuses').select('id, name, color, sort_order').order('sort_order');
+      if (data) setStatusOptions(data);
+    })();
+
     if (!isAdmin) return;
     (async () => {
       const { data: roles } = await supabase.from('user_roles').select('user_id');
@@ -357,6 +365,58 @@ export default function LeadDetail() {
                       />
                     </div>
                     <span className="font-medium">{lead.lead_score ?? 0}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Lead Stage</p>
+                  <div className="flex items-center gap-2">
+                    {lead.status && (
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: lead.status.color }}
+                      />
+                    )}
+                    <select
+                      value={lead.status_id ?? ''}
+                      disabled={changingStatus}
+                      onChange={async (e) => {
+                        const newStatusId = e.target.value || null;
+                        if (newStatusId === (lead.status_id ?? '')) return;
+
+                        const fromStatus = statusOptions.find((s) => s.id === lead.status_id);
+                        const toStatus = statusOptions.find((s) => s.id === newStatusId);
+
+                        setChangingStatus(true);
+                        const { error } = await supabase
+                          .from('leads')
+                          .update({ status_id: newStatusId })
+                          .eq('id', lead.id);
+
+                        if (error) {
+                          toast({ variant: 'destructive', title: 'Error', description: error.message });
+                          setChangingStatus(false);
+                          return;
+                        }
+
+                        await supabase.from('lead_activities').insert({
+                          lead_id: lead.id,
+                          user_id: user!.id,
+                          activity_type: 'note',
+                          description: `Lead stage changed from "${fromStatus?.name ?? 'Unassigned'}" to "${toStatus?.name ?? 'Unassigned'}"`,
+                        });
+
+                        toast({ title: 'Stage updated', description: `${lead.company_name} → ${toStatus?.name ?? 'Unassigned'}` });
+                        setChangingStatus(false);
+                        fetchLead();
+                        fetchActivities();
+                      }}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    >
+                      <option value="">Unassigned</option>
+                      {statusOptions.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 {isAdmin && (
