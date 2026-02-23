@@ -9,7 +9,7 @@ import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 import { AddFollowUpDialog } from '@/components/leads/AddFollowUpDialog';
 import { UploadDocumentDialog } from '@/components/leads/UploadDocumentDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
-import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
@@ -34,6 +34,7 @@ const activityTypeConfig = {
   email: { icon: Mail, label: 'Email', color: 'bg-accent/10 text-accent', score: 3 },
   meeting: { icon: Calendar, label: 'Meeting', color: 'bg-success/10 text-success', score: 5 },
   note: { icon: FileText, label: 'Note', color: 'bg-warning/10 text-warning', score: 2 },
+  whatsapp: { icon: MessageCircle, label: 'WhatsApp', color: 'bg-green-500/10 text-green-600', score: 5 },
 };
 
 /** Lead score points for activity types. Notes get score from description (Task/Follow-up/Lead updated). */
@@ -425,6 +426,7 @@ export default function LeadDetail() {
               leadEmail={lead.email}
               leadContactName={lead.contact_name}
               leadCompanyName={lead.company_name}
+              leadPhone={lead.phone}
             />
           </TabsContent>
 
@@ -520,6 +522,7 @@ const activityTypeFilterOptions = [
   { value: 'email', label: 'Email' },
   { value: 'meeting', label: 'Meeting' },
   { value: 'note', label: 'Note' },
+  { value: 'whatsapp', label: 'WhatsApp' },
 ] as const;
 
 function LeadActivityTab({
@@ -532,6 +535,7 @@ function LeadActivityTab({
   leadEmail,
   leadContactName,
   leadCompanyName,
+  leadPhone,
 }: {
   leadId: string;
   currentLeadScore: number;
@@ -542,6 +546,7 @@ function LeadActivityTab({
   leadEmail?: string | null;
   leadContactName?: string | null;
   leadCompanyName?: string;
+  leadPhone?: string | null;
 }) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -680,6 +685,7 @@ function LeadActivityTab({
         leadEmail={leadEmail}
         leadContactName={leadContactName}
         leadCompanyName={leadCompanyName}
+        leadPhone={leadPhone}
       />
     </Card>
   );

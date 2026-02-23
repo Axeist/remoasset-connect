@@ -33,6 +33,10 @@ interface LeadsTableProps {
   pageSize?: number;
   totalCount?: number;
   onPageChange?: (page: number) => void;
+  /** When provided, clicking a row calls this instead of navigating to the detail page */
+  onLeadClick?: (lead: Lead) => void;
+  /** ID of the currently selected/active lead (highlights the row) */
+  activeleadId?: string;
 }
 
 export function LeadsTable({
@@ -47,6 +51,8 @@ export function LeadsTable({
   pageSize = 10,
   totalCount = 0,
   onPageChange,
+  onLeadClick,
+  activeleadId,
 }: LeadsTableProps) {
   const navigate = useNavigate();
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -134,8 +140,11 @@ export function LeadsTable({
             {leads.map((lead) => (
               <TableRow
                 key={lead.id}
-                className="cursor-pointer hover:bg-muted/30 transition-colors"
-                onClick={() => navigate(`/leads/${lead.id}`)}
+                className={cn(
+                  'cursor-pointer hover:bg-muted/30 transition-colors',
+                  activeleadId === lead.id && 'bg-primary/5 border-l-2 border-l-primary'
+                )}
+                onClick={() => onLeadClick ? onLeadClick(lead) : navigate(`/leads/${lead.id}`)}
               >
                 {onSelectionChange && (
                   <TableCell onClick={(e) => toggleRow(e, lead.id)}>

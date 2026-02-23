@@ -21,10 +21,10 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { getActivityScorePoints, clampLeadScore } from '@/lib/leadScore';
-import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail } from 'lucide-react';
+import { getActivityScorePoints } from '@/lib/leadScore';
+import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail, MessageCircle } from 'lucide-react';
 
-export type ActivityType = 'call' | 'email' | 'meeting' | 'note';
+export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'whatsapp';
 
 export interface ActivityAttachment {
   type: 'url' | 'file';
@@ -37,6 +37,7 @@ const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
   { value: 'email', label: 'Email' },
   { value: 'meeting', label: 'Meeting' },
   { value: 'note', label: 'Note' },
+  { value: 'whatsapp', label: 'WhatsApp' },
 ];
 
 const URL_REGEX = /^https?:\/\/.+/i;
@@ -53,17 +54,20 @@ interface AddActivityDialogProps {
   leadEmail?: string | null;
   leadContactName?: string | null;
   leadCompanyName?: string;
+  /** Lead phone for WhatsApp quick-open */
+  leadPhone?: string | null;
 }
 
 export function AddActivityDialog({
   open,
   onOpenChange,
   leadId,
-  currentLeadScore,
+  currentLeadScore: _currentLeadScore, // score is now updated by DB trigger; kept for API compat
   onSuccess,
   leadEmail,
   leadContactName,
   leadCompanyName,
+  leadPhone,
 }: AddActivityDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -97,6 +101,10 @@ export function AddActivityDialog({
         });
         return `https://mail.google.com/mail/?${params.toString()}`;
       })()
+    : null;
+
+  const whatsappUrl = leadPhone?.trim()
+    ? `https://wa.me/${leadPhone.trim().replace(/[^0-9]/g, '')}`
     : null;
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,14 +172,14 @@ export function AddActivityDialog({
       return;
     }
 
+    // Lead score is updated automatically by the DB trigger on lead_activities INSERT.
+    // Compute points here only for the toast message.
     const points = getActivityScorePoints(type, description.trim());
-    const newScore = clampLeadScore(currentLeadScore + points);
-    await supabase.from('leads').update({ lead_score: newScore }).eq('id', leadId);
 
     resetForm();
     setSubmitting(false);
     onOpenChange(false);
-    toast({ title: 'Activity added', description: points > 0 ? `Lead score +${points} (now ${newScore})` : undefined });
+    toast({ title: 'Activity added', description: points > 0 ? `Lead score +${points}` : undefined });
     onSuccess();
   };
 
@@ -228,6 +236,32 @@ export function AddActivityDialog({
               ) : (
                 <p className="text-sm text-muted-foreground">
                   Add the lead&apos;s email in the lead details to quickly compose from here.
+                </p>
+              )}
+            </div>
+          )}
+
+          {type === 'whatsapp' && (
+            <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 space-y-2">
+              {whatsappUrl ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Phone: <span className="font-medium text-foreground">{leadPhone}</span>
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 border-green-500/40 text-green-700 hover:bg-green-50"
+                    onClick={() => window.open(whatsappUrl, '_blank')}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Open WhatsApp chat
+                  </Button>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Add the lead&apos;s phone number in the lead details to quickly open WhatsApp from here.
                 </p>
               )}
             </div>

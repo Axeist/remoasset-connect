@@ -3,13 +3,14 @@
  * Higher-engagement activities (outbound call, client reply, meeting) get more points.
  */
 
-export type ActivityType = 'call' | 'email' | 'meeting' | 'note';
+export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'whatsapp';
 
 const BASE_POINTS: Record<ActivityType, number> = {
-  call: 6,    // outbound call done
-  email: 3,   // email sent / received
-  meeting: 10, // meeting held
-  note: 1,    // general note
+  call: 6,      // outbound call done
+  email: 3,     // email sent / received
+  meeting: 10,  // meeting held
+  note: 1,      // general note
+  whatsapp: 5,  // WhatsApp message / conversation
 };
 
 /** Bonus when description suggests client replied / positive response */
@@ -32,7 +33,7 @@ export function getActivityScorePoints(
 }
 
 export const ACTIVITY_SCORE_MAX = 100;
-export const ACTIVITY_SCORE_MIN = 1;
+export const ACTIVITY_SCORE_MIN = 0;
 
 export function clampLeadScore(score: number): number {
   return Math.max(ACTIVITY_SCORE_MIN, Math.min(ACTIVITY_SCORE_MAX, Math.round(score)));

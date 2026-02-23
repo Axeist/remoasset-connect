@@ -6,6 +6,7 @@ import { LeadsFilters, type LeadsFiltersState } from '@/components/leads/LeadsFi
 import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
 import { LeadImportDialog } from '@/components/leads/LeadImportDialog';
 import { BulkActionsDialog } from '@/components/leads/BulkActionsDialog';
+import { LeadSidePanel } from '@/components/leads/LeadSidePanel';
 import { Button } from '@/components/ui/button';
 import { Plus, Download, Upload, UserPlus, Tag, Trash2, List } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -54,6 +55,7 @@ export default function Leads() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sidePanelLead, setSidePanelLead] = useState<Lead | null>(null);
   const [filters, setFilters] = useState<LeadsFiltersState>({
     search: searchParams.get('search') ?? '',
     status: '',
@@ -222,131 +224,147 @@ export default function Leads() {
 
   return (
     <AppLayout>
-      <div className="space-y-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="animate-fade-in-up">
-            <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">Leads</h1>
-            <p className="text-muted-foreground mt-1.5">Manage and track your sales leads</p>
-          </div>
-          <div className="flex gap-3">
-            <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
-              <Upload className="h-4 w-4" />
-              Import
-            </Button>
-            <Button variant="outline" className="gap-2" onClick={() => exportCsv(false)} disabled={totalCount === 0}>
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-            <Button className="gap-2 gradient-primary" onClick={() => setFormOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Add Lead
-            </Button>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
-          <div className="flex-1 w-full">
-            <LeadsFilters filters={filters} onFiltersChange={handleFiltersChange} ownerOptions={ownerOptions} />
-          </div>
-          <div className="flex items-center gap-2">
-            <List className="h-4 w-4 text-muted-foreground" />
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => {
-                setPageSize(Number(v));
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-[120px] h-10">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <SelectItem key={size} value={String(size)}>
-                    {size} per page
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Bulk actions toolbar */}
-        {selectedIds.size > 0 && (
-          <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-muted/50 border">
-            <span className="text-sm font-medium">{selectedIds.size} selected</span>
-            <Button size="sm" variant="outline" onClick={() => setBulkAction('status')} className="gap-1">
-              <Tag className="h-4 w-4" />
-              Update status
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setBulkAction('owner')} className="gap-1">
-              <UserPlus className="h-4 w-4" />
-              Assign owner
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => exportCsv(true)} className="gap-1">
-              <Download className="h-4 w-4" />
-              Export selected
-            </Button>
-            {isAdmin && (
-              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteDialogOpen(true)}>
-                <Trash2 className="h-4 w-4" />
-                Delete
+      <div className={`flex gap-0 min-h-0 ${sidePanelLead ? 'h-[calc(100vh-4rem)]' : ''}`}>
+        {/* Main content */}
+        <div className={`flex flex-col space-y-8 min-w-0 transition-all duration-300 ${sidePanelLead ? 'flex-1 overflow-y-auto pr-2' : 'flex-1'}`}>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="animate-fade-in-up">
+              <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">Leads</h1>
+              <p className="text-muted-foreground mt-1.5">Manage and track your sales leads</p>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4" />
+                Import
               </Button>
-            )}
-            <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
-              Clear
-            </Button>
+              <Button variant="outline" className="gap-2" onClick={() => exportCsv(false)} disabled={totalCount === 0}>
+                <Download className="h-4 w-4" />
+                Export
+              </Button>
+              <Button className="gap-2 gradient-primary" onClick={() => setFormOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Add Lead
+              </Button>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+            <div className="flex-1 w-full">
+              <LeadsFilters filters={filters} onFiltersChange={handleFiltersChange} ownerOptions={ownerOptions} />
+            </div>
+            <div className="flex items-center gap-2">
+              <List className="h-4 w-4 text-muted-foreground" />
+              <Select
+                value={String(pageSize)}
+                onValueChange={(v) => {
+                  setPageSize(Number(v));
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-[120px] h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <SelectItem key={size} value={String(size)}>
+                      {size} per page
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Bulk actions toolbar */}
+          {selectedIds.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-muted/50 border">
+              <span className="text-sm font-medium">{selectedIds.size} selected</span>
+              <Button size="sm" variant="outline" onClick={() => setBulkAction('status')} className="gap-1">
+                <Tag className="h-4 w-4" />
+                Update status
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setBulkAction('owner')} className="gap-1">
+                <UserPlus className="h-4 w-4" />
+                Assign owner
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => exportCsv(true)} className="gap-1">
+                <Download className="h-4 w-4" />
+                Export selected
+              </Button>
+              {isAdmin && (
+                <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteDialogOpen(true)}>
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                Clear
+              </Button>
+            </div>
+          )}
+
+          {/* Table */}
+          <LeadsTable
+            leads={leads}
+            loading={loading}
+            onRefresh={fetchLeads}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSort={handleSort}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setPage}
+            onLeadClick={(lead) => setSidePanelLead((prev) => prev?.id === lead.id ? null : lead)}
+            activeleadId={sidePanelLead?.id}
+          />
+        </div>
+
+        {/* Side panel */}
+        {sidePanelLead && (
+          <div className="w-[400px] shrink-0 border-l border-border overflow-hidden flex flex-col animate-in slide-in-from-right duration-200">
+            <LeadSidePanel
+              lead={sidePanelLead}
+              onClose={() => setSidePanelLead(null)}
+              onLeadUpdated={fetchLeads}
+            />
           </div>
         )}
-
-        {/* Table */}
-        <LeadsTable
-          leads={leads}
-          loading={loading}
-          onRefresh={fetchLeads}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
-          onSort={handleSort}
-          selectedIds={selectedIds}
-          onSelectionChange={setSelectedIds}
-          page={page}
-          pageSize={pageSize}
-          totalCount={totalCount}
-          onPageChange={setPage}
-        />
-
-        <LeadFormDialog open={formOpen} onOpenChange={setFormOpen} onSuccess={fetchLeads} />
-        <LeadImportDialog open={importOpen} onOpenChange={setImportOpen} onSuccess={fetchLeads} />
-        <BulkActionsDialog
-          open={bulkAction !== null}
-          onOpenChange={(open) => !open && setBulkAction(null)}
-          action={bulkAction ?? 'status'}
-          leadIds={[...selectedIds]}
-          onSuccess={bulkUpdateSuccess}
-        />
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete {selectedIds.size} lead(s)?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete the selected leads and all associated data (activities, tasks, follow-ups, documents). This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleBulkDelete}
-                disabled={deleting}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {deleting ? 'Deleting...' : 'Delete permanently'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
+
+      <LeadFormDialog open={formOpen} onOpenChange={setFormOpen} onSuccess={fetchLeads} />
+      <LeadImportDialog open={importOpen} onOpenChange={setImportOpen} onSuccess={fetchLeads} />
+      <BulkActionsDialog
+        open={bulkAction !== null}
+        onOpenChange={(open) => !open && setBulkAction(null)}
+        action={bulkAction ?? 'status'}
+        leadIds={[...selectedIds]}
+        onSuccess={bulkUpdateSuccess}
+      />
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} lead(s)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected leads and all associated data (activities, tasks, follow-ups, documents). This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete permanently'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
