@@ -72,20 +72,12 @@ export default function Admin() {
     teamActivity: { name: string; activities: number }[];
   }>({ byStatus: [], byCountry: [], teamActivity: [] });
 
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-
   const fetchAuthUsers = async (): Promise<Record<string, { email?: string; banned_until?: string | null; last_sign_in_at?: string | null }>> => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return {};
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-user`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action: 'list_users' }),
+      const { data, error } = await supabase.functions.invoke('manage-user', {
+        body: { action: 'list_users' },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.users) return {};
+      if (error || !data?.users) return {};
       return (data.users as { id: string; email?: string; banned_until?: string | null; last_sign_in_at?: string | null }[]).reduce(
         (acc, u) => { acc[u.id] = { email: u.email, banned_until: u.banned_until, last_sign_in_at: u.last_sign_in_at }; return acc; },
         {} as Record<string, { email?: string; banned_until?: string | null; last_sign_in_at?: string | null }>

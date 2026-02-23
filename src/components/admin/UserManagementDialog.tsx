@@ -26,8 +26,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Key, Ban, Trash2, Eye, EyeOff, ShieldAlert, ShieldCheck, UserX } from 'lucide-react';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-
 interface UserManagementDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -39,21 +37,12 @@ interface UserManagementDialogProps {
 }
 
 async function callManageUser(action: string, targetUserId: string, extras?: Record<string, unknown>) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
-  if (!token) throw new Error('Not signed in');
-
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-user`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ action, target_user_id: targetUserId, ...extras }),
+  const { data, error } = await supabase.functions.invoke('manage-user', {
+    body: { action, target_user_id: targetUserId, ...extras },
   });
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+  if (error) throw new Error(error.message || 'Request failed');
+  if (data?.error) throw new Error(data.error);
   return data;
 }
 
