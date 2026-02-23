@@ -9,11 +9,12 @@ import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 import { AddFollowUpDialog } from '@/components/leads/AddFollowUpDialog';
 import { UploadDocumentDialog } from '@/components/leads/UploadDocumentDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
-import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin, Pencil, Check, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -449,7 +450,7 @@ export default function LeadDetail() {
           </TabsContent>
 
           <TabsContent value="documents" className="mt-6">
-            <LeadDocumentsTab leadId={id!} />
+            <LeadDocumentsTab leadId={id!} isAdmin={isAdmin} />
           </TabsContent>
 
           <TabsContent value="notes" className="mt-6">
@@ -909,11 +910,16 @@ const DOCUMENT_TYPE_OPTIONS = [
   { value: 'custom', label: 'Custom' },
 ] as const;
 
-function LeadDocumentsTab({ leadId }: { leadId: string }) {
+function LeadDocumentsTab({ leadId, isAdmin }: { leadId: string; isAdmin?: boolean }) {
   const { toast } = useToast();
   const [documents, setDocuments] = useState<LeadDocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<LeadDocumentRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchDocuments = async () => {
     const { data, error } = await supabase
@@ -944,8 +950,62 @@ function LeadDocumentsTab({ leadId }: { leadId: string }) {
   };
 
   const displayName = (doc: LeadDocumentRow) => {
-    if (doc.document_type === 'custom' && doc.custom_name) return doc.custom_name;
+    if (doc.custom_name) return doc.custom_name;
     return DOCUMENT_TYPE_OPTIONS.find((o) => o.value === doc.document_type)?.label ?? doc.document_type;
+  };
+
+  const startEdit = (doc: LeadDocumentRow) => {
+    setEditingId(doc.id);
+    setEditName(displayName(doc));
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName('');
+  };
+
+  const saveEdit = async (docId: string) => {
+    const trimmed = editName.trim();
+    if (!trimmed) {
+      toast({ variant: 'destructive', title: 'Name cannot be empty' });
+      return;
+    }
+    setSavingEdit(true);
+    const { error } = await supabase
+      .from('lead_documents')
+      .update({ custom_name: trimmed })
+      .eq('id', docId);
+    if (error) {
+      toast({ variant: 'destructive', title: 'Failed to rename', description: error.message });
+    } else {
+      setDocuments((prev) => prev.map((d) => d.id === docId ? { ...d, custom_name: trimmed } : d));
+      toast({ title: 'Document renamed' });
+    }
+    setSavingEdit(false);
+    setEditingId(null);
+    setEditName('');
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    // Delete from storage first
+    const { error: storageErr } = await supabase.storage.from('lead-documents').remove([deleteTarget.file_path]);
+    if (storageErr) {
+      toast({ variant: 'destructive', title: 'Failed to delete file', description: storageErr.message });
+      setDeleting(false);
+      return;
+    }
+    // Delete the DB row
+    const { error: dbErr } = await supabase.from('lead_documents').delete().eq('id', deleteTarget.id);
+    if (dbErr) {
+      toast({ variant: 'destructive', title: 'Failed to delete record', description: dbErr.message });
+    } else {
+      setDocuments((prev) => prev.filter((d) => d.id !== deleteTarget.id));
+      toast({ title: 'Document deleted' });
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
   };
 
   return (
@@ -967,31 +1027,115 @@ function LeadDocumentsTab({ leadId }: { leadId: string }) {
         ) : (
           <ul className="divide-y divide-border">
             {documents.map((doc) => (
-              <li key={doc.id} className="py-3 first:pt-0 flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium">{displayName(doc)}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {doc.file_name}
-                    {doc.file_size != null && ` · ${(doc.file_size / 1024).toFixed(1)} KB`}
-                    {' · '}
-                    {safeFormat(doc.uploaded_at, 'PPp')}
-                  </p>
+              <li key={doc.id} className="py-3 first:pt-0 flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  {editingId === doc.id ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveEdit(doc.id);
+                          if (e.key === 'Escape') cancelEdit();
+                        }}
+                        className="h-8 text-sm max-w-[280px]"
+                        autoFocus
+                        disabled={savingEdit}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                        onClick={() => saveEdit(doc.id)}
+                        disabled={savingEdit}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={cancelEdit}
+                        disabled={savingEdit}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-medium">{displayName(doc)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {doc.file_name}
+                        {doc.file_size != null && ` · ${(doc.file_size / 1024).toFixed(1)} KB`}
+                        {' · '}
+                        {safeFormat(doc.uploaded_at, 'PPp')}
+                      </p>
+                    </>
+                  )}
                 </div>
-                <Button variant="outline" size="sm" className="gap-1" onClick={() => handleView(doc)}>
-                  <ExternalLink className="h-3 w-3" />
-                  View
-                </Button>
+                {editingId !== doc.id && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                      onClick={() => startEdit(doc)}
+                      title="Rename document"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    {isAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => setDeleteTarget(doc)}
+                        title="Delete document"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" className="gap-1" onClick={() => handleView(doc)}>
+                      <ExternalLink className="h-3 w-3" />
+                      View
+                    </Button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
         )}
       </CardContent>
+
       <UploadDocumentDialog
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
         leadId={leadId}
         onSuccess={fetchDocuments}
       />
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{deleteTarget ? displayName(deleteTarget) : ''}</strong> ({deleteTarget?.file_name}). This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
