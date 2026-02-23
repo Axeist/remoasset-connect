@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { SplashScreen } from '@/components/SplashScreen';
-import { Loader2, Mail, Lock, User, Eye, EyeOff, BarChart3, Users, Shield, Zap, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Loader2, Mail, Lock, User, Eye, EyeOff, BarChart3, Users, Shield, Zap, ArrowLeft, CheckCircle2, Sun, Moon } from 'lucide-react';
+import { useTheme } from 'next-themes';
 
 const ALLOWED_SIGNUP_DOMAIN = 'remoasset.com';
 
@@ -64,6 +65,7 @@ export default function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     if (searchParams.get('verified') === 'true') {
@@ -224,6 +226,19 @@ export default function Auth() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-background relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_0%_50%,hsl(var(--primary)/0.06),transparent)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_70%_at_100%_80%,hsl(var(--accent)/0.05),transparent)]" />
+
+        {/* Theme toggle — top right corner */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          className="absolute top-4 right-4 z-20 h-9 w-9 rounded-full border border-border/60 bg-card/80 backdrop-blur-sm shadow-sm hover:bg-muted"
+        >
+          <Sun className="h-[18px] w-[18px] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-[18px] w-[18px] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <span className="sr-only">Toggle theme</span>
+        </Button>
+
         <div className="w-full max-w-[420px] relative z-10">
           <div className="rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm shadow-xl shadow-black/5 p-8 sm:p-10 animate-fade-in-up">
             <div className="lg:hidden mb-6">
