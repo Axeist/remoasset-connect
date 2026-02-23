@@ -3,7 +3,7 @@
  * Higher-engagement activities (outbound call, client reply, meeting) get more points.
  */
 
-export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'whatsapp';
+export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'whatsapp' | 'nda';
 
 const BASE_POINTS: Record<ActivityType, number> = {
   call: 6,      // outbound call done
@@ -11,6 +11,7 @@ const BASE_POINTS: Record<ActivityType, number> = {
   meeting: 10,  // meeting held
   note: 1,      // general note
   whatsapp: 5,  // WhatsApp message / conversation
+  nda: 8,       // NDA sent or received
 };
 
 /** Bonus when description suggests client replied / positive response */

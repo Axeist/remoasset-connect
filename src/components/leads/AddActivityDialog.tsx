@@ -22,9 +22,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getActivityScorePoints } from '@/lib/leadScore';
-import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail, MessageCircle } from 'lucide-react';
+import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail, MessageCircle, ShieldCheck } from 'lucide-react';
 
-export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'whatsapp';
+export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'whatsapp' | 'nda';
+
+export type NdaSubActivity = 'nda_sent' | 'nda_received';
 
 export interface ActivityAttachment {
   type: 'url' | 'file';
@@ -38,6 +40,7 @@ const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
   { value: 'meeting', label: 'Meeting' },
   { value: 'note', label: 'Note' },
   { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'nda', label: 'NDA' },
 ];
 
 const URL_REGEX = /^https?:\/\/.+/i;
@@ -72,6 +75,8 @@ export function AddActivityDialog({
   const { user } = useAuth();
   const { toast } = useToast();
   const [type, setType] = useState<ActivityType>('call');
+  const [ndaSubActivity, setNdaSubActivity] = useState<NdaSubActivity>('nda_sent');
+  const [ndaFile, setNdaFile] = useState<File | null>(null);
   const [description, setDescription] = useState('');
   const [urls, setUrls] = useState<string[]>(['']);
   const [files, setFiles] = useState<File[]>([]);
@@ -123,6 +128,8 @@ export function AddActivityDialog({
 
   const resetForm = () => {
     setType('call');
+    setNdaSubActivity('nda_sent');
+    setNdaFile(null);
     setDescription('');
     setUrls(['']);
     setFiles([]);
@@ -130,8 +137,18 @@ export function AddActivityDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description.trim()) {
+
+    const isNda = type === 'nda';
+    const effectiveDescription = isNda
+      ? `${ndaSubActivity === 'nda_sent' ? 'NDA Sent' : 'NDA Received'}${description.trim() ? ': ' + description.trim() : ''}`
+      : description.trim();
+
+    if (!isNda && !description.trim()) {
       toast({ variant: 'destructive', title: 'Description required' });
+      return;
+    }
+    if (isNda && !ndaFile) {
+      toast({ variant: 'destructive', title: 'NDA file required', description: 'Please upload the NDA document.' });
       return;
     }
     if (hasInvalidUrl) {
@@ -143,7 +160,43 @@ export function AddActivityDialog({
 
     const attachments: ActivityAttachment[] = [];
 
-    // Upload files to storage
+    // Upload NDA file to lead-documents storage and create a lead_documents row
+    if (isNda && ndaFile) {
+      const ext = ndaFile.name.split('.').pop() ?? '';
+      const docPath = `${leadId}/${crypto.randomUUID()}.${ext}`;
+      const { error: ndaUploadError } = await supabase.storage
+        .from('lead-documents')
+        .upload(docPath, ndaFile, { upsert: false });
+      if (ndaUploadError) {
+        toast({ variant: 'destructive', title: 'NDA upload failed', description: ndaUploadError.message });
+        setSubmitting(false);
+        return;
+      }
+      // Save to lead_documents so it appears in the Documents tab
+      const { error: docInsertError } = await supabase.from('lead_documents').insert({
+        lead_id: leadId,
+        document_type: 'nda',
+        custom_name: ndaSubActivity === 'nda_sent' ? 'NDA Sent' : 'NDA Received (Signed)',
+        file_path: docPath,
+        file_name: ndaFile.name,
+        file_size: ndaFile.size,
+        uploaded_by: user.id,
+      });
+      if (docInsertError) {
+        toast({ variant: 'destructive', title: 'Error saving document', description: docInsertError.message });
+        setSubmitting(false);
+        return;
+      }
+      // Also attach to the activity record
+      const { data: signedUrlData } = await supabase.storage
+        .from('lead-documents')
+        .createSignedUrl(docPath, 60 * 60 * 24 * 365);
+      if (signedUrlData?.signedUrl) {
+        attachments.push({ type: 'file', url: signedUrlData.signedUrl, name: ndaFile.name });
+      }
+    }
+
+    // Upload regular activity files
     for (const file of files) {
       const path = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
       const { data, error } = await supabase.storage.from('activity-files').upload(path, file, { upsert: false });
@@ -162,7 +215,7 @@ export function AddActivityDialog({
       lead_id: leadId,
       user_id: user.id,
       activity_type: type,
-      description: description.trim(),
+      description: effectiveDescription,
       attachments: attachments.length ? attachments : [],
     });
 
@@ -172,9 +225,7 @@ export function AddActivityDialog({
       return;
     }
 
-    // Lead score is updated automatically by the DB trigger on lead_activities INSERT.
-    // Compute points here only for the toast message.
-    const points = getActivityScorePoints(type, description.trim());
+    const points = getActivityScorePoints(type, effectiveDescription);
 
     resetForm();
     setSubmitting(false);
@@ -195,7 +246,7 @@ export function AddActivityDialog({
         <DialogHeader>
           <DialogTitle>Add activity</DialogTitle>
           <DialogDescription>
-            Log a call, email, meeting, or note. Add links (e.g. email threads) and attach screenshots or files.
+            Log a call, email, meeting, NDA, or note. Add links and attach files.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -267,8 +318,70 @@ export function AddActivityDialog({
             </div>
           )}
 
+          {type === 'nda' && (
+            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
+                <ShieldCheck className="h-4 w-4" />
+                NDA Activity
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Sub-activity *</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={ndaSubActivity === 'nda_sent' ? 'default' : 'outline'}
+                    className={ndaSubActivity === 'nda_sent' ? 'gap-1.5' : 'gap-1.5 text-muted-foreground'}
+                    onClick={() => setNdaSubActivity('nda_sent')}
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                    NDA Sent
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={ndaSubActivity === 'nda_received' ? 'default' : 'outline'}
+                    className={ndaSubActivity === 'nda_received' ? 'gap-1.5' : 'gap-1.5 text-muted-foreground'}
+                    onClick={() => setNdaSubActivity('nda_received')}
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    NDA Received
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {ndaSubActivity === 'nda_sent'
+                    ? 'NDA has been sent to the lead for signing.'
+                    : 'Signed NDA has been received back from the lead. Deal can be closed.'}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Upload NDA document *</Label>
+                <Input
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={(e) => setNdaFile(e.target.files?.[0] ?? null)}
+                  className="h-10 file:mr-2 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground"
+                />
+                {ndaFile && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Paperclip className="h-3.5 w-3.5" />
+                    <span className="truncate max-w-[240px]">{ndaFile.name}</span>
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setNdaFile(null)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  This file will also appear in the lead&apos;s Documents section. PDF, DOC, or DOCX.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
-            <Label htmlFor="desc">Description *</Label>
+            <Label htmlFor="desc">{type === 'nda' ? 'Notes (optional)' : 'Description *'}</Label>
             <Textarea
               id="desc"
               value={description}
@@ -337,9 +450,13 @@ export function AddActivityDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!description.trim() || submitting} className="gap-2">
+            <Button
+              type="submit"
+              disabled={(type === 'nda' ? !ndaFile : !description.trim()) || submitting}
+              className="gap-2"
+            >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Add activity
+              {type === 'nda' ? `Log ${ndaSubActivity === 'nda_sent' ? 'NDA Sent' : 'NDA Received'}` : 'Add activity'}
             </Button>
           </DialogFooter>
         </form>

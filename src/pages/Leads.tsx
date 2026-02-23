@@ -71,6 +71,7 @@ export default function Leads() {
     lastActivityPreset: '',
     lastActivityFrom: '',
     lastActivityTo: '',
+    ndaStatus: '',
   });
   const { toast } = useToast();
 
@@ -108,6 +109,33 @@ export default function Leads() {
 
   const fetchLeads = async () => {
     setLoading(true);
+
+    // Pre-fetch lead IDs that match the NDA filter (if active)
+    let ndaLeadIds: string[] | null = null;
+    if (filters.ndaStatus) {
+      if (filters.ndaStatus === 'no_nda') {
+        const { data: ndaRows } = await supabase
+          .from('lead_activities')
+          .select('lead_id')
+          .eq('activity_type', 'nda');
+        const idsWithNda = [...new Set((ndaRows ?? []).map((r) => r.lead_id))];
+        // We'll exclude these IDs after the main query
+        ndaLeadIds = idsWithNda;
+      } else {
+        let ndaQuery = supabase
+          .from('lead_activities')
+          .select('lead_id, description')
+          .eq('activity_type', 'nda');
+        if (filters.ndaStatus === 'nda_sent') {
+          ndaQuery = ndaQuery.ilike('description', 'NDA Sent%');
+        } else if (filters.ndaStatus === 'nda_received') {
+          ndaQuery = ndaQuery.ilike('description', 'NDA Received%');
+        }
+        const { data: ndaRows } = await ndaQuery;
+        ndaLeadIds = [...new Set((ndaRows ?? []).map((r) => r.lead_id))];
+      }
+    }
+
     let query = supabase
       .from('leads')
       .select(
@@ -148,6 +176,16 @@ export default function Leads() {
     if (filters.lastActivityFrom) query = query.gte('updated_at', filters.lastActivityFrom);
     if (filters.lastActivityTo) query = query.lte('updated_at', filters.lastActivityTo);
 
+    // Apply NDA filter: include/exclude by lead IDs
+    if (ndaLeadIds !== null && filters.ndaStatus !== 'no_nda') {
+      if (ndaLeadIds.length > 0) {
+        query = query.in('id', ndaLeadIds);
+      } else {
+        // No leads match -> force empty result
+        query = query.in('id', ['00000000-0000-0000-0000-000000000000']);
+      }
+    }
+
     const { data: rawData, error, count } = await query;
 
     if (error) {
@@ -156,7 +194,14 @@ export default function Leads() {
       return;
     }
 
-    const data = (rawData ?? []) as (Lead & { owner_id?: string | null })[];
+    let data = (rawData ?? []) as (Lead & { owner_id?: string | null })[];
+
+    // Client-side exclusion for "no_nda" filter
+    if (filters.ndaStatus === 'no_nda' && ndaLeadIds !== null) {
+      const excludeSet = new Set(ndaLeadIds);
+      data = data.filter((l) => !excludeSet.has(l.id));
+    }
+
     const ownerIds = [...new Set(data.map((l) => l.owner_id).filter(Boolean))] as string[];
     let ownerMap: Record<string, { full_name: string | null }> = {};
     if (ownerIds.length > 0) {
@@ -178,7 +223,7 @@ export default function Leads() {
       owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null,
     }));
     setLeads(leadsWithOwner);
-    setTotalCount(count ?? 0);
+    setTotalCount(filters.ndaStatus === 'no_nda' ? leadsWithOwner.length : (count ?? 0));
     setLoading(false);
   };
 

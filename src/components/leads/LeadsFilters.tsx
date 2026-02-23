@@ -39,6 +39,7 @@ export interface LeadsFiltersState {
   lastActivityPreset: string;
   lastActivityFrom: string;
   lastActivityTo: string;
+  ndaStatus: string;
 }
 
 const EMPTY_FILTERS: LeadsFiltersState = {
@@ -56,6 +57,7 @@ const EMPTY_FILTERS: LeadsFiltersState = {
   lastActivityPreset: '',
   lastActivityFrom: '',
   lastActivityTo: '',
+  ndaStatus: '',
 };
 
 interface LeadsFiltersProps {
@@ -131,6 +133,7 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
     if (filters.owner) count++;
     if (filters.vendorType) count++;
     if (filters.warehouseAvailable) count++;
+    if (filters.ndaStatus) count++;
     if (filters.scoreMin > 0 || filters.scoreMax < 100) count++;
     if (filters.createdPreset || filters.createdFrom) count++;
     if (filters.lastActivityPreset || filters.lastActivityFrom) count++;
@@ -212,7 +215,7 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
         </div>
 
         {/* Row 2: Basic filters (always visible) */}
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
           <Select
             value={filters.status || 'all'}
             onValueChange={(v) => update({ status: v === 'all' ? '' : v })}
@@ -290,6 +293,22 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
               <SelectItem value="all">All Warehouses</SelectItem>
               <SelectItem value="true">Warehouse Available</SelectItem>
               <SelectItem value="false">No Warehouse</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={filters.ndaStatus || 'all'}
+            onValueChange={(v) => update({ ndaStatus: v === 'all' ? '' : v })}
+          >
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="NDA Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All NDA</SelectItem>
+              <SelectItem value="nda_sent">NDA Sent</SelectItem>
+              <SelectItem value="nda_received">NDA Received</SelectItem>
+              <SelectItem value="nda_any">Has NDA</SelectItem>
+              <SelectItem value="no_nda">No NDA</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -394,6 +413,16 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
                   <FilterChip
                     label={filters.warehouseAvailable === 'true' ? 'Has warehouse' : 'No warehouse'}
                     onRemove={() => update({ warehouseAvailable: '' })}
+                  />
+                )}
+                {filters.ndaStatus && (
+                  <FilterChip
+                    label={`NDA: ${
+                      filters.ndaStatus === 'nda_sent' ? 'Sent' :
+                      filters.ndaStatus === 'nda_received' ? 'Received' :
+                      filters.ndaStatus === 'nda_any' ? 'Has NDA' : 'No NDA'
+                    }`}
+                    onRemove={() => update({ ndaStatus: '' })}
                   />
                 )}
                 {(filters.scoreMin > 0 || filters.scoreMax < 100) && (

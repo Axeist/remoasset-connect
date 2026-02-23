@@ -26,6 +26,7 @@ import {
   Trash2,
   MessageCircle,
   ExternalLink,
+  ShieldCheck,
 } from 'lucide-react';
 import type { Lead } from '@/types/lead';
 
@@ -45,6 +46,7 @@ const activityTypeConfig = {
   meeting: { icon: Calendar, label: 'Meeting', color: 'bg-success/10 text-success' },
   note: { icon: FileText, label: 'Note', color: 'bg-warning/10 text-warning' },
   whatsapp: { icon: MessageCircle, label: 'WhatsApp', color: 'bg-green-500/10 text-green-600' },
+  nda: { icon: ShieldCheck, label: 'NDA', color: 'bg-blue-500/10 text-blue-600' },
 };
 
 interface LeadSidePanelProps {
