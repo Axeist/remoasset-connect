@@ -46,6 +46,7 @@ import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, end
 import type { Lead, LeadStatusOption, CountryOption } from '@/types/lead';
 import { KanbanColumn } from '@/components/pipeline/KanbanColumn';
 import { KanbanCard } from '@/components/pipeline/KanbanCard';
+import { PipelineWidgets } from '@/components/pipeline/PipelineWidgets';
 
 // ------- Activity columns config -------
 
@@ -503,6 +504,20 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
             </div>
           )}
         </div>
+
+        {/* Insight Widgets */}
+        {!loading && leads.length > 0 && (
+          <div className="shrink-0 px-1 pb-3">
+            <PipelineWidgets
+              viewMode={viewMode}
+              leads={leads}
+              statuses={statuses}
+              lastActivityMap={lastActivityMap}
+              isAdmin={role === 'admin'}
+              owners={owners}
+            />
+          </div>
+        )}
 
         {/* Kanban board */}
         <div className="flex-1 overflow-x-auto overflow-y-hidden">

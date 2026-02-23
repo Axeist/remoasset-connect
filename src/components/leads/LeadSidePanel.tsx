@@ -398,6 +398,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
         leadContactName={displayLead.contact_name}
         leadCompanyName={displayLead.company_name}
         leadPhone={displayLead.phone}
+        leadStatusName={displayLead.status?.name ?? null}
       />
     </div>
   );

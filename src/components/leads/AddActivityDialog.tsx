@@ -60,6 +60,8 @@ interface AddActivityDialogProps {
   leadCompanyName?: string;
   /** Lead phone for WhatsApp quick-open */
   leadPhone?: string | null;
+  /** Current status name of the lead for auto-status logic */
+  leadStatusName?: string | null;
 }
 
 export function AddActivityDialog({
@@ -72,6 +74,7 @@ export function AddActivityDialog({
   leadContactName,
   leadCompanyName,
   leadPhone,
+  leadStatusName,
 }: AddActivityDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -250,12 +253,41 @@ export function AddActivityDialog({
       return;
     }
 
+    // Auto-move lead to "Won" when NDA Received with document
+    if (isNda && ndaSubActivity === 'nda_received' && ndaFile) {
+      const wonName = leadStatusName?.toLowerCase() === 'won' ? null : 'Won';
+      if (wonName) {
+        const { data: wonStatus } = await supabase
+          .from('lead_statuses')
+          .select('id, name')
+          .ilike('name', 'won')
+          .single();
+
+        if (wonStatus) {
+          await supabase.from('leads').update({ status_id: wonStatus.id }).eq('id', leadId);
+          await supabase.from('lead_activities').insert({
+            lead_id: leadId,
+            user_id: user.id,
+            activity_type: 'note',
+            description: `Lead automatically moved to "${wonStatus.name}" — signed NDA received`,
+          });
+        }
+      }
+    }
+
     const points = getActivityScorePoints(type, effectiveDescription);
 
     resetForm();
     setSubmitting(false);
     onOpenChange(false);
-    toast({ title: 'Activity added', description: points > 0 ? `Lead score +${points}` : undefined });
+
+    const ndaAutoWon = isNda && ndaSubActivity === 'nda_received' && ndaFile && leadStatusName?.toLowerCase() !== 'won';
+    toast({
+      title: ndaAutoWon ? 'NDA Received — Lead marked as Won!' : 'Activity added',
+      description: ndaAutoWon
+        ? 'Lead status changed to Won automatically.'
+        : (points > 0 ? `Lead score +${points}` : undefined),
+    });
     onSuccess();
   };
 

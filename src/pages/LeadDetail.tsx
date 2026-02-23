@@ -429,6 +429,7 @@ export default function LeadDetail() {
               leadContactName={lead.contact_name}
               leadCompanyName={lead.company_name}
               leadPhone={lead.phone}
+              leadStatusName={lead.status?.name ?? null}
             />
           </TabsContent>
 
@@ -540,6 +541,7 @@ function LeadActivityTab({
   leadContactName,
   leadCompanyName,
   leadPhone,
+  leadStatusName,
 }: {
   leadId: string;
   currentLeadScore: number;
@@ -551,6 +553,7 @@ function LeadActivityTab({
   leadContactName?: string | null;
   leadCompanyName?: string;
   leadPhone?: string | null;
+  leadStatusName?: string | null;
 }) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -690,6 +693,7 @@ function LeadActivityTab({
         leadContactName={leadContactName}
         leadCompanyName={leadCompanyName}
         leadPhone={leadPhone}
+        leadStatusName={leadStatusName}
       />
     </Card>
   );
