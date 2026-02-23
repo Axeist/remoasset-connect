@@ -16,6 +16,7 @@ import {
   User,
   Activity,
   ExternalLink,
+  Kanban,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,6 +29,8 @@ import { supabase } from '@/integrations/supabase/client';
 const navItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'employee'] },
   { title: 'Leads', url: '/leads', icon: Users, roles: ['admin', 'employee'] },
+  { title: 'My Pipeline', url: '/pipeline', icon: Kanban, roles: ['employee'] },
+  { title: 'Pipeline Overview', url: '/admin/pipeline', icon: Kanban, roles: ['admin'] },
   { title: 'My Tasks', url: '/tasks', icon: CheckSquare, roles: ['admin', 'employee'] },
   { title: 'Follow-ups', url: '/follow-ups', icon: CalendarCheck, roles: ['admin', 'employee'] },
   { title: 'Activity Monitor', url: '/admin/team-activity', icon: Activity, roles: ['admin'] },

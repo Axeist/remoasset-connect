@@ -21,6 +21,7 @@ import Help from "./pages/Help";
 import FollowUps from "./pages/FollowUps";
 import TeamActivity from "./pages/TeamActivity";
 import ResetPassword from "./pages/ResetPassword";
+import Pipeline from "./pages/Pipeline";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -52,6 +53,8 @@ const App = () => {
               <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
               <Route path="/leads/:id" element={<ProtectedRoute><LeadDetail /></ProtectedRoute>} />
               <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
+              <Route path="/pipeline" element={<ProtectedRoute><Pipeline pageTitle="My Pipeline" /></ProtectedRoute>} />
+              <Route path="/admin/pipeline" element={<AdminRoute><Pipeline pageTitle="Pipeline Overview" adminOnly /></AdminRoute>} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
               <Route path="/admin/team-activity" element={<ProtectedRoute><TeamActivity /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
