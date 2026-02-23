@@ -65,6 +65,12 @@ export default function Leads() {
     scoreMax: 100,
     vendorType: '',
     warehouseAvailable: '',
+    createdPreset: '',
+    createdFrom: '',
+    createdTo: '',
+    lastActivityPreset: '',
+    lastActivityFrom: '',
+    lastActivityTo: '',
   });
   const { toast } = useToast();
 
@@ -115,6 +121,7 @@ export default function Leads() {
         vendor_types,
         warehouse_available,
         created_at,
+        updated_at,
         owner_id,
         status:lead_statuses(name, color),
         country:countries(name, code)
@@ -135,6 +142,11 @@ export default function Leads() {
     if (filters.warehouseAvailable === 'true') query = query.eq('warehouse_available', true);
     else if (filters.warehouseAvailable === 'false') query = query.eq('warehouse_available', false);
     query = query.gte('lead_score', filters.scoreMin).lte('lead_score', filters.scoreMax);
+
+    if (filters.createdFrom) query = query.gte('created_at', filters.createdFrom);
+    if (filters.createdTo) query = query.lte('created_at', filters.createdTo);
+    if (filters.lastActivityFrom) query = query.gte('updated_at', filters.lastActivityFrom);
+    if (filters.lastActivityTo) query = query.lte('updated_at', filters.lastActivityTo);
 
     const { data: rawData, error, count } = await query;
 

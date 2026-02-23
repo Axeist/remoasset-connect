@@ -299,80 +299,80 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
             </div>
             <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0">
               {loadingActivities ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
                 </div>
               ) : activities.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">
                   No activities yet. Log your first interaction above.
                 </p>
               ) : (
-                <div className="relative pl-6">
-                  <div className="absolute left-[11px] top-2 bottom-2 w-px bg-border" />
-                  <div className="space-y-0">
-                    {activities.map((a) => {
-                      const config = activityTypeConfig[a.activity_type as keyof typeof activityTypeConfig] ?? activityTypeConfig.note;
-                      const Icon = config.icon;
-                      const attachments = (a.attachments ?? []) as { type: 'url' | 'file'; url: string; name?: string }[];
-                      return (
-                        <div key={a.id} className="relative flex items-start gap-3 group pb-5 last:pb-0">
-                          <div
-                            className={cn(
-                              'absolute left-0 z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-background shadow-sm',
-                              config.color
-                            )}
-                          >
-                            <Icon className="h-3 w-3" />
-                          </div>
-                          <div className="flex-1 min-w-0 pl-2">
-                            <div className="rounded-lg border bg-card p-2.5 shadow-sm">
-                              <div className="flex items-start justify-between gap-1">
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs font-medium text-foreground leading-snug">{a.description}</p>
-                                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                                    {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'MMM d, PPp')}
-                                  </p>
-                                  {attachments.length > 0 && (
-                                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                      {attachments.map((att, i) => {
-                                        let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
-                                        if (att.type === 'url' && !att.name) {
-                                          try { label = new URL(att.url).hostname; } catch { /* keep */ }
-                                        }
-                                        return (
-                                          <a
-                                            key={i}
-                                            href={att.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
-                                          >
-                                            {att.type === 'file' ? <Paperclip className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
-                                            {label}
-                                          </a>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                                {isAdmin && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 shrink-0 opacity-50 hover:opacity-100 hover:text-destructive"
-                                    onClick={() => handleDeleteActivity(a.id)}
-                                    title="Delete activity"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                )}
+                <div className="space-y-2">
+                  {activities.map((a) => {
+                    const config = activityTypeConfig[a.activity_type as keyof typeof activityTypeConfig] ?? activityTypeConfig.note;
+                    const Icon = config.icon;
+                    const attachments = (a.attachments ?? []) as { type: 'url' | 'file'; url: string; name?: string }[];
+                    return (
+                      <div key={a.id} className="flex gap-2.5 rounded-lg border bg-card p-2.5 shadow-sm hover:shadow-md transition-shadow group">
+                        <div
+                          className={cn(
+                            'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
+                            config.color
+                          )}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-1">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                  {config.label}
+                                </span>
                               </div>
+                              <p className="text-xs text-foreground leading-relaxed">{a.description}</p>
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'MMM d, h:mm a')}
+                              </p>
+                              {attachments.length > 0 && (
+                                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                  {attachments.map((att, i) => {
+                                    let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
+                                    if (att.type === 'url' && !att.name) {
+                                      try { label = new URL(att.url).hostname; } catch { /* keep */ }
+                                    }
+                                    return (
+                                      <a
+                                        key={i}
+                                        href={att.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                                      >
+                                        {att.type === 'file' ? <Paperclip className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
+                                        {label}
+                                      </a>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:text-destructive transition-opacity"
+                                onClick={() => handleDeleteActivity(a.id)}
+                                title="Delete activity"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
