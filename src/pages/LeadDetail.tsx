@@ -9,7 +9,7 @@ import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 import { AddFollowUpDialog } from '@/components/leads/AddFollowUpDialog';
 import { UploadDocumentDialog } from '@/components/leads/UploadDocumentDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
-import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
@@ -35,6 +35,7 @@ const activityTypeConfig = {
   meeting: { icon: Calendar, label: 'Meeting', color: 'bg-success/10 text-success', score: 5 },
   note: { icon: FileText, label: 'Note', color: 'bg-warning/10 text-warning', score: 2 },
   whatsapp: { icon: MessageCircle, label: 'WhatsApp', color: 'bg-green-500/10 text-green-600', score: 5 },
+  linkedin: { icon: Linkedin, label: 'LinkedIn', color: 'bg-sky-500/10 text-sky-600', score: 4 },
   nda: { icon: ShieldCheck, label: 'NDA', color: 'bg-blue-500/10 text-blue-600', score: 8 },
 };
 
@@ -522,9 +523,10 @@ const activityTypeFilterOptions = [
   { value: 'call', label: 'Call' },
   { value: 'email', label: 'Email' },
   { value: 'meeting', label: 'Meeting' },
-  { value: 'note', label: 'Note' },
   { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'linkedin', label: 'LinkedIn' },
   { value: 'nda', label: 'NDA' },
+  { value: 'note', label: 'Note' },
 ] as const;
 
 function LeadActivityTab({

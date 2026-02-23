@@ -22,9 +22,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getActivityScorePoints } from '@/lib/leadScore';
-import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail, MessageCircle, ShieldCheck } from 'lucide-react';
+import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail, MessageCircle, ShieldCheck, Linkedin } from 'lucide-react';
 
-export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'whatsapp' | 'nda';
+export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'whatsapp' | 'nda' | 'linkedin';
 
 export type NdaSubActivity = 'nda_sent' | 'nda_received';
 
@@ -38,9 +38,10 @@ const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
   { value: 'call', label: 'Call' },
   { value: 'email', label: 'Email' },
   { value: 'meeting', label: 'Meeting' },
-  { value: 'note', label: 'Note' },
   { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'linkedin', label: 'LinkedIn' },
   { value: 'nda', label: 'NDA' },
+  { value: 'note', label: 'Note' },
 ];
 
 const URL_REGEX = /^https?:\/\/.+/i;
@@ -77,6 +78,8 @@ export function AddActivityDialog({
   const [type, setType] = useState<ActivityType>('call');
   const [ndaSubActivity, setNdaSubActivity] = useState<NdaSubActivity>('nda_sent');
   const [ndaFile, setNdaFile] = useState<File | null>(null);
+  const [linkedinProfileUrl, setLinkedinProfileUrl] = useState('');
+  const [linkedinMessage, setLinkedinMessage] = useState('');
   const [description, setDescription] = useState('');
   const [urls, setUrls] = useState<string[]>(['']);
   const [files, setFiles] = useState<File[]>([]);
@@ -130,6 +133,8 @@ export function AddActivityDialog({
     setType('call');
     setNdaSubActivity('nda_sent');
     setNdaFile(null);
+    setLinkedinProfileUrl('');
+    setLinkedinMessage('');
     setDescription('');
     setUrls(['']);
     setFiles([]);
@@ -139,12 +144,27 @@ export function AddActivityDialog({
     e.preventDefault();
 
     const isNda = type === 'nda';
-    const effectiveDescription = isNda
-      ? `${ndaSubActivity === 'nda_sent' ? 'NDA Sent' : 'NDA Received'}${description.trim() ? ': ' + description.trim() : ''}`
-      : description.trim();
+    const isLinkedin = type === 'linkedin';
 
-    if (!isNda && !description.trim()) {
+    let effectiveDescription: string;
+    if (isNda) {
+      effectiveDescription = `${ndaSubActivity === 'nda_sent' ? 'NDA Sent' : 'NDA Received'}${description.trim() ? ': ' + description.trim() : ''}`;
+    } else if (isLinkedin) {
+      const parts: string[] = [];
+      if (linkedinProfileUrl.trim()) parts.push(`Profile: ${linkedinProfileUrl.trim()}`);
+      if (linkedinMessage.trim()) parts.push(`Message: ${linkedinMessage.trim()}`);
+      if (description.trim()) parts.push(description.trim());
+      effectiveDescription = parts.length > 0 ? parts.join(' | ') : 'LinkedIn outreach';
+    } else {
+      effectiveDescription = description.trim();
+    }
+
+    if (!isNda && !isLinkedin && !description.trim()) {
       toast({ variant: 'destructive', title: 'Description required' });
+      return;
+    }
+    if (isLinkedin && !linkedinProfileUrl.trim()) {
+      toast({ variant: 'destructive', title: 'LinkedIn profile URL required' });
       return;
     }
     if (isNda && ndaSubActivity === 'nda_received' && !ndaFile) {
@@ -210,6 +230,11 @@ export function AddActivityDialog({
     }
 
     validUrls.forEach((url) => attachments.push({ type: 'url', url }));
+
+    // Attach LinkedIn profile URL if present
+    if (isLinkedin && linkedinProfileUrl.trim()) {
+      attachments.push({ type: 'url', url: linkedinProfileUrl.trim(), name: 'LinkedIn Profile' });
+    }
 
     const { error } = await supabase.from('lead_activities').insert({
       lead_id: leadId,
@@ -318,6 +343,49 @@ export function AddActivityDialog({
             </div>
           )}
 
+          {type === 'linkedin' && (
+            <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-sky-700">
+                <Linkedin className="h-4 w-4" />
+                LinkedIn Outreach
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">LinkedIn profile URL *</Label>
+                <Input
+                  type="url"
+                  placeholder="https://linkedin.com/in/..."
+                  value={linkedinProfileUrl}
+                  onChange={(e) => setLinkedinProfileUrl(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Message sent</Label>
+                <Textarea
+                  value={linkedinMessage}
+                  onChange={(e) => setLinkedinMessage(e.target.value)}
+                  placeholder="Paste or describe the LinkedIn message you sent..."
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+
+              {linkedinProfileUrl.trim() && /^https?:\/\/.+/i.test(linkedinProfileUrl.trim()) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-sky-500/40 text-sky-700 hover:bg-sky-50"
+                  onClick={() => window.open(linkedinProfileUrl.trim(), '_blank')}
+                >
+                  <Linkedin className="h-4 w-4" />
+                  Open LinkedIn profile
+                </Button>
+              )}
+            </div>
+          )}
+
           {type === 'nda' && (
             <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
@@ -383,12 +451,14 @@ export function AddActivityDialog({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="desc">{type === 'nda' ? 'Notes (optional)' : 'Description *'}</Label>
+            <Label htmlFor="desc">
+              {type === 'nda' || type === 'linkedin' ? 'Additional notes (optional)' : 'Description *'}
+            </Label>
             <Textarea
               id="desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Had a call with customer willing to proceed..."
+              placeholder={type === 'linkedin' ? 'Any additional context about this outreach...' : 'e.g. Had a call with customer willing to proceed...'}
               rows={3}
               className="resize-none"
             />
@@ -454,11 +524,19 @@ export function AddActivityDialog({
             </Button>
             <Button
               type="submit"
-              disabled={(type === 'nda' ? (ndaSubActivity === 'nda_received' && !ndaFile) : !description.trim()) || submitting}
+              disabled={
+                submitting || (
+                  type === 'nda' ? (ndaSubActivity === 'nda_received' && !ndaFile) :
+                  type === 'linkedin' ? !linkedinProfileUrl.trim() :
+                  !description.trim()
+                )
+              }
               className="gap-2"
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              {type === 'nda' ? `Log ${ndaSubActivity === 'nda_sent' ? 'NDA Sent' : 'NDA Received'}` : 'Add activity'}
+              {type === 'nda' ? `Log ${ndaSubActivity === 'nda_sent' ? 'NDA Sent' : 'NDA Received'}` :
+               type === 'linkedin' ? 'Log LinkedIn Outreach' :
+               'Add activity'}
             </Button>
           </DialogFooter>
         </form>

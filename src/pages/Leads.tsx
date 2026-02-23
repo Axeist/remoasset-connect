@@ -72,6 +72,7 @@ export default function Leads() {
     lastActivityFrom: '',
     lastActivityTo: '',
     ndaStatus: '',
+    linkedinOutreach: '',
   });
   const { toast } = useToast();
 
@@ -119,7 +120,6 @@ export default function Leads() {
           .select('lead_id')
           .eq('activity_type', 'nda');
         const idsWithNda = [...new Set((ndaRows ?? []).map((r) => r.lead_id))];
-        // We'll exclude these IDs after the main query
         ndaLeadIds = idsWithNda;
       } else {
         let ndaQuery = supabase
@@ -133,6 +133,21 @@ export default function Leads() {
         }
         const { data: ndaRows } = await ndaQuery;
         ndaLeadIds = [...new Set((ndaRows ?? []).map((r) => r.lead_id))];
+      }
+    }
+
+    // Pre-fetch lead IDs that match the LinkedIn filter (if active)
+    let linkedinLeadIds: string[] | null = null;
+    if (filters.linkedinOutreach) {
+      const { data: liRows } = await supabase
+        .from('lead_activities')
+        .select('lead_id')
+        .eq('activity_type', 'linkedin');
+      const idsWithLinkedin = [...new Set((liRows ?? []).map((r) => r.lead_id))];
+      if (filters.linkedinOutreach === 'no_linkedin') {
+        linkedinLeadIds = idsWithLinkedin;
+      } else {
+        linkedinLeadIds = idsWithLinkedin;
       }
     }
 
@@ -181,7 +196,15 @@ export default function Leads() {
       if (ndaLeadIds.length > 0) {
         query = query.in('id', ndaLeadIds);
       } else {
-        // No leads match -> force empty result
+        query = query.in('id', ['00000000-0000-0000-0000-000000000000']);
+      }
+    }
+
+    // Apply LinkedIn filter: include by lead IDs
+    if (linkedinLeadIds !== null && filters.linkedinOutreach === 'has_linkedin') {
+      if (linkedinLeadIds.length > 0) {
+        query = query.in('id', linkedinLeadIds);
+      } else {
         query = query.in('id', ['00000000-0000-0000-0000-000000000000']);
       }
     }
@@ -199,6 +222,12 @@ export default function Leads() {
     // Client-side exclusion for "no_nda" filter
     if (filters.ndaStatus === 'no_nda' && ndaLeadIds !== null) {
       const excludeSet = new Set(ndaLeadIds);
+      data = data.filter((l) => !excludeSet.has(l.id));
+    }
+
+    // Client-side exclusion for "no_linkedin" filter
+    if (filters.linkedinOutreach === 'no_linkedin' && linkedinLeadIds !== null) {
+      const excludeSet = new Set(linkedinLeadIds);
       data = data.filter((l) => !excludeSet.has(l.id));
     }
 
@@ -223,7 +252,8 @@ export default function Leads() {
       owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null,
     }));
     setLeads(leadsWithOwner);
-    setTotalCount(filters.ndaStatus === 'no_nda' ? leadsWithOwner.length : (count ?? 0));
+    const usesClientSideExclusion = filters.ndaStatus === 'no_nda' || filters.linkedinOutreach === 'no_linkedin';
+    setTotalCount(usesClientSideExclusion ? leadsWithOwner.length : (count ?? 0));
     setLoading(false);
   };
 

@@ -40,6 +40,7 @@ export interface LeadsFiltersState {
   lastActivityFrom: string;
   lastActivityTo: string;
   ndaStatus: string;
+  linkedinOutreach: string;
 }
 
 const EMPTY_FILTERS: LeadsFiltersState = {
@@ -58,6 +59,7 @@ const EMPTY_FILTERS: LeadsFiltersState = {
   lastActivityFrom: '',
   lastActivityTo: '',
   ndaStatus: '',
+  linkedinOutreach: '',
 };
 
 interface LeadsFiltersProps {
@@ -134,6 +136,7 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
     if (filters.vendorType) count++;
     if (filters.warehouseAvailable) count++;
     if (filters.ndaStatus) count++;
+    if (filters.linkedinOutreach) count++;
     if (filters.scoreMin > 0 || filters.scoreMax < 100) count++;
     if (filters.createdPreset || filters.createdFrom) count++;
     if (filters.lastActivityPreset || filters.lastActivityFrom) count++;
@@ -215,7 +218,7 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
         </div>
 
         {/* Row 2: Basic filters (always visible) */}
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           <Select
             value={filters.status || 'all'}
             onValueChange={(v) => update({ status: v === 'all' ? '' : v })}
@@ -309,6 +312,20 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
               <SelectItem value="nda_received">NDA Received</SelectItem>
               <SelectItem value="nda_any">Has NDA</SelectItem>
               <SelectItem value="no_nda">No NDA</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={filters.linkedinOutreach || 'all'}
+            onValueChange={(v) => update({ linkedinOutreach: v === 'all' ? '' : v })}
+          >
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="LinkedIn" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All LinkedIn</SelectItem>
+              <SelectItem value="has_linkedin">Has Outreach</SelectItem>
+              <SelectItem value="no_linkedin">No Outreach</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -423,6 +440,12 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
                       filters.ndaStatus === 'nda_any' ? 'Has NDA' : 'No NDA'
                     }`}
                     onRemove={() => update({ ndaStatus: '' })}
+                  />
+                )}
+                {filters.linkedinOutreach && (
+                  <FilterChip
+                    label={`LinkedIn: ${filters.linkedinOutreach === 'has_linkedin' ? 'Has Outreach' : 'No Outreach'}`}
+                    onRemove={() => update({ linkedinOutreach: '' })}
                   />
                 )}
                 {(filters.scoreMin > 0 || filters.scoreMax < 100) && (
