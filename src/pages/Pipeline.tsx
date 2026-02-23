@@ -45,8 +45,11 @@ import { cn } from '@/lib/utils';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths, startOfYear } from 'date-fns';
 import type { Lead, LeadStatusOption, CountryOption } from '@/types/lead';
 import { KanbanColumn } from '@/components/pipeline/KanbanColumn';
-import { KanbanCard } from '@/components/pipeline/KanbanCard';
+import { KanbanCard, StaticKanbanCard } from '@/components/pipeline/KanbanCard';
+import { StaticKanbanColumn } from '@/components/pipeline/StaticKanbanColumn';
 import { PipelineWidgets } from '@/components/pipeline/PipelineWidgets';
+import { MoveCommentDialog } from '@/components/pipeline/MoveCommentDialog';
+import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 
 // ------- Activity columns config -------
 
@@ -104,6 +107,16 @@ const EMPTY_FILTERS: Filters = { search: '', owner: '', country: '', datePreset:
 
 type ViewMode = 'status' | 'activity';
 
+// ------- Pending move type for comment dialog -------
+
+interface PendingMove {
+  leadId: string;
+  lead: Lead;
+  targetStatusId: string | null;
+  fromStatusName: string;
+  toStatusName: string;
+}
+
 // ------- Page -------
 
 interface PipelineProps {
@@ -126,6 +139,13 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
   const [owners, setOwners] = useState<{ id: string; full_name: string | null }[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Move comment dialog state
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  const [moveSubmitting, setMoveSubmitting] = useState(false);
+
+  // Add activity dialog state
+  const [activityLead, setActivityLead] = useState<Lead | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -195,7 +215,6 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     const enrichedLeads = rawLeads.map((l) => ({ ...l, owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null }));
     setLeads(enrichedLeads);
 
-    // Fetch last activity type per lead for the activity view
     const leadIds = enrichedLeads.map((l) => l.id);
     if (leadIds.length > 0) {
       const { data: activityRows } = await supabase
@@ -246,11 +265,11 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     return map;
   }, [leads, lastActivityMap]);
 
-  // ------- Drag handlers -------
+  // ------- Drag handlers (only for status view) -------
   const handleDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
   const handleDragOver = (_e: DragOverEvent) => {};
 
-  const handleStatusDragEnd = async (e: DragEndEvent) => {
+  const handleDragEnd = async (e: DragEndEvent) => {
     setActiveId(null);
     const { active, over } = e;
     if (!over) return;
@@ -274,63 +293,67 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     const targetStatus = statuses.find((s) => s.id === targetStatusId);
     const fromStatus = statuses.find((s) => s.id === lead.status_id);
 
-    setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, status_id: targetStatusId, status: targetStatus ? { name: targetStatus.name, color: targetStatus.color } : null } : l));
+    // Optimistic UI update
+    setLeads((prev) => prev.map((l) =>
+      l.id === leadId
+        ? { ...l, status_id: targetStatusId, status: targetStatus ? { name: targetStatus.name, color: targetStatus.color } : null }
+        : l
+    ));
+
+    // Open comment dialog instead of committing immediately
+    setPendingMove({
+      leadId,
+      lead,
+      targetStatusId,
+      fromStatusName: fromStatus?.name ?? 'Unassigned',
+      toStatusName: targetStatus?.name ?? 'Unassigned',
+    });
+  };
+
+  const confirmMove = async (comment: string) => {
+    if (!pendingMove || !user) return;
+    setMoveSubmitting(true);
+
+    const { leadId, lead, targetStatusId, fromStatusName, toStatusName } = pendingMove;
 
     const { error } = await supabase.from('leads').update({ status_id: targetStatusId }).eq('id', leadId);
     if (error) {
       toast({ variant: 'destructive', title: 'Failed to move lead', description: error.message });
-      setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, status_id: lead.status_id, status: lead.status } : l));
+      // Revert optimistic update
+      setLeads((prev) => prev.map((l) =>
+        l.id === leadId ? { ...l, status_id: lead.status_id, status: lead.status } : l
+      ));
+      setMoveSubmitting(false);
+      setPendingMove(null);
       return;
     }
 
-    const desc = `Lead moved from "${fromStatus?.name ?? 'Unassigned'}" to "${targetStatus?.name ?? 'Unassigned'}"`;
-    await supabase.from('lead_activities').insert({ lead_id: leadId, user_id: user!.id, activity_type: 'note', description: desc });
-    toast({ title: 'Lead moved', description: `${lead.company_name} → ${targetStatus?.name ?? 'Unassigned'}` });
-  };
-
-  const handleActivityDragEnd = async (e: DragEndEvent) => {
-    setActiveId(null);
-    const { active, over } = e;
-    if (!over) return;
-
-    const leadId = String(active.id);
-    const lead = leads.find((l) => l.id === leadId);
-    if (!lead) return;
-
-    const overId = String(over.id);
-    const isColumn = ACTIVITY_COLUMNS.some((c) => c.id === overId);
-    let targetColId: string;
-    if (isColumn) {
-      targetColId = overId;
-    } else {
-      const targetLead = leads.find((l) => l.id === overId);
-      targetColId = targetLead ? (lastActivityMap[targetLead.id] ?? '__no_activity__') : '__no_activity__';
-    }
-
-    const currentColId = lastActivityMap[leadId] ?? '__no_activity__';
-    if (targetColId === currentColId || targetColId === '__no_activity__') return;
-
-    const colConfig = ACTIVITY_COLUMNS.find((c) => c.id === targetColId);
-    if (!colConfig) return;
-
-    // Optimistic update
-    setLastActivityMap((prev) => ({ ...prev, [leadId]: targetColId }));
-
-    // Log the activity
-    const { error } = await supabase.from('lead_activities').insert({
+    const desc = `Lead moved from "${fromStatusName}" to "${toStatusName}" — ${comment}`;
+    await supabase.from('lead_activities').insert({
       lead_id: leadId,
-      user_id: user!.id,
-      activity_type: targetColId,
-      description: `${colConfig.label} activity logged via pipeline board`,
+      user_id: user.id,
+      activity_type: 'note',
+      description: desc,
     });
 
-    if (error) {
-      toast({ variant: 'destructive', title: 'Failed to log activity', description: error.message });
-      setLastActivityMap((prev) => ({ ...prev, [leadId]: currentColId === '__no_activity__' ? '' : currentColId }));
-      return;
-    }
+    toast({ title: 'Lead moved', description: `${lead.company_name} → ${toStatusName}` });
+    setMoveSubmitting(false);
+    setPendingMove(null);
+  };
 
-    toast({ title: 'Activity logged', description: `${lead.company_name} → ${colConfig.label}` });
+  const cancelMove = () => {
+    if (pendingMove) {
+      const { leadId, lead } = pendingMove;
+      setLeads((prev) => prev.map((l) =>
+        l.id === leadId ? { ...l, status_id: lead.status_id, status: lead.status } : l
+      ));
+    }
+    setPendingMove(null);
+  };
+
+  // ------- Add activity from card -------
+  const handleAddActivity = (lead: Lead) => {
+    setActivityLead(lead);
   };
 
   const activeLead = activeId ? leads.find((l) => l.id === activeId) : null;
@@ -355,9 +378,6 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     }
   };
 
-  const currentColumns = viewMode === 'status' ? statusColumns : activityColumns;
-  const handleDragEnd = viewMode === 'status' ? handleStatusDragEnd : handleActivityDragEnd;
-
   return (
     <AppLayout>
       <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
@@ -372,7 +392,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
               <p className="text-muted-foreground text-sm mt-0.5">
                 {viewMode === 'status'
                   ? 'Drag leads between stages to update their status'
-                  : 'Drag leads to an activity column to log that activity'}
+                  : 'View leads grouped by their latest activity'}
               </p>
             </div>
 
@@ -532,7 +552,8 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
                 </div>
               ))}
             </div>
-          ) : (
+          ) : viewMode === 'status' ? (
+            /* ===== STATUS VIEW — drag-and-drop enabled ===== */
             <DndContext
               sensors={sensors}
               collisionDetection={closestCorners}
@@ -541,69 +562,51 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
               onDragEnd={handleDragEnd}
             >
               <div className="flex gap-3 px-1 h-full pb-4">
-                {viewMode === 'status' ? (
-                  <>
-                    {statuses.map((status) => (
-                      <KanbanColumn
-                        key={status.id}
-                        id={status.id}
-                        title={status.name}
-                        color={status.color}
-                        count={statusColumns[status.id]?.length ?? 0}
-                        totalScore={statusColumns[status.id]?.reduce((s, l) => s + (l.lead_score ?? 0), 0) ?? 0}
-                      >
-                        <SortableContext items={(statusColumns[status.id] ?? []).map((l) => l.id)} strategy={verticalListSortingStrategy}>
-                          {(statusColumns[status.id] ?? []).map((lead) => (
-                            <KanbanCard key={lead.id} lead={lead} onClick={() => navigate(`/leads/${lead.id}`)} />
-                          ))}
-                        </SortableContext>
-                        {(statusColumns[status.id] ?? []).length === 0 && (
-                          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
-                            <p className="text-xs">No leads</p>
-                          </div>
-                        )}
-                      </KanbanColumn>
-                    ))}
-                    {(statusColumns['__unassigned__']?.length ?? 0) > 0 && (
-                      <KanbanColumn
-                        id="__unassigned__"
-                        title="No Status"
-                        color="#6b7280"
-                        count={statusColumns['__unassigned__']?.length ?? 0}
-                        totalScore={statusColumns['__unassigned__']?.reduce((s, l) => s + (l.lead_score ?? 0), 0) ?? 0}
-                      >
-                        <SortableContext items={(statusColumns['__unassigned__'] ?? []).map((l) => l.id)} strategy={verticalListSortingStrategy}>
-                          {(statusColumns['__unassigned__'] ?? []).map((lead) => (
-                            <KanbanCard key={lead.id} lead={lead} onClick={() => navigate(`/leads/${lead.id}`)} />
-                          ))}
-                        </SortableContext>
-                      </KanbanColumn>
+                {statuses.map((status) => (
+                  <KanbanColumn
+                    key={status.id}
+                    id={status.id}
+                    title={status.name}
+                    color={status.color}
+                    count={statusColumns[status.id]?.length ?? 0}
+                    totalScore={statusColumns[status.id]?.reduce((s, l) => s + (l.lead_score ?? 0), 0) ?? 0}
+                  >
+                    <SortableContext items={(statusColumns[status.id] ?? []).map((l) => l.id)} strategy={verticalListSortingStrategy}>
+                      {(statusColumns[status.id] ?? []).map((lead) => (
+                        <KanbanCard
+                          key={lead.id}
+                          lead={lead}
+                          onClick={() => navigate(`/leads/${lead.id}`)}
+                          onAddActivity={handleAddActivity}
+                        />
+                      ))}
+                    </SortableContext>
+                    {(statusColumns[status.id] ?? []).length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
+                        <p className="text-xs">No leads</p>
+                      </div>
                     )}
-                  </>
-                ) : (
-                  <>
-                    {ACTIVITY_COLUMNS.map((col) => (
-                      <KanbanColumn
-                        key={col.id}
-                        id={col.id}
-                        title={col.label}
-                        color={col.color}
-                        count={activityColumns[col.id]?.length ?? 0}
-                        totalScore={activityColumns[col.id]?.reduce((s, l) => s + (l.lead_score ?? 0), 0) ?? 0}
-                      >
-                        <SortableContext items={(activityColumns[col.id] ?? []).map((l) => l.id)} strategy={verticalListSortingStrategy}>
-                          {(activityColumns[col.id] ?? []).map((lead) => (
-                            <KanbanCard key={lead.id} lead={lead} onClick={() => navigate(`/leads/${lead.id}`)} />
-                          ))}
-                        </SortableContext>
-                        {(activityColumns[col.id] ?? []).length === 0 && (
-                          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
-                            <p className="text-xs">No leads</p>
-                          </div>
-                        )}
-                      </KanbanColumn>
-                    ))}
-                  </>
+                  </KanbanColumn>
+                ))}
+                {(statusColumns['__unassigned__']?.length ?? 0) > 0 && (
+                  <KanbanColumn
+                    id="__unassigned__"
+                    title="No Status"
+                    color="#6b7280"
+                    count={statusColumns['__unassigned__']?.length ?? 0}
+                    totalScore={statusColumns['__unassigned__']?.reduce((s, l) => s + (l.lead_score ?? 0), 0) ?? 0}
+                  >
+                    <SortableContext items={(statusColumns['__unassigned__'] ?? []).map((l) => l.id)} strategy={verticalListSortingStrategy}>
+                      {(statusColumns['__unassigned__'] ?? []).map((lead) => (
+                        <KanbanCard
+                          key={lead.id}
+                          lead={lead}
+                          onClick={() => navigate(`/leads/${lead.id}`)}
+                          onAddActivity={handleAddActivity}
+                        />
+                      ))}
+                    </SortableContext>
+                  </KanbanColumn>
                 )}
               </div>
 
@@ -611,9 +614,66 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
                 {activeLead ? <KanbanCard lead={activeLead} isDragOverlay /> : null}
               </DragOverlay>
             </DndContext>
+          ) : (
+            /* ===== ACTIVITY VIEW — static, no drag-and-drop ===== */
+            <div className="flex gap-3 px-1 h-full pb-4">
+              {ACTIVITY_COLUMNS.map((col) => (
+                <StaticKanbanColumn
+                  key={col.id}
+                  title={col.label}
+                  color={col.color}
+                  count={activityColumns[col.id]?.length ?? 0}
+                  totalScore={activityColumns[col.id]?.reduce((s, l) => s + (l.lead_score ?? 0), 0) ?? 0}
+                >
+                  {(activityColumns[col.id] ?? []).map((lead) => (
+                    <StaticKanbanCard
+                      key={lead.id}
+                      lead={lead}
+                      onClick={() => navigate(`/leads/${lead.id}`)}
+                      onAddActivity={handleAddActivity}
+                    />
+                  ))}
+                  {(activityColumns[col.id] ?? []).length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
+                      <p className="text-xs">No leads</p>
+                    </div>
+                  )}
+                </StaticKanbanColumn>
+              ))}
+            </div>
           )}
         </div>
       </div>
+
+      {/* Move comment dialog */}
+      <MoveCommentDialog
+        open={!!pendingMove}
+        leadName={pendingMove?.lead.company_name ?? ''}
+        fromStatus={pendingMove?.fromStatusName ?? ''}
+        toStatus={pendingMove?.toStatusName ?? ''}
+        onConfirm={confirmMove}
+        onCancel={cancelMove}
+        submitting={moveSubmitting}
+      />
+
+      {/* Add activity dialog */}
+      {activityLead && (
+        <AddActivityDialog
+          open={!!activityLead}
+          onOpenChange={(open) => { if (!open) setActivityLead(null); }}
+          leadId={activityLead.id}
+          currentLeadScore={activityLead.lead_score ?? 0}
+          onSuccess={() => {
+            setActivityLead(null);
+            fetchLeads();
+          }}
+          leadEmail={activityLead.email}
+          leadContactName={activityLead.contact_name}
+          leadCompanyName={activityLead.company_name}
+          leadPhone={activityLead.phone}
+          leadStatusName={activityLead.status?.name ?? null}
+        />
+      )}
     </AppLayout>
   );
 }
