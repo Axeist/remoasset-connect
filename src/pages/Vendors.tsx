@@ -83,7 +83,7 @@ export default function Vendors() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('__won__');
   const [vendorTypeFilter, setVendorTypeFilter] = useState('');
   const [ndaFilter, setNdaFilter] = useState('');
 
@@ -99,7 +99,11 @@ export default function Vendors() {
         supabase.from('lead_statuses').select('id, name, color, sort_order').order('sort_order'),
       ]);
       if (cRes.data) setCountries(cRes.data);
-      if (sRes.data) setStatuses(sRes.data);
+      if (sRes.data) {
+        setStatuses(sRes.data);
+        const wonStatus = sRes.data.find((s) => STATUS_WON_NAMES.includes(s.name.toLowerCase()));
+        if (wonStatus) setStatusFilter(wonStatus.name);
+      }
     })();
   }, []);
 
@@ -158,7 +162,13 @@ export default function Vendors() {
         if (!match) return false;
       }
       if (countryFilter && v.country?.code !== countryFilter) return false;
-      if (statusFilter && v.status?.name !== statusFilter) return false;
+      if (statusFilter) {
+        if (statusFilter === '__won__') {
+          if (!STATUS_WON_NAMES.includes((v.status?.name ?? '').toLowerCase())) return false;
+        } else {
+          if (v.status?.name !== statusFilter) return false;
+        }
+      }
       if (vendorTypeFilter && !(v.vendor_types ?? []).includes(vendorTypeFilter)) return false;
       if (ndaFilter) {
         const docs = docsByLead[v.id] ?? [];
@@ -186,7 +196,11 @@ export default function Vendors() {
 
   const countryStatsMap = useMemo(() => {
     const map: Record<string, number> = {};
-    countryStats.forEach((c) => { map[c.code] = c.count; });
+    countryStats.forEach((c) => {
+      map[c.code] = c.count;
+      if (c.code === 'UK') map['GB'] = c.count;
+      if (c.code === 'GB') map['UK'] = c.count;
+    });
     return map;
   }, [countryStats]);
 
@@ -226,12 +240,14 @@ export default function Vendors() {
     window.open(data.signedUrl, '_blank', 'noopener');
   };
 
-  const activeFilterCount = [search, countryFilter, statusFilter, vendorTypeFilter, ndaFilter].filter(Boolean).length;
+  const wonStatusName = statuses.find((s) => STATUS_WON_NAMES.includes(s.name.toLowerCase()))?.name ?? '';
+  const activeFilterCount = [search, countryFilter, vendorTypeFilter, ndaFilter].filter(Boolean).length
+    + (statusFilter && statusFilter !== wonStatusName && statusFilter !== '__won__' ? 1 : 0);
 
   const clearFilters = () => {
     setSearch('');
     setCountryFilter('');
-    setStatusFilter('');
+    setStatusFilter(wonStatusName || '__won__');
     setVendorTypeFilter('');
     setNdaFilter('');
   };
@@ -443,6 +459,7 @@ export default function Vendors() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All Statuses</SelectItem>
+                  <SelectItem value="__won__">Closed / Won</SelectItem>
                   {statuses.map((s) => (
                     <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
                   ))}
@@ -505,113 +522,155 @@ export default function Vendors() {
               return (
                 <Card
                   key={v.id}
-                  className="group transition-all duration-200 hover:shadow-lg hover:border-primary/30 cursor-pointer"
-                  onClick={() => navigate(`/leads/${v.id}`)}
+                  className="group relative overflow-hidden transition-all duration-200 hover:shadow-xl hover:border-primary/40 hover:-translate-y-0.5"
                 >
+                  {/* Colored top accent bar */}
+                  {v.status && (
+                    <div className="h-1 w-full" style={{ backgroundColor: v.status.color }} />
+                  )}
+
                   <CardContent className="p-5">
-                    {/* Top row */}
+                    {/* Header */}
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-primary shrink-0" />
-                          <h3 className="font-semibold text-foreground truncate">{v.company_name}</h3>
-                        </div>
-                        {v.contact_name && (
-                          <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                            <User className="h-3 w-3" />
-                            {v.contact_name}
-                          </p>
-                        )}
+                        <button
+                          onClick={() => navigate(`/leads/${v.id}`)}
+                          className="flex items-center gap-2 text-left group/name hover:text-primary transition-colors"
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <Building2 className="h-4.5 w-4.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-foreground truncate text-sm leading-tight group-hover/name:text-primary transition-colors">
+                              {v.company_name}
+                            </h3>
+                            {v.contact_name && (
+                              <p className="text-xs text-muted-foreground truncate mt-0.5 flex items-center gap-1">
+                                <User className="h-3 w-3 shrink-0" />
+                                {v.contact_name}
+                              </p>
+                            )}
+                          </div>
+                        </button>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
                         {v.status && (
-                          <Badge className="border-0 text-white text-xs" style={{ backgroundColor: v.status.color }}>
+                          <Badge className="border-0 text-white text-[11px] font-semibold shadow-sm" style={{ backgroundColor: v.status.color }}>
                             {v.status.name}
                           </Badge>
                         )}
                         {v.lead_score != null && v.lead_score > 0 && (
-                          <Badge variant="secondary" className="text-xs font-bold tabular-nums">
+                          <span className="flex items-center gap-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                            <Star className="h-3 w-3 fill-current" />
                             {v.lead_score}
-                          </Badge>
+                          </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Contact info */}
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mb-3">
+                    {/* Contact details */}
+                    <div className="space-y-1 text-xs text-muted-foreground mb-3">
                       {v.country && (
-                        <span className="flex items-center gap-1">
-                          <Globe2 className="h-3 w-3" />
-                          {v.country.name}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/70" />
+                          <span>{v.country.name}</span>
+                        </div>
                       )}
                       {v.email && (
-                        <span className="flex items-center gap-1 truncate max-w-[180px]">
-                          <Mail className="h-3 w-3" />
-                          {v.email}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Mail className="h-3 w-3 shrink-0 text-muted-foreground/70" />
+                          <span className="truncate">{v.email}</span>
+                        </div>
                       )}
                       {v.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" />
-                          {v.phone}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Phone className="h-3 w-3 shrink-0 text-muted-foreground/70" />
+                          <span>{v.phone}</span>
+                        </div>
+                      )}
+                      {v.website && (
+                        <div className="flex items-center gap-1.5">
+                          <Globe2 className="h-3 w-3 shrink-0 text-muted-foreground/70" />
+                          <a
+                            href={v.website.startsWith('http') ? v.website : `https://${v.website}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-primary hover:underline truncate"
+                          >
+                            {v.website.replace(/^https?:\/\//, '')}
+                          </a>
+                        </div>
                       )}
                     </div>
 
-                    {/* Vendor types */}
+                    {/* Vendor types — prominent */}
                     {v.vendor_types && v.vendor_types.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-3">
+                      <div className="flex flex-wrap gap-1.5 mb-3">
                         {v.vendor_types.map((t) => (
-                          <Badge key={t} variant="outline" className="text-[10px] font-normal">
+                          <span
+                            key={t}
+                            className="inline-flex items-center rounded-md bg-primary/8 border border-primary/20 px-2 py-0.5 text-xs font-semibold text-primary"
+                          >
                             {t}
-                          </Badge>
+                          </span>
                         ))}
                       </div>
                     )}
 
-                    {/* Documents row */}
-                    {docs.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-2 border-t">
-                        {ndaDocs.map((d) => (
-                          <button
-                            key={d.id}
-                            onClick={(e) => { e.stopPropagation(); handleViewDoc(d); }}
-                            className="inline-flex items-center gap-1 rounded-md bg-indigo-500/10 px-2 py-1 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 transition-colors"
-                          >
-                            <ShieldCheck className="h-3 w-3" />
-                            {d.custom_name || 'NDA'}
-                          </button>
-                        ))}
-                        {pricingDocs.map((d) => (
-                          <button
-                            key={d.id}
-                            onClick={(e) => { e.stopPropagation(); handleViewDoc(d); }}
-                            className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
-                          >
-                            <DollarSign className="h-3 w-3" />
-                            {d.custom_name || 'Pricing'}
-                          </button>
-                        ))}
-                        {otherDocs.map((d) => (
-                          <button
-                            key={d.id}
-                            onClick={(e) => { e.stopPropagation(); handleViewDoc(d); }}
-                            className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted/80 transition-colors"
-                          >
-                            <FileText className="h-3 w-3" />
-                            {d.custom_name || d.file_name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Open link */}
-                    <div className="flex items-center justify-end mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span className="text-xs text-primary flex items-center gap-1">
-                        View details <ChevronRight className="h-3 w-3" />
-                      </span>
+                    {/* Documents section */}
+                    <div className="border-t pt-3 space-y-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                        Documents {docs.length > 0 && `(${docs.length})`}
+                      </p>
+                      {docs.length === 0 ? (
+                        <p className="text-xs text-muted-foreground/50 italic">No documents uploaded</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {ndaDocs.map((d) => (
+                            <button
+                              key={d.id}
+                              onClick={(e) => { e.stopPropagation(); handleViewDoc(d); }}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 hover:border-indigo-500/50 transition-all shadow-sm"
+                            >
+                              <ShieldCheck className="h-3.5 w-3.5" />
+                              {d.custom_name || 'NDA'}
+                              <ExternalLink className="h-3 w-3 opacity-50" />
+                            </button>
+                          ))}
+                          {pricingDocs.map((d) => (
+                            <button
+                              key={d.id}
+                              onClick={(e) => { e.stopPropagation(); handleViewDoc(d); }}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 hover:border-amber-500/50 transition-all shadow-sm"
+                            >
+                              <DollarSign className="h-3.5 w-3.5" />
+                              {d.custom_name || 'Pricing'}
+                              <ExternalLink className="h-3 w-3 opacity-50" />
+                            </button>
+                          ))}
+                          {otherDocs.map((d) => (
+                            <button
+                              key={d.id}
+                              onClick={(e) => { e.stopPropagation(); handleViewDoc(d); }}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted hover:border-border/80 transition-all shadow-sm"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              {d.custom_name || d.file_name}
+                              <ExternalLink className="h-3 w-3 opacity-50" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
+
+                    {/* View details footer */}
+                    <button
+                      onClick={() => navigate(`/leads/${v.id}`)}
+                      className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all border border-transparent hover:border-primary/20"
+                    >
+                      View full profile <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
                   </CardContent>
                 </Card>
               );
