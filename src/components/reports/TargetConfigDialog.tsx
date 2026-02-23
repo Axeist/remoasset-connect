@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -21,18 +20,15 @@ export interface TargetRow {
   target_count: number;
 }
 
-const ACTIVITY_LABELS: Record<string, string> = {
-  email: 'Outbound Emails',
-  call: 'Calls / Meetings Scheduled',
-  meeting: 'Meetings / Demos',
-  linkedin: 'LinkedIn Outreach',
-  whatsapp: 'WhatsApp Messages',
-  nda: 'NDAs Signed',
-  deal_closed: 'Deals Closed',
-};
+const TARGET_CATEGORIES: { key: string; label: string; description: string }[] = [
+  { key: 'outreach', label: 'Outreach', description: 'Emails, calls, LinkedIn & WhatsApp combined' },
+  { key: 'meeting', label: 'Meetings / Demos', description: 'Scheduled meetings and demos' },
+  { key: 'nda', label: 'NDAs Signed', description: 'NDA agreements received' },
+  { key: 'deal_closed', label: 'Deals Closed', description: 'Won deals' },
+];
 
-const ACTIVITY_ORDER = ['email', 'call', 'meeting', 'linkedin', 'whatsapp', 'nda', 'deal_closed'];
-const PERIODS = ['daily', 'weekly', 'monthly'] as const;
+const WEEKLY_MULTIPLIER = 5;
+const MONTHLY_MULTIPLIER = 22;
 
 interface TargetConfigDialogProps {
   open: boolean;
@@ -45,27 +41,20 @@ export function TargetConfigDialog({ open, onOpenChange, targets, onSaved }: Tar
   const { user } = useAuth();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [period, setPeriod] = useState<string>('weekly');
 
-  const [draft, setDraft] = useState<Record<string, Record<string, number>>>({});
+  const [dailyValues, setDailyValues] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    const map: Record<string, Record<string, number>> = {};
-    ACTIVITY_ORDER.forEach((act) => {
-      map[act] = {};
-      PERIODS.forEach((p) => {
-        const found = targets.find((t) => t.activity_type === act && t.period === p);
-        map[act][p] = found?.target_count ?? 0;
-      });
+    const map: Record<string, number> = {};
+    TARGET_CATEGORIES.forEach(({ key }) => {
+      const found = targets.find((t) => t.activity_type === key && t.period === 'daily');
+      map[key] = found?.target_count ?? 0;
     });
-    setDraft(map);
+    setDailyValues(map);
   }, [targets, open]);
 
-  const updateValue = (act: string, p: string, val: number) => {
-    setDraft((prev) => ({
-      ...prev,
-      [act]: { ...prev[act], [p]: val },
-    }));
+  const updateValue = (key: string, val: number) => {
+    setDailyValues((prev) => ({ ...prev, [key]: val }));
   };
 
   const handleSave = async () => {
@@ -73,15 +62,13 @@ export function TargetConfigDialog({ open, onOpenChange, targets, onSaved }: Tar
     setSaving(true);
 
     const upserts: { activity_type: string; period: string; target_count: number; updated_by: string }[] = [];
-    ACTIVITY_ORDER.forEach((act) => {
-      PERIODS.forEach((p) => {
-        upserts.push({
-          activity_type: act,
-          period: p,
-          target_count: draft[act]?.[p] ?? 0,
-          updated_by: user.id,
-        });
-      });
+    TARGET_CATEGORIES.forEach(({ key }) => {
+      const daily = dailyValues[key] ?? 0;
+      upserts.push(
+        { activity_type: key, period: 'daily', target_count: daily, updated_by: user.id },
+        { activity_type: key, period: 'weekly', target_count: daily * WEEKLY_MULTIPLIER, updated_by: user.id },
+        { activity_type: key, period: 'monthly', target_count: daily * MONTHLY_MULTIPLIER, updated_by: user.id },
+      );
     });
 
     const { error } = await supabase
@@ -104,34 +91,37 @@ export function TargetConfigDialog({ open, onOpenChange, targets, onSaved }: Tar
         <DialogHeader>
           <DialogTitle>Configure Productivity Targets</DialogTitle>
           <DialogDescription>
-            Set the expected number of activities per employee. These targets apply to all team members.
+            Set daily targets per employee. Weekly (×{WEEKLY_MULTIPLIER}) and monthly (×{MONTHLY_MULTIPLIER}) are auto-calculated.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={period} onValueChange={setPeriod}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="daily">Daily</TabsTrigger>
-            <TabsTrigger value="weekly">Weekly</TabsTrigger>
-            <TabsTrigger value="monthly">Monthly</TabsTrigger>
-          </TabsList>
-
-          {PERIODS.map((p) => (
-            <TabsContent key={p} value={p} className="space-y-3 mt-4">
-              {ACTIVITY_ORDER.map((act) => (
-                <div key={act} className="flex items-center justify-between gap-4">
-                  <label className="text-sm font-medium min-w-0 flex-1">{ACTIVITY_LABELS[act]}</label>
+        <div className="space-y-5 py-2">
+          {TARGET_CATEGORIES.map(({ key, label, description }) => {
+            const daily = dailyValues[key] ?? 0;
+            return (
+              <div key={key} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{label}</p>
+                    <p className="text-xs text-muted-foreground">{description}</p>
+                  </div>
                   <Input
                     type="number"
                     min={0}
-                    value={draft[act]?.[p] ?? 0}
-                    onChange={(e) => updateValue(act, p, Math.max(0, Number(e.target.value) || 0))}
+                    value={daily}
+                    onChange={(e) => updateValue(key, Math.max(0, Number(e.target.value) || 0))}
                     className="w-24 h-9 text-sm text-right"
+                    placeholder="Daily"
                   />
                 </div>
-              ))}
-            </TabsContent>
-          ))}
-        </Tabs>
+                <div className="flex gap-4 pl-1 text-xs text-muted-foreground">
+                  <span>Weekly: <span className="font-medium text-foreground">{daily * WEEKLY_MULTIPLIER}</span></span>
+                  <span>Monthly: <span className="font-medium text-foreground">{daily * MONTHLY_MULTIPLIER}</span></span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>

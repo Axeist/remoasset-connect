@@ -97,6 +97,8 @@ export default function LeadDetail() {
   const [changingStatus, setChangingStatus] = useState(false);
 
   const isAdmin = role === 'admin';
+  const isOwner = lead?.owner_id === user?.id;
+  const canEdit = isAdmin || isOwner;
 
   useEffect(() => {
     // Fetch statuses for all users
@@ -256,9 +258,11 @@ export default function LeadDetail() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              Edit Lead
-            </Button>
+            {canEdit && (
+              <Button variant="outline" onClick={() => setEditOpen(true)}>
+                Edit Lead
+              </Button>
+            )}
             {isAdmin && (
               <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteDialogOpen(true)}>
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -378,7 +382,7 @@ export default function LeadDetail() {
                     )}
                     <select
                       value={lead.status_id ?? ''}
-                      disabled={changingStatus}
+                      disabled={changingStatus || !canEdit}
                       onChange={async (e) => {
                         const newStatusId = e.target.value || null;
                         if (newStatusId === (lead.status_id ?? '')) return;
@@ -510,7 +514,7 @@ export default function LeadDetail() {
           </TabsContent>
 
           <TabsContent value="documents" className="mt-6">
-            <LeadDocumentsTab leadId={id!} isAdmin={isAdmin} />
+            <LeadDocumentsTab leadId={id!} isAdmin={isAdmin} canEdit={canEdit} />
           </TabsContent>
 
           <TabsContent value="notes" className="mt-6">
@@ -970,7 +974,7 @@ const DOCUMENT_TYPE_OPTIONS = [
   { value: 'custom', label: 'Custom' },
 ] as const;
 
-function LeadDocumentsTab({ leadId, isAdmin }: { leadId: string; isAdmin?: boolean }) {
+function LeadDocumentsTab({ leadId, isAdmin, canEdit }: { leadId: string; isAdmin?: boolean; canEdit?: boolean }) {
   const { toast } = useToast();
   const [documents, setDocuments] = useState<LeadDocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1075,9 +1079,11 @@ function LeadDocumentsTab({ leadId, isAdmin }: { leadId: string; isAdmin?: boole
           <FileUp className="h-5 w-5" />
           Documents
         </CardTitle>
-        <Button size="sm" onClick={() => setUploadDialogOpen(true)}>
-          Upload document
-        </Button>
+        {canEdit && (
+          <Button size="sm" onClick={() => setUploadDialogOpen(true)}>
+            Upload document
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -1135,15 +1141,17 @@ function LeadDocumentsTab({ leadId, isAdmin }: { leadId: string; isAdmin?: boole
                 </div>
                 {editingId !== doc.id && (
                   <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                      onClick={() => startEdit(doc)}
-                      title="Rename document"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => startEdit(doc)}
+                        title="Rename document"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     {isAdmin && (
                       <Button
                         variant="ghost"

@@ -19,27 +19,23 @@ CREATE POLICY "Admins can manage targets"
   ON public.productivity_targets FOR ALL
   USING (public.has_role(auth.uid(), 'admin'));
 
--- Insert sensible defaults
+-- Remove old per-channel targets (email, call, linkedin, whatsapp)
+DELETE FROM public.productivity_targets
+WHERE activity_type IN ('email', 'call', 'linkedin', 'whatsapp');
+
+-- Insert holistic targets: outreach (email+call+linkedin+whatsapp combined)
+-- Daily × 5 = weekly, daily × 22 = monthly
 INSERT INTO public.productivity_targets (activity_type, period, target_count) VALUES
-  ('email',        'daily',   60),
-  ('email',        'weekly',  300),
-  ('email',        'monthly', 1200),
-  ('call',         'daily',   10),
-  ('call',         'weekly',  50),
-  ('call',         'monthly', 200),
+  ('outreach',     'daily',   83),
+  ('outreach',     'weekly',  415),
+  ('outreach',     'monthly', 1826),
   ('meeting',      'daily',   3),
   ('meeting',      'weekly',  15),
-  ('meeting',      'monthly', 60),
-  ('linkedin',     'daily',   5),
-  ('linkedin',     'weekly',  25),
-  ('linkedin',     'monthly', 100),
-  ('whatsapp',     'daily',   8),
-  ('whatsapp',     'weekly',  40),
-  ('whatsapp',     'monthly', 160),
+  ('meeting',      'monthly', 66),
   ('nda',          'daily',   1),
   ('nda',          'weekly',  5),
-  ('nda',          'monthly', 20),
+  ('nda',          'monthly', 22),
   ('deal_closed',  'daily',   1),
-  ('deal_closed',  'weekly',  3),
-  ('deal_closed',  'monthly', 12)
-ON CONFLICT (activity_type, period) DO NOTHING;
+  ('deal_closed',  'weekly',  5),
+  ('deal_closed',  'monthly', 22)
+ON CONFLICT (activity_type, period) DO UPDATE SET target_count = EXCLUDED.target_count;

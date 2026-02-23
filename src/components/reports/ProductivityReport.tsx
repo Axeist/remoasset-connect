@@ -31,12 +31,23 @@ type Period = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 const ACTIVITY_TYPES = ['email', 'call', 'meeting', 'linkedin', 'whatsapp', 'nda', 'deal_closed'] as const;
 type ActivityKey = typeof ACTIVITY_TYPES[number];
 
+const OUTREACH_TYPES: readonly ActivityKey[] = ['email', 'call', 'linkedin', 'whatsapp'];
+const TARGET_CATEGORIES = ['outreach', 'meeting', 'nda', 'deal_closed'] as const;
+type TargetCategoryKey = typeof TARGET_CATEGORIES[number];
+
 const META: Record<ActivityKey, { label: string; color: string; icon: React.ElementType }> = {
   email:        { label: 'Emails',    color: '#f97316', icon: Mail },
   call:         { label: 'Calls',     color: '#3b82f6', icon: Phone },
   meeting:      { label: 'Meetings',  color: '#22c55e', icon: Calendar },
   linkedin:     { label: 'LinkedIn',  color: '#0ea5e9', icon: Linkedin },
   whatsapp:     { label: 'WhatsApp',  color: '#25d366', icon: MessageCircle },
+  nda:          { label: 'NDAs',      color: '#6366f1', icon: ShieldCheck },
+  deal_closed:  { label: 'Deals Won', color: '#ec4899', icon: Trophy },
+};
+
+const CATEGORY_META: Record<TargetCategoryKey, { label: string; color: string; icon: React.ElementType }> = {
+  outreach:     { label: 'Outreach',  color: '#f97316', icon: Mail },
+  meeting:      { label: 'Meetings',  color: '#22c55e', icon: Calendar },
   nda:          { label: 'NDAs',      color: '#6366f1', icon: ShieldCheck },
   deal_closed:  { label: 'Deals Won', color: '#ec4899', icon: Trophy },
 };
@@ -181,14 +192,19 @@ export function ProductivityReport() {
   }, [targets, targetPeriod]);
 
   const DEFAULT_TARGETS: Record<string, Record<string, number>> = {
-    daily:   { email: 60, call: 10, meeting: 3, linkedin: 5, whatsapp: 8, nda: 1, deal_closed: 1 },
-    weekly:  { email: 300, call: 50, meeting: 15, linkedin: 25, whatsapp: 40, nda: 5, deal_closed: 3 },
-    monthly: { email: 1200, call: 200, meeting: 60, linkedin: 100, whatsapp: 160, nda: 20, deal_closed: 12 },
+    daily:   { outreach: 83, meeting: 3, nda: 1, deal_closed: 1 },
+    weekly:  { outreach: 415, meeting: 15, nda: 5, deal_closed: 5 },
+    monthly: { outreach: 1826, meeting: 66, nda: 22, deal_closed: 22 },
   };
 
-  const getTarget = useCallback((actType: string): number => {
-    return targetMap[actType] ?? DEFAULT_TARGETS[targetPeriod]?.[actType] ?? 0;
+  const getTarget = useCallback((category: string): number => {
+    return targetMap[category] ?? DEFAULT_TARGETS[targetPeriod]?.[category] ?? 0;
   }, [targetMap, targetPeriod]);
+
+  const getCategoryActual = useCallback((category: TargetCategoryKey, agg: Record<ActivityKey, number>): number => {
+    if (category === 'outreach') return OUTREACH_TYPES.reduce((s, t) => s + agg[t], 0);
+    return agg[category as ActivityKey] ?? 0;
+  }, []);
 
   const fetchTargets = useCallback(async () => {
     const { data } = await supabase.from('productivity_targets').select('activity_type, period, target_count');
@@ -337,23 +353,23 @@ export function ProductivityReport() {
   const employeeCount = selectedEmployee === 'all' ? Math.max(employeeStats.length, 1) : 1;
 
   const radarData = useMemo(() => {
-    return ACTIVITY_TYPES.map((t) => {
-      const target = getTarget(t) * targetMultiplier * employeeCount;
-      const actual = aggregated[t];
+    return TARGET_CATEGORIES.map((cat) => {
+      const target = getTarget(cat) * targetMultiplier * employeeCount;
+      const actual = getCategoryActual(cat, aggregated);
       return {
-        subject: META[t].label,
+        subject: CATEGORY_META[cat].label,
         actual,
         target,
         pct: target > 0 ? Math.round((actual / target) * 100) : 0,
       };
     });
-  }, [aggregated, getTarget, targetMultiplier, employeeCount]);
+  }, [aggregated, getTarget, getCategoryActual, targetMultiplier, employeeCount]);
 
   const overallPct = useMemo(() => {
-    const totalTarget = ACTIVITY_TYPES.reduce((s, t) => s + getTarget(t) * targetMultiplier * employeeCount, 0);
-    const totalActual = ACTIVITY_TYPES.reduce((s, t) => s + aggregated[t], 0);
+    const totalTarget = TARGET_CATEGORIES.reduce((s, cat) => s + getTarget(cat) * targetMultiplier * employeeCount, 0);
+    const totalActual = TARGET_CATEGORIES.reduce((s, cat) => s + getCategoryActual(cat, aggregated), 0);
     return totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0;
-  }, [aggregated, getTarget, targetMultiplier, employeeCount]);
+  }, [aggregated, getTarget, getCategoryActual, targetMultiplier, employeeCount]);
 
   if (loading) {
     return (
@@ -446,10 +462,10 @@ export function ProductivityReport() {
         )}
       </div>
 
-      {/* Overall score + activity cards */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
+      {/* Overall score + category cards */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {/* Overall score card */}
-        <Card className="col-span-2 md:col-span-1 lg:col-span-1 border-primary/30 bg-primary/5">
+        <Card className="border-primary/30 bg-primary/5">
           <CardContent className="p-4 flex flex-col items-center justify-center text-center gap-1">
             <ProgressRing pct={overallPct} color="hsl(var(--primary))" size={64} />
             <p className="text-sm font-semibold text-primary mt-1">Overall</p>
@@ -457,14 +473,14 @@ export function ProductivityReport() {
           </CardContent>
         </Card>
 
-        {ACTIVITY_TYPES.map((type) => {
-          const m = META[type];
+        {TARGET_CATEGORIES.map((cat) => {
+          const m = CATEGORY_META[cat];
           const Icon = m.icon;
-          const actual = aggregated[type];
-          const target = getTarget(type) * targetMultiplier * employeeCount;
+          const actual = getCategoryActual(cat, aggregated);
+          const target = getTarget(cat) * targetMultiplier * employeeCount;
           const pct = target > 0 ? Math.round((actual / target) * 100) : 0;
           return (
-            <Card key={type} className="transition-all hover:shadow-sm">
+            <Card key={cat} className="transition-all hover:shadow-sm">
               <CardContent className="p-3.5">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-md" style={{ backgroundColor: `${m.color}15` }}>
@@ -490,6 +506,19 @@ export function ProductivityReport() {
                     style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: m.color }}
                   />
                 </div>
+                {cat === 'outreach' && (
+                  <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    {OUTREACH_TYPES.map((t) => {
+                      const OIcon = META[t].icon;
+                      return (
+                        <span key={t} className="inline-flex items-center gap-1">
+                          <OIcon className="h-3 w-3" style={{ color: META[t].color }} />
+                          {aggregated[t]}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
@@ -532,7 +561,7 @@ export function ProductivityReport() {
               <Target className="h-5 w-5" />
               Target vs Actual
             </CardTitle>
-            <CardDescription className="text-sm">How close to target across all activity types</CardDescription>
+            <CardDescription className="text-sm">How close to target across all categories</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -567,9 +596,9 @@ export function ProductivityReport() {
                   <thead>
                     <tr className="border-b">
                       <th className="text-left py-2.5 px-2 font-semibold">Name</th>
-                      {ACTIVITY_TYPES.map((t) => (
-                        <th key={t} className="text-center py-2.5 px-1.5 font-semibold" title={META[t].label}>
-                          {(() => { const Icon = META[t].icon; return <Icon className="h-4 w-4 mx-auto" style={{ color: META[t].color }} />; })()}
+                      {TARGET_CATEGORIES.map((cat) => (
+                        <th key={cat} className="text-center py-2.5 px-1.5 font-semibold" title={CATEGORY_META[cat].label}>
+                          {(() => { const Icon = CATEGORY_META[cat].icon; return <Icon className="h-4 w-4 mx-auto" style={{ color: CATEGORY_META[cat].color }} />; })()}
                         </th>
                       ))}
                       <th className="text-right py-2.5 px-2 font-semibold">Score</th>
@@ -577,29 +606,31 @@ export function ProductivityReport() {
                   </thead>
                   <tbody>
                     {employeeStats.map((emp, idx) => {
-                      const empTotal = ACTIVITY_TYPES.reduce((s, t) => {
-                        const tgt = getTarget(t) * targetMultiplier;
-                        return s + (tgt > 0 ? Math.min(emp.counts[t] / tgt, 1) : 0);
+                      const empTotal = TARGET_CATEGORIES.reduce((s, cat) => {
+                        const tgt = getTarget(cat) * targetMultiplier;
+                        const actual = getCategoryActual(cat, emp.counts);
+                        return s + (tgt > 0 ? Math.min(actual / tgt, 1) : 0);
                       }, 0);
-                      const empPct = Math.round((empTotal / ACTIVITY_TYPES.length) * 100);
+                      const empPct = Math.round((empTotal / TARGET_CATEGORIES.length) * 100);
                       return (
                         <tr key={emp.userId} className="border-b last:border-0 hover:bg-muted/30">
                           <td className="py-2.5 px-2 font-medium whitespace-nowrap">
                             {idx === 0 && isAdmin && <Trophy className="inline h-3.5 w-3.5 text-yellow-500 mr-1" />}
                             {emp.name}
                           </td>
-                          {ACTIVITY_TYPES.map((t) => {
-                            const tgt = getTarget(t) * targetMultiplier;
-                            const pctCell = tgt > 0 ? Math.round((emp.counts[t] / tgt) * 100) : 0;
+                          {TARGET_CATEGORIES.map((cat) => {
+                            const tgt = getTarget(cat) * targetMultiplier;
+                            const actual = getCategoryActual(cat, emp.counts);
+                            const pctCell = tgt > 0 ? Math.round((actual / tgt) * 100) : 0;
                             return (
-                              <td key={t} className="text-center py-2.5 px-1.5">
+                              <td key={cat} className="text-center py-2.5 px-1.5">
                                 <span className={cn(
                                   'inline-block min-w-[30px] rounded px-1.5 py-0.5 text-xs font-semibold',
                                   pctCell >= 100 ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400'
                                     : pctCell >= 70 ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
                                     : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400'
                                 )}>
-                                  {emp.counts[t]}
+                                  {actual}
                                 </span>
                               </td>
                             );

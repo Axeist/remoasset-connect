@@ -38,7 +38,7 @@ type SortOrder = 'asc' | 'desc';
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export default function Leads() {
-  const { role } = useAuth();
+  const { user, role } = useAuth();
   const isAdmin = role === 'admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -368,14 +368,18 @@ export default function Leads() {
           {selectedIds.size > 0 && (
             <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-muted/50 border">
               <span className="text-sm font-medium">{selectedIds.size} selected</span>
-              <Button size="sm" variant="outline" onClick={() => setBulkAction('status')} className="gap-1">
-                <Tag className="h-4 w-4" />
-                Update status
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setBulkAction('owner')} className="gap-1">
-                <UserPlus className="h-4 w-4" />
-                Assign owner
-              </Button>
+              {isAdmin && (
+                <Button size="sm" variant="outline" onClick={() => setBulkAction('status')} className="gap-1">
+                  <Tag className="h-4 w-4" />
+                  Update status
+                </Button>
+              )}
+              {isAdmin && (
+                <Button size="sm" variant="outline" onClick={() => setBulkAction('owner')} className="gap-1">
+                  <UserPlus className="h-4 w-4" />
+                  Assign owner
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={() => exportCsv(true)} className="gap-1">
                 <Download className="h-4 w-4" />
                 Export selected
