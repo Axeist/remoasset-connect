@@ -274,16 +274,7 @@ export default function Auth() {
                       {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="login-password" className="text-sm font-medium">Password</Label>
-                        <button
-                          type="button"
-                          onClick={() => { setForgotMode(true); setForgotSent(false); setForgotEmail(loginForm.email); }}
-                          className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
-                        >
-                          Forgot password?
-                        </button>
-                      </div>
+                      <Label htmlFor="login-password" className="text-sm font-medium">Password</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         <Input
@@ -314,6 +305,15 @@ export default function Auth() {
                       {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                       Sign in
                     </Button>
+                    <div className="text-center">
+                      <button
+                        type="button"
+                        onClick={() => { setForgotMode(true); setForgotSent(false); setForgotEmail(loginForm.email); }}
+                        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Forgot your password?
+                      </button>
+                    </div>
                   </form>
                 </>
               ) : (
