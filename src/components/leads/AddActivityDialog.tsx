@@ -147,8 +147,8 @@ export function AddActivityDialog({
       toast({ variant: 'destructive', title: 'Description required' });
       return;
     }
-    if (isNda && !ndaFile) {
-      toast({ variant: 'destructive', title: 'NDA file required', description: 'Please upload the NDA document.' });
+    if (isNda && ndaSubActivity === 'nda_received' && !ndaFile) {
+      toast({ variant: 'destructive', title: 'Signed NDA required', description: 'Please upload the signed NDA document.' });
       return;
     }
     if (hasInvalidUrl) {
@@ -333,7 +333,7 @@ export function AddActivityDialog({
                     size="sm"
                     variant={ndaSubActivity === 'nda_sent' ? 'default' : 'outline'}
                     className={ndaSubActivity === 'nda_sent' ? 'gap-1.5' : 'gap-1.5 text-muted-foreground'}
-                    onClick={() => setNdaSubActivity('nda_sent')}
+                    onClick={() => { setNdaSubActivity('nda_sent'); setNdaFile(null); }}
                   >
                     <Mail className="h-3.5 w-3.5" />
                     NDA Sent
@@ -356,27 +356,29 @@ export function AddActivityDialog({
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm">Upload NDA document *</Label>
-                <Input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) => setNdaFile(e.target.files?.[0] ?? null)}
-                  className="h-10 file:mr-2 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground"
-                />
-                {ndaFile && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Paperclip className="h-3.5 w-3.5" />
-                    <span className="truncate max-w-[240px]">{ndaFile.name}</span>
-                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setNdaFile(null)}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  This file will also appear in the lead&apos;s Documents section. PDF, DOC, or DOCX.
-                </p>
-              </div>
+              {ndaSubActivity === 'nda_received' && (
+                <div className="space-y-2">
+                  <Label className="text-sm">Upload signed NDA *</Label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={(e) => setNdaFile(e.target.files?.[0] ?? null)}
+                    className="h-10 file:mr-2 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground"
+                  />
+                  {ndaFile && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Paperclip className="h-3.5 w-3.5" />
+                      <span className="truncate max-w-[240px]">{ndaFile.name}</span>
+                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setNdaFile(null)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    This file will also appear in the lead&apos;s Documents section. PDF, DOC, or DOCX.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -452,7 +454,7 @@ export function AddActivityDialog({
             </Button>
             <Button
               type="submit"
-              disabled={(type === 'nda' ? !ndaFile : !description.trim()) || submitting}
+              disabled={(type === 'nda' ? (ndaSubActivity === 'nda_received' && !ndaFile) : !description.trim()) || submitting}
               className="gap-2"
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
