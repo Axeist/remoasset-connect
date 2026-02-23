@@ -67,13 +67,16 @@ export default function ResetPassword() {
 
     setIsLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
-    setIsLoading(false);
 
     if (error) {
+      setIsLoading(false);
       toast({ variant: 'destructive', title: 'Error', description: error.message });
       return;
     }
 
+    // Sign out so user must login with the new password
+    await supabase.auth.signOut();
+    setIsLoading(false);
     setSuccess(true);
   };
 
@@ -118,14 +121,14 @@ export default function ResetPassword() {
               <div>
                 <h3 className="text-lg font-semibold">Password updated</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Your password has been changed successfully. You can now sign in with your new password.
+                  Your password has been changed successfully. Please sign in with your new password.
                 </p>
               </div>
               <Button
                 className="w-full h-11 rounded-xl gradient-primary text-white font-medium"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/auth')}
               >
-                Continue to dashboard
+                Sign in
               </Button>
             </div>
           ) : (

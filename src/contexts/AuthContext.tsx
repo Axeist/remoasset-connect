@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!email.toLowerCase().endsWith(`@${allowedDomain}`)) {
       return { error: new Error('Sign up is only allowed with a @remoasset.com email address.') };
     }
-    const redirectUrl = `${window.location.origin}/`;
+    const redirectUrl = `${window.location.origin}/auth?verified=true`;
 
     const { error } = await supabase.auth.signUp({
       email,
