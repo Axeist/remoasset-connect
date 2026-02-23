@@ -363,7 +363,7 @@ export default function Vendors() {
                     {({ geographies }) =>
                       geographies.map((geo) => {
                         const code = getCountryCodeFromGeo(geo);
-                        const isSelected = countryFilter === code;
+                        const isSelected = countryFilter !== '' && countryFilter === code;
                         return (
                           <Geography
                             key={geo.rsmKey}
