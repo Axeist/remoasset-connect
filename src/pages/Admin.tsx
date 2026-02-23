@@ -6,11 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink, FileDown, Activity, Calendar, CheckSquare, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink, FileDown, Activity, Calendar, CheckSquare, Trash2, Settings2, Ban, ShieldCheck } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
 import { AddUserDialog } from '@/components/admin/AddUserDialog';
+import { UserManagementDialog } from '@/components/admin/UserManagementDialog';
 import { StatusFormDialog } from '@/components/admin/StatusFormDialog';
 import { CountryFormDialog } from '@/components/admin/CountryFormDialog';
 import {
@@ -31,6 +32,8 @@ interface TeamMember {
   user_id: string;
   role: string;
   full_name: string | null;
+  email?: string | null;
+  banned_until?: string | null;
 }
 
 interface Status {
@@ -53,6 +56,7 @@ export default function Admin() {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
   const [editUser, setEditUser] = useState<TeamMember | null>(null);
+  const [manageUser, setManageUser] = useState<TeamMember | null>(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [statusFormOpen, setStatusFormOpen] = useState(false);
   const [editingStatus, setEditingStatus] = useState<Status | null>(null);
@@ -68,6 +72,27 @@ export default function Admin() {
     teamActivity: { name: string; activities: number }[];
   }>({ byStatus: [], byCountry: [], teamActivity: [] });
 
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+  const fetchAuthUsers = async (): Promise<Record<string, { email?: string; banned_until?: string | null; last_sign_in_at?: string | null }>> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return {};
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'list_users' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.users) return {};
+      return (data.users as { id: string; email?: string; banned_until?: string | null; last_sign_in_at?: string | null }[]).reduce(
+        (acc, u) => { acc[u.id] = { email: u.email, banned_until: u.banned_until, last_sign_in_at: u.last_sign_in_at }; return acc; },
+        {} as Record<string, { email?: string; banned_until?: string | null; last_sign_in_at?: string | null }>
+      );
+    } catch { return {}; }
+  };
+
   const fetchData = async () => {
     const [rolesRes, statusRes, countryRes] = await Promise.all([
       supabase.from('user_roles').select('id, user_id, role'),
@@ -77,13 +102,15 @@ export default function Admin() {
 
     if (rolesRes.data) {
       const userIds = rolesRes.data.map((r) => r.user_id);
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, full_name')
-        .in('user_id', userIds);
+      const [{ data: profiles }, authUserMap] = await Promise.all([
+        supabase.from('profiles').select('user_id, full_name').in('user_id', userIds),
+        fetchAuthUsers(),
+      ]);
       const membersWithNames = rolesRes.data.map((r) => ({
         ...r,
         full_name: profiles?.find((p) => p.user_id === r.user_id)?.full_name ?? null,
+        email: authUserMap[r.user_id]?.email ?? null,
+        banned_until: authUserMap[r.user_id]?.banned_until ?? null,
       }));
       setTeamMembers(membersWithNames);
     }
@@ -649,44 +676,73 @@ export default function Admin() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
                       <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {teamMembers.map((member) => (
-                      <TableRow key={member.id}>
-                        <TableCell>
-                          <p className="font-medium">{member.full_name || 'Unknown'}</p>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={member.role === 'admin' ? 'default' : 'secondary'}>
-                            {member.role}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setEditUser(member)}
-                              title="Edit role"
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => navigate(`/leads?owner=${member.user_id}`)}
-                              className="gap-1"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                              View leads
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {teamMembers.map((member) => {
+                      const isBanned = !!member.banned_until && new Date(member.banned_until) > new Date();
+                      return (
+                        <TableRow key={member.id} className={isBanned ? 'opacity-60' : ''}>
+                          <TableCell>
+                            <p className="font-medium">{member.full_name || 'Unknown'}</p>
+                          </TableCell>
+                          <TableCell>
+                            <p className="text-sm text-muted-foreground">{member.email || '—'}</p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={member.role === 'admin' ? 'default' : 'secondary'}>
+                              {member.role}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {isBanned ? (
+                              <Badge variant="destructive" className="gap-1">
+                                <Ban className="h-3 w-3" />
+                                Restricted
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="gap-1 border-green-300 text-green-700 dark:border-green-600 dark:text-green-400">
+                                <ShieldCheck className="h-3 w-3" />
+                                Active
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setEditUser(member)}
+                                title="Edit role"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setManageUser(member)}
+                                title="Manage user"
+                              >
+                                <Settings2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate(`/leads?owner=${member.user_id}`)}
+                                className="gap-1"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                Leads
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -895,6 +951,17 @@ export default function Admin() {
           onSuccess={fetchData}
         />
         <AddUserDialog open={addUserOpen} onOpenChange={setAddUserOpen} onSuccess={fetchData} />
+        {manageUser && (
+          <UserManagementDialog
+            open={!!manageUser}
+            onOpenChange={(open) => !open && setManageUser(null)}
+            userId={manageUser.user_id}
+            fullName={manageUser.full_name}
+            role={manageUser.role}
+            isBanned={!!manageUser.banned_until && new Date(manageUser.banned_until) > new Date()}
+            onSuccess={fetchData}
+          />
+        )}
         <StatusFormDialog
           open={statusFormOpen}
           onOpenChange={(open) => { setStatusFormOpen(open); if (!open) setEditingStatus(null); }}

@@ -20,6 +20,7 @@ import Reports from "./pages/Reports";
 import Help from "./pages/Help";
 import FollowUps from "./pages/FollowUps";
 import TeamActivity from "./pages/TeamActivity";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
               <Route path="/leads/:id" element={<ProtectedRoute><LeadDetail /></ProtectedRoute>} />
