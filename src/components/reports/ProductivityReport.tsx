@@ -18,11 +18,15 @@ import {
 } from 'recharts';
 import {
   startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
-  startOfYear, endOfYear, subDays, format,
+  startOfYear, endOfYear, subDays, format, differenceInDays, eachDayOfInterval,
+  eachWeekOfInterval, eachMonthOfInterval,
 } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarWidget } from '@/components/ui/calendar';
+import { CalendarDays } from 'lucide-react';
 import { TargetConfigDialog, type TargetRow } from './TargetConfigDialog';
 
-type Period = 'daily' | 'weekly' | 'monthly' | 'yearly';
+type Period = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
 const ACTIVITY_TYPES = ['email', 'call', 'meeting', 'linkedin', 'whatsapp', 'nda', 'deal_closed'] as const;
 type ActivityKey = typeof ACTIVITY_TYPES[number];
@@ -44,17 +48,25 @@ const TOOLTIP_STYLE = {
   borderRadius: '8px',
 };
 
-function getDateRange(period: Period): { from: Date; to: Date } {
+function getDateRange(period: Period, customFrom?: Date | null, customTo?: Date | null): { from: Date; to: Date } {
   const now = new Date();
   switch (period) {
     case 'daily':   return { from: startOfDay(now), to: endOfDay(now) };
     case 'weekly':  return { from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfWeek(now, { weekStartsOn: 1 }) };
     case 'monthly': return { from: startOfMonth(now), to: endOfMonth(now) };
     case 'yearly':  return { from: startOfYear(now), to: endOfYear(now) };
+    case 'custom':  return {
+      from: customFrom ? startOfDay(customFrom) : startOfDay(subDays(now, 30)),
+      to: customTo ? endOfDay(customTo) : endOfDay(now),
+    };
   }
 }
 
-function getDailyBreakdownIntervals(period: Period): { label: string; from: Date; to: Date }[] {
+function getDailyBreakdownIntervals(
+  period: Period,
+  customFrom?: Date | null,
+  customTo?: Date | null,
+): { label: string; from: Date; to: Date }[] {
   const now = new Date();
   switch (period) {
     case 'daily':
@@ -78,6 +90,35 @@ function getDailyBreakdownIntervals(period: Period): { label: string; from: Date
         const d = new Date(now.getFullYear(), i, 1);
         return { label: format(d, 'MMM'), from: startOfMonth(d), to: endOfMonth(d) };
       });
+    case 'custom': {
+      const from = customFrom ? startOfDay(customFrom) : startOfDay(subDays(now, 30));
+      const to = customTo ? endOfDay(customTo) : endOfDay(now);
+      const days = differenceInDays(to, from);
+      if (days <= 1) {
+        return [{ label: format(from, 'MMM d'), from, to }];
+      }
+      if (days <= 14) {
+        return eachDayOfInterval({ start: from, end: to }).map((d) => ({
+          label: format(d, 'MMM d'),
+          from: startOfDay(d),
+          to: endOfDay(d),
+        }));
+      }
+      if (days <= 90) {
+        const weeks = eachWeekOfInterval({ start: from, end: to }, { weekStartsOn: 1 });
+        return weeks.map((w, i) => {
+          const wEnd = new Date(w);
+          wEnd.setDate(wEnd.getDate() + 6);
+          const clampedEnd = wEnd > to ? to : wEnd;
+          return { label: `W${i + 1}`, from: startOfDay(w), to: endOfDay(clampedEnd) };
+        });
+      }
+      return eachMonthOfInterval({ start: from, end: to }).map((m) => ({
+        label: format(m, 'MMM yyyy'),
+        from: startOfMonth(m),
+        to: endOfMonth(m) > to ? to : endOfMonth(m),
+      }));
+    }
   }
 }
 
@@ -101,7 +142,7 @@ function ProgressRing({ pct, color, size = 44 }: { pct: number; color: string; s
         strokeLinecap="round" transform={`rotate(-90 ${size / 2} ${size / 2})`}
         className="transition-all duration-700"
       />
-      <text x="50%" y="50%" textAnchor="middle" dy=".35em" className="fill-foreground text-[10px] font-bold">
+      <text x="50%" y="50%" textAnchor="middle" dy=".35em" className="fill-foreground text-xs font-bold">
         {Math.round(filled)}%
       </text>
     </svg>
@@ -109,9 +150,9 @@ function ProgressRing({ pct, color, size = 44 }: { pct: number; color: string; s
 }
 
 function TrendIcon({ pct }: { pct: number }) {
-  if (pct >= 100) return <TrendingUp className="h-3.5 w-3.5 text-green-500" />;
-  if (pct >= 70) return <Minus className="h-3.5 w-3.5 text-amber-500" />;
-  return <TrendingDown className="h-3.5 w-3.5 text-red-500" />;
+  if (pct >= 100) return <TrendingUp className="h-4 w-4 text-green-500" />;
+  if (pct >= 70) return <Minus className="h-4 w-4 text-amber-500" />;
+  return <TrendingDown className="h-4 w-4 text-red-500" />;
 }
 
 export function ProductivityReport() {
@@ -120,6 +161,8 @@ export function ProductivityReport() {
   const isAdmin = role === 'admin';
 
   const [period, setPeriod] = useState<Period>('weekly');
+  const [customFrom, setCustomFrom] = useState<Date | null>(null);
+  const [customTo, setCustomTo] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [targets, setTargets] = useState<TargetRow[]>([]);
   const [employeeStats, setEmployeeStats] = useState<EmployeeStats[]>([]);
@@ -127,7 +170,7 @@ export function ProductivityReport() {
   const [configOpen, setConfigOpen] = useState(false);
   const [trendData, setTrendData] = useState<Record<string, number>[]>([]);
 
-  const targetPeriod = period === 'yearly' ? 'monthly' : period;
+  const targetPeriod = period === 'yearly' || period === 'custom' ? 'monthly' : period;
 
   const targetMap = useMemo(() => {
     const map: Record<string, number> = {};
@@ -154,9 +197,10 @@ export function ProductivityReport() {
 
   const fetchData = useCallback(async () => {
     if (!user) return;
+    if (period === 'custom' && (!customFrom || !customTo)) return;
     setLoading(true);
 
-    const { from, to } = getDateRange(period);
+    const { from, to } = getDateRange(period, customFrom, customTo);
 
     // Fetch activities in the period
     let actQuery = supabase
@@ -249,7 +293,7 @@ export function ProductivityReport() {
     setEmployeeStats(sorted);
 
     // Build trend data for the chart
-    const intervals = getDailyBreakdownIntervals(period);
+    const intervals = getDailyBreakdownIntervals(period, customFrom, customTo);
     const trend = intervals.map((iv) => {
       const row: Record<string, number | string> = { label: iv.label };
       ACTIVITY_TYPES.filter((t) => t !== 'deal_closed').forEach((type) => {
@@ -264,7 +308,7 @@ export function ProductivityReport() {
     setTrendData(trend);
 
     setLoading(false);
-  }, [user, isAdmin, period, selectedEmployee]);
+  }, [user, isAdmin, period, selectedEmployee, customFrom, customTo]);
 
   useEffect(() => { fetchTargets(); }, [fetchTargets]);
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -282,7 +326,14 @@ export function ProductivityReport() {
     return emp?.counts ?? { email: 0, call: 0, meeting: 0, linkedin: 0, whatsapp: 0, nda: 0, deal_closed: 0 };
   }, [employeeStats, selectedEmployee]);
 
-  const targetMultiplier = period === 'yearly' ? 12 : 1;
+  const targetMultiplier = useMemo(() => {
+    if (period === 'yearly') return 12;
+    if (period === 'custom' && customFrom && customTo) {
+      const days = differenceInDays(customTo, customFrom) + 1;
+      return Math.max(1, Math.round(days / 30));
+    }
+    return 1;
+  }, [period, customFrom, customTo]);
   const employeeCount = selectedEmployee === 'all' ? Math.max(employeeStats.length, 1) : 1;
 
   const radarData = useMemo(() => {
@@ -321,12 +372,12 @@ export function ProductivityReport() {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center rounded-lg border bg-muted/50 p-0.5">
-          {(['daily', 'weekly', 'monthly', 'yearly'] as Period[]).map((p) => (
+          {(['daily', 'weekly', 'monthly', 'yearly', 'custom'] as Period[]).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
               className={cn(
-                'rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-200 capitalize',
+                'rounded-md px-3.5 py-1.5 text-sm font-medium transition-all duration-200 capitalize',
                 period === p ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -335,9 +386,47 @@ export function ProductivityReport() {
           ))}
         </div>
 
+        {period === 'custom' && (
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 font-normal min-w-[140px] justify-start">
+                  <CalendarDays className="h-4 w-4" />
+                  {customFrom ? format(customFrom, 'MMM d, yyyy') : 'Start date'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarWidget
+                  mode="single"
+                  selected={customFrom ?? undefined}
+                  onSelect={(d) => setCustomFrom(d ?? null)}
+                  disabled={(d) => (customTo ? d > customTo : false)}
+                />
+              </PopoverContent>
+            </Popover>
+            <span className="text-sm text-muted-foreground">to</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 font-normal min-w-[140px] justify-start">
+                  <CalendarDays className="h-4 w-4" />
+                  {customTo ? format(customTo, 'MMM d, yyyy') : 'End date'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarWidget
+                  mode="single"
+                  selected={customTo ?? undefined}
+                  onSelect={(d) => setCustomTo(d ?? null)}
+                  disabled={(d) => (customFrom ? d < customFrom : false)}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+
         {isAdmin && employeeStats.length > 0 && (
           <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-            <SelectTrigger className="w-[200px] h-9 text-xs">
+            <SelectTrigger className="w-[200px] h-9 text-sm">
               <SelectValue placeholder="All Employees" />
             </SelectTrigger>
             <SelectContent>
@@ -362,9 +451,9 @@ export function ProductivityReport() {
         {/* Overall score card */}
         <Card className="col-span-2 md:col-span-1 lg:col-span-1 border-primary/30 bg-primary/5">
           <CardContent className="p-4 flex flex-col items-center justify-center text-center gap-1">
-            <ProgressRing pct={overallPct} color="hsl(var(--primary))" size={56} />
-            <p className="text-xs font-semibold text-primary mt-1">Overall</p>
-            <p className="text-[10px] text-muted-foreground capitalize">{period}</p>
+            <ProgressRing pct={overallPct} color="hsl(var(--primary))" size={64} />
+            <p className="text-sm font-semibold text-primary mt-1">Overall</p>
+            <p className="text-xs text-muted-foreground capitalize">{period === 'custom' ? 'Custom' : period}</p>
           </CardContent>
         </Card>
 
@@ -376,21 +465,21 @@ export function ProductivityReport() {
           const pct = target > 0 ? Math.round((actual / target) * 100) : 0;
           return (
             <Card key={type} className="transition-all hover:shadow-sm">
-              <CardContent className="p-3">
+              <CardContent className="p-3.5">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-md" style={{ backgroundColor: `${m.color}15` }}>
-                    <Icon className="h-3.5 w-3.5" style={{ color: m.color }} />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-md" style={{ backgroundColor: `${m.color}15` }}>
+                    <Icon className="h-4 w-4" style={{ color: m.color }} />
                   </div>
-                  <span className="text-[11px] font-medium text-muted-foreground truncate">{m.label}</span>
+                  <span className="text-xs font-medium text-muted-foreground truncate">{m.label}</span>
                 </div>
                 <div className="flex items-end justify-between gap-1">
                   <div>
-                    <p className="text-xl font-bold text-foreground leading-none">{actual}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">/ {target} target</p>
+                    <p className="text-2xl font-bold text-foreground leading-none">{actual}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">/ {target} target</p>
                   </div>
                   <div className="flex items-center gap-1">
                     <TrendIcon pct={pct} />
-                    <span className={cn('text-xs font-semibold', pct >= 100 ? 'text-green-600' : pct >= 70 ? 'text-amber-600' : 'text-red-500')}>
+                    <span className={cn('text-sm font-semibold', pct >= 100 ? 'text-green-600' : pct >= 70 ? 'text-amber-600' : 'text-red-500')}>
                       {pct}%
                     </span>
                   </div>
@@ -411,22 +500,22 @@ export function ProductivityReport() {
         {/* Activity trend chart */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-lg flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
-              Activity Breakdown — {period === 'daily' ? 'Today' : period === 'weekly' ? 'This Week' : period === 'monthly' ? 'This Month' : 'This Year'}
+              Activity Breakdown — {period === 'daily' ? 'Today' : period === 'weekly' ? 'This Week' : period === 'monthly' ? 'This Month' : period === 'yearly' ? 'This Year' : customFrom && customTo ? `${format(customFrom, 'MMM d')} – ${format(customTo, 'MMM d, yyyy')}` : 'Custom Range'}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {trendData.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No data for this period</p>
+              <p className="text-base text-muted-foreground py-8 text-center">No data for this period</p>
             ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={trendData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <XAxis dataKey="label" tick={{ fontSize: 13 }} />
+                  <YAxis tick={{ fontSize: 13 }} />
+                  <Tooltip contentStyle={{ ...TOOLTIP_STYLE, fontSize: 13 }} />
+                  <Legend wrapperStyle={{ fontSize: 13 }} />
                   {ACTIVITY_TYPES.filter((t) => t !== 'deal_closed').map((type) => (
                     <Bar key={type} dataKey={type} name={META[type].label} fill={META[type].color} radius={[2, 2, 0, 0]} stackId="a" />
                   ))}
@@ -439,22 +528,22 @@ export function ProductivityReport() {
         {/* Radar chart — target vs actual */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-lg flex items-center gap-2">
               <Target className="h-5 w-5" />
               Target vs Actual
             </CardTitle>
-            <CardDescription>How close to target across all activity types</CardDescription>
+            <CardDescription className="text-sm">How close to target across all activity types</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={300}>
               <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
                 <PolarGrid className="stroke-muted" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} />
-                <PolarRadiusAxis tick={{ fontSize: 9 }} />
+                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 12 }} />
+                <PolarRadiusAxis tick={{ fontSize: 11 }} />
                 <Radar name="Target" dataKey="target" stroke="hsl(var(--muted-foreground))" fill="hsl(var(--muted-foreground))" fillOpacity={0.1} strokeDasharray="4 4" />
                 <Radar name="Actual" dataKey="actual" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} />
+                <Legend wrapperStyle={{ fontSize: 13 }} />
+                <Tooltip contentStyle={{ ...TOOLTIP_STYLE, fontSize: 13 }} />
               </RadarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -463,27 +552,27 @@ export function ProductivityReport() {
         {/* Employee comparison table (admin only, or single-employee summary) */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-lg flex items-center gap-2">
               <Users className="h-5 w-5" />
               {isAdmin ? 'Employee Comparison' : 'My Breakdown'}
             </CardTitle>
-            <CardDescription className="capitalize">{period} productivity per team member</CardDescription>
+            <CardDescription className="text-sm capitalize">{period} productivity per team member</CardDescription>
           </CardHeader>
           <CardContent>
             {employeeStats.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No activity in this period</p>
+              <p className="text-base text-muted-foreground py-8 text-center">No activity in this period</p>
             ) : (
               <div className="overflow-x-auto -mx-2">
-                <table className="w-full text-xs">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-2 px-2 font-semibold">Name</th>
+                      <th className="text-left py-2.5 px-2 font-semibold">Name</th>
                       {ACTIVITY_TYPES.map((t) => (
-                        <th key={t} className="text-center py-2 px-1 font-semibold" title={META[t].label}>
-                          {(() => { const Icon = META[t].icon; return <Icon className="h-3.5 w-3.5 mx-auto" style={{ color: META[t].color }} />; })()}
+                        <th key={t} className="text-center py-2.5 px-1.5 font-semibold" title={META[t].label}>
+                          {(() => { const Icon = META[t].icon; return <Icon className="h-4 w-4 mx-auto" style={{ color: META[t].color }} />; })()}
                         </th>
                       ))}
-                      <th className="text-right py-2 px-2 font-semibold">Score</th>
+                      <th className="text-right py-2.5 px-2 font-semibold">Score</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -495,17 +584,17 @@ export function ProductivityReport() {
                       const empPct = Math.round((empTotal / ACTIVITY_TYPES.length) * 100);
                       return (
                         <tr key={emp.userId} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="py-2 px-2 font-medium whitespace-nowrap">
-                            {idx === 0 && isAdmin && <Trophy className="inline h-3 w-3 text-yellow-500 mr-1" />}
+                          <td className="py-2.5 px-2 font-medium whitespace-nowrap">
+                            {idx === 0 && isAdmin && <Trophy className="inline h-3.5 w-3.5 text-yellow-500 mr-1" />}
                             {emp.name}
                           </td>
                           {ACTIVITY_TYPES.map((t) => {
                             const tgt = getTarget(t) * targetMultiplier;
                             const pctCell = tgt > 0 ? Math.round((emp.counts[t] / tgt) * 100) : 0;
                             return (
-                              <td key={t} className="text-center py-2 px-1">
+                              <td key={t} className="text-center py-2.5 px-1.5">
                                 <span className={cn(
-                                  'inline-block min-w-[28px] rounded px-1 py-0.5 text-[10px] font-semibold',
+                                  'inline-block min-w-[30px] rounded px-1.5 py-0.5 text-xs font-semibold',
                                   pctCell >= 100 ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400'
                                     : pctCell >= 70 ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
                                     : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400'
@@ -515,8 +604,8 @@ export function ProductivityReport() {
                               </td>
                             );
                           })}
-                          <td className="text-right py-2 px-2">
-                            <Badge variant={empPct >= 80 ? 'default' : empPct >= 50 ? 'secondary' : 'destructive'} className="text-[10px]">
+                          <td className="text-right py-2.5 px-2">
+                            <Badge variant={empPct >= 80 ? 'default' : empPct >= 50 ? 'secondary' : 'destructive'} className="text-xs">
                               {empPct}%
                             </Badge>
                           </td>
