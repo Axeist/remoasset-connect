@@ -260,6 +260,22 @@ export default function Vendors() {
   const withNda = filteredVendors.filter((v) => (docsByLead[v.id] ?? []).some((d) => d.document_type === 'nda'));
   const withPricing = filteredVendors.filter((v) => (docsByLead[v.id] ?? []).some((d) => d.document_type === 'pricing'));
 
+  const vendorsByCountry = useMemo(() => {
+    const groups: { country: string; code: string; vendors: VendorLead[] }[] = [];
+    const map: Record<string, VendorLead[]> = {};
+    const nameMap: Record<string, string> = {};
+    filteredVendors.forEach((v) => {
+      const code = v.country?.code?.toUpperCase() ?? '__none__';
+      const name = v.country?.name ?? 'Unknown';
+      if (!map[code]) { map[code] = []; nameMap[code] = name; }
+      map[code].push(v);
+    });
+    Object.entries(map)
+      .sort((a, b) => b[1].length - a[1].length)
+      .forEach(([code, vendors]) => groups.push({ country: nameMap[code], code, vendors }));
+    return groups;
+  }, [filteredVendors]);
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -502,10 +518,10 @@ export default function Vendors() {
           </CardContent>
         </Card>
 
-        {/* Vendor Cards */}
+        {/* Vendor Table grouped by country */}
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-56 rounded-xl" />)}
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
           </div>
         ) : filteredVendors.length === 0 ? (
           <Card>
@@ -516,169 +532,186 @@ export default function Vendors() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredVendors.map((v) => {
-              const docs = docsByLead[v.id] ?? [];
-              const ndaDocs = docs.filter((d) => d.document_type === 'nda');
-              const pricingDocs = docs.filter((d) => d.document_type === 'pricing');
-              const otherDocs = docs.filter((d) => d.document_type !== 'nda' && d.document_type !== 'pricing');
-
-              return (
-                <Card
-                  key={v.id}
-                  className="group relative overflow-hidden transition-all duration-200 hover:shadow-xl hover:border-primary/40 hover:-translate-y-0.5"
-                >
-                  {/* Colored top accent bar */}
-                  {v.status && (
-                    <div className="h-1 w-full" style={{ backgroundColor: v.status.color }} />
-                  )}
-
-                  <CardContent className="p-5">
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="min-w-0 flex-1">
-                        <button
-                          onClick={() => navigate(`/leads/${v.id}`)}
-                          className="flex items-center gap-2 text-left group/name hover:text-primary transition-colors"
-                        >
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                            <Building2 className="h-4.5 w-4.5" />
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="font-bold text-foreground truncate text-sm leading-tight group-hover/name:text-primary transition-colors">
-                              {v.company_name}
-                            </h3>
-                            {v.contact_name && (
-                              <p className="text-xs text-muted-foreground truncate mt-0.5 flex items-center gap-1">
-                                <User className="h-3 w-3 shrink-0" />
-                                {v.contact_name}
-                              </p>
-                            )}
-                          </div>
-                        </button>
-                      </div>
-                      <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        {v.status && (
-                          <Badge className="border-0 text-white text-[11px] font-semibold shadow-sm" style={{ backgroundColor: v.status.color }}>
-                            {v.status.name}
-                          </Badge>
-                        )}
-                        {v.lead_score != null && v.lead_score > 0 && (
-                          <span className="flex items-center gap-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
-                            <Star className="h-3 w-3 fill-current" />
-                            {v.lead_score}
-                          </span>
-                        )}
-                      </div>
+          <div className="space-y-4">
+            {vendorsByCountry.map((group) => (
+              <Card key={group.code} className="overflow-hidden">
+                {/* Country header */}
+                <div className="flex items-center justify-between gap-3 bg-muted/40 px-5 py-3 border-b">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <MapPin className="h-4 w-4" />
                     </div>
+                    <h3 className="text-sm font-bold text-foreground">{group.country}</h3>
+                    <Badge variant="secondary" className="text-xs">{group.vendors.length} vendor{group.vendors.length !== 1 ? 's' : ''}</Badge>
+                  </div>
+                </div>
 
-                    {/* Contact details */}
-                    <div className="space-y-1 text-xs text-muted-foreground mb-3">
-                      {v.country && (
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/70" />
-                          <span>{v.country.name}</span>
-                        </div>
-                      )}
-                      {v.email && (
-                        <div className="flex items-center gap-1.5">
-                          <Mail className="h-3 w-3 shrink-0 text-muted-foreground/70" />
-                          <span className="truncate">{v.email}</span>
-                        </div>
-                      )}
-                      {v.phone && (
-                        <div className="flex items-center gap-1.5">
-                          <Phone className="h-3 w-3 shrink-0 text-muted-foreground/70" />
-                          <span>{v.phone}</span>
-                        </div>
-                      )}
-                      {v.website && (
-                        <div className="flex items-center gap-1.5">
-                          <Globe2 className="h-3 w-3 shrink-0 text-muted-foreground/70" />
-                          <a
-                            href={v.website.startsWith('http') ? v.website : `https://${v.website}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-primary hover:underline truncate"
-                          >
-                            {v.website.replace(/^https?:\/\//, '')}
-                          </a>
-                        </div>
-                      )}
-                    </div>
+                {/* Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/20 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        <th className="px-4 py-2.5 text-left">Company</th>
+                        <th className="px-4 py-2.5 text-left">Contact</th>
+                        <th className="px-4 py-2.5 text-left">Type</th>
+                        <th className="px-4 py-2.5 text-left">Status</th>
+                        <th className="px-4 py-2.5 text-center">Score</th>
+                        <th className="px-4 py-2.5 text-left">Documents</th>
+                        <th className="px-4 py-2.5 text-center w-[60px]"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {group.vendors.map((v) => {
+                        const docs = docsByLead[v.id] ?? [];
+                        const ndaDocs = docs.filter((d) => d.document_type === 'nda');
+                        const pricingDocs = docs.filter((d) => d.document_type === 'pricing');
+                        const otherDocs = docs.filter((d) => d.document_type !== 'nda' && d.document_type !== 'pricing');
 
-                    {/* Vendor types — prominent */}
-                    {v.vendor_types && v.vendor_types.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mb-3">
-                        {v.vendor_types.map((t) => (
-                          <span
-                            key={t}
-                            className="inline-flex items-center rounded-md bg-primary/8 border border-primary/20 px-2 py-0.5 text-xs font-semibold text-primary"
-                          >
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                        return (
+                          <tr key={v.id} className="group/row hover:bg-muted/30 transition-colors">
+                            {/* Company + website */}
+                            <td className="px-4 py-3 max-w-[220px]">
+                              <button
+                                onClick={() => navigate(`/leads/${v.id}`)}
+                                className="text-left font-semibold text-foreground hover:text-primary transition-colors truncate block max-w-full"
+                              >
+                                {v.company_name}
+                              </button>
+                              {v.website && (
+                                <a
+                                  href={v.website.startsWith('http') ? v.website : `https://${v.website}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-primary/70 hover:text-primary hover:underline truncate flex items-center gap-1 mt-0.5"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Globe2 className="h-3 w-3 shrink-0" />
+                                  {v.website.replace(/^https?:\/\//, '')}
+                                </a>
+                              )}
+                            </td>
 
-                    {/* Documents section */}
-                    <div className="border-t pt-3 space-y-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                        Documents {docs.length > 0 && `(${docs.length})`}
-                      </p>
-                      {docs.length === 0 ? (
-                        <p className="text-xs text-muted-foreground/50 italic">No documents uploaded</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {ndaDocs.map((d) => (
-                            <button
-                              key={d.id}
-                              onClick={(e) => { e.stopPropagation(); handleViewDoc(d); }}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 hover:border-indigo-500/50 transition-all shadow-sm"
-                            >
-                              <ShieldCheck className="h-3.5 w-3.5" />
-                              {d.custom_name || 'NDA'}
-                              <ExternalLink className="h-3 w-3 opacity-50" />
-                            </button>
-                          ))}
-                          {pricingDocs.map((d) => (
-                            <button
-                              key={d.id}
-                              onClick={(e) => { e.stopPropagation(); handleViewDoc(d); }}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 hover:border-amber-500/50 transition-all shadow-sm"
-                            >
-                              <DollarSign className="h-3.5 w-3.5" />
-                              {d.custom_name || 'Pricing'}
-                              <ExternalLink className="h-3 w-3 opacity-50" />
-                            </button>
-                          ))}
-                          {otherDocs.map((d) => (
-                            <button
-                              key={d.id}
-                              onClick={(e) => { e.stopPropagation(); handleViewDoc(d); }}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted hover:border-border/80 transition-all shadow-sm"
-                            >
-                              <FileText className="h-3.5 w-3.5" />
-                              {d.custom_name || d.file_name}
-                              <ExternalLink className="h-3 w-3 opacity-50" />
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                            {/* Contact */}
+                            <td className="px-4 py-3 max-w-[200px]">
+                              {v.contact_name && (
+                                <p className="text-foreground text-xs font-medium truncate">{v.contact_name}</p>
+                              )}
+                              {v.email && (
+                                <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                                  <Mail className="h-3 w-3 shrink-0" />
+                                  {v.email}
+                                </p>
+                              )}
+                              {v.phone && (
+                                <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                                  <Phone className="h-3 w-3 shrink-0" />
+                                  {v.phone}
+                                </p>
+                              )}
+                            </td>
 
-                    {/* View details footer */}
-                    <button
-                      onClick={() => navigate(`/leads/${v.id}`)}
-                      className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all border border-transparent hover:border-primary/20"
-                    >
-                      View full profile <ChevronRight className="h-3.5 w-3.5" />
-                    </button>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                            {/* Vendor types */}
+                            <td className="px-4 py-3 max-w-[180px]">
+                              <div className="flex flex-wrap gap-1">
+                                {(v.vendor_types ?? []).map((t) => (
+                                  <span
+                                    key={t}
+                                    className="inline-flex items-center rounded-md bg-primary/8 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary whitespace-nowrap"
+                                  >
+                                    {t}
+                                  </span>
+                                ))}
+                                {(!v.vendor_types || v.vendor_types.length === 0) && (
+                                  <span className="text-xs text-muted-foreground/40">—</span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Status */}
+                            <td className="px-4 py-3">
+                              {v.status ? (
+                                <Badge className="border-0 text-white text-[11px] font-semibold shadow-sm" style={{ backgroundColor: v.status.color }}>
+                                  {v.status.name}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/40">—</span>
+                              )}
+                            </td>
+
+                            {/* Score */}
+                            <td className="px-4 py-3 text-center">
+                              {v.lead_score != null && v.lead_score > 0 ? (
+                                <span className="inline-flex items-center gap-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                                  <Star className="h-3 w-3 fill-current" />
+                                  {v.lead_score}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/40">—</span>
+                              )}
+                            </td>
+
+                            {/* Documents */}
+                            <td className="px-4 py-3 max-w-[280px]">
+                              {docs.length === 0 ? (
+                                <span className="text-xs text-muted-foreground/40 italic">None</span>
+                              ) : (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {ndaDocs.map((d) => (
+                                    <button
+                                      key={d.id}
+                                      onClick={() => handleViewDoc(d)}
+                                      className="inline-flex items-center gap-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 transition-all"
+                                    >
+                                      <ShieldCheck className="h-3 w-3" />
+                                      {d.custom_name || 'NDA'}
+                                      <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+                                    </button>
+                                  ))}
+                                  {pricingDocs.map((d) => (
+                                    <button
+                                      key={d.id}
+                                      onClick={() => handleViewDoc(d)}
+                                      className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-all"
+                                    >
+                                      <DollarSign className="h-3 w-3" />
+                                      {d.custom_name || 'Pricing'}
+                                      <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+                                    </button>
+                                  ))}
+                                  {otherDocs.map((d) => (
+                                    <button
+                                      key={d.id}
+                                      onClick={() => handleViewDoc(d)}
+                                      className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/50 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted transition-all"
+                                    >
+                                      <FileText className="h-3 w-3" />
+                                      {d.custom_name || d.file_name}
+                                      <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Action */}
+                            <td className="px-4 py-3 text-center">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                onClick={() => navigate(`/leads/${v.id}`)}
+                              >
+                                <ChevronRight className="h-4 w-4" />
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            ))}
           </div>
         )}
       </div>
