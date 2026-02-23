@@ -56,11 +56,12 @@ export default function Leads() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sidePanelLead, setSidePanelLead] = useState<Lead | null>(null);
+  const defaultOwner = searchParams.get('owner') ?? (!isAdmin && user ? user.id : '');
   const [filters, setFilters] = useState<LeadsFiltersState>({
     search: searchParams.get('search') ?? '',
     status: '',
     country: '',
-    owner: searchParams.get('owner') ?? '',
+    owner: defaultOwner,
     scoreMin: 0,
     scoreMax: 100,
     vendorType: '',

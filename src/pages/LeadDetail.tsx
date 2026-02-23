@@ -490,6 +490,7 @@ export default function LeadDetail() {
               onRefresh={fetchActivities}
               onLeadUpdated={fetchLead}
               isAdmin={isAdmin}
+              canEdit={canEdit}
               leadEmail={lead.email}
               leadContactName={lead.contact_name}
               leadCompanyName={lead.company_name}
@@ -506,11 +507,12 @@ export default function LeadDetail() {
               onRefresh={fetchTasks}
               onActivityLogged={fetchActivities}
               onAddTask={() => setTaskFormOpen(true)}
+              canEdit={canEdit}
             />
           </TabsContent>
 
           <TabsContent value="followups" className="mt-6">
-            <LeadFollowUpsTab leadId={id!} followUps={followUps} onRefresh={fetchFollowUps} onActivityLogged={fetchActivities} />
+            <LeadFollowUpsTab leadId={id!} followUps={followUps} onRefresh={fetchFollowUps} onActivityLogged={fetchActivities} canEdit={canEdit} />
           </TabsContent>
 
           <TabsContent value="documents" className="mt-6">
@@ -602,6 +604,7 @@ function LeadActivityTab({
   onRefresh,
   onLeadUpdated,
   isAdmin,
+  canEdit,
   leadEmail,
   leadContactName,
   leadCompanyName,
@@ -614,6 +617,7 @@ function LeadActivityTab({
   onRefresh: () => void;
   onLeadUpdated: () => void;
   isAdmin?: boolean;
+  canEdit?: boolean;
   leadEmail?: string | null;
   leadContactName?: string | null;
   leadCompanyName?: string;
@@ -655,9 +659,11 @@ function LeadActivityTab({
               </option>
             ))}
           </select>
-          <Button size="sm" onClick={() => setAddDialogOpen(true)}>
-            Add activity
-          </Button>
+          {canEdit && (
+            <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+              Add activity
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -771,6 +777,7 @@ function LeadTasksTab({
   onRefresh,
   onActivityLogged,
   onAddTask,
+  canEdit,
 }: {
   leadId: string;
   leadName: string;
@@ -778,6 +785,7 @@ function LeadTasksTab({
   onRefresh: () => void;
   onActivityLogged?: () => void;
   onAddTask?: () => void;
+  canEdit?: boolean;
 }) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -803,7 +811,7 @@ function LeadTasksTab({
     <Card className="card-shadow">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Tasks for this lead</CardTitle>
-        {onAddTask && (
+        {canEdit && onAddTask && (
           <Button size="sm" className="gap-2 gradient-primary" onClick={onAddTask}>
             Add task
           </Button>
@@ -825,6 +833,7 @@ function LeadTasksTab({
                     checked={false}
                     onChange={() => toggleTask(t.id, true)}
                     className="rounded"
+                    disabled={!canEdit}
                   />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium">{t.title}</p>
@@ -847,6 +856,7 @@ function LeadTasksTab({
                     checked
                     onChange={() => toggleTask(t.id, false)}
                     className="rounded"
+                    disabled={!canEdit}
                   />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium line-through">{t.title}</p>
@@ -870,11 +880,13 @@ function LeadFollowUpsTab({
   followUps,
   onRefresh,
   onActivityLogged,
+  canEdit,
 }: {
   leadId: string;
   followUps: LeadFollowUp[];
   onRefresh: () => void;
   onActivityLogged?: () => void;
+  canEdit?: boolean;
 }) {
   const { user } = useAuth();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -901,9 +913,11 @@ function LeadFollowUpsTab({
     <Card className="card-shadow">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Follow-ups</CardTitle>
-        <Button size="sm" onClick={() => setAddDialogOpen(true)}>
-          Schedule follow-up
-        </Button>
+        {canEdit && (
+          <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+            Schedule follow-up
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -922,9 +936,11 @@ function LeadFollowUpsTab({
                     <Badge variant="secondary" className="font-semibold tabular-nums text-success border-success/30 bg-success/10">
                       +2
                     </Badge>
-                    <Button size="sm" variant="outline" onClick={() => markDone(f.id)}>
-                      Mark done
-                    </Button>
+                    {canEdit && (
+                      <Button size="sm" variant="outline" onClick={() => markDone(f.id)}>
+                        Mark done
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

@@ -97,9 +97,10 @@ interface KanbanCardProps {
   onClick?: () => void;
   onAddActivity?: (lead: Lead) => void;
   isDragOverlay?: boolean;
+  disableDrag?: boolean;
 }
 
-export function KanbanCard({ lead, onClick, onAddActivity, isDragOverlay }: KanbanCardProps) {
+export function KanbanCard({ lead, onClick, onAddActivity, isDragOverlay, disableDrag }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -107,7 +108,7 @@ export function KanbanCard({ lead, onClick, onAddActivity, isDragOverlay }: Kanb
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: lead.id });
+  } = useSortable({ id: lead.id, disabled: disableDrag });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -120,9 +121,10 @@ export function KanbanCard({ lead, onClick, onAddActivity, isDragOverlay }: Kanb
       style={isDragOverlay ? undefined : style}
       {...attributes}
       className={cn(
-        'group relative rounded-lg border bg-card p-3 cursor-grab active:cursor-grabbing select-none',
+        'group relative rounded-lg border bg-card p-3 select-none',
         'transition-all duration-200 hover:shadow-md hover:border-border',
         'hover:-translate-y-0.5',
+        disableDrag ? 'cursor-default' : 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-30 scale-95',
         isDragOverlay && 'shadow-xl shadow-black/15 ring-2 ring-primary/30 rotate-[2deg] scale-105 z-50',
       )}
@@ -132,8 +134,8 @@ export function KanbanCard({ lead, onClick, onAddActivity, isDragOverlay }: Kanb
         onClick={onClick}
         onAddActivity={onAddActivity}
         isDragOverlay={isDragOverlay}
-        showGrip
-        gripListeners={listeners}
+        showGrip={!disableDrag}
+        gripListeners={disableDrag ? undefined : listeners}
       />
     </div>
   );

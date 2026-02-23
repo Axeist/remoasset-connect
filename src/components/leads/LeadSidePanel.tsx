@@ -59,9 +59,11 @@ interface LeadSidePanelProps {
 
 export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelProps) {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { user, role } = useAuth();
   const { toast } = useToast();
   const isAdmin = role === 'admin';
+  const isOwner = lead.owner_id === user?.id;
+  const canEdit = isAdmin || isOwner;
 
   const [fullLead, setFullLead] = useState<Lead | null>(null);
   const [activities, setActivities] = useState<LeadActivity[]>([]);
@@ -297,9 +299,11 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
               <p className="text-sm font-medium text-muted-foreground">
                 {activities.length} {activities.length === 1 ? 'activity' : 'activities'}
               </p>
-              <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setAddActivityOpen(true)}>
-                Add activity
-              </Button>
+              {canEdit && (
+                <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setAddActivityOpen(true)}>
+                  Add activity
+                </Button>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0">
               {loadingActivities ? (

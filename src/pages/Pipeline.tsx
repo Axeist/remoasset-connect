@@ -128,6 +128,9 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
   const navigate = useNavigate();
   const { user, role } = useAuth();
   const { toast } = useToast();
+  const isAdmin = role === 'admin';
+
+  const canEditLead = useCallback((lead: Lead) => isAdmin || lead.owner_id === user?.id, [isAdmin, user]);
 
   const [viewMode, setViewMode] = useState<ViewMode>('status');
   const [statuses, setStatuses] = useState<LeadStatusOption[]>([]);
@@ -577,7 +580,8 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
                           key={lead.id}
                           lead={lead}
                           onClick={() => navigate(`/leads/${lead.id}`)}
-                          onAddActivity={handleAddActivity}
+                          onAddActivity={canEditLead(lead) ? handleAddActivity : undefined}
+                          disableDrag={!canEditLead(lead)}
                         />
                       ))}
                     </SortableContext>
@@ -602,7 +606,8 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
                           key={lead.id}
                           lead={lead}
                           onClick={() => navigate(`/leads/${lead.id}`)}
-                          onAddActivity={handleAddActivity}
+                          onAddActivity={canEditLead(lead) ? handleAddActivity : undefined}
+                          disableDrag={!canEditLead(lead)}
                         />
                       ))}
                     </SortableContext>
@@ -630,7 +635,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
                       key={lead.id}
                       lead={lead}
                       onClick={() => navigate(`/leads/${lead.id}`)}
-                      onAddActivity={handleAddActivity}
+                      onAddActivity={canEditLead(lead) ? handleAddActivity : undefined}
                     />
                   ))}
                   {(activityColumns[col.id] ?? []).length === 0 && (
