@@ -30,7 +30,7 @@ MAP_ID_TO_ALPHA2['826'] = 'UK';
 function getCountryCodeFromGeo(geo: any): string {
   const rawId = geo.id != null ? String(geo.id).trim() : '';
   const id = rawId.replace(/^0+/, '') || rawId;
-  const alpha2 = MAP_ID_TO_ALPHA2[id] || MAP_ID_TO_ALPHA2[rawId] || geo.properties?.ISO_A2;
+  const alpha2 = MAP_ID_TO_ALPHA2[id] || MAP_ID_TO_ALPHA2[rawId];
   return alpha2 ? alpha2.toUpperCase() : '';
 }
 
@@ -183,13 +183,15 @@ export default function Vendors() {
   const countryStats = useMemo((): CountryStats[] => {
     const map: Record<string, { name: string; count: number }> = {};
     filteredVendors.forEach((v) => {
-      if (v.country) {
+      if (v.country && v.country.code) {
         const code = v.country.code.toUpperCase();
+        if (!code) return;
         if (!map[code]) map[code] = { name: v.country.name, count: 0 };
         map[code].count++;
       }
     });
     return Object.entries(map)
+      .filter(([, d]) => d.count > 0)
       .map(([code, d]) => ({ code, ...d }))
       .sort((a, b) => b.count - a.count);
   }, [filteredVendors]);
@@ -208,8 +210,9 @@ export default function Vendors() {
 
   const getCountryColor = useCallback((geo: any) => {
     const code = getCountryCodeFromGeo(geo);
-    const count = countryStatsMap[code] ?? 0;
-    if (count === 0) return 'var(--map-no-leads)';
+    if (!code || !(code in countryStatsMap)) return 'var(--map-no-leads)';
+    const count = countryStatsMap[code];
+    if (!count || count === 0) return 'var(--map-no-leads)';
     const intensity = count / maxVendors;
     if (intensity > 0.75) return 'hsl(var(--primary))';
     if (intensity > 0.5) return 'hsl(var(--primary) / 0.8)';
@@ -220,13 +223,14 @@ export default function Vendors() {
   const getTooltipContent = useCallback((geo: any) => {
     const code = getCountryCodeFromGeo(geo);
     const name = geo.properties?.name || geo.properties?.NAME || 'Unknown';
-    const count = countryStatsMap[code] ?? 0;
+    if (!code || !(code in countryStatsMap)) return `${name}: No vendors`;
+    const count = countryStatsMap[code];
     return count > 0 ? `${name}: ${count} vendor${count !== 1 ? 's' : ''}` : `${name}: No vendors`;
   }, [countryStatsMap]);
 
   const handleCountryClick = useCallback((geo: any) => {
     const code = getCountryCodeFromGeo(geo);
-    if (countryStatsMap[code]) {
+    if (code && code in countryStatsMap && countryStatsMap[code] > 0) {
       setCountryFilter((prev) => (prev === code ? '' : code));
     }
   }, [countryStatsMap]);
