@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { PASSWORD_REQUIREMENTS } from '@/pages/Auth';
-import { Loader2, Lock, Eye, EyeOff, CheckCircle2, ExternalLink } from 'lucide-react';
+import { Loader2, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 
 const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[\]{};':"\\|,.<>/?]).{8,}$/;
 
@@ -207,15 +207,6 @@ export default function ResetPassword() {
             </>
           )}
         </div>
-        <a
-          href="https://cuephoriatech.in"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-6 flex items-center justify-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <span>Developed by Cuephoria Tech</span>
-          <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70" />
-        </a>
       </div>
     </div>
   );
