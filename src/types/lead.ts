@@ -11,6 +11,13 @@ export interface CountryOption {
   code: string;
 }
 
+export interface LeadContact {
+  name: string;
+  email: string;
+  phone: string;
+  designation: string;
+}
+
 export interface Lead {
   id: string;
   company_name: string;
@@ -19,6 +26,7 @@ export interface Lead {
   phone: string | null;
   contact_name: string | null;
   contact_designation: string | null;
+  additional_contacts?: LeadContact[] | null;
   country_id: string | null;
   country?: { name: string; code: string } | null;
   status_id: string | null;

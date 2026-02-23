@@ -253,25 +253,25 @@ export function AddActivityDialog({
       return;
     }
 
-    // Auto-move lead to "Won" when NDA Received with document
-    if (isNda && ndaSubActivity === 'nda_received' && ndaFile) {
-      const wonName = leadStatusName?.toLowerCase() === 'won' ? null : 'Won';
-      if (wonName) {
-        const { data: wonStatus } = await supabase
-          .from('lead_statuses')
-          .select('id, name')
-          .ilike('name', 'won')
-          .single();
+    // Auto-move lead to "Closed Won" when NDA Received with document
+    const WON_PATTERNS = ['won', 'closed won', 'closed-won'];
+    const isAlreadyWon = WON_PATTERNS.includes(leadStatusName?.toLowerCase() ?? '');
+    if (isNda && ndaSubActivity === 'nda_received' && ndaFile && !isAlreadyWon) {
+      const { data: wonStatuses } = await supabase
+        .from('lead_statuses')
+        .select('id, name')
+        .ilike('name', '%won%')
+        .limit(1);
+      const wonStatus = wonStatuses?.[0];
 
-        if (wonStatus) {
-          await supabase.from('leads').update({ status_id: wonStatus.id }).eq('id', leadId);
-          await supabase.from('lead_activities').insert({
-            lead_id: leadId,
-            user_id: user.id,
-            activity_type: 'note',
-            description: `Lead automatically moved to "${wonStatus.name}" — signed NDA received`,
-          });
-        }
+      if (wonStatus) {
+        await supabase.from('leads').update({ status_id: wonStatus.id }).eq('id', leadId);
+        await supabase.from('lead_activities').insert({
+          lead_id: leadId,
+          user_id: user.id,
+          activity_type: 'note',
+          description: `Lead automatically moved to "${wonStatus.name}" — signed NDA received`,
+        });
       }
     }
 
@@ -281,11 +281,11 @@ export function AddActivityDialog({
     setSubmitting(false);
     onOpenChange(false);
 
-    const ndaAutoWon = isNda && ndaSubActivity === 'nda_received' && ndaFile && leadStatusName?.toLowerCase() !== 'won';
+    const ndaAutoWon = isNda && ndaSubActivity === 'nda_received' && ndaFile && !isAlreadyWon;
     toast({
-      title: ndaAutoWon ? 'NDA Received — Lead marked as Won!' : 'Activity added',
+      title: ndaAutoWon ? 'NDA Received — Lead marked as Closed Won!' : 'Activity added',
       description: ndaAutoWon
-        ? 'Lead status changed to Won automatically.'
+        ? 'Lead status changed to Closed Won automatically.'
         : (points > 0 ? `Lead score +${points}` : undefined),
     });
     onSuccess();

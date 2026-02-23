@@ -321,6 +321,21 @@ export default function LeadDetail() {
                   <p className="text-sm text-muted-foreground">Designation</p>
                   <p className="font-medium">{lead.contact_designation ?? '-'}</p>
                 </div>
+                {Array.isArray(lead.additional_contacts) && lead.additional_contacts.length > 0 && (
+                  <div className="space-y-2 sm:col-span-2">
+                    <p className="text-sm text-muted-foreground">Additional Contacts</p>
+                    <div className="space-y-2">
+                      {lead.additional_contacts.map((c: any, idx: number) => (
+                        <div key={idx} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-border/50 bg-muted/20 px-3 py-2 text-sm">
+                          {c.name && <span className="font-medium">{c.name}</span>}
+                          {c.designation && <span className="text-muted-foreground">({c.designation})</span>}
+                          {c.email && <span className="text-muted-foreground">{c.email}</span>}
+                          {c.phone && <span className="text-muted-foreground">{c.phone}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Country</p>
                   <p className="font-medium">
@@ -389,6 +404,21 @@ export default function LeadDetail() {
 
                         const fromStatus = statusOptions.find((s) => s.id === lead.status_id);
                         const toStatus = statusOptions.find((s) => s.id === newStatusId);
+
+                        const WON_PATTERNS = ['won', 'closed won', 'closed-won'];
+                        if (toStatus && WON_PATTERNS.includes(toStatus.name.toLowerCase())) {
+                          const missing: string[] = [];
+                          if (!lead.contact_name) missing.push('Contact Name');
+                          if (!lead.contact_designation) missing.push('Designation');
+                          if (!lead.phone) missing.push('Phone');
+                          if (!lead.email) missing.push('Email');
+                          if (!lead.website) missing.push('Website');
+                          if (missing.length > 0) {
+                            toast({ variant: 'destructive', title: 'Cannot move to Closed Won', description: `Missing required fields: ${missing.join(', ')}. Edit the lead to fill these in.` });
+                            e.target.value = lead.status_id ?? '';
+                            return;
+                          }
+                        }
 
                         setChangingStatus(true);
                         const { error } = await supabase

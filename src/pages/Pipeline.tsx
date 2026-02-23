@@ -296,6 +296,23 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     const targetStatus = statuses.find((s) => s.id === targetStatusId);
     const fromStatus = statuses.find((s) => s.id === lead.status_id);
 
+    const WON_PATTERNS = ['won', 'closed won', 'closed-won'];
+    if (targetStatus && WON_PATTERNS.includes(targetStatus.name.toLowerCase())) {
+      const { data: fullLead } = await supabase.from('leads').select('contact_name, contact_designation, phone, email, website').eq('id', leadId).single();
+      if (fullLead) {
+        const missing: string[] = [];
+        if (!fullLead.contact_name) missing.push('Contact Name');
+        if (!fullLead.contact_designation) missing.push('Designation');
+        if (!fullLead.phone) missing.push('Phone');
+        if (!fullLead.email) missing.push('Email');
+        if (!fullLead.website) missing.push('Website');
+        if (missing.length > 0) {
+          toast({ variant: 'destructive', title: 'Cannot move to Closed Won', description: `Missing required fields: ${missing.join(', ')}. Edit the lead first.` });
+          return;
+        }
+      }
+    }
+
     // Optimistic UI update
     setLeads((prev) => prev.map((l) =>
       l.id === leadId

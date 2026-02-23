@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import {
   Globe2, Search, Building2, User, Mail, Phone, FileText, ExternalLink,
   ShieldCheck, DollarSign, Star, X, TrendingUp, ZoomIn, ZoomOut, RotateCcw,
-  Filter, MapPin, ChevronRight,
+  Filter, MapPin, ChevronRight, ChevronDown, Warehouse,
 } from 'lucide-react';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 import { Tooltip } from 'react-tooltip';
@@ -34,6 +34,8 @@ function getCountryCodeFromGeo(geo: any): string {
   return alpha2 ? alpha2.toUpperCase() : '';
 }
 
+interface VendorContact { name: string; email: string; phone: string; designation: string; }
+
 interface VendorLead {
   id: string;
   company_name: string;
@@ -43,6 +45,8 @@ interface VendorLead {
   website: string | null;
   lead_score: number | null;
   vendor_types: string[] | null;
+  warehouse_available?: boolean;
+  additional_contacts?: VendorContact[] | null;
   country_id: string | null;
   country?: { name: string; code: string } | null;
   status?: { name: string; color: string } | null;
@@ -83,12 +87,16 @@ export default function Vendors() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('__won__');
   const [vendorTypeFilter, setVendorTypeFilter] = useState('');
   const [ndaFilter, setNdaFilter] = useState('');
+  const [ownerFilter, setOwnerFilter] = useState('');
+  const [warehouseFilter, setWarehouseFilter] = useState('');
+  const [docFilter, setDocFilter] = useState('');
+  const [expandedCountries, setExpandedCountries] = useState<Record<string, boolean>>({});
 
   const [countries, setCountries] = useState<{ id: string; name: string; code: string }[]>([]);
   const [statuses, setStatuses] = useState<{ id: string; name: string; color: string }[]>([]);
+  const [owners, setOwners] = useState<{ id: string; full_name: string | null }[]>([]);
 
   const [mapPosition, setMapPosition] = useState({ coordinates: [0, 20] as [number, number], zoom: 1 });
 
@@ -99,10 +107,12 @@ export default function Vendors() {
         supabase.from('lead_statuses').select('id, name, color, sort_order').order('sort_order'),
       ]);
       if (cRes.data) setCountries(cRes.data);
-      if (sRes.data) {
-        setStatuses(sRes.data);
-        const wonStatus = sRes.data.find((s) => STATUS_WON_NAMES.includes(s.name.toLowerCase()));
-        if (wonStatus) setStatusFilter(wonStatus.name);
+      if (sRes.data) setStatuses(sRes.data);
+
+      const { data: roles } = await supabase.from('user_roles').select('user_id');
+      if (roles?.length) {
+        const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', roles.map((r) => r.user_id));
+        setOwners((profiles ?? []).map((p) => ({ id: p.user_id, full_name: p.full_name })));
       }
     })();
   }, []);
@@ -110,26 +120,42 @@ export default function Vendors() {
   const fetchData = useCallback(async () => {
     setLoading(true);
 
-    const wonStatusNames = statuses
+    const wonStatusIds = statuses
       .filter((s) => STATUS_WON_NAMES.includes(s.name.toLowerCase()))
       .map((s) => s.id);
 
-    const { data: leads } = await supabase
+    let query = supabase
       .from('leads')
       .select(`
         id, company_name, contact_name, email, phone, website, lead_score,
-        vendor_types, country_id, owner_id, created_at,
+        vendor_types, warehouse_available, additional_contacts, country_id, owner_id, created_at,
         status:lead_statuses(name, color),
         country:countries(name, code)
       `)
       .order('company_name');
 
+    if (wonStatusIds.length > 0) {
+      query = query.in('status_id', wonStatusIds);
+    }
+
+    const { data: leads } = await query;
+
+    const rawLeads = (leads ?? []) as unknown as VendorLead[];
+    const ownerIds = [...new Set(rawLeads.map((l) => l.owner_id).filter(Boolean))] as string[];
+    let ownerMap: Record<string, { full_name: string | null }> = {};
+    if (ownerIds.length > 0) {
+      const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', ownerIds);
+      ownerMap = (profiles ?? []).reduce((acc, p) => { acc[p.user_id] = { full_name: p.full_name }; return acc; }, {} as Record<string, { full_name: string | null }>);
+    }
+    const enriched = rawLeads.map((l) => ({ ...l, owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null }));
+
     const { data: docs } = await supabase
       .from('lead_documents')
       .select('id, lead_id, document_type, custom_name, file_path, file_name');
 
-    setVendors((leads ?? []) as unknown as VendorLead[]);
+    setVendors(enriched);
     setDocuments((docs ?? []) as unknown as VendorDoc[]);
+    setExpandedCountries({});
     setLoading(false);
   }, [statuses]);
 
@@ -156,29 +182,36 @@ export default function Vendors() {
     return vendors.filter((v) => {
       if (search) {
         const q = search.toLowerCase();
-        const match = [v.company_name, v.contact_name, v.email]
+        const match = [v.company_name, v.contact_name, v.email, v.owner?.full_name]
           .filter(Boolean)
           .some((f) => f!.toLowerCase().includes(q));
         if (!match) return false;
       }
       if (countryFilter && v.country?.code !== countryFilter) return false;
-      if (statusFilter) {
-        if (statusFilter === '__won__') {
-          if (!STATUS_WON_NAMES.includes((v.status?.name ?? '').toLowerCase())) return false;
-        } else {
-          if (v.status?.name !== statusFilter) return false;
-        }
+      if (ownerFilter) {
+        if (ownerFilter === '__unassigned__') { if (v.owner_id) return false; }
+        else if (v.owner_id !== ownerFilter) return false;
       }
       if (vendorTypeFilter && !(v.vendor_types ?? []).includes(vendorTypeFilter)) return false;
+      if (warehouseFilter) {
+        if (warehouseFilter === 'yes' && !v.warehouse_available) return false;
+        if (warehouseFilter === 'no' && v.warehouse_available) return false;
+      }
       if (ndaFilter) {
         const docs = docsByLead[v.id] ?? [];
         const hasNda = docs.some((d) => d.document_type === 'nda');
         if (ndaFilter === 'has_nda' && !hasNda) return false;
         if (ndaFilter === 'no_nda' && hasNda) return false;
       }
+      if (docFilter) {
+        const docs = docsByLead[v.id] ?? [];
+        if (docFilter === 'has_pricing' && !docs.some((d) => d.document_type === 'pricing')) return false;
+        if (docFilter === 'has_docs' && docs.length === 0) return false;
+        if (docFilter === 'no_docs' && docs.length > 0) return false;
+      }
       return true;
     });
-  }, [vendors, search, countryFilter, statusFilter, vendorTypeFilter, ndaFilter, docsByLead]);
+  }, [vendors, search, countryFilter, ownerFilter, vendorTypeFilter, warehouseFilter, ndaFilter, docFilter, docsByLead]);
 
   const countryStats = useMemo((): CountryStats[] => {
     const map: Record<string, { name: string; count: number }> = {};
@@ -244,21 +277,21 @@ export default function Vendors() {
     window.open(data.signedUrl, '_blank', 'noopener');
   };
 
-  const wonStatusName = statuses.find((s) => STATUS_WON_NAMES.includes(s.name.toLowerCase()))?.name ?? '';
-  const activeFilterCount = [search, countryFilter, vendorTypeFilter, ndaFilter].filter(Boolean).length
-    + (statusFilter && statusFilter !== wonStatusName && statusFilter !== '__won__' ? 1 : 0);
+  const activeFilterCount = [search, countryFilter, vendorTypeFilter, ndaFilter, ownerFilter, warehouseFilter, docFilter].filter(Boolean).length;
 
   const clearFilters = () => {
     setSearch('');
     setCountryFilter('');
-    setStatusFilter(wonStatusName || '__won__');
     setVendorTypeFilter('');
     setNdaFilter('');
+    setOwnerFilter('');
+    setWarehouseFilter('');
+    setDocFilter('');
   };
 
-  const wonVendors = filteredVendors.filter((v) => STATUS_WON_NAMES.includes((v.status?.name ?? '').toLowerCase()));
   const withNda = filteredVendors.filter((v) => (docsByLead[v.id] ?? []).some((d) => d.document_type === 'nda'));
   const withPricing = filteredVendors.filter((v) => (docsByLead[v.id] ?? []).some((d) => d.document_type === 'pricing'));
+  const withWarehouse = filteredVendors.filter((v) => v.warehouse_available);
 
   const vendorsByCountry = useMemo(() => {
     const groups: { country: string; code: string; vendors: VendorLead[] }[] = [];
@@ -275,6 +308,18 @@ export default function Vendors() {
       .forEach(([code, vendors]) => groups.push({ country: nameMap[code], code, vendors }));
     return groups;
   }, [filteredVendors]);
+
+  const toggleCountry = useCallback((code: string) => {
+    setExpandedCountries((prev) => ({ ...prev, [code]: !prev[code] }));
+  }, []);
+
+  const expandAll = useCallback(() => {
+    const all: Record<string, boolean> = {};
+    vendorsByCountry.forEach((g) => { all[g.code] = true; });
+    setExpandedCountries(all);
+  }, [vendorsByCountry]);
+
+  const collapseAll = useCallback(() => setExpandedCountries({}), []);
 
   return (
     <AppLayout>
@@ -306,18 +351,7 @@ export default function Vendors() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{filteredVendors.length}</p>
-                <p className="text-xs text-muted-foreground">Total Vendors</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10 text-green-600">
-                <Star className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{wonVendors.length}</p>
-                <p className="text-xs text-muted-foreground">Closed / Won</p>
+                <p className="text-xs text-muted-foreground">Closed / Won Vendors</p>
               </div>
             </CardContent>
           </Card>
@@ -340,6 +374,17 @@ export default function Vendors() {
               <div>
                 <p className="text-2xl font-bold">{withPricing.length}</p>
                 <p className="text-xs text-muted-foreground">Pricing Available</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-500/10 text-teal-600">
+                <Warehouse className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{withWarehouse.length}</p>
+                <p className="text-xs text-muted-foreground">Warehouse Available</p>
               </div>
             </CardContent>
           </Card>
@@ -468,27 +513,27 @@ export default function Vendors() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All Countries</SelectItem>
-                  {countries.map((c) => (
-                    <SelectItem key={c.id} value={c.code}>{c.name}</SelectItem>
+                  {countryStats.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>{c.name} ({c.count})</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={statusFilter || '__all__'} onValueChange={(v) => setStatusFilter(v === '__all__' ? '' : v)}>
-                <SelectTrigger className="w-[160px] h-10">
-                  <SelectValue placeholder="All Statuses" />
+              <Select value={ownerFilter || '__all__'} onValueChange={(v) => setOwnerFilter(v === '__all__' ? '' : v)}>
+                <SelectTrigger className="w-[180px] h-10">
+                  <SelectValue placeholder="All Owners" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">All Statuses</SelectItem>
-                  <SelectItem value="__won__">Closed / Won</SelectItem>
-                  {statuses.map((s) => (
-                    <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                  <SelectItem value="__all__">All Owners</SelectItem>
+                  <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                  {owners.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>{o.full_name || 'Unnamed'}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {allVendorTypes.length > 0 && (
                 <Select value={vendorTypeFilter || '__all__'} onValueChange={(v) => setVendorTypeFilter(v === '__all__' ? '' : v)}>
                   <SelectTrigger className="w-[160px] h-10">
-                    <SelectValue placeholder="Vendor Type" />
+                    <SelectValue placeholder="All Types" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">All Types</SelectItem>
@@ -499,13 +544,34 @@ export default function Vendors() {
                 </Select>
               )}
               <Select value={ndaFilter || '__all__'} onValueChange={(v) => setNdaFilter(v === '__all__' ? '' : v)}>
-                <SelectTrigger className="w-[150px] h-10">
-                  <SelectValue placeholder="NDA Status" />
+                <SelectTrigger className="w-[140px] h-10">
+                  <SelectValue placeholder="NDA" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All NDA</SelectItem>
                   <SelectItem value="has_nda">NDA Signed</SelectItem>
                   <SelectItem value="no_nda">No NDA</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={docFilter || '__all__'} onValueChange={(v) => setDocFilter(v === '__all__' ? '' : v)}>
+                <SelectTrigger className="w-[155px] h-10">
+                  <SelectValue placeholder="Documents" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Documents</SelectItem>
+                  <SelectItem value="has_pricing">Has Pricing</SelectItem>
+                  <SelectItem value="has_docs">Has Documents</SelectItem>
+                  <SelectItem value="no_docs">No Documents</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={warehouseFilter || '__all__'} onValueChange={(v) => setWarehouseFilter(v === '__all__' ? '' : v)}>
+                <SelectTrigger className="w-[155px] h-10">
+                  <SelectValue placeholder="Warehouse" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Warehouse</SelectItem>
+                  <SelectItem value="yes">Has Warehouse</SelectItem>
+                  <SelectItem value="no">No Warehouse</SelectItem>
                 </SelectContent>
               </Select>
               {activeFilterCount > 0 && (
@@ -532,11 +598,25 @@ export default function Vendors() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
-            {vendorsByCountry.map((group) => (
+          <div className="space-y-3">
+            {/* Expand / Collapse controls */}
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">{vendorsByCountry.length} countr{vendorsByCountry.length !== 1 ? 'ies' : 'y'}</p>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={expandAll} className="text-xs h-7">Expand All</Button>
+                <Button variant="ghost" size="sm" onClick={collapseAll} className="text-xs h-7">Collapse All</Button>
+              </div>
+            </div>
+
+            {vendorsByCountry.map((group) => {
+              const isExpanded = expandedCountries[group.code] ?? false;
+              return (
               <Card key={group.code} className="overflow-hidden">
-                {/* Country header */}
-                <div className="flex items-center justify-between gap-3 bg-muted/40 px-5 py-3 border-b">
+                {/* Country header — clickable to expand/collapse */}
+                <button
+                  onClick={() => toggleCountry(group.code)}
+                  className="flex items-center justify-between gap-3 bg-muted/40 px-5 py-3 border-b w-full text-left hover:bg-muted/60 transition-colors"
+                >
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       <MapPin className="h-4 w-4" />
@@ -544,9 +624,11 @@ export default function Vendors() {
                     <h3 className="text-sm font-bold text-foreground">{group.country}</h3>
                     <Badge variant="secondary" className="text-xs">{group.vendors.length} vendor{group.vendors.length !== 1 ? 's' : ''}</Badge>
                   </div>
-                </div>
+                  <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', isExpanded && 'rotate-180')} />
+                </button>
 
-                {/* Table */}
+                {/* Table — collapsible */}
+                {isExpanded && (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -554,7 +636,7 @@ export default function Vendors() {
                         <th className="px-4 py-2.5 text-left">Company</th>
                         <th className="px-4 py-2.5 text-left">Contact</th>
                         <th className="px-4 py-2.5 text-left">Type</th>
-                        <th className="px-4 py-2.5 text-left">Status</th>
+                        <th className="px-4 py-2.5 text-left">Owner</th>
                         <th className="px-4 py-2.5 text-center">Score</th>
                         <th className="px-4 py-2.5 text-left">Documents</th>
                         <th className="px-4 py-2.5 text-center w-[60px]"></th>
@@ -592,7 +674,7 @@ export default function Vendors() {
                             </td>
 
                             {/* Contact */}
-                            <td className="px-4 py-3 max-w-[200px]">
+                            <td className="px-4 py-3 max-w-[220px]">
                               {v.contact_name && (
                                 <p className="text-foreground text-xs font-medium truncate">{v.contact_name}</p>
                               )}
@@ -606,6 +688,11 @@ export default function Vendors() {
                                 <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
                                   <Phone className="h-3 w-3 shrink-0" />
                                   {v.phone}
+                                </p>
+                              )}
+                              {Array.isArray(v.additional_contacts) && v.additional_contacts.length > 0 && (
+                                <p className="text-[10px] text-primary/70 mt-1 font-medium">
+                                  +{v.additional_contacts.length} more contact{v.additional_contacts.length !== 1 ? 's' : ''}
                                 </p>
                               )}
                             </td>
@@ -627,14 +714,12 @@ export default function Vendors() {
                               </div>
                             </td>
 
-                            {/* Status */}
+                            {/* Owner */}
                             <td className="px-4 py-3">
-                              {v.status ? (
-                                <Badge className="border-0 text-white text-[11px] font-semibold shadow-sm" style={{ backgroundColor: v.status.color }}>
-                                  {v.status.name}
-                                </Badge>
+                              {v.owner?.full_name ? (
+                                <span className="text-xs font-medium text-foreground">{v.owner.full_name}</span>
                               ) : (
-                                <span className="text-xs text-muted-foreground/40">—</span>
+                                <span className="text-xs text-muted-foreground/40">Unassigned</span>
                               )}
                             </td>
 
@@ -710,8 +795,10 @@ export default function Vendors() {
                     </tbody>
                   </table>
                 </div>
+                )}
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

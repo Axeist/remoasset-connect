@@ -25,9 +25,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Lead, LeadStatusOption, CountryOption } from '@/types/lead';
+import type { Lead, LeadStatusOption, CountryOption, LeadContact } from '@/types/lead';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus, Trash2, UserPlus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+
+const WON_PATTERNS = ['won', 'closed won', 'closed-won'];
 
 const leadFormSchema = z.object({
   company_name: z.string().min(1, 'Company name is required'),
@@ -48,6 +51,8 @@ const leadFormSchema = z.object({
 });
 
 type LeadFormValues = z.infer<typeof leadFormSchema>;
+
+const emptyContact = (): LeadContact => ({ name: '', email: '', phone: '', designation: '' });
 
 interface LeadFormDialogProps {
   open: boolean;
@@ -83,6 +88,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
 
   const [statuses, setStatuses] = useState<LeadStatusOption[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [additionalContacts, setAdditionalContacts] = useState<LeadContact[]>([]);
   const warehouseAvailable = form.watch('warehouse_available');
 
   useEffect(() => {
@@ -120,6 +126,9 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
         warehouse_currency: (lead as any).warehouse_currency ?? 'USD',
         notes: lead.notes ?? '',
       });
+      setAdditionalContacts(
+        Array.isArray(lead.additional_contacts) ? lead.additional_contacts : []
+      );
     } else {
       form.reset({
         company_name: '',
@@ -138,11 +147,35 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
         warehouse_currency: 'USD',
         notes: '',
       });
+      setAdditionalContacts([]);
     }
   }, [lead, form, statuses.length]);
 
+  const updateContact = (idx: number, field: keyof LeadContact, value: string) => {
+    setAdditionalContacts((prev) => prev.map((c, i) => (i === idx ? { ...c, [field]: value } : c)));
+  };
+
+  const removeContact = (idx: number) => {
+    setAdditionalContacts((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const onSubmit = async (values: LeadFormValues) => {
-    const payload = {
+    const selectedStatus = statuses.find((s) => s.id === values.status_id);
+    if (selectedStatus && WON_PATTERNS.includes(selectedStatus.name.toLowerCase())) {
+      const missing: string[] = [];
+      if (!values.contact_name?.trim()) missing.push('Contact Name');
+      if (!values.contact_designation?.trim()) missing.push('Designation');
+      if (!values.phone?.trim()) missing.push('Phone');
+      if (!values.email?.trim()) missing.push('Email');
+      if (missing.length > 0) {
+        toast({ variant: 'destructive', title: 'Cannot set status to Closed Won', description: `Primary contact is incomplete: ${missing.join(', ')}` });
+        return;
+      }
+    }
+
+    const cleanContacts = additionalContacts.filter((c) => c.name.trim() || c.email.trim() || c.phone.trim());
+
+    const payload: Record<string, any> = {
       company_name: values.company_name,
       website: values.website,
       email: values.email?.trim() || null,
@@ -159,28 +192,29 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
       warehouse_currency: values.warehouse_available ? values.warehouse_currency : null,
       lead_score: 0,
       notes: values.notes?.trim() || null,
+      additional_contacts: cleanContacts,
       ...(lead ? {} : { owner_id: user?.id ?? null }),
     };
 
     if (lead) {
-      // Track changes for activity log
       const changes: string[] = [];
       if (lead.company_name !== values.company_name) changes.push(`Company name: ${lead.company_name} → ${values.company_name}`);
       if (lead.contact_name !== (values.contact_name || null)) changes.push(`Contact name: ${lead.contact_name || 'None'} → ${values.contact_name || 'None'}`);
       if (lead.email !== (values.email || null)) changes.push(`Email: ${lead.email || 'None'} → ${values.email || 'None'}`);
       if (lead.phone !== (values.phone || null)) changes.push(`Phone: ${lead.phone || 'None'} → ${values.phone || 'None'}`);
       const prevTypes = Array.isArray((lead as any).vendor_types) ? (lead as any).vendor_types : (lead as any).vendor_type ? [(lead as any).vendor_type] : [];
-      const same = prevTypes.length === values.vendor_types.length && values.vendor_types.every((t) => prevTypes.includes(t));
+      const same = prevTypes.length === values.vendor_types.length && values.vendor_types.every((t: string) => prevTypes.includes(t));
       if (!same) changes.push(`Vendor types updated`);
       if ((lead as any).warehouse_available !== values.warehouse_available) changes.push(`Warehouse available: ${(lead as any).warehouse_available ? 'Yes' : 'No'} → ${values.warehouse_available ? 'Yes' : 'No'}`);
-      
+      const prevContacts = Array.isArray(lead.additional_contacts) ? lead.additional_contacts.length : 0;
+      if (prevContacts !== cleanContacts.length) changes.push(`Additional contacts: ${prevContacts} → ${cleanContacts.length}`);
+
       const { error } = await supabase.from('leads').update(payload).eq('id', lead.id);
       if (error) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
         return;
       }
-      
-      // Log activity if there were changes
+
       if (changes.length > 0 && user) {
         await supabase.from('lead_activities').insert({
           lead_id: lead.id,
@@ -189,7 +223,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
           description: `Lead updated: ${changes.join(', ')}`,
         });
       }
-      
+
       toast({ title: 'Lead updated', description: 'Changes saved successfully.' });
     } else {
       const { error } = await supabase.from('leads').insert(payload);
@@ -244,38 +278,104 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
               )}
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                {...form.register('email')}
-                placeholder="contact@acme.com"
-              />
-              {form.formState.errors.email && (
-                <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
-              )}
+
+          {/* Primary Contact */}
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-semibold">Primary Contact</Label>
+              <Badge variant="secondary" className="text-[10px]">Used for communication</Badge>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" {...form.register('phone')} placeholder="+1 234 567 8900" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="contact_name" className="text-xs">Name</Label>
+                <Input id="contact_name" {...form.register('contact_name')} placeholder="John Doe" className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="contact_designation" className="text-xs">Designation</Label>
+                <Input id="contact_designation" {...form.register('contact_designation')} placeholder="Procurement Manager" className="h-9" />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="email" className="text-xs">Email</Label>
+                <Input id="email" type="email" {...form.register('email')} placeholder="contact@acme.com" className="h-9" />
+                {form.formState.errors.email && (
+                  <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="phone" className="text-xs">Phone</Label>
+                <Input id="phone" {...form.register('phone')} placeholder="+1 234 567 8900" className="h-9" />
+              </div>
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="contact_name">Contact name</Label>
-              <Input id="contact_name" {...form.register('contact_name')} placeholder="John Doe" />
+
+          {/* Additional Contacts */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold flex items-center gap-1.5">
+                <UserPlus className="h-3.5 w-3.5" />
+                Additional Contacts ({additionalContacts.length})
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => setAdditionalContacts((prev) => [...prev, emptyContact()])}
+              >
+                <Plus className="h-3 w-3" />
+                Add Contact
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="contact_designation">Designation</Label>
-              <Input
-                id="contact_designation"
-                {...form.register('contact_designation')}
-                placeholder="Procurement Manager"
-              />
-            </div>
+
+            {additionalContacts.map((contact, idx) => (
+              <div key={idx} className="rounded-lg border border-dashed p-3 space-y-2 relative group">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-muted-foreground font-medium">Contact #{idx + 2}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => removeContact(idx)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input
+                    placeholder="Name"
+                    value={contact.name}
+                    onChange={(e) => updateContact(idx, 'name', e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                  <Input
+                    placeholder="Designation"
+                    value={contact.designation}
+                    onChange={(e) => updateContact(idx, 'designation', e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input
+                    type="email"
+                    placeholder="Email"
+                    value={contact.email}
+                    onChange={(e) => updateContact(idx, 'email', e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                  <Input
+                    placeholder="Phone"
+                    value={contact.phone}
+                    onChange={(e) => updateContact(idx, 'phone', e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+            ))}
           </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Country *</Label>
@@ -301,7 +401,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
             </div>
             <div className="space-y-2">
               <Label>Vendor Type *</Label>
-              <p className="text-xs text-muted-foreground">Select all that apply (e.g. New Device and Refurbished)</p>
+              <p className="text-xs text-muted-foreground">Select all that apply</p>
               <div className="flex flex-wrap gap-4 pt-1">
                 {[
                   { value: 'new_device' as const, label: 'New Device' },
@@ -360,7 +460,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
               <p className="text-sm text-destructive">{form.formState.errors.status_id.message}</p>
             )}
           </div>
-          
+
           {/* Warehouse Section */}
           <div className="space-y-4 pt-2 border-t">
             <div className="flex items-center justify-between">
@@ -373,7 +473,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
                 onCheckedChange={(checked) => form.setValue('warehouse_available', checked)}
               />
             </div>
-            
+
             {warehouseAvailable && (
               <div className="space-y-4 animate-fade-in">
                 <div className="space-y-2">
@@ -384,7 +484,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
                     placeholder="Enter warehouse location"
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="warehouse_notes">Warehouse Notes</Label>
                   <Textarea
@@ -395,7 +495,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
                     className="resize-none"
                   />
                 </div>
-                
+
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="warehouse_price">Warehouse Price</Label>
