@@ -28,8 +28,10 @@ import {
   ExternalLink,
   ShieldCheck,
   Linkedin,
+  Video,
 } from 'lucide-react';
 import type { Lead } from '@/types/lead';
+import { MeetingActivityCardCompact, hasMeetingData } from '@/components/leads/MeetingActivityCard';
 
 interface LeadActivity {
   id: string;
@@ -37,8 +39,9 @@ interface LeadActivity {
   description: string;
   created_at: string;
   user_id: string;
+  google_calendar_event_id?: string | null;
   profile?: { full_name: string | null };
-  attachments?: { type: 'url' | 'file'; url: string; name?: string }[];
+  attachments?: { type: string; url: string; name?: string }[];
 }
 
 const activityTypeConfig = {
@@ -87,7 +90,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
     setLoadingActivities(true);
     const { data } = await supabase
       .from('lead_activities')
-      .select('id, activity_type, description, created_at, user_id, attachments')
+      .select('id, activity_type, description, created_at, user_id, attachments, google_calendar_event_id')
       .eq('lead_id', lead.id)
       .order('created_at', { ascending: false });
 
@@ -319,16 +322,19 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                   {activities.map((a) => {
                     const config = activityTypeConfig[a.activity_type as keyof typeof activityTypeConfig] ?? activityTypeConfig.note;
                     const Icon = config.icon;
-                    const attachments = (a.attachments ?? []) as { type: 'url' | 'file'; url: string; name?: string }[];
+                    const attachments = (a.attachments ?? []) as { type: string; url: string; name?: string }[];
+                    const isMeetingWithCalendar = a.activity_type === 'meeting' && hasMeetingData(attachments);
+                    const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
+
                     return (
                       <div key={a.id} className="flex gap-2.5 rounded-lg border bg-card p-2.5 shadow-sm hover:shadow-md transition-shadow group">
                         <div
                           className={cn(
                             'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
-                            config.color
+                            isMeetingWithCalendar ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : config.color
                           )}
                         >
-                          <Icon className="h-3.5 w-3.5" />
+                          {isMeetingWithCalendar ? <Video className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-1">
@@ -338,31 +344,42 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                                   {config.label}
                                 </span>
                               </div>
-                              <p className="text-xs text-foreground leading-relaxed">{a.description}</p>
-                              <p className="mt-1 text-[11px] text-muted-foreground">
-                                {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'MMM d, h:mm a')}
-                              </p>
-                              {attachments.length > 0 && (
-                                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                  {attachments.map((att, i) => {
-                                    let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
-                                    if (att.type === 'url' && !att.name) {
-                                      try { label = new URL(att.url).hostname; } catch { /* keep */ }
-                                    }
-                                    return (
-                                      <a
-                                        key={i}
-                                        href={att.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
-                                      >
-                                        {att.type === 'file' ? <Paperclip className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
-                                        {label}
-                                      </a>
-                                    );
-                                  })}
-                                </div>
+
+                              {isMeetingWithCalendar ? (
+                                <MeetingActivityCardCompact
+                                  description={a.description}
+                                  attachments={attachments}
+                                  createdAt={a.created_at}
+                                />
+                              ) : (
+                                <>
+                                  <p className="text-xs text-foreground leading-relaxed">{a.description}</p>
+                                  <p className="mt-1 text-[11px] text-muted-foreground">
+                                    {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'MMM d, h:mm a')}
+                                  </p>
+                                  {nonMetaAttachments.length > 0 && (
+                                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                      {nonMetaAttachments.map((att, i) => {
+                                        let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
+                                        if (att.type === 'url' && !att.name) {
+                                          try { label = new URL(att.url).hostname; } catch { /* keep */ }
+                                        }
+                                        return (
+                                          <a
+                                            key={i}
+                                            href={att.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                                          >
+                                            {att.type === 'file' ? <Paperclip className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
+                                            {label}
+                                          </a>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                             {isAdmin && (

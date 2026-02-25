@@ -14,9 +14,21 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null; user?: User | null }>;
   signOut: () => Promise<void>;
   connectGoogleCalendar: () => Promise<void>;
+  disconnectGoogleCalendar: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function captureProviderToken(session: Session | null, setToken: (t: string | null) => void) {
+  if (session?.provider_token) {
+    setToken(session.provider_token);
+    localStorage.setItem('google_access_token', session.provider_token);
+    localStorage.setItem('google_token_ts', String(Date.now()));
+  }
+  if (session?.provider_refresh_token) {
+    localStorage.setItem('google_refresh_token', session.provider_refresh_token);
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -26,16 +38,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
 
-        if (session?.provider_token) {
-          setGoogleAccessToken(session.provider_token);
-          localStorage.setItem('google_access_token', session.provider_token);
-        }
+        captureProviderToken(session, setGoogleAccessToken);
         
         if (session?.user) {
           setTimeout(() => {
@@ -47,17 +55,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
 
-      const storedGoogleToken = localStorage.getItem('google_access_token');
-      if (session?.provider_token) {
-        setGoogleAccessToken(session.provider_token);
-        localStorage.setItem('google_access_token', session.provider_token);
-      } else if (storedGoogleToken) {
-        setGoogleAccessToken(storedGoogleToken);
+      captureProviderToken(session, setGoogleAccessToken);
+
+      if (!session?.provider_token) {
+        const storedGoogleToken = localStorage.getItem('google_access_token');
+        if (storedGoogleToken) {
+          setGoogleAccessToken(storedGoogleToken);
+        }
       }
       
       if (session?.user) {
@@ -123,17 +131,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const disconnectGoogleCalendar = () => {
+    setGoogleAccessToken(null);
+    localStorage.removeItem('google_access_token');
+    localStorage.removeItem('google_token_ts');
+    localStorage.removeItem('google_refresh_token');
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
     setRole(null);
-    setGoogleAccessToken(null);
-    localStorage.removeItem('google_access_token');
+    disconnectGoogleCalendar();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, loading, googleAccessToken, signUp, signIn, signOut, connectGoogleCalendar }}>
+    <AuthContext.Provider value={{ user, session, role, loading, googleAccessToken, signUp, signIn, signOut, connectGoogleCalendar, disconnectGoogleCalendar }}>
       {children}
     </AuthContext.Provider>
   );

@@ -9,7 +9,8 @@ import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 import { AddFollowUpDialog } from '@/components/leads/AddFollowUpDialog';
 import { UploadDocumentDialog } from '@/components/leads/UploadDocumentDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
-import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin, Pencil, Check, X } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin, Pencil, Check, X, Video } from 'lucide-react';
+import { MeetingActivityCard, hasMeetingData } from '@/components/leads/MeetingActivityCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
@@ -58,8 +59,9 @@ interface LeadActivity {
   description: string;
   created_at: string;
   user_id: string;
+  google_calendar_event_id?: string | null;
   profile?: { full_name: string | null };
-  attachments?: { type: 'url' | 'file'; url: string; name?: string }[];
+  attachments?: { type: string; url: string; name?: string }[];
 }
 
 interface LeadTask {
@@ -153,7 +155,7 @@ export default function LeadDetail() {
     if (!id) return;
     const { data } = await supabase
       .from('lead_activities')
-      .select('id, activity_type, description, created_at, user_id, attachments')
+      .select('id, activity_type, description, created_at, user_id, attachments, google_calendar_event_id')
       .eq('lead_id', id)
       .order('created_at', { ascending: true });
     if (data?.length) {
@@ -782,70 +784,79 @@ function LeadActivityTab({
               {filteredActivities.map((a) => {
                 const config = activityTypeConfig[a.activity_type as keyof typeof activityTypeConfig] ?? activityTypeConfig.note;
                 const Icon = config.icon;
-                const attachments = (a.attachments ?? []) as { type: 'url' | 'file'; url: string; name?: string }[];
+                const attachments = (a.attachments ?? []) as { type: string; url: string; name?: string }[];
+                const isMeetingWithCalendar = a.activity_type === 'meeting' && hasMeetingData(attachments);
+                const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
+
                 return (
                   <div key={a.id} className="relative flex items-start gap-3 group pb-6 last:pb-0">
-                    {/* Timeline dot */}
                     <div
                       className={cn(
                         'absolute left-0 z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-background shadow-sm',
-                        config.color
+                        isMeetingWithCalendar ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : config.color
                       )}
                     >
-                      <Icon className="h-3 w-3" />
+                      {isMeetingWithCalendar ? <Video className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
                     </div>
                     <div className="flex-1 min-w-0 pl-2">
-                      <div className="rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-foreground">{a.description}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'PPp')}
-                            </p>
-                            {attachments.length > 0 && (
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {attachments.map((att, i) => {
-                                  let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
-                                  if (att.type === 'url' && !att.name) {
-                                    try { label = new URL(att.url).hostname; } catch { /* keep Link */ }
-                                  }
-                                  return (
-                                    <a
-                                      key={i}
-                                      href={att.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                                    >
-                                      {att.type === 'file' ? <Paperclip className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
-                                      {label}
-                                    </a>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Badge variant="secondary" className="font-semibold tabular-nums text-success border-success/30 bg-success/10">
-                              +{getActivityScore(a)}
-                            </Badge>
-                            {isAdmin && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 shrink-0 opacity-70 hover:opacity-100 hover:text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteActivity(a.id);
-                                }}
-                                title="Delete activity"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-xs text-muted-foreground">
+                          {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'PPp')}
+                        </p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="secondary" className="font-semibold tabular-nums text-success border-success/30 bg-success/10">
+                            +{getActivityScore(a)}
+                          </Badge>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 opacity-70 hover:opacity-100 hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteActivity(a.id);
+                              }}
+                              title="Delete activity"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
+
+                      {isMeetingWithCalendar ? (
+                        <MeetingActivityCard
+                          description={a.description}
+                          attachments={attachments}
+                          createdAt={a.created_at}
+                        />
+                      ) : (
+                        <div className="rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md">
+                          <p className="text-sm font-medium text-foreground">{a.description}</p>
+                          {nonMetaAttachments.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {nonMetaAttachments.map((att, i) => {
+                                let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
+                                if (att.type === 'url' && !att.name) {
+                                  try { label = new URL(att.url).hostname; } catch { /* keep Link */ }
+                                }
+                                return (
+                                  <a
+                                    key={i}
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                  >
+                                    {att.type === 'file' ? <Paperclip className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
+                                    {label}
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

@@ -272,13 +272,14 @@ export function AddActivityDialog({
     if (type === 'meeting' && addToCalendar && meetingStart && meetingEnd && isCalendarConnected) {
       try {
         const defaultTitle = `Meeting: ${leadCompanyName || 'Lead'}${leadContactName ? ` — ${leadContactName}` : ''}`;
+        const resolvedTitle = meetingTitle.trim() || defaultTitle;
         const allAttendees = [...meetingAttendees];
         if (leadEmail?.trim() && !allAttendees.includes(leadEmail.trim())) {
           allAttendees.unshift(leadEmail.trim());
         }
 
         const calEvent = await createCalendarEvent({
-          title: meetingTitle.trim() || defaultTitle,
+          title: resolvedTitle,
           description: effectiveDescription,
           startDateTime: new Date(meetingStart).toISOString(),
           endDateTime: new Date(meetingEnd).toISOString(),
@@ -298,8 +299,18 @@ export function AddActivityDialog({
             calAttachments.push({ type: 'url', url: meetLink, name: 'Google Meet Link' });
           }
 
+          const meetingMeta = {
+            type: 'meeting_meta' as const,
+            meetingTitle: resolvedTitle,
+            startTime: new Date(meetingStart).toISOString(),
+            endTime: new Date(meetingEnd).toISOString(),
+            attendees: allAttendees,
+            meetLink,
+            calendarLink: calEvent.htmlLink || null,
+          };
+
           const existingAttachments = attachments.length ? attachments : [];
-          const mergedAttachments = [...existingAttachments, ...calAttachments];
+          const mergedAttachments = [...existingAttachments, ...calAttachments, meetingMeta];
 
           await supabase
             .from('lead_activities')

@@ -1,8 +1,7 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3'
@@ -58,7 +57,9 @@ async function createEvent(accessToken: string, event: CalendarEventPayload) {
 
   if (!res.ok) {
     const err = await res.json()
-    throw new Error(err.error?.message || `Google Calendar API error: ${res.status}`)
+    const message = err.error?.message || `Google Calendar API error: ${res.status}`
+    console.error('Google Calendar API createEvent error:', JSON.stringify(err))
+    throw new Error(message)
   }
 
   return res.json()
@@ -75,6 +76,7 @@ async function deleteEvent(accessToken: string, eventId: string) {
 
   if (!res.ok && res.status !== 404 && res.status !== 410) {
     const err = await res.json()
+    console.error('Google Calendar API deleteEvent error:', JSON.stringify(err))
     throw new Error(err.error?.message || `Google Calendar API error: ${res.status}`)
   }
 
@@ -99,6 +101,7 @@ async function listEvents(accessToken: string, timeMin: string, timeMax: string)
 
   if (!res.ok) {
     const err = await res.json()
+    console.error('Google Calendar API listEvents error:', JSON.stringify(err))
     throw new Error(err.error?.message || `Google Calendar API error: ${res.status}`)
   }
 
@@ -111,7 +114,23 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { action, accessToken, eventData } = await req.json()
+    let body: Record<string, unknown>
+    try {
+      body = await req.json()
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON body' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    const { action, accessToken, eventData } = body as {
+      action: string
+      accessToken: string
+      eventData: Record<string, unknown>
+    }
+
+    console.log(`google-calendar: action=${action}, hasToken=${Boolean(accessToken)}, tokenLength=${accessToken?.length ?? 0}`)
 
     if (!accessToken) {
       return new Response(
@@ -124,7 +143,7 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case 'create_event':
-        result = await createEvent(accessToken, eventData)
+        result = await createEvent(accessToken, eventData as unknown as CalendarEventPayload)
         break
 
       case 'delete_event':
@@ -134,7 +153,7 @@ Deno.serve(async (req) => {
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
           )
         }
-        result = await deleteEvent(accessToken, eventData.eventId)
+        result = await deleteEvent(accessToken, eventData.eventId as string)
         break
 
       case 'list_events':
@@ -144,7 +163,7 @@ Deno.serve(async (req) => {
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
           )
         }
-        result = await listEvents(accessToken, eventData.timeMin, eventData.timeMax)
+        result = await listEvents(accessToken, eventData.timeMin as string, eventData.timeMax as string)
         break
 
       default:
@@ -158,6 +177,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
+    console.error('google-calendar edge function error:', error)
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
