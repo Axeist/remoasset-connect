@@ -9,9 +9,11 @@ interface AuthContextType {
   session: Session | null;
   role: AppRole | null;
   loading: boolean;
+  googleAccessToken: string | null;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; user?: User | null }>;
   signOut: () => Promise<void>;
+  connectGoogleCalendar: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -28,8 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+
+        if (session?.provider_token) {
+          setGoogleAccessToken(session.provider_token);
+          localStorage.setItem('google_access_token', session.provider_token);
+        }
         
-        // Defer role fetching
         if (session?.user) {
           setTimeout(() => {
             fetchUserRole(session.user.id);
@@ -44,6 +51,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+
+      const storedGoogleToken = localStorage.getItem('google_access_token');
+      if (session?.provider_token) {
+        setGoogleAccessToken(session.provider_token);
+        localStorage.setItem('google_access_token', session.provider_token);
+      } else if (storedGoogleToken) {
+        setGoogleAccessToken(storedGoogleToken);
+      }
       
       if (session?.user) {
         fetchUserRole(session.user.id);
@@ -94,15 +109,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null, user: data.user };
   };
 
+  const connectGoogleCalendar = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        scopes: 'https://www.googleapis.com/auth/calendar.events',
+        redirectTo: `${window.location.origin}/settings`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    });
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
     setRole(null);
+    setGoogleAccessToken(null);
+    localStorage.removeItem('google_access_token');
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, loading, googleAccessToken, signUp, signIn, signOut, connectGoogleCalendar }}>
       {children}
     </AuthContext.Provider>
   );

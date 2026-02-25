@@ -554,7 +554,7 @@ export default function LeadDetail() {
           </TabsContent>
 
           <TabsContent value="followups" className="mt-6">
-            <LeadFollowUpsTab leadId={id!} followUps={followUps} onRefresh={fetchFollowUps} onActivityLogged={fetchActivities} canEdit={canEdit} />
+            <LeadFollowUpsTab leadId={id!} followUps={followUps} onRefresh={fetchFollowUps} onActivityLogged={fetchActivities} canEdit={canEdit} leadCompanyName={lead.company_name} leadContactName={lead.contact_name} leadEmail={lead.email} />
           </TabsContent>
 
           <TabsContent value="documents" className="mt-6">
@@ -984,12 +984,18 @@ function LeadFollowUpsTab({
   onRefresh,
   onActivityLogged,
   canEdit,
+  leadCompanyName,
+  leadContactName,
+  leadEmail,
 }: {
   leadId: string;
   followUps: LeadFollowUp[];
   onRefresh: () => void;
   onActivityLogged?: () => void;
   canEdit?: boolean;
+  leadCompanyName?: string;
+  leadContactName?: string | null;
+  leadEmail?: string | null;
 }) {
   const { user } = useAuth();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -1070,6 +1076,9 @@ function LeadFollowUpsTab({
           onRefresh();
           onActivityLogged?.();
         }}
+        leadCompanyName={leadCompanyName}
+        leadContactName={leadContactName}
+        leadEmail={leadEmail}
       />
     </Card>
   );

@@ -38,6 +38,7 @@ export type Database = {
       follow_ups: {
         Row: {
           created_at: string
+          google_calendar_event_id: string | null
           id: string
           is_completed: boolean
           lead_id: string
@@ -48,6 +49,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          google_calendar_event_id?: string | null
           id?: string
           is_completed?: boolean
           lead_id: string
@@ -58,6 +60,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          google_calendar_event_id?: string | null
           id?: string
           is_completed?: boolean
           lead_id?: string
@@ -82,6 +85,7 @@ export type Database = {
           attachments: Json
           created_at: string
           description: string
+          google_calendar_event_id: string | null
           id: string
           lead_id: string
           user_id: string
@@ -91,6 +95,7 @@ export type Database = {
           attachments?: Json
           created_at?: string
           description: string
+          google_calendar_event_id?: string | null
           id?: string
           lead_id: string
           user_id: string
@@ -100,6 +105,7 @@ export type Database = {
           attachments?: Json
           created_at?: string
           description?: string
+          google_calendar_event_id?: string | null
           id?: string
           lead_id?: string
           user_id?: string
@@ -273,6 +279,7 @@ export type Database = {
           created_at: string
           description: string | null
           due_date: string | null
+          google_calendar_event_id: string | null
           id: string
           is_completed: boolean
           lead_id: string | null
@@ -285,6 +292,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           due_date?: string | null
+          google_calendar_event_id?: string | null
           id?: string
           is_completed?: boolean
           lead_id?: string | null
@@ -297,6 +305,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           due_date?: string | null
+          google_calendar_event_id?: string | null
           id?: string
           is_completed?: boolean
           lead_id?: string | null

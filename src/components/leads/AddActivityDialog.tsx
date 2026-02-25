@@ -22,7 +22,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getActivityScorePoints } from '@/lib/leadScore';
-import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail, MessageCircle, ShieldCheck, Linkedin } from 'lucide-react';
+import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail, MessageCircle, ShieldCheck, Linkedin, CalendarDays } from 'lucide-react';
 
 export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'whatsapp' | 'nda' | 'linkedin';
 
@@ -78,6 +80,7 @@ export function AddActivityDialog({
 }: AddActivityDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { isConnected: isCalendarConnected, createEvent: createCalendarEvent } = useGoogleCalendar();
   const [type, setType] = useState<ActivityType>('call');
   const [ndaSubActivity, setNdaSubActivity] = useState<NdaSubActivity>('nda_sent');
   const [ndaFile, setNdaFile] = useState<File | null>(null);
@@ -87,6 +90,9 @@ export function AddActivityDialog({
   const [urls, setUrls] = useState<string[]>(['']);
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [addToCalendar, setAddToCalendar] = useState(false);
+  const [meetingStart, setMeetingStart] = useState('');
+  const [meetingEnd, setMeetingEnd] = useState('');
 
   const addUrlRow = () => setUrls((u) => [...u, '']);
   const removeUrlRow = (i: number) => setUrls((u) => u.filter((_, idx) => idx !== i));
@@ -141,6 +147,9 @@ export function AddActivityDialog({
     setDescription('');
     setUrls(['']);
     setFiles([]);
+    setAddToCalendar(false);
+    setMeetingStart('');
+    setMeetingEnd('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -239,18 +248,40 @@ export function AddActivityDialog({
       attachments.push({ type: 'url', url: linkedinProfileUrl.trim(), name: 'LinkedIn Profile' });
     }
 
-    const { error } = await supabase.from('lead_activities').insert({
+    const { data: activityRow, error } = await supabase.from('lead_activities').insert({
       lead_id: leadId,
       user_id: user.id,
       activity_type: type,
       description: effectiveDescription,
       attachments: attachments.length ? attachments : [],
-    });
+    }).select('id').single();
 
     if (error) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
       setSubmitting(false);
       return;
+    }
+
+    if (type === 'meeting' && addToCalendar && meetingStart && meetingEnd && isCalendarConnected) {
+      try {
+        const calEvent = await createCalendarEvent({
+          title: `Meeting: ${leadCompanyName || 'Lead'}${leadContactName ? ` — ${leadContactName}` : ''}`,
+          description: effectiveDescription,
+          startDateTime: new Date(meetingStart).toISOString(),
+          endDateTime: new Date(meetingEnd).toISOString(),
+          attendees: leadEmail?.trim() ? [leadEmail.trim()] : [],
+        });
+
+        if (calEvent?.id && activityRow?.id) {
+          await supabase
+            .from('lead_activities')
+            .update({ google_calendar_event_id: calEvent.id })
+            .eq('id', activityRow.id);
+        }
+      } catch (calError: unknown) {
+        const message = calError instanceof Error ? calError.message : 'Unknown error';
+        toast({ variant: 'destructive', title: 'Calendar sync failed', description: message });
+      }
     }
 
     // Auto-move lead to "Closed Won" when NDA Received with document
@@ -371,6 +402,65 @@ export function AddActivityDialog({
                 <p className="text-sm text-muted-foreground">
                   Add the lead&apos;s phone number in the lead details to quickly open WhatsApp from here.
                 </p>
+              )}
+            </div>
+          )}
+
+          {type === 'meeting' && isCalendarConnected && (
+            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="add-to-calendar"
+                  checked={addToCalendar}
+                  onCheckedChange={(checked) => setAddToCalendar(checked === true)}
+                />
+                <label htmlFor="add-to-calendar" className="text-sm font-medium flex items-center gap-1.5 cursor-pointer">
+                  <CalendarDays className="h-4 w-4 text-blue-600" />
+                  Add to Google Calendar & send invite
+                </label>
+              </div>
+
+              {addToCalendar && (
+                <div className="space-y-3 pl-6">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Start *</Label>
+                      <Input
+                        type="datetime-local"
+                        value={meetingStart}
+                        onChange={(e) => {
+                          setMeetingStart(e.target.value);
+                          if (!meetingEnd && e.target.value) {
+                            const end = new Date(e.target.value);
+                            end.setMinutes(end.getMinutes() + 30);
+                            const pad = (n: number) => String(n).padStart(2, '0');
+                            setMeetingEnd(`${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}`);
+                          }
+                        }}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">End *</Label>
+                      <Input
+                        type="datetime-local"
+                        value={meetingEnd}
+                        onChange={(e) => setMeetingEnd(e.target.value)}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                  </div>
+                  {leadEmail?.trim() && (
+                    <p className="text-xs text-muted-foreground">
+                      An invite will be sent to <span className="font-medium">{leadEmail}</span>
+                    </p>
+                  )}
+                  {!leadEmail?.trim() && (
+                    <p className="text-xs text-amber-600">
+                      No lead email — the event will be created without attendees. Add the lead's email to send invites.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}

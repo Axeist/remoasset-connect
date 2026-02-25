@@ -1,5 +1,6 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProfileCard } from '@/components/settings/ProfileCard';
+import { GoogleCalendarCard } from '@/components/settings/GoogleCalendarCard';
 
 export default function Settings() {
   return (
@@ -10,6 +11,7 @@ export default function Settings() {
           <p className="text-muted-foreground mt-1">Manage your profile and preferences</p>
         </div>
         <ProfileCard />
+        <GoogleCalendarCard />
       </div>
     </AppLayout>
   );
