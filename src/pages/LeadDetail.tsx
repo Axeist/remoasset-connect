@@ -785,7 +785,8 @@ function LeadActivityTab({
                 const config = activityTypeConfig[a.activity_type as keyof typeof activityTypeConfig] ?? activityTypeConfig.note;
                 const Icon = config.icon;
                 const attachments = (a.attachments ?? []) as { type: string; url: string; name?: string }[];
-                const isMeetingWithCalendar = a.activity_type === 'meeting' && hasMeetingData(attachments);
+                const isMeeting = a.activity_type === 'meeting';
+                const isMeetingWithCalendar = isMeeting && hasMeetingData(attachments);
                 const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
 
                 return (
@@ -793,16 +794,23 @@ function LeadActivityTab({
                     <div
                       className={cn(
                         'absolute left-0 z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-background shadow-sm',
-                        isMeetingWithCalendar ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : config.color
+                        isMeeting ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : config.color
                       )}
                     >
-                      {isMeetingWithCalendar ? <Video className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
+                      {isMeeting ? <Video className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
                     </div>
                     <div className="flex-1 min-w-0 pl-2">
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <p className="text-xs text-muted-foreground">
-                          {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'PPp')}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          {isMeeting && (
+                            <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-0 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0">
+                              Meeting
+                            </Badge>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'PPp')}
+                          </p>
+                        </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <Badge variant="secondary" className="font-semibold tabular-nums text-success border-success/30 bg-success/10">
                             +{getActivityScore(a)}
@@ -830,6 +838,42 @@ function LeadActivityTab({
                           attachments={attachments}
                           createdAt={a.created_at}
                         />
+                      ) : isMeeting ? (
+                        <div className="rounded-lg border border-blue-200/50 bg-gradient-to-r from-blue-50/60 to-white dark:from-blue-950/20 dark:to-card dark:border-blue-800/30 p-3 shadow-sm transition-shadow hover:shadow-md">
+                          <div className="flex items-start gap-2">
+                            <Calendar className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{a.description}</p>
+                              {!isMeetingWithCalendar && (
+                                <p className="text-[11px] text-muted-foreground mt-1 italic">
+                                  Not synced to Google Calendar
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {nonMetaAttachments.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2 pl-6">
+                              {nonMetaAttachments.map((att, i) => {
+                                let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
+                                if (att.type === 'url' && !att.name) {
+                                  try { label = new URL(att.url).hostname; } catch { /* keep Link */ }
+                                }
+                                return (
+                                  <a
+                                    key={i}
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                  >
+                                    {att.type === 'file' ? <Paperclip className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
+                                    {label}
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <div className="rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md">
                           <p className="text-sm font-medium text-foreground">{a.description}</p>

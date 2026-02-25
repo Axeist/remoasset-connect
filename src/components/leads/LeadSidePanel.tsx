@@ -323,24 +323,33 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                     const config = activityTypeConfig[a.activity_type as keyof typeof activityTypeConfig] ?? activityTypeConfig.note;
                     const Icon = config.icon;
                     const attachments = (a.attachments ?? []) as { type: string; url: string; name?: string }[];
-                    const isMeetingWithCalendar = a.activity_type === 'meeting' && hasMeetingData(attachments);
+                    const isMeeting = a.activity_type === 'meeting';
+                    const isMeetingWithCalendar = isMeeting && hasMeetingData(attachments);
                     const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
 
                     return (
-                      <div key={a.id} className="flex gap-2.5 rounded-lg border bg-card p-2.5 shadow-sm hover:shadow-md transition-shadow group">
+                      <div key={a.id} className={cn(
+                        'flex gap-2.5 rounded-lg border p-2.5 shadow-sm hover:shadow-md transition-shadow group',
+                        isMeeting
+                          ? 'bg-gradient-to-r from-blue-50/60 to-card dark:from-blue-950/20 dark:to-card border-blue-200/50 dark:border-blue-800/30'
+                          : 'bg-card'
+                      )}>
                         <div
                           className={cn(
                             'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
-                            isMeetingWithCalendar ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : config.color
+                            isMeeting ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : config.color
                           )}
                         >
-                          {isMeetingWithCalendar ? <Video className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
+                          {isMeeting ? <Video className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-1">
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 mb-0.5">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                <span className={cn(
+                                  'text-[10px] font-semibold uppercase tracking-wider',
+                                  isMeeting ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'
+                                )}>
                                   {config.label}
                                 </span>
                               </div>
