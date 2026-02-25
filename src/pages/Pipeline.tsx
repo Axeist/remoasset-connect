@@ -48,7 +48,7 @@ import { KanbanColumn } from '@/components/pipeline/KanbanColumn';
 import { KanbanCard, StaticKanbanCard } from '@/components/pipeline/KanbanCard';
 import { StaticKanbanColumn } from '@/components/pipeline/StaticKanbanColumn';
 import { PipelineWidgets } from '@/components/pipeline/PipelineWidgets';
-import { MoveCommentDialog } from '@/components/pipeline/MoveCommentDialog';
+import { MoveCommentDialog, getTransitionMode, type TransitionMode, type StageTransitionResult } from '@/components/pipeline/MoveCommentDialog';
 import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 
 // ------- Activity columns config -------
@@ -115,6 +115,7 @@ interface PendingMove {
   targetStatusId: string | null;
   fromStatusName: string;
   toStatusName: string;
+  transitionMode: TransitionMode;
 }
 
 // ------- Page -------
@@ -311,7 +312,26 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
           return;
         }
       }
+
+      const { data: ndaActivities } = await supabase
+        .from('lead_activities')
+        .select('id')
+        .eq('lead_id', leadId)
+        .eq('activity_type', 'nda')
+        .ilike('description', '%nda received%')
+        .limit(1);
+
+      if (!ndaActivities || ndaActivities.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Cannot move to Won',
+          description: 'A signed NDA (NDA Received) activity must be logged before moving to Won stage.',
+        });
+        return;
+      }
     }
+
+    const transitionMode = targetStatus ? getTransitionMode(targetStatus.name) : 'comment_only' as TransitionMode;
 
     // Optimistic UI update
     setLeads((prev) => prev.map((l) =>
@@ -320,17 +340,18 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
         : l
     ));
 
-    // Open comment dialog instead of committing immediately
+    // Open transition dialog instead of committing immediately
     setPendingMove({
       leadId,
       lead,
       targetStatusId,
       fromStatusName: fromStatus?.name ?? 'Unassigned',
       toStatusName: targetStatus?.name ?? 'Unassigned',
+      transitionMode,
     });
   };
 
-  const confirmMove = async (comment: string) => {
+  const confirmMove = async (result: StageTransitionResult) => {
     if (!pendingMove || !user) return;
     setMoveSubmitting(true);
 
@@ -339,7 +360,6 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     const { error } = await supabase.from('leads').update({ status_id: targetStatusId }).eq('id', leadId);
     if (error) {
       toast({ variant: 'destructive', title: 'Failed to move lead', description: error.message });
-      // Revert optimistic update
       setLeads((prev) => prev.map((l) =>
         l.id === leadId ? { ...l, status_id: lead.status_id, status: lead.status } : l
       ));
@@ -348,17 +368,34 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
       return;
     }
 
-    const desc = `Lead moved from "${fromStatusName}" to "${toStatusName}" — ${comment}`;
+    const stageChangeDesc = result.activityType === 'note'
+      ? `Lead moved from "${fromStatusName}" to "${toStatusName}" — ${result.comment}`
+      : `Lead moved from "${fromStatusName}" to "${toStatusName}"`;
+
     await supabase.from('lead_activities').insert({
       lead_id: leadId,
       user_id: user.id,
       activity_type: 'note',
-      description: desc,
+      description: stageChangeDesc,
     });
+
+    if (result.activityType !== 'note') {
+      const activityDesc = result.ndaSubActivity === 'nda_sent'
+        ? `NDA Sent${result.comment ? ': ' + result.comment : ''}`
+        : result.comment;
+
+      await supabase.from('lead_activities').insert({
+        lead_id: leadId,
+        user_id: user.id,
+        activity_type: result.activityType,
+        description: activityDesc,
+      });
+    }
 
     toast({ title: 'Lead moved', description: `${lead.company_name} → ${toStatusName}` });
     setMoveSubmitting(false);
     setPendingMove(null);
+    fetchLeads();
   };
 
   const cancelMove = () => {
@@ -673,6 +710,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
         leadName={pendingMove?.lead.company_name ?? ''}
         fromStatus={pendingMove?.fromStatusName ?? ''}
         toStatus={pendingMove?.toStatusName ?? ''}
+        transitionMode={pendingMove?.transitionMode ?? 'comment_only'}
         onConfirm={confirmMove}
         onCancel={cancelMove}
         submitting={moveSubmitting}

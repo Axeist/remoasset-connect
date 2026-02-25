@@ -41,7 +41,7 @@ const leadFormSchema = z.object({
   contact_designation: z.string().optional(),
   country_id: z.string().min(1, 'Country is required').uuid('Invalid country'),
   status_id: z.string().min(1, 'Status is required').uuid('Invalid status'),
-  vendor_types: z.array(z.enum(['new_device', 'refurbished', 'rental'])).min(1, 'Select at least one vendor type'),
+  vendor_types: z.array(z.enum(['new_device', 'refurbished', 'rental', 'warehouse'])).min(1, 'Select at least one vendor type'),
   warehouse_available: z.boolean().default(false),
   warehouse_location: z.string().optional(),
   warehouse_notes: z.string().optional(),
@@ -407,6 +407,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
                   { value: 'new_device' as const, label: 'New Device' },
                   { value: 'refurbished' as const, label: 'Refurbished' },
                   { value: 'rental' as const, label: 'Rental' },
+                  { value: 'warehouse' as const, label: 'Warehouse' },
                 ].map(({ value, label }) => {
                   const types = form.watch('vendor_types') ?? [];
                   const checked = types.includes(value);
@@ -420,6 +421,9 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
                         onCheckedChange={(c) => {
                           const next = c ? [...types, value] : types.filter((t) => t !== value);
                           form.setValue('vendor_types', next);
+                          if (next.length === 1 && next[0] === 'warehouse') {
+                            form.setValue('warehouse_available', true);
+                          }
                         }}
                       />
                       {label}

@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
 import { useToast } from '@/hooks/use-toast';
+import { MoveCommentDialog, getTransitionMode, type TransitionMode, type StageTransitionResult } from '@/components/pipeline/MoveCommentDialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -95,6 +96,14 @@ export default function LeadDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
+
+  const [pendingStageMove, setPendingStageMove] = useState<{
+    newStatusId: string | null;
+    fromStatusName: string;
+    toStatusName: string;
+    transitionMode: TransitionMode;
+  } | null>(null);
+  const [stageSubmitting, setStageSubmitting] = useState(false);
 
   const isAdmin = role === 'admin';
   const isOwner = lead?.owner_id === user?.id;
@@ -418,31 +427,34 @@ export default function LeadDetail() {
                             e.target.value = lead.status_id ?? '';
                             return;
                           }
+
+                          const { data: ndaActivities } = await supabase
+                            .from('lead_activities')
+                            .select('id')
+                            .eq('lead_id', lead.id)
+                            .eq('activity_type', 'nda')
+                            .ilike('description', '%nda received%')
+                            .limit(1);
+
+                          if (!ndaActivities || ndaActivities.length === 0) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Cannot move to Won',
+                              description: 'A signed NDA (NDA Received) activity must be logged before moving to Won stage.',
+                            });
+                            e.target.value = lead.status_id ?? '';
+                            return;
+                          }
                         }
 
-                        setChangingStatus(true);
-                        const { error } = await supabase
-                          .from('leads')
-                          .update({ status_id: newStatusId })
-                          .eq('id', lead.id);
+                        const transitionMode = toStatus ? getTransitionMode(toStatus.name) : 'comment_only' as TransitionMode;
 
-                        if (error) {
-                          toast({ variant: 'destructive', title: 'Error', description: error.message });
-                          setChangingStatus(false);
-                          return;
-                        }
-
-                        await supabase.from('lead_activities').insert({
-                          lead_id: lead.id,
-                          user_id: user!.id,
-                          activity_type: 'note',
-                          description: `Lead stage changed from "${fromStatus?.name ?? 'Unassigned'}" to "${toStatus?.name ?? 'Unassigned'}"`,
+                        setPendingStageMove({
+                          newStatusId,
+                          fromStatusName: fromStatus?.name ?? 'Unassigned',
+                          toStatusName: toStatus?.name ?? 'Unassigned',
+                          transitionMode,
                         });
-
-                        toast({ title: 'Stage updated', description: `${lead.company_name} → ${toStatus?.name ?? 'Unassigned'}` });
-                        setChangingStatus(false);
-                        fetchLead();
-                        fetchActivities();
                       }}
                       className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                     >
@@ -581,6 +593,67 @@ export default function LeadDetail() {
             fetchActivities();
           }}
         />
+        <MoveCommentDialog
+          open={!!pendingStageMove}
+          leadName={lead.company_name}
+          fromStatus={pendingStageMove?.fromStatusName ?? ''}
+          toStatus={pendingStageMove?.toStatusName ?? ''}
+          transitionMode={pendingStageMove?.transitionMode ?? 'comment_only'}
+          submitting={stageSubmitting}
+          onCancel={() => {
+            setPendingStageMove(null);
+            fetchLead();
+          }}
+          onConfirm={async (result: StageTransitionResult) => {
+            if (!pendingStageMove || !user) return;
+            setStageSubmitting(true);
+
+            const { newStatusId, fromStatusName, toStatusName } = pendingStageMove;
+
+            const { error } = await supabase
+              .from('leads')
+              .update({ status_id: newStatusId })
+              .eq('id', lead.id);
+
+            if (error) {
+              toast({ variant: 'destructive', title: 'Error', description: error.message });
+              setStageSubmitting(false);
+              setPendingStageMove(null);
+              return;
+            }
+
+            const stageChangeDesc = result.activityType === 'note'
+              ? `Lead stage changed from "${fromStatusName}" to "${toStatusName}" — ${result.comment}`
+              : `Lead stage changed from "${fromStatusName}" to "${toStatusName}"`;
+
+            await supabase.from('lead_activities').insert({
+              lead_id: lead.id,
+              user_id: user.id,
+              activity_type: 'note',
+              description: stageChangeDesc,
+            });
+
+            if (result.activityType !== 'note') {
+              const activityDesc = result.ndaSubActivity === 'nda_sent'
+                ? `NDA Sent${result.comment ? ': ' + result.comment : ''}`
+                : result.comment;
+
+              await supabase.from('lead_activities').insert({
+                lead_id: lead.id,
+                user_id: user.id,
+                activity_type: result.activityType,
+                description: activityDesc,
+              });
+            }
+
+            toast({ title: 'Stage updated', description: `${lead.company_name} → ${toStatusName}` });
+            setStageSubmitting(false);
+            setPendingStageMove(null);
+            fetchLead();
+            fetchActivities();
+          }}
+        />
+
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
