@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   Linkedin,
   Video,
+  ChevronDown,
 } from 'lucide-react';
 import type { Lead } from '@/types/lead';
 import { MeetingActivityCardCompact, hasMeetingData } from '@/components/leads/MeetingActivityCard';
@@ -74,6 +75,16 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
   const [loadingActivities, setLoadingActivities] = useState(true);
   const [addActivityOpen, setAddActivityOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const fetchFullLead = async () => {
     const { data, error } = await supabase
@@ -326,84 +337,127 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                     const isMeeting = a.activity_type === 'meeting';
                     const isMeetingWithCalendar = isMeeting && hasMeetingData(attachments);
                     const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
+                    const expanded = expandedIds.has(a.id);
+                    const descPreview = a.description?.length > 80 ? a.description.slice(0, 80) + '…' : a.description;
+                    const hasMore = (a.description?.length > 80) || nonMetaAttachments.length > 0 || isMeetingWithCalendar;
 
                     return (
-                      <div key={a.id} className={cn(
-                        'flex gap-2.5 rounded-lg border p-2.5 shadow-sm hover:shadow-md transition-shadow group',
-                        isMeeting
-                          ? 'bg-gradient-to-r from-blue-50/60 to-card dark:from-blue-950/20 dark:to-card border-blue-200/50 dark:border-blue-800/30'
-                          : 'bg-card'
-                      )}>
-                        <div
-                          className={cn(
-                            'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
-                            isMeeting ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : config.color
-                          )}
-                        >
-                          {isMeeting ? <Video className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-1">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 mb-0.5">
-                                <span className={cn(
-                                  'text-[10px] font-semibold uppercase tracking-wider',
-                                  isMeeting ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'
-                                )}>
-                                  {config.label}
-                                </span>
-                              </div>
-
-                              {isMeetingWithCalendar ? (
-                                <MeetingActivityCardCompact
-                                  description={a.description}
-                                  attachments={attachments}
-                                  createdAt={a.created_at}
-                                />
-                              ) : (
-                                <>
-                                  <p className="text-xs text-foreground leading-relaxed">{a.description}</p>
-                                  <p className="mt-1 text-[11px] text-muted-foreground">
-                                    {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'MMM d, h:mm a')}
-                                  </p>
-                                  {nonMetaAttachments.length > 0 && (
-                                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                      {nonMetaAttachments.map((att, i) => {
-                                        let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
-                                        if (att.type === 'url' && !att.name) {
-                                          try { label = new URL(att.url).hostname; } catch { /* keep */ }
-                                        }
-                                        return (
-                                          <a
-                                            key={i}
-                                            href={att.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
-                                          >
-                                            {att.type === 'file' ? <Paperclip className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
-                                            {label}
-                                          </a>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                            {isAdmin && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:text-destructive transition-opacity"
-                                onClick={() => handleDeleteActivity(a.id)}
-                                title="Delete activity"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
+                      <div
+                        key={a.id}
+                        className={cn(
+                          'rounded-lg border shadow-sm transition-all group',
+                          isMeeting
+                            ? 'bg-gradient-to-r from-blue-50/60 to-card dark:from-blue-950/20 dark:to-card border-blue-200/50 dark:border-blue-800/30'
+                            : 'bg-card',
+                          hasMore ? 'cursor-pointer hover:shadow-md' : ''
+                        )}
+                        onClick={() => hasMore && toggleExpand(a.id)}
+                      >
+                        {/* Collapsed row */}
+                        <div className="flex gap-2.5 p-2.5">
+                          <div
+                            className={cn(
+                              'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
+                              isMeeting ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : config.color
                             )}
+                          >
+                            {isMeeting ? <Video className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-1">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 mb-0.5">
+                                  <span className={cn(
+                                    'text-[10px] font-semibold uppercase tracking-wider',
+                                    isMeeting ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'
+                                  )}>
+                                    {config.label}
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    · {safeFormat(a.created_at, 'MMM d, h:mm a')}
+                                  </span>
+                                </div>
+                                <p className={cn('text-xs text-foreground leading-relaxed', !expanded && 'line-clamp-2')}>
+                                  {expanded ? a.description : descPreview}
+                                </p>
+                                {!expanded && (nonMetaAttachments.length > 0 || isMeetingWithCalendar) && (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    {isMeetingWithCalendar && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 font-medium">
+                                        <Video className="h-2.5 w-2.5" />
+                                        Meet
+                                      </span>
+                                    )}
+                                    {nonMetaAttachments.length > 0 && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                                        <Paperclip className="h-2.5 w-2.5" />
+                                        {nonMetaAttachments.length}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {isAdmin && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:text-destructive transition-opacity"
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteActivity(a.id); }}
+                                    title="Delete activity"
+                                  >
+                                    <Trash2 className="h-2.5 w-2.5" />
+                                  </Button>
+                                )}
+                                {hasMore && (
+                                  <ChevronDown className={cn(
+                                    'h-3.5 w-3.5 text-muted-foreground transition-transform duration-200',
+                                    expanded && 'rotate-180'
+                                  )} />
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
+
+                        {/* Expanded detail */}
+                        {expanded && (
+                          <div className="border-t border-border/40 px-2.5 pb-2.5 pt-2 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                            <p className="text-[11px] text-muted-foreground">
+                              {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'MMM d, yyyy h:mm a')}
+                            </p>
+                            {isMeetingWithCalendar && (
+                              <MeetingActivityCardCompact
+                                description={a.description}
+                                attachments={attachments}
+                                createdAt={a.created_at}
+                              />
+                            )}
+                            {nonMetaAttachments.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {nonMetaAttachments.map((att, i) => {
+                                  let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
+                                  if (att.type === 'url' && !att.name) {
+                                    try { label = new URL(att.url).hostname; } catch { /* keep */ }
+                                  }
+                                  return (
+                                    <a
+                                      key={i}
+                                      href={att.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 rounded border bg-muted/50 px-2 py-0.5 text-[11px] text-foreground hover:bg-muted transition-colors"
+                                    >
+                                      {att.type === 'file' ? <Paperclip className="h-2.5 w-2.5 text-muted-foreground" /> : <LinkIcon className="h-2.5 w-2.5 text-muted-foreground" />}
+                                      {label}
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
