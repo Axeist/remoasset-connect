@@ -14,8 +14,12 @@ export interface CalendarEventInput {
 export interface CalendarEventResult {
   id: string;
   htmlLink: string;
+  hangoutLink?: string;
   status: string;
   summary: string;
+  conferenceData?: {
+    entryPoints?: { entryPointType: string; uri: string; label?: string }[];
+  };
 }
 
 export function useGoogleCalendar() {

@@ -29,6 +29,12 @@ async function createEvent(accessToken: string, event: CalendarEventPayload) {
       timeZone: event.timeZone || 'UTC',
     },
     attendees: event.attendees?.filter(Boolean).map((email) => ({ email })) || [],
+    conferenceData: {
+      createRequest: {
+        requestId: crypto.randomUUID(),
+        conferenceSolutionKey: { type: 'hangoutsMeet' },
+      },
+    },
     reminders: {
       useDefault: false,
       overrides: [
@@ -39,7 +45,7 @@ async function createEvent(accessToken: string, event: CalendarEventPayload) {
   }
 
   const res = await fetch(
-    `${CALENDAR_API}/calendars/primary/events?sendUpdates=all&conferenceDataVersion=0`,
+    `${CALENDAR_API}/calendars/primary/events?sendUpdates=all&conferenceDataVersion=1`,
     {
       method: 'POST',
       headers: {

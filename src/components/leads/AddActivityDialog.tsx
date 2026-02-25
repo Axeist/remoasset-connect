@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -91,8 +92,11 @@ export function AddActivityDialog({
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [addToCalendar, setAddToCalendar] = useState(false);
+  const [meetingTitle, setMeetingTitle] = useState('');
   const [meetingStart, setMeetingStart] = useState('');
   const [meetingEnd, setMeetingEnd] = useState('');
+  const [meetingAttendees, setMeetingAttendees] = useState<string[]>([]);
+  const [attendeeInput, setAttendeeInput] = useState('');
 
   const addUrlRow = () => setUrls((u) => [...u, '']);
   const removeUrlRow = (i: number) => setUrls((u) => u.filter((_, idx) => idx !== i));
@@ -148,8 +152,11 @@ export function AddActivityDialog({
     setUrls(['']);
     setFiles([]);
     setAddToCalendar(false);
+    setMeetingTitle('');
     setMeetingStart('');
     setMeetingEnd('');
+    setMeetingAttendees([]);
+    setAttendeeInput('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -264,18 +271,45 @@ export function AddActivityDialog({
 
     if (type === 'meeting' && addToCalendar && meetingStart && meetingEnd && isCalendarConnected) {
       try {
+        const defaultTitle = `Meeting: ${leadCompanyName || 'Lead'}${leadContactName ? ` — ${leadContactName}` : ''}`;
+        const allAttendees = [...meetingAttendees];
+        if (leadEmail?.trim() && !allAttendees.includes(leadEmail.trim())) {
+          allAttendees.unshift(leadEmail.trim());
+        }
+
         const calEvent = await createCalendarEvent({
-          title: `Meeting: ${leadCompanyName || 'Lead'}${leadContactName ? ` — ${leadContactName}` : ''}`,
+          title: meetingTitle.trim() || defaultTitle,
           description: effectiveDescription,
           startDateTime: new Date(meetingStart).toISOString(),
           endDateTime: new Date(meetingEnd).toISOString(),
-          attendees: leadEmail?.trim() ? [leadEmail.trim()] : [],
+          attendees: allAttendees,
         });
 
         if (calEvent?.id && activityRow?.id) {
+          const meetLink = calEvent.hangoutLink
+            || calEvent.conferenceData?.entryPoints?.find((e) => e.entryPointType === 'video')?.uri
+            || null;
+
+          const calAttachments: { type: string; url: string; name: string }[] = [];
+          if (calEvent.htmlLink) {
+            calAttachments.push({ type: 'url', url: calEvent.htmlLink, name: 'Google Calendar Event' });
+          }
+          if (meetLink) {
+            calAttachments.push({ type: 'url', url: meetLink, name: 'Google Meet Link' });
+          }
+
+          const existingAttachments = attachments.length ? attachments : [];
+          const mergedAttachments = [...existingAttachments, ...calAttachments];
+
           await supabase
             .from('lead_activities')
-            .update({ google_calendar_event_id: calEvent.id })
+            .update({
+              google_calendar_event_id: calEvent.id,
+              attachments: mergedAttachments,
+              description: meetLink
+                ? `${effectiveDescription}\n\nMeet link: ${meetLink}`
+                : effectiveDescription,
+            })
             .eq('id', activityRow.id);
         }
       } catch (calError: unknown) {
@@ -422,6 +456,16 @@ export function AddActivityDialog({
 
               {addToCalendar && (
                 <div className="space-y-3 pl-6">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Event name</Label>
+                    <Input
+                      type="text"
+                      placeholder={`Meeting: ${leadCompanyName || 'Lead'}${leadContactName ? ` — ${leadContactName}` : ''}`}
+                      value={meetingTitle}
+                      onChange={(e) => setMeetingTitle(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Start *</Label>
@@ -450,16 +494,68 @@ export function AddActivityDialog({
                       />
                     </div>
                   </div>
-                  {leadEmail?.trim() && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Attendees</Label>
+                    {leadEmail?.trim() && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Badge variant="secondary" className="text-xs font-normal gap-1 py-0.5">
+                          <Mail className="h-3 w-3" />
+                          {leadEmail} (lead)
+                        </Badge>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      {meetingAttendees.map((email, i) => (
+                        <Badge key={i} variant="outline" className="text-xs gap-1 pr-1 py-0.5">
+                          {email}
+                          <button
+                            type="button"
+                            className="ml-0.5 hover:bg-muted rounded p-0.5"
+                            onClick={() => setMeetingAttendees((prev) => prev.filter((_, idx) => idx !== i))}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        type="email"
+                        placeholder="Add attendee email..."
+                        value={attendeeInput}
+                        onChange={(e) => setAttendeeInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const email = attendeeInput.trim();
+                            if (email && email.includes('@') && !meetingAttendees.includes(email)) {
+                              setMeetingAttendees((prev) => [...prev, email]);
+                              setAttendeeInput('');
+                            }
+                          }
+                        }}
+                        className="h-8 text-sm flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2.5"
+                        onClick={() => {
+                          const email = attendeeInput.trim();
+                          if (email && email.includes('@') && !meetingAttendees.includes(email)) {
+                            setMeetingAttendees((prev) => [...prev, email]);
+                            setAttendeeInput('');
+                          }
+                        }}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      An invite will be sent to <span className="font-medium">{leadEmail}</span>
+                      Press Enter or click + to add. All attendees receive a Google Calendar invite.
                     </p>
-                  )}
-                  {!leadEmail?.trim() && (
-                    <p className="text-xs text-amber-600">
-                      No lead email — the event will be created without attendees. Add the lead's email to send invites.
-                    </p>
-                  )}
+                  </div>
                 </div>
               )}
             </div>
