@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink, Calendar, CheckSquare, Settings2, Ban, ShieldCheck, Puzzle, CalendarDays, Check, Zap } from 'lucide-react';
+import { Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink, Settings2, Ban, ShieldCheck, Puzzle, Check, Zap } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
@@ -464,30 +464,42 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="integrations" className="mt-6 space-y-6">
-            <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-background via-background to-blue-50/30 dark:to-blue-950/10">
-              <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-bl from-blue-500/5 via-indigo-500/5 to-transparent rounded-full -translate-y-1/3 translate-x-1/3" />
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-violet-500/5 to-transparent rounded-full translate-y-1/3 -translate-x-1/3" />
+            <div className="relative overflow-hidden rounded-2xl border border-border/60">
+              <div className="absolute top-0 right-0 w-80 h-80 bg-[#4285F4]/[0.03] rounded-full -translate-y-1/3 translate-x-1/3" />
+              <div className="absolute bottom-0 left-0 w-56 h-56 bg-[#34A853]/[0.03] rounded-full translate-y-1/3 -translate-x-1/3" />
+              <div className="absolute top-1/2 left-1/2 w-40 h-40 bg-[#FBBC04]/[0.02] rounded-full -translate-x-1/2 -translate-y-1/2" />
 
               <div className="relative p-8">
                 <div className="flex items-start gap-5 mb-8">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/20">
-                    <CalendarDays className="h-7 w-7 text-white" />
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white shadow-lg ring-1 ring-black/[0.08]">
+                    <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18.316 5.684H5.684v12.632h12.632V5.684z" fill="#fff" />
+                      <path d="M18.316 24l5.684-5.684h-5.684V24z" fill="#EA4335" />
+                      <path d="M24 5.684V0h-5.684v5.684H24z" fill="#188038" />
+                      <path d="M18.316 18.316H24V5.684h-5.684v12.632z" fill="#34A853" />
+                      <path d="M0 18.316v5.684h5.684v-5.684H0z" fill="#4285F4" />
+                      <path d="M0 5.684h5.684V0H0v5.684z" fill="#FBBC04" />
+                      <path d="M5.684 18.316h12.632v-5.684H5.684v5.684z" fill="#4285F4" opacity=".12" />
+                      <path d="M0 18.316h5.684V5.684H0v12.632z" fill="#FBBC04" />
+                      <path d="M5.684 5.684h12.632V0H5.684v5.684z" fill="#EA4335" opacity=".25" />
+                      <path d="M8.954 16.087c-.618-.42-1.044-1.032-1.278-1.836l1.272-.522c.132.504.36.9.684 1.188.324.288.714.432 1.17.432.468 0 .864-.156 1.188-.468.324-.312.486-.702.486-1.17 0-.48-.168-.87-.504-1.176-.336-.306-.756-.456-1.26-.456h-.78v-1.254h.702c.432 0 .798-.138 1.098-.414.3-.276.45-.636.45-1.08 0-.396-.138-.72-.414-.972s-.63-.378-1.062-.378c-.42 0-.756.126-1.008.378-.252.252-.432.564-.54.936l-1.254-.522c.168-.552.492-1.026.972-1.422.48-.396 1.086-.594 1.818-.594.54 0 1.026.114 1.458.342.432.228.768.546 1.008.954.24.408.36.87.36 1.386 0 .528-.114.984-.342 1.368a2.38 2.38 0 01-.882.888v.072c.42.216.77.54 1.05.972.28.432.42.93.42 1.494 0 .564-.144 1.068-.432 1.512a3.01 3.01 0 01-1.17 1.05c-.492.258-1.044.384-1.656.384-.72 0-1.362-.21-1.98-.63zM16.17 8.646l-1.398 1.008-.696-1.056 2.466-1.776h.96V16.2h-1.332V8.646z" fill="#4285F4" />
+                    </svg>
                   </div>
                   <div>
                     <h2 className="text-xl font-display font-bold text-foreground">Google Calendar</h2>
                     <p className="text-muted-foreground mt-1">
-                      Sync meetings, follow-ups, and tasks with Google Calendar. Invites are sent to leads automatically.
+                      Sync meetings, follow-ups, and tasks. Auto-generates Google Meet links and sends invites to leads.
                     </p>
                   </div>
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-4">
+                <div className="grid gap-8 md:grid-cols-2">
+                  <div className="space-y-5">
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium text-muted-foreground">Connection status</span>
                       {isCalendarConnected ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-700 dark:text-green-400 ring-1 ring-green-500/20">
-                          <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#34A853]/10 px-3 py-1 text-xs font-semibold text-[#188038] ring-1 ring-[#34A853]/20">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#34A853] animate-pulse" />
                           Connected
                         </span>
                       ) : (
@@ -499,19 +511,32 @@ export default function Admin() {
                     </div>
 
                     {isCalendarConnected ? (
-                      <div className="rounded-xl border border-green-500/20 bg-green-50/50 dark:bg-green-950/10 p-4 space-y-2">
-                        <div className="flex items-center gap-2 text-sm font-medium text-green-800 dark:text-green-300">
+                      <div className="rounded-xl border border-[#34A853]/20 bg-[#34A853]/[0.04] p-4 space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium text-[#188038]">
                           <Zap className="h-4 w-4" />
                           Integration active
                         </div>
-                        <p className="text-sm text-green-700/80 dark:text-green-400/70">
-                          Your team can now sync meetings and follow-ups to Google Calendar directly from lead activities.
+                        <p className="text-sm text-[#188038]/70">
+                          Your team can sync meetings and follow-ups to Google Calendar with auto-generated Meet links.
                         </p>
                       </div>
                     ) : (
-                      <Button onClick={connectGoogleCalendar} size="lg" className="gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg shadow-blue-500/20 text-white">
-                        <ExternalLink className="h-4 w-4" />
-                        Connect Google Calendar
+                      <Button
+                        onClick={connectGoogleCalendar}
+                        size="lg"
+                        className="gap-2.5 bg-[#4285F4] hover:bg-[#3367D6] shadow-md shadow-[#4285F4]/20 text-white font-medium"
+                      >
+                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
+                          <path d="M18.316 5.684H5.684v12.632h12.632V5.684z" fill="#fff" />
+                          <path d="M18.316 24l5.684-5.684h-5.684V24z" fill="#EA4335" />
+                          <path d="M24 5.684V0h-5.684v5.684H24z" fill="#188038" />
+                          <path d="M18.316 18.316H24V5.684h-5.684v12.632z" fill="#34A853" />
+                          <path d="M0 18.316v5.684h5.684v-5.684H0z" fill="#fff" />
+                          <path d="M0 5.684h5.684V0H0v5.684z" fill="#FBBC04" />
+                          <path d="M0 18.316h5.684V5.684H0v12.632z" fill="#fff" opacity=".6" />
+                          <path d="M5.684 5.684h12.632V0H5.684v5.684z" fill="#EA4335" opacity=".25" />
+                        </svg>
+                        Sign in with Google
                       </Button>
                     )}
 
@@ -529,17 +554,20 @@ export default function Admin() {
                   </div>
 
                   <div className="space-y-3">
-                    <p className="text-sm font-medium text-foreground">What it does</p>
-                    <div className="space-y-2.5">
+                    <p className="text-sm font-medium text-foreground">Capabilities</p>
+                    <div className="space-y-3">
                       {[
-                        { icon: CalendarDays, text: 'Creates calendar events for meetings' },
-                        { icon: Calendar, text: 'Syncs follow-up reminders to calendar' },
-                        { icon: Users, text: 'Sends email invites to leads automatically' },
-                        { icon: CheckSquare, text: 'Links tasks with due dates to calendar' },
+                        { color: '#4285F4', text: 'Creates calendar events for meetings' },
+                        { color: '#EA4335', text: 'Auto-generates Google Meet links' },
+                        { color: '#34A853', text: 'Sends email invites to leads' },
+                        { color: '#FBBC04', text: 'Syncs follow-up reminders to calendar' },
                       ].map((item, i) => (
                         <div key={i} className="flex items-center gap-3 text-sm text-muted-foreground">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/5 dark:bg-blue-500/10">
-                            <item.icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <div
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                            style={{ backgroundColor: `${item.color}10` }}
+                          >
+                            <Check className="h-4 w-4" style={{ color: item.color }} />
                           </div>
                           {item.text}
                         </div>
