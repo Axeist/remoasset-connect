@@ -23,6 +23,22 @@ export interface CalendarEventResult {
   };
 }
 
+/** Full event from GET /events/{id} — includes start, end, attendees */
+export interface CalendarEventFull {
+  id: string;
+  summary?: string;
+  description?: string;
+  htmlLink?: string;
+  hangoutLink?: string;
+  status: string;
+  start?: { dateTime?: string; date?: string; timeZone?: string };
+  end?: { dateTime?: string; date?: string; timeZone?: string };
+  attendees?: { email: string }[];
+  conferenceData?: {
+    entryPoints?: { entryPointType: string; uri: string; label?: string }[];
+  };
+}
+
 function getGoogleToken(): string | null {
   return localStorage.getItem('google_access_token');
 }
@@ -142,5 +158,16 @@ export function useGoogleCalendar() {
     [getToken]
   );
 
-  return { isConnected, createEvent, deleteEvent, listEvents };
+  const getEvent = useCallback(
+    async (eventId: string): Promise<CalendarEventFull> => {
+      const token = getToken();
+      return callGoogleAPI<CalendarEventFull>(
+        `${CALENDAR_API}/calendars/primary/events/${encodeURIComponent(eventId)}`,
+        token
+      );
+    },
+    [getToken]
+  );
+
+  return { isConnected, createEvent, deleteEvent, listEvents, getEvent };
 }

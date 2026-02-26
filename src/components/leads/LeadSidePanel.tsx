@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import type { Lead } from '@/types/lead';
 import { MeetingActivityCardCompact, hasMeetingData } from '@/components/leads/MeetingActivityCard';
+import { useSyncGoogleMeetingActivities } from '@/hooks/useSyncGoogleMeetingActivities';
 
 interface LeadActivity {
   id: string;
@@ -76,6 +77,8 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
   const [addActivityOpen, setAddActivityOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const googleSyncDoneRef = useRef<string | null>(null);
+  const { syncActivities } = useSyncGoogleMeetingActivities();
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -133,9 +136,23 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
     setFullLead(null);
     setActivities([]);
     setActiveTab('overview');
+    googleSyncDoneRef.current = null;
     fetchFullLead();
     fetchActivities();
   }, [lead.id]);
+
+  // When activities load, sync Google Calendar event info so the activity log displays meeting details
+  useEffect(() => {
+    if (activities.length === 0) return;
+    const needSync = activities.some(
+      (a) =>
+        a.google_calendar_event_id &&
+        !hasMeetingData((a.attachments ?? []) as { type: string; url: string; name?: string }[])
+    );
+    if (!needSync || googleSyncDoneRef.current === lead.id) return;
+    googleSyncDoneRef.current = lead.id;
+    syncActivities(activities, () => fetchActivities());
+  }, [lead.id, activities, syncActivities]);
 
   const handleDeleteActivity = async (activityId: string) => {
     const { error } = await supabase.from('lead_activities').delete().eq('id', activityId);

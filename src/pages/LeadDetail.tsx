@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { safeFormat } from '@/lib/date';
+import { useSyncGoogleMeetingActivities } from '@/hooks/useSyncGoogleMeetingActivities';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -98,6 +99,8 @@ export default function LeadDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
+  const googleSyncDoneRef = useRef<string | null>(null);
+  const { syncActivities } = useSyncGoogleMeetingActivities();
 
   const [pendingStageMove, setPendingStageMove] = useState<{
     newStatusId: string | null;
@@ -204,12 +207,26 @@ export default function LeadDetail() {
 
   useEffect(() => {
     if (!id) return;
+    googleSyncDoneRef.current = null;
     (async () => {
       setLoading(true);
       await Promise.all([fetchLead(), fetchActivities(), fetchTasks(), fetchFollowUps()]);
       setLoading(false);
     })();
   }, [id]);
+
+  // When activities load, sync Google Calendar event info for any with google_calendar_event_id so the activity log displays meeting details
+  useEffect(() => {
+    if (!id || activities.length === 0) return;
+    const needSync = activities.some(
+      (a) =>
+        a.google_calendar_event_id &&
+        !hasMeetingData((a.attachments ?? []) as { type: string; url: string; name?: string }[])
+    );
+    if (!needSync || googleSyncDoneRef.current === id) return;
+    googleSyncDoneRef.current = id;
+    syncActivities(activities, () => fetchActivities());
+  }, [id, activities, syncActivities]);
 
   const refreshAll = () => {
     fetchLead();
