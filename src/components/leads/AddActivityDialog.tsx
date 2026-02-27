@@ -51,6 +51,45 @@ const URL_REGEX = /^https?:\/\/.+/i;
 const MAX_FILES = 10;
 const MAX_FILE_SIZE_MB = 10;
 
+/** Format datetime-local value for display in meeting description */
+function formatMeetingDateTime(value: string): string {
+  if (!value) return '';
+  try {
+    return new Date(value).toLocaleString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  } catch {
+    return value;
+  }
+}
+
+/** Build stored description for a meeting: event name, time, attendees, then optional notes */
+function buildMeetingDescription(
+  meetingTitle: string,
+  meetingStart: string,
+  meetingEnd: string,
+  attendees: string[],
+  notes: string
+): string {
+  const defaultTitle = 'Meeting';
+  const title = meetingTitle.trim() || defaultTitle;
+  const lines: string[] = [`Event: ${title}`];
+  if (meetingStart && meetingEnd) {
+    lines.push(`When: ${formatMeetingDateTime(meetingStart)} – ${formatMeetingDateTime(meetingEnd)}`);
+  }
+  if (attendees.length > 0) {
+    lines.push(`Attendees: ${attendees.join(', ')}`);
+  }
+  const block = lines.join('\n');
+  const notesTrim = notes.trim();
+  return notesTrim ? `${block}\n\nNotes: ${notesTrim}` : block;
+}
+
 interface AddActivityDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -165,6 +204,7 @@ export function AddActivityDialog({
     const isNda = type === 'nda';
     const isLinkedin = type === 'linkedin';
 
+    const isMeeting = type === 'meeting';
     let effectiveDescription: string;
     if (isNda) {
       effectiveDescription = `${ndaSubActivity === 'nda_sent' ? 'NDA Sent' : 'NDA Received'}${description.trim() ? ': ' + description.trim() : ''}`;
@@ -174,11 +214,30 @@ export function AddActivityDialog({
       if (linkedinMessage.trim()) parts.push(`Message: ${linkedinMessage.trim()}`);
       if (description.trim()) parts.push(description.trim());
       effectiveDescription = parts.length > 0 ? parts.join(' | ') : 'LinkedIn outreach';
+    } else if (isMeeting) {
+      const defaultTitle = `Meeting: ${leadCompanyName || 'Lead'}${leadContactName ? ` — ${leadContactName}` : ''}`;
+      const title = meetingTitle.trim() || defaultTitle;
+      const allAttendees = [...meetingAttendees];
+      if (leadEmail?.trim() && !allAttendees.includes(leadEmail.trim())) {
+        allAttendees.unshift(leadEmail.trim());
+      }
+      effectiveDescription = buildMeetingDescription(
+        title,
+        meetingStart,
+        meetingEnd,
+        allAttendees,
+        description.trim()
+      );
     } else {
       effectiveDescription = description.trim();
     }
 
-    if (!isNda && !isLinkedin && !description.trim()) {
+    if (isMeeting) {
+      if (!meetingStart?.trim() || !meetingEnd?.trim()) {
+        toast({ variant: 'destructive', title: 'Start and end time required', description: 'Please set the meeting start and end time.' });
+        return;
+      }
+    } else if (!isNda && !isLinkedin && !description.trim()) {
       toast({ variant: 'destructive', title: 'Description required' });
       return;
     }
@@ -451,122 +510,126 @@ export function AddActivityDialog({
             </div>
           )}
 
-          {type === 'meeting' && isCalendarConnected && (
+          {type === 'meeting' && (
             <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="add-to-calendar"
-                  checked={addToCalendar}
-                  onCheckedChange={(checked) => setAddToCalendar(checked === true)}
-                />
-                <label htmlFor="add-to-calendar" className="text-sm font-medium flex items-center gap-1.5 cursor-pointer">
-                  <CalendarDays className="h-4 w-4 text-blue-600" />
-                  Add to Google Calendar & send invite
-                </label>
-              </div>
-
-              {addToCalendar && (
-                <div className="space-y-3 pl-6">
+              <p className="text-xs font-medium text-blue-700 dark:text-blue-400">
+                Meeting details are saved in the activity and shown in the log. Add notes below if needed.
+              </p>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Event name</Label>
+                  <Input
+                    type="text"
+                    placeholder={`Meeting: ${leadCompanyName || 'Lead'}${leadContactName ? ` — ${leadContactName}` : ''}`}
+                    value={meetingTitle}
+                    onChange={(e) => setMeetingTitle(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Event name</Label>
+                    <Label className="text-xs">Start *</Label>
                     <Input
-                      type="text"
-                      placeholder={`Meeting: ${leadCompanyName || 'Lead'}${leadContactName ? ` — ${leadContactName}` : ''}`}
-                      value={meetingTitle}
-                      onChange={(e) => setMeetingTitle(e.target.value)}
+                      type="datetime-local"
+                      value={meetingStart}
+                      onChange={(e) => {
+                        setMeetingStart(e.target.value);
+                        if (!meetingEnd && e.target.value) {
+                          const end = new Date(e.target.value);
+                          end.setMinutes(end.getMinutes() + 30);
+                          const pad = (n: number) => String(n).padStart(2, '0');
+                          setMeetingEnd(`${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}`);
+                        }
+                      }}
                       className="h-9 text-sm"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Start *</Label>
-                      <Input
-                        type="datetime-local"
-                        value={meetingStart}
-                        onChange={(e) => {
-                          setMeetingStart(e.target.value);
-                          if (!meetingEnd && e.target.value) {
-                            const end = new Date(e.target.value);
-                            end.setMinutes(end.getMinutes() + 30);
-                            const pad = (n: number) => String(n).padStart(2, '0');
-                            setMeetingEnd(`${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}`);
-                          }
-                        }}
-                        className="h-9 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">End *</Label>
-                      <Input
-                        type="datetime-local"
-                        value={meetingEnd}
-                        onChange={(e) => setMeetingEnd(e.target.value)}
-                        className="h-9 text-sm"
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">End *</Label>
+                    <Input
+                      type="datetime-local"
+                      value={meetingEnd}
+                      onChange={(e) => setMeetingEnd(e.target.value)}
+                      className="h-9 text-sm"
+                    />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Attendees</Label>
-                    {leadEmail?.trim() && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Badge variant="secondary" className="text-xs font-normal gap-1 py-0.5">
-                          <Mail className="h-3 w-3" />
-                          {leadEmail} (lead)
-                        </Badge>
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-1.5">
-                      {meetingAttendees.map((email, i) => (
-                        <Badge key={i} variant="outline" className="text-xs gap-1 pr-1 py-0.5">
-                          {email}
-                          <button
-                            type="button"
-                            className="ml-0.5 hover:bg-muted rounded p-0.5"
-                            onClick={() => setMeetingAttendees((prev) => prev.filter((_, idx) => idx !== i))}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Attendees</Label>
+                  {leadEmail?.trim() && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Badge variant="secondary" className="text-xs font-normal gap-1 py-0.5">
+                        <Mail className="h-3 w-3" />
+                        {leadEmail} (lead)
+                      </Badge>
                     </div>
-                    <div className="flex gap-2">
-                      <Input
-                        type="email"
-                        placeholder="Add attendee email..."
-                        value={attendeeInput}
-                        onChange={(e) => setAttendeeInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const email = attendeeInput.trim();
-                            if (email && email.includes('@') && !meetingAttendees.includes(email)) {
-                              setMeetingAttendees((prev) => [...prev, email]);
-                              setAttendeeInput('');
-                            }
-                          }
-                        }}
-                        className="h-8 text-sm flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-2.5"
-                        onClick={() => {
+                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {meetingAttendees.map((email, i) => (
+                      <Badge key={i} variant="outline" className="text-xs gap-1 pr-1 py-0.5">
+                        {email}
+                        <button
+                          type="button"
+                          className="ml-0.5 hover:bg-muted rounded p-0.5"
+                          onClick={() => setMeetingAttendees((prev) => prev.filter((_, idx) => idx !== i))}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      placeholder="Add attendee email..."
+                      value={attendeeInput}
+                      onChange={(e) => setAttendeeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
                           const email = attendeeInput.trim();
                           if (email && email.includes('@') && !meetingAttendees.includes(email)) {
                             setMeetingAttendees((prev) => [...prev, email]);
                             setAttendeeInput('');
                           }
-                        }}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                        }
+                      }}
+                      className="h-8 text-sm flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2.5"
+                      onClick={() => {
+                        const email = attendeeInput.trim();
+                        if (email && email.includes('@') && !meetingAttendees.includes(email)) {
+                          setMeetingAttendees((prev) => [...prev, email]);
+                          setAttendeeInput('');
+                        }
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  {isCalendarConnected && addToCalendar && (
                     <p className="text-xs text-muted-foreground">
                       Press Enter or click + to add. All attendees receive a Google Calendar invite.
                     </p>
-                  </div>
+                  )}
+                </div>
+              </div>
+              {isCalendarConnected && (
+                <div className="flex items-center gap-2 pt-1 border-t border-blue-200/50 dark:border-blue-800/30">
+                  <Checkbox
+                    id="add-to-calendar"
+                    checked={addToCalendar}
+                    onCheckedChange={(checked) => setAddToCalendar(checked === true)}
+                  />
+                  <label htmlFor="add-to-calendar" className="text-sm font-medium flex items-center gap-1.5 cursor-pointer">
+                    <CalendarDays className="h-4 w-4 text-blue-600" />
+                    Add to Google Calendar & send invite
+                  </label>
                 </div>
               )}
             </div>
@@ -681,13 +744,23 @@ export function AddActivityDialog({
 
           <div className="space-y-2">
             <Label htmlFor="desc">
-              {type === 'nda' || type === 'linkedin' ? 'Additional notes (optional)' : 'Description *'}
+              {type === 'nda' || type === 'linkedin'
+                ? 'Additional notes (optional)'
+                : type === 'meeting'
+                  ? 'Notes (optional)'
+                  : 'Description *'}
             </Label>
             <Textarea
               id="desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder={type === 'linkedin' ? 'Any additional context about this outreach...' : 'e.g. Had a call with customer willing to proceed...'}
+              placeholder={
+                type === 'linkedin'
+                  ? 'Any additional context about this outreach...'
+                  : type === 'meeting'
+                    ? 'e.g. Agenda, follow-up items, key takeaways...'
+                    : 'e.g. Had a call with customer willing to proceed...'
+              }
               rows={3}
               className="resize-none"
             />
