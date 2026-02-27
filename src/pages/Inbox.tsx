@@ -84,7 +84,7 @@ export default function Inbox() {
   const { user } = useAuth();
   const { avatarUrl: currentUserAvatarUrl } = useCurrentUserProfile();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { threads, loading, error, refresh, isConnected } = useInboxThreads();
+  const { threads, loading, error, refresh, isConnected, showAsLoading } = useInboxThreads();
   const gmail = useGmail();
 
   const [selected, setSelected] = useState<InboxThreadItem | null>(null);
@@ -333,7 +333,7 @@ export default function Inbox() {
                 <Button variant="outline" size="sm" onClick={refresh} className="ml-auto">Retry</Button>
               </div>
             )}
-            {loading && threads.length === 0 ? (
+            {showAsLoading ? (
               <div className="p-4 space-y-3">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <div key={i} className="flex gap-3">

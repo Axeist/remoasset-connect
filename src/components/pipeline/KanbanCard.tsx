@@ -10,7 +10,6 @@ interface KanbanCardContentProps {
   onAddActivity?: (lead: Lead) => void;
   isDragOverlay?: boolean;
   showGrip?: boolean;
-  gripListeners?: Record<string, unknown>;
 }
 
 function scoreColor(score: number | null): string {
@@ -20,13 +19,12 @@ function scoreColor(score: number | null): string {
   return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-500/15';
 }
 
-function CardContent({ lead, onClick, onAddActivity, isDragOverlay, showGrip, gripListeners }: KanbanCardContentProps) {
+function CardContent({ lead, onClick, onAddActivity, isDragOverlay, showGrip }: KanbanCardContentProps) {
   return (
     <>
       {showGrip && (
         <div
-          {...gripListeners}
-          className="absolute top-2.5 right-2 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors cursor-grab"
+          className="absolute top-2.5 right-2 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors pointer-events-none"
         >
           <GripVertical className="h-4 w-4" />
         </div>
@@ -108,7 +106,7 @@ export function KanbanCard({ lead, onClick, onAddActivity, isDragOverlay, disabl
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: lead.id, disabled: disableDrag });
+  } = useSortable({ id: lead.id, disabled: disableDrag || isDragOverlay });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -120,6 +118,7 @@ export function KanbanCard({ lead, onClick, onAddActivity, isDragOverlay, disabl
       ref={setNodeRef}
       style={isDragOverlay ? undefined : style}
       {...attributes}
+      {...(!disableDrag && !isDragOverlay ? listeners : {})}
       className={cn(
         'group relative rounded-lg border bg-card p-3 select-none',
         'transition-all duration-200 hover:shadow-md hover:border-border',
@@ -135,7 +134,6 @@ export function KanbanCard({ lead, onClick, onAddActivity, isDragOverlay, disabl
         onAddActivity={onAddActivity}
         isDragOverlay={isDragOverlay}
         showGrip={!disableDrag}
-        gripListeners={disableDrag ? undefined : listeners}
       />
     </div>
   );

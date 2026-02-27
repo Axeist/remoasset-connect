@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef, useEffect } from 'react';
+import { useCallback, useState, useRef, useLayoutEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useGmail } from '@/hooks/useGmail';
@@ -54,6 +54,7 @@ export function useInboxThreads() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasFetchedRef = useRef(false);
+  const hasCompletedInitialFetchRef = useRef(false);
   // Prevents two concurrent fetches from racing (useEffect re-fire during refresh)
   const isFetchingRef = useRef(false);
 
@@ -177,17 +178,18 @@ export function useInboxThreads() {
     } finally {
       setLoading(false);
       isFetchingRef.current = false;
+      hasCompletedInitialFetchRef.current = true;
     }
   }, [gmail.isConnected, gmail.listThreads, gmail.getThread, user?.id, fetchLeads, applyThreads]);
 
-  useEffect(() => {
+  // useLayoutEffect runs before paint so we set loading and start fetch before user sees empty state
+  useLayoutEffect(() => {
     if (gmail.isConnected && user?.id && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
       setLoading(true);
       fetchThreads();
     }
     return () => {
-      // Reset so a remount (e.g. after Strict Mode unmount or navigation back) will fetch again
       hasFetchedRef.current = false;
     };
   }, [gmail.isConnected, user?.id, fetchThreads]);
@@ -197,10 +199,17 @@ export function useInboxThreads() {
     fetchThreads();
   }, [fetchThreads]);
 
+  // Show skeletons only when we have no threads: either loading or pending first fetch (avoids blank on first load)
+  const showAsLoading =
+    threads.length === 0 &&
+    (loading ||
+      (gmail.isConnected && !!user?.id && !error && !hasCompletedInitialFetchRef.current));
+
   return {
     threads,
     leads,
     loading,
+    showAsLoading,
     error,
     refresh,
     refetch: fetchThreads,
