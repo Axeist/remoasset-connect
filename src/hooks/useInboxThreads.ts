@@ -25,10 +25,11 @@ export interface InboxThreadItem {
   from: string;
 }
 
-const THREADS_PER_LEAD = 12;
-const MAX_LEADS = 25;
-const MAX_MERGED_THREADS = 80;
-const METADATA_BATCH = 15;
+// Keep initial load fast: fewer leads, fewer threads, parallel requests
+const THREADS_PER_LEAD = 6;
+const MAX_LEADS = 12;
+const MAX_MERGED_THREADS = 30;
+const MAX_METADATA_PARALLEL = 15;
 
 export function useInboxThreads() {
   const { user, role } = useAuth();
@@ -65,36 +66,42 @@ export function useInboxThreads() {
       const leadList = await fetchLeads();
       if (leadList.length === 0) {
         setThreads([]);
+        setLoading(false);
         return;
       }
 
       const threadIdToLead = new Map<string, { leadId: string; leadName: string; leadEmail: string }>();
       const allThreadIds: string[] = [];
 
-      for (const lead of leadList) {
-        const email = lead.email!.trim();
-        try {
-          const list = await gmail.listThreads(email, THREADS_PER_LEAD);
-          for (const t of list) {
-            if (!threadIdToLead.has(t.id)) {
-              threadIdToLead.set(t.id, {
-                leadId: lead.id,
-                leadName: lead.company_name,
-                leadEmail: email,
-              });
-              allThreadIds.push(t.id);
-            }
+      // Fetch thread IDs for all leads in parallel (threads where lead is from/to = replies and sent)
+      const listResults = await Promise.allSettled(
+        leadList.map((lead) =>
+          gmail.listThreads(lead.email!.trim(), THREADS_PER_LEAD)
+        )
+      );
+      for (let i = 0; i < listResults.length; i++) {
+        const result = listResults[i];
+        const lead = leadList[i];
+        if (result.status !== 'fulfilled' || !lead?.email?.trim()) continue;
+        const email = lead.email.trim();
+        for (const t of result.value) {
+          if (!threadIdToLead.has(t.id)) {
+            threadIdToLead.set(t.id, {
+              leadId: lead.id,
+              leadName: lead.company_name,
+              leadEmail: email,
+            });
+            allThreadIds.push(t.id);
           }
-        } catch {
-          // skip this lead
         }
       }
 
       const toFetch = allThreadIds.slice(0, MAX_MERGED_THREADS);
       const results: InboxThreadItem[] = [];
 
-      for (let i = 0; i < toFetch.length; i += METADATA_BATCH) {
-        const batch = toFetch.slice(i, i + METADATA_BATCH);
+      // Fetch metadata in parallel (in one or two batches to avoid rate limit)
+      for (let i = 0; i < toFetch.length; i += MAX_METADATA_PARALLEL) {
+        const batch = toFetch.slice(i, i + MAX_METADATA_PARALLEL);
         const settled = await Promise.allSettled(
           batch.map((id) => gmail.getThread(id, 'metadata'))
         );
