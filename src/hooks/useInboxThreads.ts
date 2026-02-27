@@ -39,7 +39,7 @@ let _cacheUserId: string | null = null;
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useInboxThreads() {
-  const { user, role } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   const gmail = useGmail();
   const [leads, setLeads] = useState<InboxLead[]>([]);
 
@@ -199,10 +199,11 @@ export function useInboxThreads() {
     fetchThreads();
   }, [fetchThreads]);
 
-  // Show skeletons only when we have no threads: either loading or pending first fetch (avoids blank on first load)
+  // Show skeletons when we have no threads: auth still loading, or we're fetching, or waiting for first fetch
   const showAsLoading =
     threads.length === 0 &&
-    (loading ||
+    (authLoading ||
+      loading ||
       (gmail.isConnected && !!user?.id && !error && !hasCompletedInitialFetchRef.current));
 
   return {
