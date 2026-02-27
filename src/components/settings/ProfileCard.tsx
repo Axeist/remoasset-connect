@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { ProfileAvatarPicker } from '@/components/settings/ProfileAvatarPicker';
 import { Loader2, User, Mail } from 'lucide-react';
 
 interface ProfileRow {
@@ -24,34 +24,40 @@ export function ProfileCard() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [fullName, setFullName] = useState('');
   const [designation, setDesignation] = useState('');
   const [phone, setPhone] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
 
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, user_id, full_name, designation, phone, avatar_url, updated_at')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (error) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not load profile' });
-        setLoading(false);
-        return;
-      }
-      const row = data as ProfileRow | null;
-      if (row) {
-        setFullName(row.full_name ?? '');
-        setDesignation(row.designation ?? '');
-        setPhone(row.phone ?? '');
-        setAvatarUrl(row.avatar_url ?? '');
-      }
+  const loadProfile = useCallback(async () => {
+    if (!user) {
       setLoading(false);
-    })();
+      return;
+    }
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, user_id, full_name, designation, phone, avatar_url, updated_at')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not load profile' });
+      setLoading(false);
+      return;
+    }
+    const row = data as ProfileRow | null;
+    if (row) {
+      setFullName(row.full_name ?? '');
+      setDesignation(row.designation ?? '');
+      setPhone(row.phone ?? '');
+      setAvatarUrl(row.avatar_url ?? '');
+    }
+    setLoading(false);
   }, [user?.id, toast]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,9 +70,7 @@ export function ProfileCard() {
       phone: phone.trim() || null,
       avatar_url: avatarUrl.trim() || null,
     };
-    const { error } = await supabase
-      .from('profiles')
-      .upsert(payload, { onConflict: 'user_id' });
+    const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'user_id' });
     setSaving(false);
     if (error) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
@@ -74,6 +78,16 @@ export function ProfileCard() {
     }
     toast({ title: 'Profile updated', description: 'Your changes have been saved.' });
   };
+
+  const handleAvatarUpload = useCallback(
+    async (path: string, file: File): Promise<{ publicUrl: string } | { error: string }> => {
+      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      if (error) return { error: error.message };
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      return { publicUrl: data.publicUrl };
+    },
+    []
+  );
 
   if (loading) {
     return (
@@ -85,6 +99,8 @@ export function ProfileCard() {
     );
   }
 
+  const initials = ((fullName || user?.email) ?? 'U').slice(0, 2).toUpperCase();
+
   return (
     <>
       <Card className="card-shadow">
@@ -93,20 +109,20 @@ export function ProfileCard() {
             <User className="h-5 w-5" />
             Profile
           </CardTitle>
-          <CardDescription>Update your name, designation, and contact info. This is shown to teammates and in lead assignments.</CardDescription>
+          <CardDescription>Update your name, designation, contact info, and profile photo. Shown to teammates and in lead assignments.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={avatarUrl || undefined} alt={(fullName || user?.email) ?? ''} />
-              <AvatarFallback className="text-lg bg-primary/10 text-primary">
-                {((fullName || user?.email) ?? 'U').slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="text-sm text-muted-foreground">
-              <p>Profile photo is set via avatar URL below.</p>
-            </div>
-          </div>
+          <ProfileAvatarPicker
+            value={avatarUrl}
+            onChange={setAvatarUrl}
+            initials={initials}
+            userId={user!.id}
+            supabaseUpload={handleAvatarUpload}
+            onUploadStart={() => setUploading(true)}
+            onUploadEnd={() => setUploading(false)}
+            uploadError={(msg) => toast({ variant: 'destructive', title: 'Upload failed', description: msg })}
+            showUrlField={true}
+          />
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -149,19 +165,7 @@ export function ProfileCard() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="profile-avatar_url">Avatar URL</Label>
-              <Input
-                id="profile-avatar_url"
-                type="url"
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder="https://..."
-              />
-              <p className="text-xs text-muted-foreground">Optional. Link to a profile image.</p>
-            </div>
-
-            <Button type="submit" disabled={saving} className="gap-2">
+            <Button type="submit" disabled={saving || uploading} className="gap-2">
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               Save changes
             </Button>

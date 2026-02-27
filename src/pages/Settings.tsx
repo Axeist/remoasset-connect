@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 import { useToast } from '@/hooks/use-toast';
 import { useTheme } from 'next-themes';
+import { ProfileAvatarPicker } from '@/components/settings/ProfileAvatarPicker';
 import {
   User, Puzzle, Bell, Palette, Mail, Phone, Loader2, Check,
   ExternalLink, Zap, Shield, RefreshCw, Sun, Moon, Monitor,
@@ -62,6 +63,7 @@ export default function Settings() {
   const [designation, setDesignation] = useState('');
   const [phone, setPhone] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   // Notification prefs
   const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>(() => {
@@ -111,6 +113,16 @@ export default function Settings() {
     if (error) { toast({ variant: 'destructive', title: 'Error', description: error.message }); return; }
     toast({ title: 'Profile updated', description: 'Your changes have been saved.' });
   };
+
+  const handleAvatarUpload = useCallback(
+    async (path: string, file: File): Promise<{ publicUrl: string } | { error: string }> => {
+      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      if (error) return { error: error.message };
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      return { publicUrl: data.publicUrl };
+    },
+    []
+  );
 
   const toggleNotif = (key: string, value: boolean) => {
     const updated = { ...notifPrefs, [key]: value };
@@ -198,6 +210,18 @@ export default function Settings() {
                       <Badge variant="secondary" className="capitalize shrink-0">{role}</Badge>
                     </div>
 
+                    <ProfileAvatarPicker
+                      value={avatarUrl}
+                      onChange={setAvatarUrl}
+                      initials={initials}
+                      userId={user.id}
+                      supabaseUpload={handleAvatarUpload}
+                      onUploadStart={() => setAvatarUploading(true)}
+                      onUploadEnd={() => setAvatarUploading(false)}
+                      uploadError={(msg) => toast({ variant: 'destructive', title: 'Upload failed', description: msg })}
+                      showUrlField={true}
+                    />
+
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="s-email">Email</Label>
@@ -222,18 +246,13 @@ export default function Settings() {
                         <Label htmlFor="s-designation">Designation</Label>
                         <Input id="s-designation" value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="Sales Manager" />
                       </div>
-                      <div className="sm:col-span-2 space-y-2">
-                        <Label htmlFor="s-avatar">Avatar URL</Label>
-                        <Input id="s-avatar" type="url" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://…" />
-                        <p className="text-xs text-muted-foreground">Optional. Paste a link to any image.</p>
-                      </div>
                     </div>
 
                     <div className="flex items-center justify-between pt-2 border-t">
                       <div className="text-xs text-muted-foreground">
                         <span className="font-medium text-foreground">Signed in as</span> {user?.email}
                       </div>
-                      <Button type="submit" disabled={saving} className="gap-2">
+                      <Button type="submit" disabled={saving || avatarUploading} className="gap-2">
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                         Save changes
                       </Button>
