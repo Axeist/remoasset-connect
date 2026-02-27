@@ -65,7 +65,7 @@ export function useInboxThreads() {
     try {
       const leadList = await fetchLeads();
       if (leadList.length === 0) {
-        setThreads([]);
+        setThreads((prev) => (prev.length === 0 ? [] : prev));
         setLoading(false);
         return;
       }
@@ -142,7 +142,7 @@ export function useInboxThreads() {
       setThreads(results);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load inbox');
-      setThreads([]);
+      // Keep existing threads on error so a failed refresh doesn't clear the list
     } finally {
       setLoading(false);
     }
