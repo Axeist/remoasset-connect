@@ -18,9 +18,9 @@ export function useSyncGoogleMeetingActivities() {
   const { getEvent, isConnected } = useGoogleCalendar();
 
   const syncActivities = useCallback(
-    async (activities: ActivityForSync[], onComplete?: () => void) => {
+    async (activities: ActivityForSync[], onComplete?: (didSync?: boolean) => void) => {
       if (!isConnected || !activities.length) {
-        onComplete?.();
+        onComplete?.(false);
         return;
       }
 
@@ -28,10 +28,11 @@ export function useSyncGoogleMeetingActivities() {
         (a) => a.google_calendar_event_id && typeof a.google_calendar_event_id === 'string'
       );
       if (toSync.length === 0) {
-        onComplete?.();
+        onComplete?.(false);
         return;
       }
 
+      let didSync = false;
       for (const a of toSync) {
         const eventId = a.google_calendar_event_id!;
         try {
@@ -91,12 +92,13 @@ export function useSyncGoogleMeetingActivities() {
               ...(description ? { description } : {}),
             })
             .eq('id', a.id);
+          didSync = true;
         } catch {
           // Event may be deleted or API error — skip this activity
         }
       }
 
-      onComplete?.();
+      onComplete?.(didSync);
     },
     [getEvent, isConnected]
   );

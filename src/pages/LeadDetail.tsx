@@ -100,7 +100,7 @@ export default function LeadDetail() {
   const [deleting, setDeleting] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
   const googleSyncDoneRef = useRef<string | null>(null);
-  const { syncActivities } = useSyncGoogleMeetingActivities();
+  const { syncActivities, isCalendarConnected } = useSyncGoogleMeetingActivities();
 
   const [pendingStageMove, setPendingStageMove] = useState<{
     newStatusId: string | null;
@@ -215,7 +215,7 @@ export default function LeadDetail() {
     })();
   }, [id]);
 
-  // When activities load, sync Google Calendar event info for any with google_calendar_event_id so the activity log displays meeting details
+  // When activities load, sync Google Calendar event info for any with google_calendar_event_id so the activity log displays meeting details (e.g. previous meetings created before meeting_meta was stored)
   useEffect(() => {
     if (!id || activities.length === 0) return;
     const needSync = activities.some(
@@ -224,9 +224,11 @@ export default function LeadDetail() {
         !hasMeetingData((a.attachments ?? []) as { type: string; url: string; name?: string }[])
     );
     if (!needSync || googleSyncDoneRef.current === id) return;
-    googleSyncDoneRef.current = id;
-    syncActivities(activities, () => fetchActivities());
-  }, [id, activities, syncActivities]);
+    syncActivities(activities, (didSync) => {
+      fetchActivities();
+      if (didSync) googleSyncDoneRef.current = id;
+    });
+  }, [id, activities, syncActivities, isCalendarConnected]);
 
   const refreshAll = () => {
     fetchLead();
@@ -549,6 +551,10 @@ export default function LeadDetail() {
               currentLeadScore={lead.lead_score ?? 50}
               activities={activities}
               onRefresh={fetchActivities}
+              onRefreshMeetingInfo={() => {
+                googleSyncDoneRef.current = null;
+                fetchActivities();
+              }}
               onLeadUpdated={fetchLead}
               isAdmin={isAdmin}
               canEdit={canEdit}
@@ -724,6 +730,7 @@ function LeadActivityTab({
   currentLeadScore,
   activities,
   onRefresh,
+  onRefreshMeetingInfo,
   onLeadUpdated,
   isAdmin,
   canEdit,
@@ -737,6 +744,7 @@ function LeadActivityTab({
   currentLeadScore: number;
   activities: LeadActivity[];
   onRefresh: () => void;
+  onRefreshMeetingInfo?: () => void;
   onLeadUpdated: () => void;
   isAdmin?: boolean;
   canEdit?: boolean;
@@ -791,6 +799,22 @@ function LeadActivityTab({
               </option>
             ))}
           </select>
+          {activities.some(
+            (a) =>
+              a.activity_type === 'meeting' &&
+              a.google_calendar_event_id &&
+              !hasMeetingData((a.attachments ?? []) as { type: string; url: string; name?: string }[])
+          ) &&
+            onRefreshMeetingInfo && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onRefreshMeetingInfo()}
+                title="Fetch event name, time and attendees from Google Calendar for meetings that are missing them"
+              >
+                Refresh meeting info
+              </Button>
+            )}
           {canEdit && (
             <Button size="sm" onClick={() => setAddDialogOpen(true)}>
               Add activity

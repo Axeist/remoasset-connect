@@ -80,7 +80,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const googleSyncDoneRef = useRef<string | null>(null);
-  const { syncActivities } = useSyncGoogleMeetingActivities();
+  const { syncActivities, isCalendarConnected } = useSyncGoogleMeetingActivities();
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -143,7 +143,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
     fetchActivities();
   }, [lead.id]);
 
-  // When activities load, sync Google Calendar event info so the activity log displays meeting details
+  // When activities load, sync Google Calendar event info so the activity log displays meeting details (e.g. previous meetings)
   useEffect(() => {
     if (activities.length === 0) return;
     const needSync = activities.some(
@@ -152,9 +152,11 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
         !hasMeetingData((a.attachments ?? []) as { type: string; url: string; name?: string }[])
     );
     if (!needSync || googleSyncDoneRef.current === lead.id) return;
-    googleSyncDoneRef.current = lead.id;
-    syncActivities(activities, () => fetchActivities());
-  }, [lead.id, activities, syncActivities]);
+    syncActivities(activities, (didSync) => {
+      fetchActivities();
+      if (didSync) googleSyncDoneRef.current = lead.id;
+    });
+  }, [lead.id, activities, syncActivities, isCalendarConnected]);
 
   const handleDeleteActivity = async (activityId: string) => {
     const { error } = await supabase.from('lead_activities').delete().eq('id', activityId);
