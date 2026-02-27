@@ -209,6 +209,28 @@ export function parseGmailMessage(msg: GmailMessageRaw): ParsedGmailMessage {
 
 // ─── MIME builder ───
 
+/** Detect whether a string contains HTML tags */
+function isHtml(str: string): boolean {
+  return /<[a-z][\s\S]*>/i.test(str);
+}
+
+/** Strip HTML to plain text for the text/plain part */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function buildMime(params: {
   to: string;
   subject: string;
@@ -218,16 +240,36 @@ function buildMime(params: {
   inReplyTo?: string;
   references?: string;
 }): string {
-  const lines: string[] = [
-    `To: ${params.to}`,
-  ];
-  if (params.cc) lines.push(`Cc: ${params.cc}`);
-  if (params.bcc) lines.push(`Bcc: ${params.bcc}`);
-  lines.push(`Subject: ${params.subject}`);
-  if (params.inReplyTo) lines.push(`In-Reply-To: ${params.inReplyTo}`);
-  if (params.references) lines.push(`References: ${params.references}`);
-  lines.push('Content-Type: text/plain; charset=UTF-8', 'MIME-Version: 1.0', '', params.body);
-  return lines.join('\r\n');
+  const headers: string[] = [`To: ${params.to}`];
+  if (params.cc) headers.push(`Cc: ${params.cc}`);
+  if (params.bcc) headers.push(`Bcc: ${params.bcc}`);
+  headers.push(`Subject: ${params.subject}`);
+  if (params.inReplyTo) headers.push(`In-Reply-To: ${params.inReplyTo}`);
+  if (params.references) headers.push(`References: ${params.references}`);
+  headers.push('MIME-Version: 1.0');
+
+  if (isHtml(params.body)) {
+    // Multipart: text/plain + text/html
+    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+    const plain = stripHtml(params.body);
+    const parts = [
+      `--${boundary}`,
+      'Content-Type: text/plain; charset=UTF-8',
+      '',
+      plain,
+      `--${boundary}`,
+      'Content-Type: text/html; charset=UTF-8',
+      '',
+      params.body,
+      `--${boundary}--`,
+    ];
+    return [...headers, '', ...parts].join('\r\n');
+  }
+
+  // Plain text only
+  headers.push('Content-Type: text/plain; charset=UTF-8');
+  return [...headers, '', params.body].join('\r\n');
 }
 
 // ─── Public types ───

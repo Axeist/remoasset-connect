@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { EmailTagInput } from '@/components/ui/email-tag-input';
+import { RichTextEditor, htmlToPlainText } from '@/components/ui/rich-text-editor';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -123,14 +125,14 @@ function CcBccFieldsCompact({ cc, onCcChange, bcc, onBccChange }: {
       {showCc && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground w-7 shrink-0">Cc</span>
-          <Input type="text" placeholder="email@example.com" value={cc} onChange={(e) => onCcChange(e.target.value)} className="h-8 text-sm" />
+          <EmailTagInput value={cc} onChange={onCcChange} placeholder="Add Cc recipients" className="flex-1" />
           {!showBcc && <button type="button" className="text-xs text-primary hover:underline shrink-0" onClick={() => setShowBcc(true)}>Bcc</button>}
         </div>
       )}
       {showBcc && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground w-7 shrink-0">Bcc</span>
-          <Input type="text" placeholder="email@example.com" value={bcc} onChange={(e) => onBccChange(e.target.value)} className="h-8 text-sm" />
+          <EmailTagInput value={bcc} onChange={onBccChange} placeholder="Add Bcc recipients" className="flex-1" />
           {!showCc && <button type="button" className="text-xs text-primary hover:underline shrink-0" onClick={() => setShowCc(true)}>Cc</button>}
         </div>
       )}
@@ -257,9 +259,10 @@ export function AddActivityDialog({
       effectiveDescription = parts.length > 0 ? parts.join(' | ') : 'LinkedIn outreach';
     } else if (isEmailViaGmail) {
       const subj = emailSubject.trim() || '(No subject)';
-      const bodyPreview = description.trim().slice(0, 200);
+      const plainBody = htmlToPlainText(description);
+      const bodyPreview = plainBody.slice(0, 200);
       effectiveDescription = bodyPreview
-        ? `Email to lead: ${subj}\n\n${bodyPreview}${description.trim().length > 200 ? '…' : ''}`
+        ? `Email to lead: ${subj}\n\n${bodyPreview}${plainBody.length > 200 ? '…' : ''}`
         : `Email to lead: ${subj}`;
     } else if (isMeeting) {
       const defaultTitle = `Meeting: ${leadCompanyName || 'Lead'}${leadContactName ? ` — ${leadContactName}` : ''}`;
@@ -289,7 +292,7 @@ export function AddActivityDialog({
         toast({ variant: 'destructive', title: 'Subject required', description: 'Please enter an email subject.' });
         return;
       }
-      if (!description.trim()) {
+      if (!htmlToPlainText(description)) {
         toast({ variant: 'destructive', title: 'Message required', description: 'Please enter the email body.' });
         return;
       }
@@ -319,7 +322,7 @@ export function AddActivityDialog({
         gmailResult = await sendEmail({
           to: leadEmail!.trim(),
           subject: emailSubject.trim(),
-          body: description.trim(),
+          body: description,
           cc: emailCc.trim() || undefined,
           bcc: emailBcc.trim() || undefined,
         });
@@ -859,22 +862,29 @@ export function AddActivityDialog({
                     ? 'Message *'
                     : 'Description *'}
             </Label>
-            <Textarea
-              id="desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={
-                type === 'linkedin'
-                  ? 'Any additional context about this outreach...'
-                  : type === 'meeting'
-                    ? 'e.g. Agenda, follow-up items, key takeaways...'
-                    : type === 'email' && isGmailConnected && leadEmail?.trim()
-                      ? 'Write your email message...'
+            {type === 'email' && isGmailConnected && leadEmail?.trim() ? (
+              <RichTextEditor
+                value={description}
+                onChange={setDescription}
+                placeholder="Write your email message..."
+                minHeight="180px"
+              />
+            ) : (
+              <Textarea
+                id="desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={
+                  type === 'linkedin'
+                    ? 'Any additional context about this outreach...'
+                    : type === 'meeting'
+                      ? 'e.g. Agenda, follow-up items, key takeaways...'
                       : 'e.g. Had a call with customer willing to proceed...'
-              }
-              rows={3}
-              className="resize-none"
-            />
+                }
+                rows={3}
+                className="resize-none"
+              />
+            )}
           </div>
 
           <div className="space-y-2">

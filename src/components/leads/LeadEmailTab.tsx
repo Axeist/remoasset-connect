@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -11,6 +10,8 @@ import { useGmail } from '@/hooks/useGmail';
 import { parseGmailMessage, type ParsedGmailMessage } from '@/hooks/useGmail';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { EmailTagInput } from '@/components/ui/email-tag-input';
+import { RichTextEditor, htmlToPlainText } from '@/components/ui/rich-text-editor';
 import { cn } from '@/lib/utils';
 import {
   Mail,
@@ -222,13 +223,7 @@ function CcBccFields({
       {showCc && (
         <div className="flex items-center gap-2">
           <Label className="text-xs text-muted-foreground w-8 shrink-0">Cc</Label>
-          <Input
-            type="text"
-            placeholder="email1@example.com, email2@example.com"
-            value={cc}
-            onChange={(e) => onCcChange(e.target.value)}
-            className="h-8 text-sm"
-          />
+          <EmailTagInput value={cc} onChange={onCcChange} placeholder="Add Cc recipients" className="flex-1" />
           {!showBcc && (
             <button type="button" className="text-xs text-primary hover:underline shrink-0" onClick={() => setShowBcc(true)}>Bcc</button>
           )}
@@ -237,13 +232,7 @@ function CcBccFields({
       {showBcc && (
         <div className="flex items-center gap-2">
           <Label className="text-xs text-muted-foreground w-8 shrink-0">Bcc</Label>
-          <Input
-            type="text"
-            placeholder="email1@example.com, email2@example.com"
-            value={bcc}
-            onChange={(e) => onBccChange(e.target.value)}
-            className="h-8 text-sm"
-          />
+          <EmailTagInput value={bcc} onChange={onBccChange} placeholder="Add Bcc recipients" className="flex-1" />
           {!showCc && (
             <button type="button" className="text-xs text-primary hover:underline shrink-0" onClick={() => setShowCc(true)}>Cc</button>
           )}
@@ -551,7 +540,8 @@ export function LeadEmailTab({
   // ─── Reply ───
   const handleReply = useCallback(async () => {
     const g = gmailRef.current;
-    if (!replyBody.trim() || threadMessages.length === 0) return;
+    const plainReply = htmlToPlainText(replyBody);
+    if (!plainReply || threadMessages.length === 0) return;
     const lastMsg = threadMessages[threadMessages.length - 1];
     const replyTo = extractEmail(lastMsg.from).toLowerCase() === leadEmail?.trim().toLowerCase()
       ? leadEmail!.trim()
@@ -563,14 +553,14 @@ export function LeadEmailTab({
       const result = await g.replyEmail({
         to: replyTo,
         subject,
-        body: replyBody.trim(),
+        body: replyBody,
         cc: replyCc.trim() || undefined,
         bcc: replyBcc.trim() || undefined,
         threadId: lastMsg.threadId,
         inReplyTo: lastMsg.messageId,
         references: lastMsg.references || lastMsg.messageId,
       });
-      await logEmailActivity({ subject, body: replyBody.trim(), threadId: result.threadId, gmailMessageId: result.id, isReply: true });
+      await logEmailActivity({ subject, body: plainReply, threadId: result.threadId, gmailMessageId: result.id, isReply: true });
       toast({ title: 'Reply sent' });
       setReplyBody('');
       setReplyCc('');
@@ -587,18 +577,19 @@ export function LeadEmailTab({
   // ─── Compose ───
   const handleCompose = useCallback(async () => {
     const g = gmailRef.current;
-    if (!composeBody.trim() || !leadEmail?.trim()) return;
+    const plainCompose = htmlToPlainText(composeBody);
+    if (!plainCompose || !leadEmail?.trim()) return;
     const subject = composeSubject.trim() || '(No subject)';
     setSendingCompose(true);
     try {
       const result = await g.sendEmail({
         to: leadEmail.trim(),
         subject,
-        body: composeBody.trim(),
+        body: composeBody,
         cc: composeCc.trim() || undefined,
         bcc: composeBcc.trim() || undefined,
       });
-      await logEmailActivity({ subject, body: composeBody.trim(), threadId: result.threadId, gmailMessageId: result.id });
+      await logEmailActivity({ subject, body: plainCompose, threadId: result.threadId, gmailMessageId: result.id });
       toast({ title: 'Email sent' });
       setComposeSubject('');
       setComposeBody('');
@@ -678,21 +669,17 @@ export function LeadEmailTab({
             />
           </div>
 
-          {/* Divider */}
-          <div className="border-t" />
-
           {/* Body */}
-          <Textarea
-            placeholder="Compose email..."
+          <RichTextEditor
             value={composeBody}
-            onChange={(e) => setComposeBody(e.target.value)}
-            rows={12}
-            className="resize-none border-0 p-0 shadow-none focus-visible:ring-0 text-sm leading-relaxed"
+            onChange={setComposeBody}
+            placeholder="Compose email..."
+            minHeight="250px"
           />
 
           {/* Actions */}
-          <div className="flex items-center gap-2 pt-2 border-t">
-            <Button onClick={handleCompose} disabled={sendingCompose || !composeBody.trim()} className="gap-2">
+          <div className="flex items-center gap-2 pt-2">
+            <Button onClick={handleCompose} disabled={sendingCompose || !htmlToPlainText(composeBody)} className="gap-2">
               {sendingCompose ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Send
             </Button>
@@ -779,19 +766,18 @@ export function LeadEmailTab({
 
               <CcBccFields cc={replyCc} onCcChange={setReplyCc} bcc={replyBcc} onBccChange={setReplyBcc} />
 
-              <Textarea
-                placeholder="Write your reply..."
+              <RichTextEditor
                 value={replyBody}
-                onChange={(e) => setReplyBody(e.target.value)}
-                rows={6}
-                className="resize-none text-sm"
+                onChange={setReplyBody}
+                placeholder="Write your reply..."
+                minHeight="150px"
                 autoFocus
               />
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
                   onClick={handleReply}
-                  disabled={sendingReply || !replyBody.trim()}
+                  disabled={sendingReply || !htmlToPlainText(replyBody)}
                   className="gap-1.5"
                 >
                   {sendingReply ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
