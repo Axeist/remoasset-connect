@@ -486,9 +486,9 @@ export default function Admin() {
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-xl font-display font-bold text-foreground">Google Calendar</h2>
+                    <h2 className="text-xl font-display font-bold text-foreground">Google Workspace</h2>
                     <p className="text-muted-foreground mt-1">
-                      Sync meetings, follow-ups, and tasks. Auto-generates Google Meet links and sends invites to leads.
+                      Calendar, Meet, and Gmail — one sign-in covers meetings, follow-ups, and lead emails.
                     </p>
                   </div>
                 </div>
@@ -517,7 +517,7 @@ export default function Admin() {
                           Integration active
                         </div>
                         <p className="text-sm text-[#188038]/70">
-                          Your team can sync meetings and follow-ups to Google Calendar with auto-generated Meet links.
+                          Calendar, Meet links, and Gmail are connected. Send emails, schedule meetings, and manage follow-ups from the app.
                         </p>
                       </div>
                     ) : (
@@ -559,8 +559,8 @@ export default function Admin() {
                       {[
                         { color: '#4285F4', text: 'Creates calendar events for meetings' },
                         { color: '#EA4335', text: 'Auto-generates Google Meet links' },
-                        { color: '#34A853', text: 'Sends email invites to leads' },
-                        { color: '#FBBC04', text: 'Syncs follow-up reminders to calendar' },
+                        { color: '#34A853', text: 'Send and read Gmail from the Emails tab' },
+                        { color: '#FBBC04', text: 'Reply to lead email threads in-app' },
                       ].map((item, i) => (
                         <div key={i} className="flex items-center gap-3 text-sm text-muted-foreground">
                           <div

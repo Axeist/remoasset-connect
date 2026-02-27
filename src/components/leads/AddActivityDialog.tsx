@@ -24,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getActivityScorePoints } from '@/lib/leadScore';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
+import { useGmail } from '@/hooks/useGmail';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail, MessageCircle, ShieldCheck, Linkedin, CalendarDays } from 'lucide-react';
 
@@ -121,7 +122,9 @@ export function AddActivityDialog({
   const { user } = useAuth();
   const { toast } = useToast();
   const { isConnected: isCalendarConnected, createEvent: createCalendarEvent } = useGoogleCalendar();
+  const { isConnected: isGmailConnected, sendEmail } = useGmail();
   const [type, setType] = useState<ActivityType>('call');
+  const [emailSubject, setEmailSubject] = useState('');
   const [ndaSubActivity, setNdaSubActivity] = useState<NdaSubActivity>('nda_sent');
   const [ndaFile, setNdaFile] = useState<File | null>(null);
   const [linkedinProfileUrl, setLinkedinProfileUrl] = useState('');
@@ -188,6 +191,7 @@ export function AddActivityDialog({
     setLinkedinProfileUrl('');
     setLinkedinMessage('');
     setDescription('');
+    setEmailSubject('');
     setUrls(['']);
     setFiles([]);
     setAddToCalendar(false);
@@ -205,6 +209,8 @@ export function AddActivityDialog({
     const isLinkedin = type === 'linkedin';
 
     const isMeeting = type === 'meeting';
+    const isEmail = type === 'email';
+    const isEmailViaGmail = isEmail && isGmailConnected && leadEmail?.trim();
     let effectiveDescription: string;
     if (isNda) {
       effectiveDescription = `${ndaSubActivity === 'nda_sent' ? 'NDA Sent' : 'NDA Received'}${description.trim() ? ': ' + description.trim() : ''}`;
@@ -214,6 +220,12 @@ export function AddActivityDialog({
       if (linkedinMessage.trim()) parts.push(`Message: ${linkedinMessage.trim()}`);
       if (description.trim()) parts.push(description.trim());
       effectiveDescription = parts.length > 0 ? parts.join(' | ') : 'LinkedIn outreach';
+    } else if (isEmailViaGmail) {
+      const subj = emailSubject.trim() || '(No subject)';
+      const bodyPreview = description.trim().slice(0, 200);
+      effectiveDescription = bodyPreview
+        ? `Email to lead: ${subj}\n\n${bodyPreview}${description.trim().length > 200 ? '…' : ''}`
+        : `Email to lead: ${subj}`;
     } else if (isMeeting) {
       const defaultTitle = `Meeting: ${leadCompanyName || 'Lead'}${leadContactName ? ` — ${leadContactName}` : ''}`;
       const title = meetingTitle.trim() || defaultTitle;
@@ -237,6 +249,15 @@ export function AddActivityDialog({
         toast({ variant: 'destructive', title: 'Start and end time required', description: 'Please set the meeting start and end time.' });
         return;
       }
+    } else if (isEmailViaGmail) {
+      if (!emailSubject.trim()) {
+        toast({ variant: 'destructive', title: 'Subject required', description: 'Please enter an email subject.' });
+        return;
+      }
+      if (!description.trim()) {
+        toast({ variant: 'destructive', title: 'Message required', description: 'Please enter the email body.' });
+        return;
+      }
     } else if (!isNda && !isLinkedin && !description.trim()) {
       toast({ variant: 'destructive', title: 'Description required' });
       return;
@@ -255,6 +276,22 @@ export function AddActivityDialog({
     }
     if (!user) return;
     setSubmitting(true);
+
+    // When sending via Gmail, send first then log activity
+    if (isEmailViaGmail) {
+      try {
+        await sendEmail({
+          to: leadEmail!.trim(),
+          subject: emailSubject.trim(),
+          body: description.trim(),
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to send email';
+        toast({ variant: 'destructive', title: 'Email failed', description: message });
+        setSubmitting(false);
+        return;
+      }
+    }
 
     const attachments: ActivityAttachment[] = [];
 
@@ -418,10 +455,16 @@ export function AddActivityDialog({
 
     const ndaAutoWon = isNda && ndaSubActivity === 'nda_received' && ndaFile && !isAlreadyWon;
     toast({
-      title: ndaAutoWon ? 'NDA Received — Lead marked as Closed Won!' : 'Activity added',
+      title: ndaAutoWon
+        ? 'NDA Received — Lead marked as Closed Won!'
+        : isEmailViaGmail
+          ? 'Email sent & activity logged'
+          : 'Activity added',
       description: ndaAutoWon
         ? 'Lead status changed to Closed Won automatically.'
-        : (points > 0 ? `Lead score +${points}` : undefined),
+        : isEmailViaGmail
+          ? `Sent to ${leadEmail}`
+          : (points > 0 ? `Lead score +${points}` : undefined),
     });
     onSuccess();
   };
@@ -459,26 +502,40 @@ export function AddActivityDialog({
           </div>
 
           {type === 'email' && (
-            <div className="rounded-lg border border-accent/30 bg-accent/5 p-3 space-y-2">
-              {canDraftEmail ? (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    To: <span className="font-medium text-foreground">{leadEmail}</span>
+            <div className="rounded-lg border border-accent/30 bg-accent/5 p-3 space-y-3">
+              <p className="text-sm text-muted-foreground">
+                To: <span className="font-medium text-foreground">{leadEmail || '—'}</span>
+              </p>
+              {canDraftEmail && isGmailConnected && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Subject</Label>
+                  <Input
+                    type="text"
+                    placeholder={leadCompanyName ? `Re: ${leadCompanyName}` : 'Subject'}
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Click &quot;Add activity&quot; below to send this email via Gmail and log it to the lead.
                   </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => window.open(gmailComposeUrl!, '_blank')}
-                  >
-                    <Mail className="h-4 w-4" />
-                    Compose email
-                  </Button>
-                </>
-              ) : (
+                </div>
+              )}
+              {canDraftEmail && !isGmailConnected && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => window.open(gmailComposeUrl!, '_blank')}
+                >
+                  <Mail className="h-4 w-4" />
+                  Compose email
+                </Button>
+              )}
+              {!canDraftEmail && (
                 <p className="text-sm text-muted-foreground">
-                  Add the lead&apos;s email in the lead details to quickly compose from here.
+                  Add the lead&apos;s email in the lead details to send from here or open Gmail.
                 </p>
               )}
             </div>
@@ -748,7 +805,9 @@ export function AddActivityDialog({
                 ? 'Additional notes (optional)'
                 : type === 'meeting'
                   ? 'Notes (optional)'
-                  : 'Description *'}
+                  : type === 'email' && isGmailConnected && leadEmail?.trim()
+                    ? 'Message *'
+                    : 'Description *'}
             </Label>
             <Textarea
               id="desc"
@@ -759,7 +818,9 @@ export function AddActivityDialog({
                   ? 'Any additional context about this outreach...'
                   : type === 'meeting'
                     ? 'e.g. Agenda, follow-up items, key takeaways...'
-                    : 'e.g. Had a call with customer willing to proceed...'
+                    : type === 'email' && isGmailConnected && leadEmail?.trim()
+                      ? 'Write your email message...'
+                      : 'e.g. Had a call with customer willing to proceed...'
               }
               rows={3}
               className="resize-none"

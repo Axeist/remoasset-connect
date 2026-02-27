@@ -11,6 +11,7 @@ import { UploadDocumentDialog } from '@/components/leads/UploadDocumentDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
 import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin, Pencil, Check, X, Video, ChevronDown, Clock, Users } from 'lucide-react';
 import { MeetingActivityCard, hasMeetingData, extractMeetingMeta } from '@/components/leads/MeetingActivityCard';
+import { LeadEmailTab } from '@/components/leads/LeadEmailTab';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
@@ -303,9 +304,10 @@ export default function LeadDetail() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="emails">Emails</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="followups">Follow-ups</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -563,6 +565,14 @@ export default function LeadDetail() {
               leadCompanyName={lead.company_name}
               leadPhone={lead.phone}
               leadStatusName={lead.status?.name ?? null}
+            />
+          </TabsContent>
+
+          <TabsContent value="emails" className="mt-6">
+            <LeadEmailTab
+              leadEmail={lead.email}
+              leadCompanyName={lead.company_name}
+              leadContactName={lead.contact_name}
             />
           </TabsContent>
 
