@@ -19,6 +19,8 @@ import {
   RefreshCw,
   Inbox,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Reply,
   AlertCircle,
   Loader2,
@@ -53,6 +55,19 @@ function formatEmailDate(dateStr: string): string {
   }
 }
 
+function formatFullDate(dateStr: string): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleString(undefined, {
+      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
 function extractName(fromStr: string): string {
   const match = fromStr.match(/^"?([^"<]+)"?\s*</);
   if (match) return match[1].trim();
@@ -67,6 +82,53 @@ function extractEmail(fromStr: string): string {
   return fromStr.trim();
 }
 
+function getInitials(name: string): string {
+  const parts = name.split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+/**
+ * Separate the original content from quoted text in an email body.
+ * Detects "On ... wrote:" blocks and "> " prefixed lines.
+ */
+function splitQuotedText(body: string): { original: string; quoted: string } {
+  const lines = body.split('\n');
+  let splitIdx = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    // "On Mon, Jan 1, 2026 at 10:00 AM ... wrote:"
+    if (/^On\s.+wrote:\s*$/i.test(lines[i].trim())) {
+      splitIdx = i;
+      break;
+    }
+    // Gmail-style "---------- Forwarded message ----------"
+    if (/^-{5,}\s*(Forwarded|Original)\s/i.test(lines[i].trim())) {
+      splitIdx = i;
+      break;
+    }
+  }
+
+  if (splitIdx >= 0) {
+    const original = lines.slice(0, splitIdx).join('\n').trimEnd();
+    const quoted = lines.slice(splitIdx).join('\n');
+    return { original, quoted };
+  }
+
+  // Check if there's a block of ">" quoted lines at the end
+  let lastNonQuoted = lines.length - 1;
+  while (lastNonQuoted >= 0 && (lines[lastNonQuoted].startsWith('>') || lines[lastNonQuoted].trim() === '')) {
+    lastNonQuoted--;
+  }
+  if (lastNonQuoted < lines.length - 1 && lines.slice(lastNonQuoted + 1).some(l => l.startsWith('>'))) {
+    const original = lines.slice(0, lastNonQuoted + 1).join('\n').trimEnd();
+    const quoted = lines.slice(lastNonQuoted + 1).join('\n');
+    return { original, quoted };
+  }
+
+  return { original: body, quoted: '' };
+}
+
 function parseEmailDate(dateStr: string): string | undefined {
   if (!dateStr) return undefined;
   try {
@@ -78,15 +140,10 @@ function parseEmailDate(dateStr: string): string | undefined {
   }
 }
 
-/** Gmail link for a given thread */
 function gmailThreadUrl(threadId: string): string {
   return `https://mail.google.com/mail/u/0/#inbox/${threadId}`;
 }
 
-/**
- * Syncs incoming emails from Gmail into lead_activities.
- * Each message is tracked via a `gmail_ref` attachment to prevent duplicates.
- */
 async function syncIncomingToActivityLog(params: {
   leadId: string;
   userId: string;
@@ -95,7 +152,6 @@ async function syncIncomingToActivityLog(params: {
 }): Promise<number> {
   const normalizedLead = params.leadEmail.toLowerCase();
 
-  // Collect all incoming messages (from the lead) across all threads
   const incoming: { msg: ParsedGmailMessage; threadId: string }[] = [];
   for (const thread of params.threadData) {
     for (const msg of thread.messages) {
@@ -106,7 +162,6 @@ async function syncIncomingToActivityLog(params: {
   }
   if (incoming.length === 0) return 0;
 
-  // Get already-logged Gmail message IDs from existing activities
   const { data: existing } = await supabase
     .from('lead_activities')
     .select('attachments')
@@ -120,7 +175,6 @@ async function syncIncomingToActivityLog(params: {
     }
   }
 
-  // Filter to only unlogged messages
   const toInsert = incoming.filter(({ msg }) => !loggedIds.has(msg.id));
   if (toInsert.length === 0) return 0;
 
@@ -146,6 +200,171 @@ async function syncIncomingToActivityLog(params: {
   return rows.length;
 }
 
+// ─── CC/BCC Toggle Component ───
+
+function CcBccFields({
+  cc, onCcChange, bcc, onBccChange,
+}: {
+  cc: string; onCcChange: (v: string) => void;
+  bcc: string; onBccChange: (v: string) => void;
+}) {
+  const [showCc, setShowCc] = useState(!!cc);
+  const [showBcc, setShowBcc] = useState(!!bcc);
+
+  return (
+    <div className="space-y-2">
+      {!showCc && !showBcc && (
+        <div className="flex gap-2 text-xs">
+          <button type="button" className="text-primary hover:underline" onClick={() => setShowCc(true)}>Cc</button>
+          <button type="button" className="text-primary hover:underline" onClick={() => setShowBcc(true)}>Bcc</button>
+        </div>
+      )}
+      {showCc && (
+        <div className="flex items-center gap-2">
+          <Label className="text-xs text-muted-foreground w-8 shrink-0">Cc</Label>
+          <Input
+            type="text"
+            placeholder="email1@example.com, email2@example.com"
+            value={cc}
+            onChange={(e) => onCcChange(e.target.value)}
+            className="h-8 text-sm"
+          />
+          {!showBcc && (
+            <button type="button" className="text-xs text-primary hover:underline shrink-0" onClick={() => setShowBcc(true)}>Bcc</button>
+          )}
+        </div>
+      )}
+      {showBcc && (
+        <div className="flex items-center gap-2">
+          <Label className="text-xs text-muted-foreground w-8 shrink-0">Bcc</Label>
+          <Input
+            type="text"
+            placeholder="email1@example.com, email2@example.com"
+            value={bcc}
+            onChange={(e) => onBccChange(e.target.value)}
+            className="h-8 text-sm"
+          />
+          {!showCc && (
+            <button type="button" className="text-xs text-primary hover:underline shrink-0" onClick={() => setShowCc(true)}>Cc</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Message Bubble Component (Gmail-like) ───
+
+function MessageBubble({
+  msg,
+  isFromLead,
+  leadEmail,
+  leadContactName,
+  isLast,
+  defaultCollapsed,
+  onReply,
+}: {
+  msg: ParsedGmailMessage;
+  isFromLead: boolean;
+  leadEmail: string;
+  leadContactName?: string | null;
+  isLast: boolean;
+  defaultCollapsed: boolean;
+  onReply: () => void;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [showQuoted, setShowQuoted] = useState(false);
+  const { original, quoted } = splitQuotedText(msg.body);
+  const senderName = extractName(msg.from);
+
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/50 transition-colors rounded-lg"
+        onClick={() => setCollapsed(false)}
+      >
+        <div className={cn(
+          'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium',
+          isFromLead ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+        )}>
+          {getInitials(senderName)}
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="text-sm font-medium">{senderName}</span>
+          <span className="text-xs text-muted-foreground ml-2">— {msg.snippet?.slice(0, 80) || '(empty)'}</span>
+        </div>
+        <span className="text-xs text-muted-foreground shrink-0">{formatEmailDate(msg.date)}</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className={cn(
+      'rounded-lg border p-4',
+      isFromLead ? 'bg-muted/30 border-border' : 'bg-background border-border'
+    )}>
+      {/* Header */}
+      <div className="flex items-start gap-3 mb-3">
+        <div className={cn(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+          isFromLead ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+        )}>
+          {getInitials(senderName)}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold">{senderName}</span>
+            {isFromLead && (
+              <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-normal">Lead</Badge>
+            )}
+            <span className="text-xs text-muted-foreground ml-auto shrink-0">{formatFullDate(msg.date)}</span>
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            <span>To: {msg.to}</span>
+            {msg.cc && <span className="ml-2">Cc: {msg.cc}</span>}
+          </div>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="pl-12">
+        <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{original}</div>
+        {quoted && (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => setShowQuoted(!showQuoted)}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border rounded px-2 py-0.5 transition-colors"
+            >
+              {showQuoted ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              {showQuoted ? 'Hide quoted text' : '...'}
+            </button>
+            {showQuoted && (
+              <div className="mt-2 pl-3 border-l-2 border-muted-foreground/20 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                {quoted}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Reply button on last message */}
+        {isLast && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 mt-3"
+            onClick={onReply}
+          >
+            <Reply className="h-3.5 w-3.5" />
+            Reply
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Component ───
 
 export function LeadEmailTab({
@@ -154,12 +373,15 @@ export function LeadEmailTab({
   leadCompanyName,
   leadContactName,
   onActivityLogged,
+  openThreadId,
 }: {
   leadId: string;
   leadEmail?: string | null;
   leadCompanyName?: string;
   leadContactName?: string | null;
   onActivityLogged?: () => void;
+  /** If set, immediately open this thread (for cross-tab navigation) */
+  openThreadId?: string | null;
 }) {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -167,7 +389,6 @@ export function LeadEmailTab({
   const gmailRef = useRef(gmail);
   gmailRef.current = gmail;
 
-  // Stable refs for values used inside fetchThreadList without causing re-renders
   const userRef = useRef(user);
   userRef.current = user;
   const leadIdRef = useRef(leadId);
@@ -187,10 +408,14 @@ export function LeadEmailTab({
 
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyBody, setReplyBody] = useState('');
+  const [replyCc, setReplyCc] = useState('');
+  const [replyBcc, setReplyBcc] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
 
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
+  const [composeCc, setComposeCc] = useState('');
+  const [composeBcc, setComposeBcc] = useState('');
   const [sendingCompose, setSendingCompose] = useState(false);
 
   // ─── Log outgoing email activity with gmail_ref for dedup ───
@@ -221,7 +446,7 @@ export function LeadEmailTab({
     [user?.id, leadId, onActivityLogged]
   );
 
-  // ─── Fetch thread list + sync incoming emails ───
+  // ─── Fetch thread list + sync incoming ───
   const fetchThreadList = useCallback(async () => {
     const g = gmailRef.current;
     if (!leadEmail?.trim() || !g.isConnected) return;
@@ -256,12 +481,11 @@ export function LeadEmailTab({
             messageCount: msgs.length,
           });
         } catch {
-          // skip threads that fail individually
+          // skip
         }
       }
       setThreads(summaries);
 
-      // Auto-sync incoming emails from the lead into the activity log
       const currentUser = userRef.current;
       const currentLeadId = leadIdRef.current;
       if (currentUser?.id && currentLeadId) {
@@ -274,12 +498,11 @@ export function LeadEmailTab({
           });
           if (synced > 0) onActivityLoggedRef.current?.();
         } catch {
-          // sync failure shouldn't block the UI
+          // silent
         }
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to load emails';
-      setThreadError(msg);
+      setThreadError(err instanceof Error ? err.message : 'Failed to load emails');
     } finally {
       setLoadingThreads(false);
     }
@@ -294,24 +517,31 @@ export function LeadEmailTab({
     }
   }, [gmail.isConnected, leadEmail, fetchThreadList]);
 
-  // ─── Open a thread: 1 API call gets all messages with full payloads ───
+  // ─── Handle external openThreadId prop ───
+  const handledOpenThreadRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (openThreadId && openThreadId !== handledOpenThreadRef.current && gmail.isConnected) {
+      handledOpenThreadRef.current = openThreadId;
+      openThread(openThreadId);
+    }
+  }, [openThreadId, gmail.isConnected]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Open thread ───
   const openThread = useCallback(async (threadId: string) => {
     const g = gmailRef.current;
     setActiveThreadId(threadId);
     setView('thread');
     setReplyOpen(false);
     setReplyBody('');
+    setReplyCc('');
+    setReplyBcc('');
     setLoadingThread(true);
     try {
       const thread = await g.getThread(threadId, 'full');
       const parsed = (thread.messages || []).map(parseGmailMessage);
       setThreadMessages(parsed);
     } catch (err) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'Failed to load thread',
-      });
+      toast({ variant: 'destructive', title: 'Error', description: err instanceof Error ? err.message : 'Failed to load thread' });
       setView('list');
     } finally {
       setLoadingThread(false);
@@ -334,31 +564,25 @@ export function LeadEmailTab({
         to: replyTo,
         subject,
         body: replyBody.trim(),
+        cc: replyCc.trim() || undefined,
+        bcc: replyBcc.trim() || undefined,
         threadId: lastMsg.threadId,
         inReplyTo: lastMsg.messageId,
         references: lastMsg.references || lastMsg.messageId,
       });
-      await logEmailActivity({
-        subject,
-        body: replyBody.trim(),
-        threadId: result.threadId,
-        gmailMessageId: result.id,
-        isReply: true,
-      });
+      await logEmailActivity({ subject, body: replyBody.trim(), threadId: result.threadId, gmailMessageId: result.id, isReply: true });
       toast({ title: 'Reply sent' });
       setReplyBody('');
+      setReplyCc('');
+      setReplyBcc('');
       setReplyOpen(false);
       await openThread(lastMsg.threadId);
     } catch (err) {
-      toast({
-        variant: 'destructive',
-        title: 'Failed to send reply',
-        description: err instanceof Error ? err.message : 'Unknown error',
-      });
+      toast({ variant: 'destructive', title: 'Failed to send reply', description: err instanceof Error ? err.message : 'Unknown error' });
     } finally {
       setSendingReply(false);
     }
-  }, [replyBody, threadMessages, leadEmail, openThread, logEmailActivity, toast]);
+  }, [replyBody, replyCc, replyBcc, threadMessages, leadEmail, openThread, logEmailActivity, toast]);
 
   // ─── Compose ───
   const handleCompose = useCallback(async () => {
@@ -371,31 +595,26 @@ export function LeadEmailTab({
         to: leadEmail.trim(),
         subject,
         body: composeBody.trim(),
+        cc: composeCc.trim() || undefined,
+        bcc: composeBcc.trim() || undefined,
       });
-      await logEmailActivity({
-        subject,
-        body: composeBody.trim(),
-        threadId: result.threadId,
-        gmailMessageId: result.id,
-      });
+      await logEmailActivity({ subject, body: composeBody.trim(), threadId: result.threadId, gmailMessageId: result.id });
       toast({ title: 'Email sent' });
       setComposeSubject('');
       setComposeBody('');
+      setComposeCc('');
+      setComposeBcc('');
       setView('list');
       hasFetchedRef.current = false;
       fetchThreadList();
     } catch (err) {
-      toast({
-        variant: 'destructive',
-        title: 'Failed to send',
-        description: err instanceof Error ? err.message : 'Unknown error',
-      });
+      toast({ variant: 'destructive', title: 'Failed to send', description: err instanceof Error ? err.message : 'Unknown error' });
     } finally {
       setSendingCompose(false);
     }
-  }, [composeBody, composeSubject, leadEmail, fetchThreadList, logEmailActivity, toast]);
+  }, [composeBody, composeSubject, composeCc, composeBcc, leadEmail, fetchThreadList, logEmailActivity, toast]);
 
-  // ─── Not connected / no email guard ───
+  // ─── Guards ───
 
   if (!gmail.isConnected) {
     return (
@@ -417,9 +636,7 @@ export function LeadEmailTab({
         <CardContent className="py-12 text-center space-y-3">
           <Mail className="h-10 w-10 mx-auto text-muted-foreground/40" />
           <p className="text-muted-foreground font-medium">No email address</p>
-          <p className="text-sm text-muted-foreground">
-            Add an email to this lead to view and send emails.
-          </p>
+          <p className="text-sm text-muted-foreground">Add an email to this lead to view and send emails.</p>
         </CardContent>
       </Card>
     );
@@ -430,44 +647,56 @@ export function LeadEmailTab({
   if (view === 'compose') {
     return (
       <Card className="card-shadow">
-        <CardHeader className="flex flex-row items-center gap-3 pb-4">
-          <Button variant="ghost" size="icon" onClick={() => setView('list')}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <CardTitle className="text-lg">New email</CardTitle>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              To: {leadContactName ? `${leadContactName} <${leadEmail}>` : leadEmail}
-            </p>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => setView('list')} className="shrink-0">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <CardTitle className="text-lg">New message</CardTitle>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label className="text-sm">Subject</Label>
+        <CardContent className="space-y-3">
+          {/* To */}
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground w-8 shrink-0">To</Label>
+            <div className="flex-1 text-sm py-1.5 px-3 bg-muted/30 rounded-md border">
+              {leadContactName ? `${leadContactName} <${leadEmail}>` : leadEmail}
+            </div>
+          </div>
+
+          {/* CC / BCC */}
+          <CcBccFields cc={composeCc} onCcChange={setComposeCc} bcc={composeBcc} onBccChange={setComposeBcc} />
+
+          {/* Subject */}
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground w-8 shrink-0">Sub</Label>
             <Input
               placeholder={leadCompanyName ? `Re: ${leadCompanyName}` : 'Subject'}
               value={composeSubject}
               onChange={(e) => setComposeSubject(e.target.value)}
+              className="h-9 text-sm"
             />
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm">Message</Label>
-            <Textarea
-              placeholder="Write your email..."
-              value={composeBody}
-              onChange={(e) => setComposeBody(e.target.value)}
-              rows={10}
-              className="resize-none"
-            />
-          </div>
-          <div className="flex items-center gap-2">
+
+          {/* Divider */}
+          <div className="border-t" />
+
+          {/* Body */}
+          <Textarea
+            placeholder="Compose email..."
+            value={composeBody}
+            onChange={(e) => setComposeBody(e.target.value)}
+            rows={12}
+            className="resize-none border-0 p-0 shadow-none focus-visible:ring-0 text-sm leading-relaxed"
+          />
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 pt-2 border-t">
             <Button onClick={handleCompose} disabled={sendingCompose || !composeBody.trim()} className="gap-2">
               {sendingCompose ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Send email
+              Send
             </Button>
-            <Button variant="ghost" onClick={() => setView('list')}>
-              Cancel
-            </Button>
+            <Button variant="ghost" onClick={() => setView('list')}>Discard</Button>
           </div>
         </CardContent>
       </Card>
@@ -477,95 +706,85 @@ export function LeadEmailTab({
   // ─── Thread detail view ───
 
   if (view === 'thread' && activeThreadId) {
+    const threadSubject = threadMessages[0]?.subject || 'Thread';
     return (
       <Card className="card-shadow">
-        <CardHeader className="flex flex-row items-center gap-3 pb-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => { setView('list'); setActiveThreadId(null); setThreadMessages([]); }}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-0 flex-1">
-            <CardTitle className="text-lg truncate">
-              {threadMessages[0]?.subject || 'Thread'}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {threadMessages.length} message{threadMessages.length !== 1 ? 's' : ''} with {leadEmail}
-            </p>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              onClick={() => { setView('list'); setActiveThreadId(null); setThreadMessages([]); }}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0 flex-1">
+              <CardTitle className="text-lg truncate">{threadSubject}</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {threadMessages.length} message{threadMessages.length !== 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-0">
+        <CardContent>
           {loadingThread ? (
             <div className="space-y-4">
               {[1, 2].map((i) => (
                 <div key={i} className="space-y-2">
-                  <Skeleton className="h-4 w-48" />
-                  <Skeleton className="h-20 w-full" />
+                  <div className="flex gap-3">
+                    <Skeleton className="h-9 w-9 rounded-full" />
+                    <div className="flex-1 space-y-1">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-16 w-full ml-12" />
                 </div>
               ))}
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-2">
               {threadMessages.map((msg, idx) => {
                 const isFromLead = extractEmail(msg.from).toLowerCase() === leadEmail.toLowerCase();
                 return (
-                  <div
+                  <MessageBubble
                     key={msg.id}
-                    className={cn(
-                      'rounded-lg border p-4 space-y-2',
-                      isFromLead ? 'bg-muted/40 border-border' : 'bg-primary/[0.03] border-primary/10'
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {extractName(msg.from)}
-                          {isFromLead && (
-                            <Badge variant="secondary" className="ml-2 text-[10px] py-0 px-1.5 font-normal">
-                              Lead
-                            </Badge>
-                          )}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">To: {msg.to}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                        {formatEmailDate(msg.date)}
-                      </span>
-                    </div>
-                    <pre className="text-sm text-foreground whitespace-pre-wrap font-sans leading-relaxed">
-                      {msg.body}
-                    </pre>
-                    {idx === threadMessages.length - 1 && !replyOpen && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1.5 text-muted-foreground hover:text-foreground mt-1"
-                        onClick={() => setReplyOpen(true)}
-                      >
-                        <Reply className="h-3.5 w-3.5" />
-                        Reply
-                      </Button>
-                    )}
-                  </div>
+                    msg={msg}
+                    isFromLead={isFromLead}
+                    leadEmail={leadEmail}
+                    leadContactName={leadContactName}
+                    isLast={idx === threadMessages.length - 1}
+                    defaultCollapsed={threadMessages.length > 2 && idx < threadMessages.length - 2}
+                    onReply={() => {
+                      setReplyOpen(true);
+                      setReplyCc(msg.cc || '');
+                    }}
+                  />
                 );
               })}
             </div>
           )}
 
+          {/* Reply area */}
           {replyOpen && (
-            <div className="mt-4 rounded-lg border border-primary/20 bg-primary/[0.02] p-4 space-y-3">
+            <div className="mt-4 rounded-lg border p-4 space-y-3 bg-muted/20">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Reply className="h-4 w-4" />
-                Replying to {leadContactName || extractName(threadMessages[threadMessages.length - 1]?.from || '')}
+                <span>
+                  Replying to{' '}
+                  <strong>{leadContactName || extractName(threadMessages[threadMessages.length - 1]?.from || '')}</strong>
+                </span>
               </div>
+
+              <CcBccFields cc={replyCc} onCcChange={setReplyCc} bcc={replyBcc} onBccChange={setReplyBcc} />
+
               <Textarea
                 placeholder="Write your reply..."
                 value={replyBody}
                 onChange={(e) => setReplyBody(e.target.value)}
-                rows={5}
-                className="resize-none"
+                rows={6}
+                className="resize-none text-sm"
                 autoFocus
               />
               <div className="flex items-center gap-2">
@@ -576,10 +795,10 @@ export function LeadEmailTab({
                   className="gap-1.5"
                 >
                   {sendingReply ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                  Send reply
+                  Send
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => { setReplyOpen(false); setReplyBody(''); }}>
-                  Cancel
+                <Button variant="ghost" size="sm" onClick={() => { setReplyOpen(false); setReplyBody(''); setReplyCc(''); setReplyBcc(''); }}>
+                  Discard
                 </Button>
               </div>
             </div>
@@ -611,7 +830,7 @@ export function LeadEmailTab({
           </Button>
           <Button
             size="sm"
-            onClick={() => { setView('compose'); setComposeSubject(''); setComposeBody(''); }}
+            onClick={() => { setView('compose'); setComposeSubject(''); setComposeBody(''); setComposeCc(''); setComposeBcc(''); }}
             className="gap-1.5"
           >
             <MailPlus className="h-3.5 w-3.5" />
@@ -636,25 +855,17 @@ export function LeadEmailTab({
           <div className="text-center py-8 space-y-2">
             <AlertCircle className="h-8 w-8 mx-auto text-destructive/50" />
             <p className="text-sm text-destructive">{threadError}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { hasFetchedRef.current = false; fetchThreadList(); }}
-            >
-              Retry
-            </Button>
+            <Button variant="outline" size="sm" onClick={() => { hasFetchedRef.current = false; fetchThreadList(); }}>Retry</Button>
           </div>
         ) : threads.length === 0 ? (
           <div className="text-center py-12 space-y-3">
             <Inbox className="h-10 w-10 mx-auto text-muted-foreground/40" />
             <p className="text-muted-foreground font-medium">No emails yet</p>
-            <p className="text-sm text-muted-foreground">
-              Send the first email to {leadContactName || leadEmail}.
-            </p>
+            <p className="text-sm text-muted-foreground">Send the first email to {leadContactName || leadEmail}.</p>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { setView('compose'); setComposeSubject(''); setComposeBody(''); }}
+              onClick={() => { setView('compose'); setComposeSubject(''); setComposeBody(''); setComposeCc(''); setComposeBcc(''); }}
               className="gap-1.5"
             >
               <MailPlus className="h-3.5 w-3.5" />
@@ -663,36 +874,39 @@ export function LeadEmailTab({
           </div>
         ) : (
           <div className="divide-y divide-border -mx-6">
-            {threads.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className="w-full flex items-start gap-3 px-6 py-3.5 text-left hover:bg-muted/50 transition-colors group"
-                onClick={() => openThread(t.id)}
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary mt-0.5">
-                  <Mail className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium truncate text-foreground">{t.subject}</p>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                      {formatEmailDate(t.date)}
-                    </span>
+            {threads.map((t) => {
+              const senderName = extractName(t.from);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  className="w-full flex items-start gap-3 px-6 py-3.5 text-left hover:bg-muted/50 transition-colors group"
+                  onClick={() => openThread(t.id)}
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold mt-0.5">
+                    {getInitials(senderName)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                    {extractName(t.from)}
-                    {t.messageCount > 1 && (
-                      <span className="text-muted-foreground/60 ml-1">({t.messageCount})</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <p className="text-sm font-semibold truncate text-foreground">{senderName}</p>
+                        {t.messageCount > 1 && (
+                          <span className="text-xs text-muted-foreground shrink-0">{t.messageCount}</span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                        {formatEmailDate(t.date)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-foreground truncate mt-0.5">{t.subject}</p>
+                    {t.snippet && (
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t.snippet}</p>
                     )}
-                  </p>
-                  {t.snippet && (
-                    <p className="text-xs text-muted-foreground/70 mt-1 line-clamp-1">{t.snippet}</p>
-                  )}
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-            ))}
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              );
+            })}
           </div>
         )}
       </CardContent>

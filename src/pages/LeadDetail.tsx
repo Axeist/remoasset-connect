@@ -95,6 +95,7 @@ export default function LeadDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [pendingEmailThreadId, setPendingEmailThreadId] = useState<string | null>(null);
   const [ownerOptions, setOwnerOptions] = useState<{ id: string; full_name: string | null }[]>([]);
   const [statusOptions, setStatusOptions] = useState<{ id: string; name: string; color: string }[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -565,6 +566,8 @@ export default function LeadDetail() {
               leadCompanyName={lead.company_name}
               leadPhone={lead.phone}
               leadStatusName={lead.status?.name ?? null}
+              setActiveTab={setActiveTab}
+              setPendingEmailThreadId={setPendingEmailThreadId}
             />
           </TabsContent>
 
@@ -575,6 +578,7 @@ export default function LeadDetail() {
               leadCompanyName={lead.company_name}
               leadContactName={lead.contact_name}
               onActivityLogged={fetchActivities}
+              openThreadId={pendingEmailThreadId}
             />
           </TabsContent>
 
@@ -751,6 +755,8 @@ function LeadActivityTab({
   leadCompanyName,
   leadPhone,
   leadStatusName,
+  setActiveTab,
+  setPendingEmailThreadId,
 }: {
   leadId: string;
   currentLeadScore: number;
@@ -765,6 +771,8 @@ function LeadActivityTab({
   leadCompanyName?: string;
   leadPhone?: string | null;
   leadStatusName?: string | null;
+  setActiveTab: (tab: string) => void;
+  setPendingEmailThreadId: (id: string | null) => void;
 }) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -851,7 +859,7 @@ function LeadActivityTab({
                 const isMeeting = a.activity_type === 'meeting';
                 const isMeetingWithCalendar = isMeeting && hasMeetingData(attachments);
                 const meetingMeta = isMeeting ? extractMeetingMeta(attachments) : null;
-                const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
+                const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.type !== 'gmail_ref' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
                 const expanded = expandedIds.has(a.id);
                 const descriptionPreview = a.description?.length > 120 ? a.description.slice(0, 120) + '…' : a.description;
                 const hasMore = (a.description?.length > 120) || nonMetaAttachments.length > 0 || isMeetingWithCalendar;
@@ -1008,6 +1016,25 @@ function LeadActivityTab({
                                     let label = att.name ?? (att.type === 'file' ? 'Attachment' : 'Link');
                                     if (att.type === 'url' && !att.name) {
                                       try { label = new URL(att.url).hostname; } catch { /* keep Link */ }
+                                    }
+                                    const isGmailLink = att.name === 'View in Gmail' && att.url?.includes('mail.google.com');
+                                    const gmailThreadMatch = isGmailLink ? att.url.match(/#inbox\/([a-zA-Z0-9]+)/) : null;
+                                    if (isGmailLink && gmailThreadMatch) {
+                                      return (
+                                        <button
+                                          key={i}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setPendingEmailThreadId(gmailThreadMatch[1]);
+                                            setActiveTab('emails');
+                                          }}
+                                          className="inline-flex items-center gap-1.5 rounded-md border bg-muted/50 px-2.5 py-1 text-xs text-foreground hover:bg-muted transition-colors"
+                                        >
+                                          <Mail className="h-3 w-3 text-muted-foreground" />
+                                          View thread
+                                        </button>
+                                      );
                                     }
                                     return (
                                       <a

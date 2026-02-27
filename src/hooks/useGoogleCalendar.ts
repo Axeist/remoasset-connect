@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
 
@@ -48,12 +49,32 @@ function clearStoredToken() {
   localStorage.removeItem('google_token_ts');
 }
 
+function storeToken(token: string) {
+  localStorage.setItem('google_access_token', token);
+  localStorage.setItem('google_token_ts', String(Date.now()));
+}
+
+async function tryRefreshToken(): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error || !data.session) return null;
+    const newToken = data.session.provider_token;
+    if (newToken) {
+      storeToken(newToken);
+      return newToken;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function callGoogleAPI<T>(
   url: string,
   token: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -62,11 +83,25 @@ async function callGoogleAPI<T>(
     },
   });
 
-  if (!res.ok) {
+  if (res.status === 401) {
+    const newToken = await tryRefreshToken();
+    if (newToken) {
+      res = await fetch(url, {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${newToken}`,
+          'Content-Type': 'application/json',
+          ...(options.headers || {}),
+        },
+      });
+    }
     if (res.status === 401) {
       clearStoredToken();
-      throw new Error('Google Calendar session expired. Please reconnect in Settings.');
+      throw new Error('Google session expired. Please reconnect in Admin → Integrations.');
     }
+  }
+
+  if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(
       err?.error?.message || `Google Calendar API error (${res.status})`

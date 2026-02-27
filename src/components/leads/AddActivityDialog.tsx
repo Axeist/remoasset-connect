@@ -107,6 +107,37 @@ interface AddActivityDialogProps {
   leadStatusName?: string | null;
 }
 
+function CcBccFieldsCompact({ cc, onCcChange, bcc, onBccChange }: {
+  cc: string; onCcChange: (v: string) => void; bcc: string; onBccChange: (v: string) => void;
+}) {
+  const [showCc, setShowCc] = useState(!!cc);
+  const [showBcc, setShowBcc] = useState(!!bcc);
+  return (
+    <div className="space-y-1.5">
+      {!showCc && !showBcc && (
+        <div className="flex gap-2 text-xs">
+          <button type="button" className="text-primary hover:underline" onClick={() => setShowCc(true)}>Cc</button>
+          <button type="button" className="text-primary hover:underline" onClick={() => setShowBcc(true)}>Bcc</button>
+        </div>
+      )}
+      {showCc && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground w-7 shrink-0">Cc</span>
+          <Input type="text" placeholder="email@example.com" value={cc} onChange={(e) => onCcChange(e.target.value)} className="h-8 text-sm" />
+          {!showBcc && <button type="button" className="text-xs text-primary hover:underline shrink-0" onClick={() => setShowBcc(true)}>Bcc</button>}
+        </div>
+      )}
+      {showBcc && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground w-7 shrink-0">Bcc</span>
+          <Input type="text" placeholder="email@example.com" value={bcc} onChange={(e) => onBccChange(e.target.value)} className="h-8 text-sm" />
+          {!showCc && <button type="button" className="text-xs text-primary hover:underline shrink-0" onClick={() => setShowCc(true)}>Cc</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AddActivityDialog({
   open,
   onOpenChange,
@@ -125,6 +156,8 @@ export function AddActivityDialog({
   const { isConnected: isGmailConnected, sendEmail } = useGmail();
   const [type, setType] = useState<ActivityType>('call');
   const [emailSubject, setEmailSubject] = useState('');
+  const [emailCc, setEmailCc] = useState('');
+  const [emailBcc, setEmailBcc] = useState('');
   const [ndaSubActivity, setNdaSubActivity] = useState<NdaSubActivity>('nda_sent');
   const [ndaFile, setNdaFile] = useState<File | null>(null);
   const [linkedinProfileUrl, setLinkedinProfileUrl] = useState('');
@@ -192,6 +225,8 @@ export function AddActivityDialog({
     setLinkedinMessage('');
     setDescription('');
     setEmailSubject('');
+    setEmailCc('');
+    setEmailBcc('');
     setUrls(['']);
     setFiles([]);
     setAddToCalendar(false);
@@ -285,6 +320,8 @@ export function AddActivityDialog({
           to: leadEmail!.trim(),
           subject: emailSubject.trim(),
           body: description.trim(),
+          cc: emailCc.trim() || undefined,
+          bcc: emailBcc.trim() || undefined,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to send email';
@@ -517,15 +554,18 @@ export function AddActivityDialog({
                 To: <span className="font-medium text-foreground">{leadEmail || '—'}</span>
               </p>
               {canDraftEmail && isGmailConnected && (
-                <div className="space-y-1">
-                  <Label className="text-xs">Subject</Label>
-                  <Input
-                    type="text"
-                    placeholder={leadCompanyName ? `Re: ${leadCompanyName}` : 'Subject'}
-                    value={emailSubject}
-                    onChange={(e) => setEmailSubject(e.target.value)}
-                    className="h-9 text-sm"
-                  />
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Subject</Label>
+                    <Input
+                      type="text"
+                      placeholder={leadCompanyName ? `Re: ${leadCompanyName}` : 'Subject'}
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <CcBccFieldsCompact cc={emailCc} onCcChange={setEmailCc} bcc={emailBcc} onBccChange={setEmailBcc} />
                   <p className="text-xs text-muted-foreground">
                     Click &quot;Add activity&quot; below to send this email via Gmail and log it to the lead.
                   </p>

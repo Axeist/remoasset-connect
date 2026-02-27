@@ -358,7 +358,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                     const isMeeting = a.activity_type === 'meeting';
                     const isMeetingWithCalendar = isMeeting && hasMeetingData(attachments);
                     const meetingMeta = isMeeting ? extractMeetingMeta(attachments) : null;
-                    const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
+                    const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.type !== 'gmail_ref' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
                     const expanded = expandedIds.has(a.id);
                     const descPreview = a.description?.length > 80 ? a.description.slice(0, 80) + '…' : a.description;
                     const hasMore = (a.description?.length > 80) || nonMetaAttachments.length > 0 || isMeetingWithCalendar;
