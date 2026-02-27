@@ -1,11 +1,20 @@
-import { useState, useCallback, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useInboxThreads, type InboxThreadItem } from '@/hooks/useInboxThreads';
 import { useGmail, parseGmailMessage, gmailThreadUrl } from '@/hooks/useGmail';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { cn } from '@/lib/utils';
 import {
   Inbox as InboxIcon,
@@ -16,9 +25,13 @@ import {
   User,
   ChevronRight,
   AlertCircle,
-  Send,
   Loader2,
   ArrowLeft,
+  Pencil,
+  Reply,
+  Send,
+  X,
+  ChevronDown,
 } from 'lucide-react';
 import type { ParsedGmailMessage } from '@/hooks/useGmail';
 
@@ -59,8 +72,13 @@ function getInitials(name: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
+function reSubject(subject: string): string {
+  return /^re:/i.test(subject.trim()) ? subject : `Re: ${subject}`;
+}
+
 export default function Inbox() {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { threads, loading, error, refresh, isConnected } = useInboxThreads();
   const gmail = useGmail();
 
@@ -73,17 +91,33 @@ export default function Inbox() {
   const [togglingStar, setTogglingStar] = useState<string | null>(null);
   const [markingRead, setMarkingRead] = useState<string | null>(null);
 
-  const threadsRef = useRef(threads);
-  threadsRef.current = threads;
+  // Reply state
+  const [replying, setReplying] = useState(false);
+  const [replyBody, setReplyBody] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
+
+  // Compose state
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeTo, setComposeTo] = useState('');
+  const [composeSubject, setComposeSubject] = useState('');
+  const [composeCc, setComposeCc] = useState('');
+  const [composeBody, setComposeBody] = useState('');
+  const [composeShowCc, setComposeShowCc] = useState(false);
+  const [sendingCompose, setSendingCompose] = useState(false);
+
   const starredRef = useRef(starred);
   starredRef.current = starred;
-  const unreadRef = useRef(unread);
-  unreadRef.current = unread;
+
+  const autoOpenedRef = useRef(false);
+  const openThreadRef = useRef<(item: InboxThreadItem) => Promise<void>>(async () => {});
 
   const openThread = useCallback(
     async (item: InboxThreadItem) => {
       setSelected(item);
+      setReplying(false);
+      setReplyBody('');
       setLoadingThread(true);
+      setSearchParams((p) => { p.set('thread', item.threadId); return p; }, { replace: true });
       try {
         const thread = await gmail.getThread(item.threadId, 'full');
         const parsed = (thread.messages || []).map(parseGmailMessage);
@@ -96,8 +130,30 @@ export default function Inbox() {
         setLoadingThread(false);
       }
     },
-    [gmail, toast]
+    [gmail, toast, setSearchParams]
   );
+
+  openThreadRef.current = openThread;
+
+  // Restore selected thread from URL after threads load
+  useEffect(() => {
+    if (autoOpenedRef.current || threads.length === 0 || loading) return;
+    const threadId = searchParams.get('thread');
+    if (threadId) {
+      const item = threads.find((t) => t.threadId === threadId);
+      if (item) {
+        autoOpenedRef.current = true;
+        openThreadRef.current(item);
+      }
+    }
+  }, [threads, loading, searchParams]);
+
+  const closeThread = useCallback(() => {
+    setSelected(null);
+    setReplying(false);
+    setReplyBody('');
+    setSearchParams((p) => { p.delete('thread'); return p; }, { replace: true });
+  }, [setSearchParams]);
 
   const toggleStar = useCallback(
     async (threadId: string) => {
@@ -130,6 +186,68 @@ export default function Inbox() {
     [gmail, toast]
   );
 
+  const handleSendReply = useCallback(async () => {
+    if (!selected || messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    setSendingReply(true);
+    try {
+      await gmail.replyEmail({
+        threadId: selected.threadId,
+        to: selected.leadEmail,
+        subject: reSubject(selected.subject),
+        body: replyBody,
+        inReplyTo: lastMsg.messageId,
+        references: lastMsg.references
+          ? `${lastMsg.references} ${lastMsg.messageId}`
+          : lastMsg.messageId,
+      });
+      toast({ title: 'Reply sent' });
+      setReplyBody('');
+      setReplying(false);
+      const thread = await gmail.getThread(selected.threadId, 'full');
+      setMessages((thread.messages || []).map(parseGmailMessage));
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Failed to send reply',
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setSendingReply(false);
+    }
+  }, [selected, messages, replyBody, gmail, toast]);
+
+  const handleSendCompose = useCallback(async () => {
+    if (!composeTo.trim() || !composeSubject.trim()) {
+      toast({ variant: 'destructive', title: 'To and Subject are required' });
+      return;
+    }
+    setSendingCompose(true);
+    try {
+      await gmail.sendEmail({
+        to: composeTo.trim(),
+        subject: composeSubject.trim(),
+        body: composeBody,
+        cc: composeCc.trim() || undefined,
+      });
+      toast({ title: 'Email sent' });
+      setComposeOpen(false);
+      setComposeTo('');
+      setComposeSubject('');
+      setComposeCc('');
+      setComposeBody('');
+      setComposeShowCc(false);
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Failed to send',
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setSendingCompose(false);
+    }
+  }, [composeTo, composeSubject, composeBody, composeCc, gmail, toast]);
+
   const filteredThreads = threads.filter((t) => {
     if (filter === 'unread') return unread[t.threadId] ?? t.unread;
     if (filter === 'starred') return starred[t.threadId] ?? t.starred;
@@ -153,8 +271,17 @@ export default function Inbox() {
   return (
     <AppLayout>
       <div className="flex flex-col h-[calc(100vh-7rem)] rounded-xl border bg-card overflow-hidden">
-        {/* Gmail-style toolbar */}
+        {/* Toolbar */}
         <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/30">
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-1.5 shrink-0"
+            onClick={() => setComposeOpen(true)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Compose
+          </Button>
           <Button variant="ghost" size="icon" onClick={refresh} disabled={loading} className="shrink-0">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
@@ -174,7 +301,7 @@ export default function Inbox() {
         </div>
 
         <div className="flex flex-1 min-h-0">
-          {/* Thread list - Gmail left panel */}
+          {/* Thread list */}
           <div
             className={cn(
               'border-r bg-background flex flex-col w-full sm:w-[380px] shrink-0',
@@ -237,21 +364,15 @@ export default function Inbox() {
                           {togglingStar === t.threadId ? (
                             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                           ) : (
-                            <Star
-                              className={cn('h-4 w-4', isStarred ? 'fill-amber-400 text-amber-500' : 'text-muted-foreground/50 group-hover:text-amber-500')}
-                            />
+                            <Star className={cn('h-4 w-4', isStarred ? 'fill-amber-400 text-amber-500' : 'text-muted-foreground/50 group-hover:text-amber-500')} />
                           )}
                         </button>
                         <span className={cn('w-2 h-2 rounded-full shrink-0 mt-1.5', isUnread ? 'bg-primary' : 'bg-transparent')} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className={cn('text-sm truncate', isUnread && 'font-semibold')}>
-                            {t.leadName}
-                          </span>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                            {formatEmailDate(t.date)}
-                          </span>
+                          <span className={cn('text-sm truncate', isUnread && 'font-semibold')}>{t.leadName}</span>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">{formatEmailDate(t.date)}</span>
                         </div>
                         <p className={cn('text-sm truncate mt-0.5', isUnread && 'font-semibold')}>{t.subject}</p>
                         {t.snippet && (
@@ -266,7 +387,7 @@ export default function Inbox() {
             )}
           </div>
 
-          {/* Thread detail - Gmail right panel */}
+          {/* Thread detail */}
           <div
             className={cn(
               'flex-1 flex flex-col min-w-0 bg-card',
@@ -280,20 +401,32 @@ export default function Inbox() {
               </div>
             ) : (
               <>
+                {/* Thread header */}
                 <div className="border-b px-4 py-3 flex items-center gap-2 shrink-0">
                   <Button
                     variant="ghost"
                     size="icon"
                     className="sm:hidden shrink-0"
-                    onClick={() => setSelected(null)}
+                    onClick={closeThread}
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
                   <div className="min-w-0 flex-1">
                     <h2 className="text-sm font-semibold truncate">{selected.subject}</h2>
-                    <p className="text-xs text-muted-foreground truncate">{selected.leadName} · {selected.messageCount} messages</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {selected.leadName} · {selected.messageCount} messages
+                    </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setReplying((r) => !r)}
+                    >
+                      <Reply className="h-3.5 w-3.5" />
+                      Reply
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -318,6 +451,8 @@ export default function Inbox() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {loadingThread ? (
                     <div className="space-y-4">
@@ -347,7 +482,9 @@ export default function Inbox() {
                           <div
                             className={cn(
                               'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium',
-                              isFromLead ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400' : 'bg-primary/10 text-primary'
+                              isFromLead
+                                ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
+                                : 'bg-primary/10 text-primary'
                             )}
                           >
                             {getInitials(name)}
@@ -368,11 +505,152 @@ export default function Inbox() {
                     })
                   )}
                 </div>
+
+                {/* Reply panel */}
+                {replying && (
+                  <div className="border-t shrink-0">
+                    <div className="px-4 pt-3 pb-1 flex items-center gap-2">
+                      <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">
+                        Replying to <span className="font-medium text-foreground">{selected.leadEmail}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => { setReplying(false); setReplyBody(''); }}
+                        className="ml-auto p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                        title="Discard reply"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="px-4 pb-3">
+                      <RichTextEditor
+                        value={replyBody}
+                        onChange={setReplyBody}
+                        placeholder="Write your reply…"
+                        minHeight="120px"
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-2 mt-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => { setReplying(false); setReplyBody(''); }}
+                        >
+                          Discard
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={handleSendReply}
+                          disabled={sendingReply || !replyBody || replyBody === '<p></p>'}
+                        >
+                          {sendingReply ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                          Send Reply
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
         </div>
       </div>
+
+      {/* Compose Dialog */}
+      <Dialog open={composeOpen} onOpenChange={(open) => {
+        if (!open && !sendingCompose) {
+          setComposeOpen(false);
+          setComposeTo('');
+          setComposeSubject('');
+          setComposeCc('');
+          setComposeBody('');
+          setComposeShowCc(false);
+        }
+      }}>
+        <DialogContent className="max-w-2xl w-full p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-4 py-3 border-b">
+            <DialogTitle className="text-sm font-semibold">New Message</DialogTitle>
+          </DialogHeader>
+
+          <div className="px-4 py-3 space-y-2 border-b">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground w-12 shrink-0">To</span>
+              <Input
+                value={composeTo}
+                onChange={(e) => setComposeTo(e.target.value)}
+                placeholder="recipient@example.com"
+                className="h-7 text-sm border-0 bg-transparent focus-visible:ring-0 px-0 py-0"
+              />
+              <button
+                type="button"
+                onClick={() => setComposeShowCc((v) => !v)}
+                className="text-xs text-muted-foreground hover:text-foreground shrink-0"
+              >
+                Cc
+                <ChevronDown className={cn('h-3 w-3 inline ml-0.5 transition-transform', composeShowCc && 'rotate-180')} />
+              </button>
+            </div>
+            {composeShowCc && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-12 shrink-0">Cc</span>
+                <Input
+                  value={composeCc}
+                  onChange={(e) => setComposeCc(e.target.value)}
+                  placeholder="cc@example.com"
+                  className="h-7 text-sm border-0 bg-transparent focus-visible:ring-0 px-0 py-0"
+                />
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground w-12 shrink-0">Subject</span>
+              <Input
+                value={composeSubject}
+                onChange={(e) => setComposeSubject(e.target.value)}
+                placeholder="Subject"
+                className="h-7 text-sm border-0 bg-transparent focus-visible:ring-0 px-0 py-0"
+              />
+            </div>
+          </div>
+
+          <div className="px-4 py-3">
+            <RichTextEditor
+              value={composeBody}
+              onChange={setComposeBody}
+              placeholder="Compose your email…"
+              minHeight="200px"
+            />
+          </div>
+
+          <DialogFooter className="px-4 py-3 border-t flex items-center justify-between sm:justify-between">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setComposeOpen(false);
+                setComposeTo('');
+                setComposeSubject('');
+                setComposeCc('');
+                setComposeBody('');
+                setComposeShowCc(false);
+              }}
+              disabled={sendingCompose}
+            >
+              Discard
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1.5"
+              onClick={handleSendCompose}
+              disabled={sendingCompose || !composeTo.trim() || !composeSubject.trim()}
+            >
+              {sendingCompose ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Send
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
