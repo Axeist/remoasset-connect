@@ -2,7 +2,7 @@ import { useCallback, useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useGmail } from '@/hooks/useGmail';
-import { parseGmailMessage, type ParsedGmailMessage } from '@/hooks/useGmail';
+import { parseGmailMessage } from '@/hooks/useGmail';
 
 export interface InboxLead {
   id: string;
@@ -25,24 +25,46 @@ export interface InboxThreadItem {
   from: string;
 }
 
-// Keep initial load fast: fewer leads, fewer threads, parallel requests
 const THREADS_PER_LEAD = 6;
 const MAX_LEADS = 12;
 const MAX_MERGED_THREADS = 30;
 const MAX_METADATA_PARALLEL = 15;
 
+// ─── Module-level cache ───────────────────────────────────────────────────────
+// Lives for the entire browser-tab session. When the user navigates away from
+// Inbox and comes back the cached threads are shown immediately (no blank flash)
+// while a background re-fetch runs to pick up any new messages.
+let _cachedThreads: InboxThreadItem[] = [];
+let _cacheUserId: string | null = null;
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function useInboxThreads() {
   const { user, role } = useAuth();
   const gmail = useGmail();
   const [leads, setLeads] = useState<InboxLead[]>([]);
-  const [threads, setThreads] = useState<InboxThreadItem[]>([]);
+
+  // Initialise from the module-level cache so threads are visible immediately
+  // on every re-navigation without waiting for a fresh API round-trip.
+  const [threads, setThreads] = useState<InboxThreadItem[]>(() =>
+    user?.id && _cacheUserId === user.id && _cachedThreads.length > 0
+      ? _cachedThreads
+      : []
+  );
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasFetchedRef = useRef(false);
-  // Prevents two concurrent fetches from racing (e.g. useEffect re-fire during refresh)
+  // Prevents two concurrent fetches from racing (useEffect re-fire during refresh)
   const isFetchingRef = useRef(false);
 
   const isAdmin = role === 'admin';
+
+  // Write through to the module-level cache whenever we update threads
+  const applyThreads = useCallback((fresh: InboxThreadItem[]) => {
+    _cachedThreads = fresh;
+    _cacheUserId = user?.id ?? null;
+    setThreads(fresh);
+  }, [user?.id]);
 
   const fetchLeads = useCallback(async (): Promise<InboxLead[]> => {
     if (!user?.id) return [];
@@ -50,9 +72,7 @@ export function useInboxThreads() {
       .from('leads')
       .select('id, company_name, email, owner_id')
       .not('email', 'is', null);
-    if (!isAdmin) {
-      q = q.eq('owner_id', user.id);
-    }
+    if (!isAdmin) q = q.eq('owner_id', user.id);
     const { data, error: e } = await q.limit(MAX_LEADS);
     if (e) throw new Error(e.message);
     const list = (data || []).filter((l: InboxLead) => l.email?.trim()) as InboxLead[];
@@ -62,7 +82,6 @@ export function useInboxThreads() {
 
   const fetchThreads = useCallback(async () => {
     if (!gmail.isConnected || !user?.id) return;
-    // Guard against concurrent fetches (refresh button + useEffect race)
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     setLoading(true);
@@ -70,7 +89,7 @@ export function useInboxThreads() {
     try {
       const leadList = await fetchLeads();
       if (leadList.length === 0) {
-        // Keep existing threads if we already had some
+        // Only clear the list if we had nothing before (first load with no leads)
         setThreads((prev) => (prev.length === 0 ? [] : prev));
         return;
       }
@@ -79,12 +98,10 @@ export function useInboxThreads() {
       const allThreadIds: string[] = [];
 
       const listResults = await Promise.allSettled(
-        leadList.map((lead) =>
-          gmail.listThreads(lead.email!.trim(), THREADS_PER_LEAD)
-        )
+        leadList.map((lead) => gmail.listThreads(lead.email!.trim(), THREADS_PER_LEAD))
       );
 
-      // If every single listThreads call failed, Gmail is unreachable — preserve existing threads
+      // If every listThreads call failed Gmail is unreachable – keep what we have
       const anyListSucceeded = listResults.some((r) => r.status === 'fulfilled');
       if (!anyListSucceeded) {
         setError('Could not reach Gmail. Showing cached results.');
@@ -147,17 +164,21 @@ export function useInboxThreads() {
 
       results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-      // Only overwrite threads if the fetch returned data; on an empty result (e.g. all
-      // metadata calls failed) keep the existing threads so a bad refresh doesn't blank the list.
-      setThreads((prev) => (results.length > 0 ? results : prev.length > 0 ? prev : []));
+      // Only update (and write to cache) when we actually got results back.
+      // An empty result on a refresh most likely means an API failure – keep what's showing.
+      if (results.length > 0) {
+        applyThreads(results);
+      } else {
+        setThreads((prev) => (prev.length > 0 ? prev : []));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load inbox');
-      // Keep existing threads on error
+      // Keep existing threads visible on error
     } finally {
       setLoading(false);
       isFetchingRef.current = false;
     }
-  }, [gmail.isConnected, gmail.listThreads, gmail.getThread, user?.id, fetchLeads]);
+  }, [gmail.isConnected, gmail.listThreads, gmail.getThread, user?.id, fetchLeads, applyThreads]);
 
   useEffect(() => {
     if (gmail.isConnected && user?.id && !hasFetchedRef.current) {
