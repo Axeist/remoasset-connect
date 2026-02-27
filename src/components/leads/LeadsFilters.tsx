@@ -282,6 +282,7 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
               <SelectItem value="new_device">New Device</SelectItem>
               <SelectItem value="refurbished">Refurbished</SelectItem>
               <SelectItem value="rental">Rental</SelectItem>
+              <SelectItem value="warehouse">Warehouse</SelectItem>
             </SelectContent>
           </Select>
 
