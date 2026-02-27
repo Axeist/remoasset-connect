@@ -41,6 +41,20 @@ function playNotificationSound() {
 
 type LeadEntry = { leadId: string; leadName: string; ownerId: string | null };
 
+type NotifPrefs = {
+  email_reply?: boolean;
+  sound?: boolean;
+};
+
+function loadNotifPrefs(): NotifPrefs {
+  try {
+    const raw = localStorage.getItem('remoasset_notif_prefs');
+    return raw ? (JSON.parse(raw) as NotifPrefs) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function useMailNotificationPoller() {
   const { user, role } = useAuth();
   const gmail = useGmail();
@@ -89,6 +103,8 @@ export function useMailNotificationPoller() {
       if (!mountedRef.current) return;
 
       try {
+        const prefs = loadNotifPrefs();
+
         await refreshLeads();
 
         const storedHistoryId = getStoredHistoryId();
@@ -165,15 +181,18 @@ export function useMailNotificationPoller() {
           const threadId = inboxMessages.get(msg.id) ?? msg.threadId;
           const notifyUserId = lead.ownerId || user.id;
 
-          await supabase.from('notifications').insert({
-            user_id: notifyUserId,
-            title: `New email from ${lead.leadName}`,
-            message: `"${subject}"`,
-            type: 'email',
-            metadata: { threadId, leadId: lead.leadId, messageId: msg.id },
-          });
+          // Respect notification preferences – skip creating in-app alerts if disabled
+          if (prefs.email_reply ?? true) {
+            await supabase.from('notifications').insert({
+              user_id: notifyUserId,
+              title: `New email from ${lead.leadName}`,
+              message: `"${subject}"`,
+              type: 'email',
+              metadata: { threadId, leadId: lead.leadId, messageId: msg.id },
+            });
+          }
 
-          if (notifyUserId === user.id) playNotificationSound();
+          if ((prefs.sound ?? true) && notifyUserId === user.id) playNotificationSound();
         }
       } catch {
         // ignore transient errors

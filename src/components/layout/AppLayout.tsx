@@ -2,6 +2,7 @@ import { ReactNode, useState } from 'react';
 import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { useMailNotificationPoller } from '@/hooks/useMailNotificationPoller';
+import { useTaskAndFollowUpNotificationPoller } from '@/hooks/useTaskAndFollowUpNotificationPoller';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -10,6 +11,7 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   useMailNotificationPoller();
+  useTaskAndFollowUpNotificationPoller();
   return (
     <div className="min-h-screen flex w-full bg-background">
       <AppSidebar mobileOpen={mobileMenuOpen} onMobileOpenChange={setMobileMenuOpen} />

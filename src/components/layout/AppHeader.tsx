@@ -16,7 +16,22 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
+type NotifPrefs = {
+  sound?: boolean;
+};
+
+function loadNotifPrefs(): NotifPrefs {
+  try {
+    const raw = localStorage.getItem('remoasset_notif_prefs');
+    return raw ? (JSON.parse(raw) as NotifPrefs) : {};
+  } catch {
+    return {};
+  }
+}
+
 function playNotificationSound() {
+  const prefs = loadNotifPrefs();
+  if (!(prefs.sound ?? true)) return;
   try {
     const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     const osc = ctx.createOscillator();
