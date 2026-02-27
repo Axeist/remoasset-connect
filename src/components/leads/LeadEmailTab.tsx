@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useGmail } from '@/hooks/useGmail';
+import { parseGmailMessage, type ParsedGmailMessage } from '@/hooks/useGmail';
 import { cn } from '@/lib/utils';
 import {
   Mail,
@@ -17,23 +18,12 @@ import {
   Inbox,
   ChevronRight,
   Reply,
-  ExternalLink,
   AlertCircle,
   Loader2,
   MailPlus,
 } from 'lucide-react';
 
-interface ParsedMessage {
-  id: string;
-  threadId: string;
-  from: string;
-  to: string;
-  subject: string;
-  date: string;
-  messageId: string;
-  references: string;
-  body: string;
-}
+// ─── Helpers ───
 
 interface ThreadSummary {
   id: string;
@@ -49,12 +39,10 @@ function formatEmailDate(dateStr: string): string {
   try {
     const d = new Date(dateStr);
     const now = new Date();
-    const isToday = d.toDateString() === now.toDateString();
-    if (isToday) {
+    if (d.toDateString() === now.toDateString()) {
       return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     }
-    const isThisYear = d.getFullYear() === now.getFullYear();
-    if (isThisYear) {
+    if (d.getFullYear() === now.getFullYear()) {
       return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     }
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -77,6 +65,8 @@ function extractEmail(fromStr: string): string {
   return fromStr.trim();
 }
 
+// ─── Component ───
+
 export function LeadEmailTab({
   leadEmail,
   leadCompanyName,
@@ -90,74 +80,70 @@ export function LeadEmailTab({
   const gmail = useGmail();
   const gmailRef = useRef(gmail);
   gmailRef.current = gmail;
+
   const [view, setView] = useState<'list' | 'thread' | 'compose'>('list');
 
-  // Thread list state
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [loadingThreads, setLoadingThreads] = useState(false);
   const [threadError, setThreadError] = useState<string | null>(null);
 
-  // Thread view state
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [threadMessages, setThreadMessages] = useState<ParsedMessage[]>([]);
+  const [threadMessages, setThreadMessages] = useState<ParsedGmailMessage[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
 
-  // Reply state
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyBody, setReplyBody] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
 
-  // Compose state
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
   const [sendingCompose, setSendingCompose] = useState(false);
 
+  // ─── Fetch thread list ───
+  // Step 1: threads.list → IDs + snippets (1 API call)
+  // Step 2: threads.get(id, 'metadata') for each → subject/from/date (N lightweight calls)
   const fetchThreadList = useCallback(async () => {
     const g = gmailRef.current;
     if (!leadEmail?.trim() || !g.isConnected) return;
     setLoadingThreads(true);
     setThreadError(null);
     try {
-      const threadRefs = await g.listThreadsForContact(leadEmail.trim());
+      const threadRefs = await g.listThreads(leadEmail.trim());
       if (threadRefs.length === 0) {
         setThreads([]);
-        setLoadingThreads(false);
         return;
       }
       const summaries: ThreadSummary[] = [];
-      // Fetch sequentially to avoid rate-limiting on Gmail API
       for (const ref of threadRefs.slice(0, 20)) {
         try {
-          const thread = await g.getThread(ref.id);
-          const msgIds = thread.messages?.map((m) => m.id) || [];
-          if (msgIds.length === 0) continue;
-          const firstMsg = await g.getMessage(msgIds[0]);
-          const lastMsg = msgIds.length > 1
-            ? await g.getMessage(msgIds[msgIds.length - 1])
-            : firstMsg;
-          const first = g.parseMessage(firstMsg);
-          const last = g.parseMessage(lastMsg);
+          const thread = await g.getThread(ref.id, 'metadata');
+          const msgs = thread.messages || [];
+          if (msgs.length === 0) continue;
+          const first = parseGmailMessage(msgs[0]);
+          const last = parseGmailMessage(msgs[msgs.length - 1]);
           summaries.push({
             id: ref.id,
             subject: first.subject || '(No subject)',
-            snippet: thread.snippet || last.body?.slice(0, 120).replace(/\n/g, ' ') || '',
+            snippet: ref.snippet || last.snippet || '',
             from: last.from,
             date: last.date,
-            messageCount: msgIds.length,
+            messageCount: msgs.length,
           });
         } catch {
-          // skip threads that fail
+          // skip individual threads that fail
         }
       }
       setThreads(summaries);
     } catch (err) {
-      setThreadError(err instanceof Error ? err.message : 'Failed to load emails');
+      const msg = err instanceof Error ? err.message : 'Failed to load emails';
+      setThreadError(msg);
     } finally {
       setLoadingThreads(false);
     }
   }, [leadEmail]);
 
   const hasFetchedRef = useRef(false);
+
   useEffect(() => {
     if (gmail.isConnected && leadEmail?.trim() && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
@@ -165,7 +151,8 @@ export function LeadEmailTab({
     }
   }, [gmail.isConnected, leadEmail, fetchThreadList]);
 
-  const openThread = async (threadId: string) => {
+  // ─── Open a thread: 1 API call gets all messages with full payloads ───
+  const openThread = useCallback(async (threadId: string) => {
     const g = gmailRef.current;
     setActiveThreadId(threadId);
     setView('thread');
@@ -173,28 +160,27 @@ export function LeadEmailTab({
     setReplyBody('');
     setLoadingThread(true);
     try {
-      const thread = await g.getThread(threadId);
-      const msgIds = thread.messages?.map((m) => m.id) || [];
-      const parsed: ParsedMessage[] = [];
-      for (const id of msgIds) {
-        const msg = await g.getMessage(id);
-        const p = g.parseMessage(msg);
-        parsed.push({ id, threadId, ...p });
-      }
+      const thread = await g.getThread(threadId, 'full');
+      const parsed = (thread.messages || []).map(parseGmailMessage);
       setThreadMessages(parsed);
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Error', description: err instanceof Error ? err.message : 'Failed to load thread' });
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to load thread',
+      });
       setView('list');
     } finally {
       setLoadingThread(false);
     }
-  };
+  }, [toast]);
 
-  const handleReply = async () => {
+  // ─── Reply ───
+  const handleReply = useCallback(async () => {
     const g = gmailRef.current;
     if (!replyBody.trim() || threadMessages.length === 0) return;
     const lastMsg = threadMessages[threadMessages.length - 1];
-    const replyTo = extractEmail(lastMsg.from) === extractEmail(leadEmail ?? '')
+    const replyTo = extractEmail(lastMsg.from).toLowerCase() === leadEmail?.trim().toLowerCase()
       ? leadEmail!.trim()
       : extractEmail(lastMsg.from);
 
@@ -205,7 +191,7 @@ export function LeadEmailTab({
         subject: lastMsg.subject.startsWith('Re:') ? lastMsg.subject : `Re: ${lastMsg.subject}`,
         body: replyBody.trim(),
         threadId: lastMsg.threadId,
-        messageId: lastMsg.messageId,
+        inReplyTo: lastMsg.messageId,
         references: lastMsg.references || lastMsg.messageId,
       });
       toast({ title: 'Reply sent' });
@@ -213,13 +199,18 @@ export function LeadEmailTab({
       setReplyOpen(false);
       await openThread(lastMsg.threadId);
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Failed to send', description: err instanceof Error ? err.message : 'Unknown error' });
+      toast({
+        variant: 'destructive',
+        title: 'Failed to send reply',
+        description: err instanceof Error ? err.message : 'Unknown error',
+      });
     } finally {
       setSendingReply(false);
     }
-  };
+  }, [replyBody, threadMessages, leadEmail, openThread, toast]);
 
-  const handleCompose = async () => {
+  // ─── Compose ───
+  const handleCompose = useCallback(async () => {
     const g = gmailRef.current;
     if (!composeBody.trim() || !leadEmail?.trim()) return;
     setSendingCompose(true);
@@ -236,11 +227,17 @@ export function LeadEmailTab({
       hasFetchedRef.current = false;
       fetchThreadList();
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Failed to send', description: err instanceof Error ? err.message : 'Unknown error' });
+      toast({
+        variant: 'destructive',
+        title: 'Failed to send',
+        description: err instanceof Error ? err.message : 'Unknown error',
+      });
     } finally {
       setSendingCompose(false);
     }
-  };
+  }, [composeBody, composeSubject, leadEmail, fetchThreadList, toast]);
+
+  // ─── Not connected / no email guard ───
 
   if (!gmail.isConnected) {
     return (
@@ -249,7 +246,7 @@ export function LeadEmailTab({
           <Mail className="h-10 w-10 mx-auto text-muted-foreground/40" />
           <p className="text-muted-foreground font-medium">Gmail not connected</p>
           <p className="text-sm text-muted-foreground">
-            Connect Google in Admin Panel → Integrations to send and read emails.
+            Connect Google in Admin Panel &rarr; Integrations to send and read emails.
           </p>
         </CardContent>
       </Card>
@@ -271,6 +268,7 @@ export function LeadEmailTab({
   }
 
   // ─── Compose view ───
+
   if (view === 'compose') {
     return (
       <Card className="card-shadow">
@@ -305,11 +303,7 @@ export function LeadEmailTab({
             />
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              onClick={handleCompose}
-              disabled={sendingCompose || !composeBody.trim()}
-              className="gap-2"
-            >
+            <Button onClick={handleCompose} disabled={sendingCompose || !composeBody.trim()} className="gap-2">
               {sendingCompose ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Send email
             </Button>
@@ -323,6 +317,7 @@ export function LeadEmailTab({
   }
 
   // ─── Thread detail view ───
+
   if (view === 'thread' && activeThreadId) {
     return (
       <Card className="card-shadow">
@@ -362,9 +357,7 @@ export function LeadEmailTab({
                     key={msg.id}
                     className={cn(
                       'rounded-lg border p-4 space-y-2',
-                      isFromLead
-                        ? 'bg-muted/40 border-border'
-                        : 'bg-primary/[0.03] border-primary/10'
+                      isFromLead ? 'bg-muted/40 border-border' : 'bg-primary/[0.03] border-primary/10'
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -377,9 +370,7 @@ export function LeadEmailTab({
                             </Badge>
                           )}
                         </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          To: {msg.to}
-                        </p>
+                        <p className="text-xs text-muted-foreground truncate">To: {msg.to}</p>
                       </div>
                       <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
                         {formatEmailDate(msg.date)}
@@ -405,7 +396,6 @@ export function LeadEmailTab({
             </div>
           )}
 
-          {/* Reply form */}
           {replyOpen && (
             <div className="mt-4 rounded-lg border border-primary/20 bg-primary/[0.02] p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -442,14 +432,13 @@ export function LeadEmailTab({
   }
 
   // ─── Thread list view ───
+
   return (
     <Card className="card-shadow">
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <CardTitle>Emails</CardTitle>
-          <p className="text-sm text-muted-foreground mt-1">
-            Conversations with {leadEmail}
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">Conversations with {leadEmail}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -489,7 +478,11 @@ export function LeadEmailTab({
           <div className="text-center py-8 space-y-2">
             <AlertCircle className="h-8 w-8 mx-auto text-destructive/50" />
             <p className="text-sm text-destructive">{threadError}</p>
-            <Button variant="outline" size="sm" onClick={() => { hasFetchedRef.current = false; fetchThreadList(); }}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { hasFetchedRef.current = false; fetchThreadList(); }}
+            >
               Retry
             </Button>
           </div>
@@ -524,9 +517,7 @@ export function LeadEmailTab({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium truncate text-foreground">
-                      {t.subject}
-                    </p>
+                    <p className="text-sm font-medium truncate text-foreground">{t.subject}</p>
                     <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
                       {formatEmailDate(t.date)}
                     </span>
@@ -538,9 +529,7 @@ export function LeadEmailTab({
                     )}
                   </p>
                   {t.snippet && (
-                    <p className="text-xs text-muted-foreground/70 mt-1 line-clamp-1">
-                      {t.snippet}
-                    </p>
+                    <p className="text-xs text-muted-foreground/70 mt-1 line-clamp-1">{t.snippet}</p>
                   )}
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />

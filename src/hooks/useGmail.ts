@@ -12,13 +12,11 @@ function clearStoredToken() {
   localStorage.removeItem('google_token_ts');
 }
 
-/** Base64url encode for Gmail raw messages */
 function toBase64Url(str: string): string {
   const base64 = btoa(unescape(encodeURIComponent(str)));
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/** Decode base64url (e.g. message body from Gmail API) */
 function fromBase64Url(str: string): string {
   const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
   const pad = base64.length % 4;
@@ -30,13 +28,9 @@ function fromBase64Url(str: string): string {
   }
 }
 
-async function callGmailAPI<T>(
-  path: string,
-  token: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const url = path.startsWith('http') ? path : `${GMAIL_API}${path}`;
-  const res = await fetch(url, {
+async function callGmailAPI<T>(url: string, token: string, options: RequestInit = {}): Promise<T> {
+  const fullUrl = url.startsWith('http') ? url : `${GMAIL_API}${url}`;
+  const res = await fetch(fullUrl, {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -48,7 +42,7 @@ async function callGmailAPI<T>(
   if (!res.ok) {
     if (res.status === 401) {
       clearStoredToken();
-      throw new Error('Gmail session expired. Please reconnect in Settings.');
+      throw new Error('Google session expired. Please reconnect in Admin → Integrations.');
     }
     const err = await res.json().catch(() => ({}));
     throw new Error(err?.error?.message || `Gmail API error (${res.status})`);
@@ -58,28 +52,132 @@ async function callGmailAPI<T>(
   return res.json();
 }
 
-/** Build MIME string for a simple text email */
+// ─── Types matching Gmail API response ───
+
+interface GmailHeader {
+  name: string;
+  value: string;
+}
+
+interface GmailPayloadPart {
+  mimeType?: string;
+  headers?: GmailHeader[];
+  body?: { data?: string; size?: number };
+  parts?: GmailPayloadPart[];
+}
+
+interface GmailPayload {
+  mimeType?: string;
+  headers?: GmailHeader[];
+  body?: { data?: string; size?: number };
+  parts?: GmailPayloadPart[];
+}
+
+/** Raw message from the Gmail API */
+export interface GmailMessageRaw {
+  id: string;
+  threadId: string;
+  labelIds?: string[];
+  snippet?: string;
+  internalDate?: string;
+  payload?: GmailPayload;
+}
+
+/** Thread from the Gmail API (threads.get returns messages with payloads) */
+export interface GmailThreadRaw {
+  id: string;
+  snippet?: string;
+  historyId?: string;
+  messages?: GmailMessageRaw[];
+}
+
+/** Thread list item from threads.list (no messages included) */
+interface GmailThreadListItem {
+  id: string;
+  snippet?: string;
+  historyId?: string;
+}
+
+// ─── Parsing helpers ───
+
+function getHeader(headers: GmailHeader[] | undefined, name: string): string {
+  if (!headers) return '';
+  return headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';
+}
+
+function extractBody(payload: GmailPayload | undefined): string {
+  if (!payload) return '';
+  if (payload.body?.data) return fromBase64Url(payload.body.data);
+  if (payload.parts) {
+    const textPlain = payload.parts.find((p) => p.mimeType === 'text/plain');
+    if (textPlain?.body?.data) return fromBase64Url(textPlain.body.data);
+    for (const part of payload.parts) {
+      if (part.parts) {
+        const nested = part.parts.find((p) => p.mimeType === 'text/plain');
+        if (nested?.body?.data) return fromBase64Url(nested.body.data);
+      }
+    }
+    const textHtml = payload.parts.find((p) => p.mimeType === 'text/html');
+    if (textHtml?.body?.data) {
+      const html = fromBase64Url(textHtml.body.data);
+      return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+    const anyData = payload.parts.find((p) => p.body?.data);
+    if (anyData?.body?.data) return fromBase64Url(anyData.body.data);
+  }
+  return '';
+}
+
+/** Parsed message ready for display */
+export interface ParsedGmailMessage {
+  id: string;
+  threadId: string;
+  from: string;
+  to: string;
+  subject: string;
+  date: string;
+  messageId: string;
+  references: string;
+  body: string;
+  snippet: string;
+}
+
+export function parseGmailMessage(msg: GmailMessageRaw): ParsedGmailMessage {
+  const headers = msg.payload?.headers || [];
+  return {
+    id: msg.id,
+    threadId: msg.threadId,
+    from: getHeader(headers, 'From'),
+    to: getHeader(headers, 'To'),
+    subject: getHeader(headers, 'Subject'),
+    date: getHeader(headers, 'Date'),
+    messageId: getHeader(headers, 'Message-ID'),
+    references: getHeader(headers, 'References'),
+    body: extractBody(msg.payload),
+    snippet: msg.snippet || '',
+  };
+}
+
+// ─── MIME builder for sending ───
+
 function buildMime(params: {
   to: string;
   subject: string;
   body: string;
-  messageId?: string;
+  inReplyTo?: string;
   references?: string;
 }): string {
   const lines: string[] = [
     `To: ${params.to}`,
     `Subject: ${params.subject}`,
-    'Content-Type: text/plain; charset=UTF-8',
-    'MIME-Version: 1.0',
-    '',
-    params.body.replace(/\r?\n/g, '\r\n'),
   ];
-  if (params.messageId) {
-    lines.splice(2, 0, `In-Reply-To: ${params.messageId}`);
-    if (params.references) lines.splice(3, 0, `References: ${params.references}`);
-  }
+  if (params.inReplyTo) lines.push(`In-Reply-To: ${params.inReplyTo}`);
+  if (params.references) lines.push(`References: ${params.references}`);
+  lines.push('Content-Type: text/plain; charset=UTF-8', 'MIME-Version: 1.0', '', params.body);
   return lines.join('\r\n');
 }
+
+// ─── Public types ───
 
 export interface SendEmailParams {
   to: string;
@@ -89,153 +187,94 @@ export interface SendEmailParams {
 
 export interface ReplyEmailParams extends SendEmailParams {
   threadId: string;
-  messageId: string;
+  inReplyTo: string;
   references?: string;
 }
 
-export interface GmailThread {
-  id: string;
-  snippet?: string;
-  messages?: { id: string }[];
-}
-
-export interface GmailMessage {
-  id: string;
-  threadId: string;
-  payload?: {
-    headers?: { name: string; value: string }[];
-    body?: { data?: string };
-    parts?: { mimeType?: string; body?: { data?: string }; headers?: { name: string; value: string }[] }[];
-  };
-}
-
-function getHeader(headers: { name: string; value: string }[] | undefined, name: string): string {
-  if (!headers) return '';
-  const h = headers.find((x) => x.name.toLowerCase() === name.toLowerCase());
-  return h?.value ?? '';
-}
-
-function getMessageBody(payload: GmailMessage['payload']): string {
-  if (!payload) return '';
-  if (payload.body?.data) {
-    return fromBase64Url(payload.body.data);
-  }
-  const textPart = payload.parts?.find(
-    (p) => p.mimeType === 'text/plain' || (p.mimeType && p.mimeType.startsWith('text/'))
-  );
-  if (textPart?.body?.data) return fromBase64Url(textPart.body.data);
-  const anyPart = payload.parts?.find((p) => p.body?.data);
-  if (anyPart?.body?.data) return fromBase64Url(anyPart.body.data);
-  return '';
-}
+// ─── Hook ───
 
 export function useGmail() {
   const { googleAccessToken } = useAuth();
-
   const isConnected = Boolean(googleAccessToken || getGoogleToken());
 
   const getToken = useCallback((): string => {
     const token = googleAccessToken || getGoogleToken();
-    if (!token) {
-      throw new Error('Gmail not connected. Please connect in Settings.');
-    }
+    if (!token) throw new Error('Gmail not connected. Please connect in Admin → Integrations.');
     return token;
   }, [googleAccessToken]);
 
+  /** Send a new email */
   const sendEmail = useCallback(
     async (params: SendEmailParams): Promise<{ id: string; threadId: string }> => {
       const token = getToken();
-      const mime = buildMime({ to: params.to, subject: params.subject, body: params.body });
-      const raw = toBase64Url(mime);
-      const res = await callGmailAPI<{ id: string; threadId: string }>(
+      const raw = toBase64Url(buildMime(params));
+      return callGmailAPI<{ id: string; threadId: string }>(
         `${GMAIL_API}/messages/send`,
         token,
         { method: 'POST', body: JSON.stringify({ raw }) }
       );
-      return res;
     },
     [getToken]
   );
 
+  /** Reply in an existing thread */
   const replyEmail = useCallback(
     async (params: ReplyEmailParams): Promise<{ id: string; threadId: string }> => {
       const token = getToken();
-      const mime = buildMime({
-        to: params.to,
-        subject: params.subject,
-        body: params.body,
-        messageId: params.messageId,
-        references: params.references,
-      });
-      const raw = toBase64Url(mime);
-      const res = await callGmailAPI<{ id: string; threadId: string }>(
+      const raw = toBase64Url(
+        buildMime({
+          to: params.to,
+          subject: params.subject,
+          body: params.body,
+          inReplyTo: params.inReplyTo,
+          references: params.references,
+        })
+      );
+      return callGmailAPI<{ id: string; threadId: string }>(
         `${GMAIL_API}/messages/send`,
         token,
         { method: 'POST', body: JSON.stringify({ raw, threadId: params.threadId }) }
       );
-      return res;
     },
     [getToken]
   );
 
-  const listThreadsForContact = useCallback(
-    async (email: string, maxResults = 20): Promise<GmailThread[]> => {
+  /** List thread IDs + snippets for a contact (1 API call) */
+  const listThreads = useCallback(
+    async (contactEmail: string, maxResults = 20): Promise<GmailThreadListItem[]> => {
       const token = getToken();
-      const q = encodeURIComponent(`from:${email} OR to:${email}`);
-      const res = await callGmailAPI<{ threads?: { id: string; snippet?: string }[] }>(
+      const q = encodeURIComponent(`from:${contactEmail} OR to:${contactEmail}`);
+      const res = await callGmailAPI<{ threads?: GmailThreadListItem[] }>(
         `${GMAIL_API}/threads?q=${q}&maxResults=${maxResults}`,
         token
       );
-      return (res.threads || []).map((t) => ({ id: t.id, snippet: t.snippet }));
+      return res.threads || [];
     },
     [getToken]
   );
 
+  /**
+   * Get a single thread with all messages (1 API call).
+   * format=full returns messages with payloads (headers + body).
+   * format=metadata returns messages with only headers (lighter).
+   */
   const getThread = useCallback(
-    async (threadId: string): Promise<GmailThread> => {
+    async (threadId: string, format: 'full' | 'metadata' = 'full'): Promise<GmailThreadRaw> => {
       const token = getToken();
-      const res = await callGmailAPI<{ id: string; snippet?: string; messages?: { id: string }[] }>(
-        `${GMAIL_API}/threads/${encodeURIComponent(threadId)}`,
-        token
-      );
-      return { id: res.id, snippet: res.snippet, messages: res.messages };
+      let url = `${GMAIL_API}/threads/${encodeURIComponent(threadId)}?format=${format}`;
+      if (format === 'metadata') {
+        url += '&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Date';
+      }
+      return callGmailAPI<GmailThreadRaw>(url, token);
     },
     [getToken]
   );
-
-  const getMessage = useCallback(
-    async (messageId: string): Promise<GmailMessage> => {
-      const token = getToken();
-      const res = await callGmailAPI<GmailMessage>(
-        `${GMAIL_API}/messages/${encodeURIComponent(messageId)}?format=full`,
-        token
-      );
-      return res;
-    },
-    [getToken]
-  );
-
-  /** Helpers to parse a Gmail message for display */
-  const parseMessage = useCallback((msg: GmailMessage) => {
-    const headers = msg.payload?.headers || [];
-    return {
-      from: getHeader(headers, 'From'),
-      to: getHeader(headers, 'To'),
-      subject: getHeader(headers, 'Subject'),
-      date: getHeader(headers, 'Date'),
-      messageId: getHeader(headers, 'Message-ID'),
-      references: getHeader(headers, 'References'),
-      body: getMessageBody(msg.payload),
-    };
-  }, []);
 
   return {
     isConnected,
     sendEmail,
     replyEmail,
-    listThreadsForContact,
+    listThreads,
     getThread,
-    getMessage,
-    parseMessage,
   };
 }
