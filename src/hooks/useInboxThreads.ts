@@ -183,8 +183,13 @@ export function useInboxThreads() {
   useEffect(() => {
     if (gmail.isConnected && user?.id && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
+      setLoading(true);
       fetchThreads();
     }
+    return () => {
+      // Reset so a remount (e.g. after Strict Mode unmount or navigation back) will fetch again
+      hasFetchedRef.current = false;
+    };
   }, [gmail.isConnected, user?.id, fetchThreads]);
 
   const refresh = useCallback(() => {
