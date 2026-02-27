@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { useGmail, type GmailMessage } from '@/hooks/useGmail';
+import { useGmail } from '@/hooks/useGmail';
 import { cn } from '@/lib/utils';
 import {
   Mail,
@@ -88,6 +88,8 @@ export function LeadEmailTab({
 }) {
   const { toast } = useToast();
   const gmail = useGmail();
+  const gmailRef = useRef(gmail);
+  gmailRef.current = gmail;
   const [view, setView] = useState<'list' | 'thread' | 'compose'>('list');
 
   // Thread list state
@@ -111,69 +113,72 @@ export function LeadEmailTab({
   const [sendingCompose, setSendingCompose] = useState(false);
 
   const fetchThreadList = useCallback(async () => {
-    if (!leadEmail?.trim() || !gmail.isConnected) return;
+    const g = gmailRef.current;
+    if (!leadEmail?.trim() || !g.isConnected) return;
     setLoadingThreads(true);
     setThreadError(null);
     try {
-      const threadRefs = await gmail.listThreadsForContact(leadEmail.trim());
+      const threadRefs = await g.listThreadsForContact(leadEmail.trim());
       if (threadRefs.length === 0) {
         setThreads([]);
         setLoadingThreads(false);
         return;
       }
-      // Fetch thread details in parallel (up to 25) for speed
-      const results = await Promise.allSettled(
-        threadRefs.slice(0, 25).map(async (ref) => {
-          const thread = await gmail.getThread(ref.id);
+      const summaries: ThreadSummary[] = [];
+      // Fetch sequentially to avoid rate-limiting on Gmail API
+      for (const ref of threadRefs.slice(0, 20)) {
+        try {
+          const thread = await g.getThread(ref.id);
           const msgIds = thread.messages?.map((m) => m.id) || [];
-          if (msgIds.length === 0) return null;
-          const firstMsg = await gmail.getMessage(msgIds[0]);
+          if (msgIds.length === 0) continue;
+          const firstMsg = await g.getMessage(msgIds[0]);
           const lastMsg = msgIds.length > 1
-            ? await gmail.getMessage(msgIds[msgIds.length - 1])
+            ? await g.getMessage(msgIds[msgIds.length - 1])
             : firstMsg;
-          const first = gmail.parseMessage(firstMsg);
-          const last = gmail.parseMessage(lastMsg);
-          return {
+          const first = g.parseMessage(firstMsg);
+          const last = g.parseMessage(lastMsg);
+          summaries.push({
             id: ref.id,
             subject: first.subject || '(No subject)',
             snippet: thread.snippet || last.body?.slice(0, 120).replace(/\n/g, ' ') || '',
             from: last.from,
             date: last.date,
             messageCount: msgIds.length,
-          } as ThreadSummary;
-        })
-      );
-      const summaries = results
-        .filter((r): r is PromiseFulfilledResult<ThreadSummary | null> => r.status === 'fulfilled')
-        .map((r) => r.value)
-        .filter(Boolean) as ThreadSummary[];
+          });
+        } catch {
+          // skip threads that fail
+        }
+      }
       setThreads(summaries);
     } catch (err) {
       setThreadError(err instanceof Error ? err.message : 'Failed to load emails');
     } finally {
       setLoadingThreads(false);
     }
-  }, [leadEmail, gmail]);
+  }, [leadEmail]);
 
+  const hasFetchedRef = useRef(false);
   useEffect(() => {
-    if (gmail.isConnected && leadEmail?.trim()) {
+    if (gmail.isConnected && leadEmail?.trim() && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
       fetchThreadList();
     }
   }, [gmail.isConnected, leadEmail, fetchThreadList]);
 
   const openThread = async (threadId: string) => {
+    const g = gmailRef.current;
     setActiveThreadId(threadId);
     setView('thread');
     setReplyOpen(false);
     setReplyBody('');
     setLoadingThread(true);
     try {
-      const thread = await gmail.getThread(threadId);
+      const thread = await g.getThread(threadId);
       const msgIds = thread.messages?.map((m) => m.id) || [];
       const parsed: ParsedMessage[] = [];
       for (const id of msgIds) {
-        const msg = await gmail.getMessage(id);
-        const p = gmail.parseMessage(msg);
+        const msg = await g.getMessage(id);
+        const p = g.parseMessage(msg);
         parsed.push({ id, threadId, ...p });
       }
       setThreadMessages(parsed);
@@ -186,6 +191,7 @@ export function LeadEmailTab({
   };
 
   const handleReply = async () => {
+    const g = gmailRef.current;
     if (!replyBody.trim() || threadMessages.length === 0) return;
     const lastMsg = threadMessages[threadMessages.length - 1];
     const replyTo = extractEmail(lastMsg.from) === extractEmail(leadEmail ?? '')
@@ -194,7 +200,7 @@ export function LeadEmailTab({
 
     setSendingReply(true);
     try {
-      await gmail.replyEmail({
+      await g.replyEmail({
         to: replyTo,
         subject: lastMsg.subject.startsWith('Re:') ? lastMsg.subject : `Re: ${lastMsg.subject}`,
         body: replyBody.trim(),
@@ -214,10 +220,11 @@ export function LeadEmailTab({
   };
 
   const handleCompose = async () => {
+    const g = gmailRef.current;
     if (!composeBody.trim() || !leadEmail?.trim()) return;
     setSendingCompose(true);
     try {
-      await gmail.sendEmail({
+      await g.sendEmail({
         to: leadEmail.trim(),
         subject: composeSubject.trim() || '(No subject)',
         body: composeBody.trim(),
@@ -226,6 +233,7 @@ export function LeadEmailTab({
       setComposeSubject('');
       setComposeBody('');
       setView('list');
+      hasFetchedRef.current = false;
       fetchThreadList();
     } catch (err) {
       toast({ variant: 'destructive', title: 'Failed to send', description: err instanceof Error ? err.message : 'Unknown error' });
@@ -447,7 +455,7 @@ export function LeadEmailTab({
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchThreadList}
+            onClick={() => { hasFetchedRef.current = false; fetchThreadList(); }}
             disabled={loadingThreads}
             className="gap-1.5"
           >
@@ -481,7 +489,7 @@ export function LeadEmailTab({
           <div className="text-center py-8 space-y-2">
             <AlertCircle className="h-8 w-8 mx-auto text-destructive/50" />
             <p className="text-sm text-destructive">{threadError}</p>
-            <Button variant="outline" size="sm" onClick={fetchThreadList}>
+            <Button variant="outline" size="sm" onClick={() => { hasFetchedRef.current = false; fetchThreadList(); }}>
               Retry
             </Button>
           </div>
