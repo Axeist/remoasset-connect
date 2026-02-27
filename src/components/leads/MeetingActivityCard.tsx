@@ -20,7 +20,8 @@ interface MeetingActivityCardProps {
   createdAt: string;
 }
 
-function extractMeetingMeta(attachments: { type: string; url: string; name?: string }[]): MeetingMeta | null {
+/** Extract meeting metadata from attachments for display in activity log */
+export function extractMeetingMeta(attachments: { type: string; url: string; name?: string }[]): MeetingMeta | null {
   const meta = attachments.find((a) => a.type === 'meeting_meta');
   if (meta) return meta as unknown as MeetingMeta;
   return null;

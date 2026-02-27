@@ -9,8 +9,8 @@ import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 import { AddFollowUpDialog } from '@/components/leads/AddFollowUpDialog';
 import { UploadDocumentDialog } from '@/components/leads/UploadDocumentDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
-import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin, Pencil, Check, X, Video, ChevronDown } from 'lucide-react';
-import { MeetingActivityCard, hasMeetingData } from '@/components/leads/MeetingActivityCard';
+import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin, Pencil, Check, X, Video, ChevronDown, Clock, Users } from 'lucide-react';
+import { MeetingActivityCard, hasMeetingData, extractMeetingMeta } from '@/components/leads/MeetingActivityCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
@@ -814,6 +814,7 @@ function LeadActivityTab({
                 const attachments = (a.attachments ?? []) as { type: string; url: string; name?: string }[];
                 const isMeeting = a.activity_type === 'meeting';
                 const isMeetingWithCalendar = isMeeting && hasMeetingData(attachments);
+                const meetingMeta = isMeeting ? extractMeetingMeta(attachments) : null;
                 const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
                 const expanded = expandedIds.has(a.id);
                 const descriptionPreview = a.description?.length > 120 ? a.description.slice(0, 120) + '…' : a.description;
@@ -857,12 +858,50 @@ function LeadActivityTab({
                                   {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'PPp')}
                                 </p>
                               </div>
-                              <p className={cn(
-                                'text-sm text-foreground',
-                                !expanded && 'line-clamp-2'
-                              )}>
-                                {expanded ? a.description : descriptionPreview}
-                              </p>
+                              {/* For meetings with calendar (collapsed): show event name, time, attendees, then description */}
+                              {!expanded && isMeetingWithCalendar && meetingMeta ? (
+                                <div className="space-y-1.5">
+                                  {meetingMeta.meetingTitle && (
+                                    <p className="text-sm font-medium text-foreground">
+                                      {meetingMeta.meetingTitle}
+                                    </p>
+                                  )}
+                                  {meetingMeta.startTime && meetingMeta.endTime && (
+                                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                      <Clock className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                      <span>
+                                        {safeFormat(meetingMeta.startTime, 'EEE, MMM d · h:mm a')}
+                                        {' – '}
+                                        {safeFormat(meetingMeta.endTime, 'h:mm a')}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {meetingMeta.attendees && meetingMeta.attendees.length > 0 && (
+                                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+                                      <Users className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                      <span className="flex flex-wrap gap-x-1.5 gap-y-0.5">
+                                        {meetingMeta.attendees.map((email, i) => (
+                                          <span key={i} className="inline-flex items-center rounded-full bg-blue-100/60 dark:bg-blue-900/30 px-2 py-0.5 text-[11px] text-blue-700 dark:text-blue-300">
+                                            {email}
+                                          </span>
+                                        ))}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {a.description && (
+                                    <p className="text-sm text-muted-foreground line-clamp-2">
+                                      {descriptionPreview}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className={cn(
+                                  'text-sm text-foreground',
+                                  !expanded && 'line-clamp-2'
+                                )}>
+                                  {expanded ? a.description : descriptionPreview}
+                                </p>
+                              )}
                               {/* Collapsed inline indicators */}
                               {!expanded && (nonMetaAttachments.length > 0 || isMeetingWithCalendar) && (
                                 <div className="flex items-center gap-2 mt-1.5">

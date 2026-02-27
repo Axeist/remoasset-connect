@@ -30,9 +30,11 @@ import {
   Linkedin,
   Video,
   ChevronDown,
+  Clock,
+  Users,
 } from 'lucide-react';
 import type { Lead } from '@/types/lead';
-import { MeetingActivityCardCompact, hasMeetingData } from '@/components/leads/MeetingActivityCard';
+import { MeetingActivityCardCompact, hasMeetingData, extractMeetingMeta } from '@/components/leads/MeetingActivityCard';
 import { useSyncGoogleMeetingActivities } from '@/hooks/useSyncGoogleMeetingActivities';
 
 interface LeadActivity {
@@ -353,6 +355,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                     const attachments = (a.attachments ?? []) as { type: string; url: string; name?: string }[];
                     const isMeeting = a.activity_type === 'meeting';
                     const isMeetingWithCalendar = isMeeting && hasMeetingData(attachments);
+                    const meetingMeta = isMeeting ? extractMeetingMeta(attachments) : null;
                     const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
                     const expanded = expandedIds.has(a.id);
                     const descPreview = a.description?.length > 80 ? a.description.slice(0, 80) + '…' : a.description;
@@ -394,9 +397,36 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                                     · {safeFormat(a.created_at, 'MMM d, h:mm a')}
                                   </span>
                                 </div>
-                                <p className={cn('text-xs text-foreground leading-relaxed', !expanded && 'line-clamp-2')}>
-                                  {expanded ? a.description : descPreview}
-                                </p>
+                                {!expanded && isMeetingWithCalendar && meetingMeta ? (
+                                  <div className="space-y-1">
+                                    {meetingMeta.meetingTitle && (
+                                      <p className="text-xs font-medium text-foreground leading-relaxed truncate">
+                                        {meetingMeta.meetingTitle}
+                                      </p>
+                                    )}
+                                    {meetingMeta.startTime && meetingMeta.endTime && (
+                                      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                        <Clock className="h-3 w-3 text-blue-500 shrink-0" />
+                                        {safeFormat(meetingMeta.startTime, 'MMM d, h:mm a')}
+                                        {' – '}
+                                        {safeFormat(meetingMeta.endTime, 'h:mm a')}
+                                      </p>
+                                    )}
+                                    {meetingMeta.attendees && meetingMeta.attendees.length > 0 && (
+                                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                        <Users className="h-3 w-3 text-blue-500 shrink-0" />
+                                        {meetingMeta.attendees.length} attendee{meetingMeta.attendees.length !== 1 ? 's' : ''}
+                                      </p>
+                                    )}
+                                    {a.description && (
+                                      <p className="text-[11px] text-muted-foreground line-clamp-2">{descPreview}</p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className={cn('text-xs text-foreground leading-relaxed', !expanded && 'line-clamp-2')}>
+                                    {expanded ? a.description : descPreview}
+                                  </p>
+                                )}
                                 {!expanded && (nonMetaAttachments.length > 0 || isMeetingWithCalendar) && (
                                   <div className="flex items-center gap-2 mt-1">
                                     {isMeetingWithCalendar && (
