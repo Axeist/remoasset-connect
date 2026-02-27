@@ -8,6 +8,7 @@ const INITIAL_DELAY_MS = 3_000;        // 3 seconds after mount
 const MAX_LEADS = 30;
 const LEAD_CACHE_MS = 5 * 60_000;     // refresh lead list every 5 minutes
 const HISTORY_ID_KEY = 'gmail_poll_history_id';
+const LAST_MESSAGE_KEY = 'gmail_poll_last_message_by_lead';
 
 function getStoredHistoryId(): string | null {
   return localStorage.getItem(HISTORY_ID_KEY);
@@ -19,6 +20,21 @@ function setStoredHistoryId(id: string) {
 
 function clearStoredHistoryId() {
   localStorage.removeItem(HISTORY_ID_KEY);
+}
+
+type LastMessageMap = Record<string, string>; // email → last messageId
+
+function getLastMessageMap(): LastMessageMap {
+  try {
+    const raw = localStorage.getItem(LAST_MESSAGE_KEY);
+    return raw ? (JSON.parse(raw) as LastMessageMap) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setLastMessageMap(map: LastMessageMap) {
+  localStorage.setItem(LAST_MESSAGE_KEY, JSON.stringify(map));
 }
 
 function playNotificationSound() {
@@ -149,50 +165,98 @@ export function useMailNotificationPoller() {
           }
         }
 
-        if (inboxMessages.size === 0) {
-          if (mountedRef.current) timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
-          return;
-        }
-
-        // Fetch metadata (From + Subject) for each new INBOX message
-        const messageIds = Array.from(inboxMessages.keys()).slice(0, 10);
-        const metaResults = await Promise.allSettled(
-          messageIds.map((id) => gmail.getMessage(id))
-        );
-
         const leadMap = leadMapRef.current;
 
-        for (let i = 0; i < metaResults.length; i++) {
-          const result = metaResults[i];
-          if (result.status !== 'fulfilled') continue;
+        // Primary path: Gmail History API found new INBOX messages
+        if (inboxMessages.size > 0) {
+          // Fetch metadata (From + Subject) for each new INBOX message
+          const messageIds = Array.from(inboxMessages.keys()).slice(0, 10);
+          const metaResults = await Promise.allSettled(
+            messageIds.map((id) => gmail.getMessage(id))
+          );
 
-          const msg = result.value;
-          const headers = msg.payload?.headers || [];
-          const fromVal = headers.find((h) => h.name.toLowerCase() === 'from')?.value ?? '';
-          const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value ?? '(No subject)';
+          for (let i = 0; i < metaResults.length; i++) {
+            const result = metaResults[i];
+            if (result.status !== 'fulfilled') continue;
 
-          // Extract bare email from "Name <email>" or plain email
-          const emailMatch = fromVal.match(/<([^>]+)>/) ?? fromVal.match(/(\S+@\S+)/);
-          const fromEmail = (emailMatch ? emailMatch[1] : fromVal).toLowerCase().trim();
+            const msg = result.value;
+            const headers = msg.payload?.headers || [];
+            const fromVal = headers.find((h) => h.name.toLowerCase() === 'from')?.value ?? '';
+            const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value ?? '(No subject)';
 
-          const lead = leadMap.get(fromEmail);
-          if (!lead) continue; // not from a known lead – skip
+            // Extract bare email from "Name <email>" or plain email
+            const emailMatch = fromVal.match(/<([^>]+)>/) ?? fromVal.match(/(\S+@\S+)/);
+            const fromEmail = (emailMatch ? emailMatch[1] : fromVal).toLowerCase().trim();
 
-          const threadId = inboxMessages.get(msg.id) ?? msg.threadId;
-          const notifyUserId = lead.ownerId || user.id;
+            const lead = leadMap.get(fromEmail);
+            if (!lead) continue; // not from a known lead – skip
 
-          // Respect notification preferences – skip creating in-app alerts if disabled
-          if (prefs.email_reply ?? true) {
-            await supabase.from('notifications').insert({
-              user_id: notifyUserId,
-              title: `New email from ${lead.leadName}`,
-              message: `"${subject}"`,
-              type: 'email',
-              metadata: { threadId, leadId: lead.leadId, messageId: msg.id },
-            });
+            const threadId = inboxMessages.get(msg.id) ?? msg.threadId;
+            const notifyUserId = lead.ownerId || user.id;
+
+            // Respect notification preferences – skip creating in-app alerts if disabled
+            if (prefs.email_reply ?? true) {
+              await supabase.from('notifications').insert({
+                user_id: notifyUserId,
+                title: `New email from ${lead.leadName}`,
+                message: `"${subject}"`,
+                type: 'email',
+                metadata: { threadId, leadId: lead.leadId, messageId: msg.id },
+              });
+            }
+
+            if ((prefs.sound ?? true) && notifyUserId === user.id) playNotificationSound();
+          }
+        } else {
+          // Fallback path: History reported no new INBOX messages.
+          // To handle cases where labels or history behave unexpectedly,
+          // we scan the latest thread per lead and compare last message IDs.
+          const lastMap = getLastMessageMap();
+          const isFirstRun = Object.keys(lastMap).length === 0;
+          const newLastMap: LastMessageMap = { ...lastMap };
+
+          const leadsArray = Array.from(leadMap.values()).slice(0, MAX_LEADS);
+
+          for (const lead of leadsArray) {
+            try {
+              const threads = await gmail.listThreads(lead.leadEmail ?? '', 1);
+              if (!threads || threads.length === 0) continue;
+              const threadId = threads[0].id;
+              if (!threadId) continue;
+
+              const thread = await gmail.getThread(threadId, 'metadata');
+              const msgs = thread.messages || [];
+              if (msgs.length === 0) continue;
+              const lastMsg = msgs[msgs.length - 1];
+              const lastId = lastMsg.id;
+              if (!lastId) continue;
+
+              const prevId = lastMap[lead.leadEmail.toLowerCase()];
+              newLastMap[lead.leadEmail.toLowerCase()] = lastId;
+
+              // On first run we just seed the map without notifying
+              if (isFirstRun || !prevId || prevId === lastId) continue;
+
+              const headers = lastMsg.payload?.headers || [];
+              const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value ?? '(No subject)';
+
+              const notifyUserId = lead.ownerId || user.id;
+              if (prefs.email_reply ?? true) {
+                await supabase.from('notifications').insert({
+                  user_id: notifyUserId,
+                  title: `New email activity for ${lead.leadName}`,
+                  message: `"${subject}"`,
+                  type: 'email',
+                  metadata: { threadId, leadId: lead.leadId, messageId: lastId },
+                });
+              }
+              if ((prefs.sound ?? true) && notifyUserId === user.id) playNotificationSound();
+            } catch {
+              // ignore per-lead failures
+            }
           }
 
-          if ((prefs.sound ?? true) && notifyUserId === user.id) playNotificationSound();
+          setLastMessageMap(newLastMap);
         }
       } catch {
         // ignore transient errors
