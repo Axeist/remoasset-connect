@@ -5,24 +5,11 @@ import { useGmail } from '@/hooks/useGmail';
 
 const POLL_INTERVAL_MS = 30_000;       // 30 seconds – near real-time
 const INITIAL_DELAY_MS = 3_000;        // 3 seconds after mount
-const MAX_LEADS = 30;
+const MAX_LEADS = 20;                  // keep polling light
 const LEAD_CACHE_MS = 5 * 60_000;     // refresh lead list every 5 minutes
-const HISTORY_ID_KEY = 'gmail_poll_history_id';
-const LAST_MESSAGE_KEY = 'gmail_poll_last_message_by_lead';
+const LAST_MESSAGE_KEY = 'gmail_poll_last_message_by_lead_v2';
 
-function getStoredHistoryId(): string | null {
-  return localStorage.getItem(HISTORY_ID_KEY);
-}
-
-function setStoredHistoryId(id: string) {
-  localStorage.setItem(HISTORY_ID_KEY, id);
-}
-
-function clearStoredHistoryId() {
-  localStorage.removeItem(HISTORY_ID_KEY);
-}
-
-type LastMessageMap = Record<string, string>; // email → last messageId
+type LastMessageMap = Record<string, { messageId: string; threadId: string }>;
 
 function getLastMessageMap(): LastMessageMap {
   try {
@@ -55,7 +42,7 @@ function playNotificationSound() {
   }
 }
 
-type LeadEntry = { leadId: string; leadName: string; ownerId: string | null };
+type LeadEntry = { leadId: string; leadName: string; ownerId: string | null; email: string };
 
 type NotifPrefs = {
   email_reply?: boolean;
@@ -100,10 +87,12 @@ export function useMailNotificationPoller() {
     const map = new Map<string, LeadEntry>();
     for (const l of (data || []) as { id: string; company_name: string; email: string; owner_id: string | null }[]) {
       if (l.email?.trim()) {
-        map.set(l.email.trim().toLowerCase(), {
+        const email = l.email.trim().toLowerCase();
+        map.set(email, {
           leadId: l.id,
           leadName: l.company_name,
           ownerId: l.owner_id,
+          email,
         });
       }
     }
@@ -123,64 +112,40 @@ export function useMailNotificationPoller() {
 
         await refreshLeads();
 
-        const storedHistoryId = getStoredHistoryId();
-
-        if (!storedHistoryId) {
-          // First run – seed the historyId, don't fire notifications for past messages
-          const profile = await gmail.getProfile();
-          if (profile?.historyId) setStoredHistoryId(profile.historyId);
-          if (mountedRef.current) timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
-          return;
-        }
-
-        // Incremental check: only fetch what changed since last poll
-        let historyRes;
-        try {
-          historyRes = await gmail.listHistory(storedHistoryId);
-        } catch (err) {
-          // historyId expired (404/400) – reseed silently
-          if (err instanceof Error) {
-            clearStoredHistoryId();
-          }
-          if (mountedRef.current) timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
-          return;
-        }
-
-        // Always advance the cursor even if no new messages
-        if (historyRes.historyId) setStoredHistoryId(historyRes.historyId);
-
-        if (!historyRes.history || historyRes.history.length === 0) {
-          if (mountedRef.current) timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
-          return;
-        }
-
-        // Collect message IDs that landed in INBOX
-        const inboxMessages = new Map<string, string>(); // messageId → threadId
-        for (const item of historyRes.history) {
-          for (const added of item.messagesAdded || []) {
-            const msg = added.message;
-            if (msg.labelIds?.includes('INBOX')) {
-              inboxMessages.set(msg.id, msg.threadId);
-            }
-          }
-        }
-
         const leadMap = leadMapRef.current;
+        if (leadMap.size === 0) {
+          if (mountedRef.current) timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+          return;
+        }
 
-        // Primary path: Gmail History API found new INBOX messages
-        if (inboxMessages.size > 0) {
-          // Fetch metadata (From + Subject) for each new INBOX message
-          const messageIds = Array.from(inboxMessages.keys()).slice(0, 10);
-          const metaResults = await Promise.allSettled(
-            messageIds.map((id) => gmail.getMessage(id))
-          );
+        const lastMap = getLastMessageMap();
+        const isFirstRun = Object.keys(lastMap).length === 0;
+        const newLastMap: LastMessageMap = { ...lastMap };
 
-          for (let i = 0; i < metaResults.length; i++) {
-            const result = metaResults[i];
-            if (result.status !== 'fulfilled') continue;
+        const leadsArray = Array.from(leadMap.values()).slice(0, MAX_LEADS);
 
-            const msg = result.value;
-            const headers = msg.payload?.headers || [];
+        for (const lead of leadsArray) {
+          try {
+            const threads = await gmail.listThreads(lead.email, 1);
+            if (!threads || threads.length === 0) continue;
+            const threadId = threads[0].id;
+            if (!threadId) continue;
+
+            const thread = await gmail.getThread(threadId, 'metadata');
+            const msgs = thread.messages || [];
+            if (msgs.length === 0) continue;
+            const lastMsg = msgs[msgs.length - 1];
+            const lastId = lastMsg.id;
+            if (!lastId) continue;
+
+            const key = lead.email;
+            const prev = lastMap[key];
+            newLastMap[key] = { messageId: lastId, threadId };
+
+            // On first run we just seed the map without notifying
+            if (isFirstRun || !prev || prev.messageId === lastId) continue;
+
+            const headers = lastMsg.payload?.headers || [];
             const fromVal = headers.find((h) => h.name.toLowerCase() === 'from')?.value ?? '';
             const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value ?? '(No subject)';
 
@@ -188,76 +153,30 @@ export function useMailNotificationPoller() {
             const emailMatch = fromVal.match(/<([^>]+)>/) ?? fromVal.match(/(\S+@\S+)/);
             const fromEmail = (emailMatch ? emailMatch[1] : fromVal).toLowerCase().trim();
 
-            const lead = leadMap.get(fromEmail);
-            if (!lead) continue; // not from a known lead – skip
+            // Only notify when the latest message is from the lead (not from current user)
+            if (user.email && fromEmail === user.email.toLowerCase()) continue;
 
-            const threadId = inboxMessages.get(msg.id) ?? msg.threadId;
             const notifyUserId = lead.ownerId || user.id;
-
-            // Respect notification preferences – skip creating in-app alerts if disabled
             if (prefs.email_reply ?? true) {
               await supabase.from('notifications').insert({
                 user_id: notifyUserId,
                 title: `New email from ${lead.leadName}`,
                 message: `"${subject}"`,
                 type: 'email',
-                metadata: { threadId, leadId: lead.leadId, messageId: msg.id },
+                metadata: { threadId, leadId: lead.leadId, messageId: lastId },
               });
             }
-
             if ((prefs.sound ?? true) && notifyUserId === user.id) playNotificationSound();
+            // Let other parts of the app (Inbox) know that new mail arrived
+            window.dispatchEvent(new CustomEvent('remoasset-inbox-new-email', {
+              detail: { threadId, leadId: lead.leadId },
+            }));
+          } catch {
+            // ignore per-lead failures
           }
-        } else {
-          // Fallback path: History reported no new INBOX messages.
-          // To handle cases where labels or history behave unexpectedly,
-          // we scan the latest thread per lead and compare last message IDs.
-          const lastMap = getLastMessageMap();
-          const isFirstRun = Object.keys(lastMap).length === 0;
-          const newLastMap: LastMessageMap = { ...lastMap };
-
-          const leadsArray = Array.from(leadMap.values()).slice(0, MAX_LEADS);
-
-          for (const lead of leadsArray) {
-            try {
-              const threads = await gmail.listThreads(lead.leadEmail ?? '', 1);
-              if (!threads || threads.length === 0) continue;
-              const threadId = threads[0].id;
-              if (!threadId) continue;
-
-              const thread = await gmail.getThread(threadId, 'metadata');
-              const msgs = thread.messages || [];
-              if (msgs.length === 0) continue;
-              const lastMsg = msgs[msgs.length - 1];
-              const lastId = lastMsg.id;
-              if (!lastId) continue;
-
-              const prevId = lastMap[lead.leadEmail.toLowerCase()];
-              newLastMap[lead.leadEmail.toLowerCase()] = lastId;
-
-              // On first run we just seed the map without notifying
-              if (isFirstRun || !prevId || prevId === lastId) continue;
-
-              const headers = lastMsg.payload?.headers || [];
-              const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value ?? '(No subject)';
-
-              const notifyUserId = lead.ownerId || user.id;
-              if (prefs.email_reply ?? true) {
-                await supabase.from('notifications').insert({
-                  user_id: notifyUserId,
-                  title: `New email activity for ${lead.leadName}`,
-                  message: `"${subject}"`,
-                  type: 'email',
-                  metadata: { threadId, leadId: lead.leadId, messageId: lastId },
-                });
-              }
-              if ((prefs.sound ?? true) && notifyUserId === user.id) playNotificationSound();
-            } catch {
-              // ignore per-lead failures
-            }
-          }
-
-          setLastMessageMap(newLastMap);
         }
+
+        setLastMessageMap(newLastMap);
       } catch {
         // ignore transient errors
       }
@@ -267,5 +186,5 @@ export function useMailNotificationPoller() {
 
     timeoutId = setTimeout(poll, INITIAL_DELAY_MS);
     return () => clearTimeout(timeoutId);
-  }, [user?.id, role, gmail.isConnected, gmail.getProfile, gmail.listHistory, gmail.getMessage, refreshLeads]);
+  }, [user?.id, role, gmail.isConnected, gmail.listThreads, gmail.getThread, refreshLeads]);
 }

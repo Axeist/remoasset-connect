@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef, useLayoutEffect } from 'react';
+import { useCallback, useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useGmail } from '@/hooks/useGmail';
@@ -198,6 +198,18 @@ export function useInboxThreads() {
     hasFetchedRef.current = false;
     fetchThreads();
   }, [fetchThreads]);
+
+  // When mail poller detects new email, it dispatches a DOM event.
+  // Listen for it and refetch inbox threads so new mail appears without reload.
+  useEffect(() => {
+    const handler = () => {
+      refresh();
+    };
+    window.addEventListener('remoasset-inbox-new-email', handler);
+    return () => {
+      window.removeEventListener('remoasset-inbox-new-email', handler);
+    };
+  }, [refresh]);
 
   // Show skeletons when we have no threads: auth still loading, or we're fetching, or waiting for first fetch
   const showAsLoading =

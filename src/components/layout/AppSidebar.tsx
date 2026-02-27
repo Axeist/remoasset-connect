@@ -40,7 +40,7 @@ const navItems = [
   { title: 'Notifications', url: '/notifications', icon: Bell, roles: ['admin', 'employee'] },
   { title: 'Reports', url: '/reports', icon: BarChart3, roles: ['admin', 'employee'] },
   { title: 'Help', url: '/help', icon: HelpCircle, roles: ['admin', 'employee'] },
-  { title: 'Settings', url: '/settings', icon: Settings, roles: ['employee'] },
+  { title: 'Settings', url: '/settings', icon: Settings, roles: ['admin', 'employee'] },
   { title: 'Admin Panel', url: '/admin', icon: Shield, roles: ['admin'] },
 ];
 
