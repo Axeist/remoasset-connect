@@ -138,6 +138,7 @@ export default function Help() {
               <ul className="list-disc list-inside space-y-1">
                 <li><strong className="text-foreground">Overview</strong> — Company info, contact, country, status, vendor types, warehouse details (if any).</li>
                 <li><strong className="text-foreground">Activity</strong> — Full log of calls, emails, meetings, notes, and system events (e.g. lead updated, task created). Each row shows the lead score impact (e.g. +6, +3). Filter by type and add new activities.</li>
+                <li><strong className="text-foreground">Emails</strong> — View all Gmail threads with the lead, read full conversations, compose new emails, and reply — all without leaving the app. Requires Google connection (Admin → Integrations).</li>
                 <li><strong className="text-foreground">Tasks</strong> — Tasks linked to this lead. Pending tasks show +3, completed +5. Create tasks from the lead or link existing ones from My Tasks.</li>
                 <li><strong className="text-foreground">Follow-ups</strong> — Scheduled follow-ups. Scheduled items show +2, completed +5. Mark done from here or from the Follow-ups page.</li>
                 <li><strong className="text-foreground">Documents</strong> — Upload files or links (e.g. NDA, proposal). Choose document type and optional custom name.</li>
@@ -246,6 +247,17 @@ export default function Help() {
               <h4 className="font-medium text-foreground mt-4">Activity Monitor</h4>
               <p>
                 Available in the sidebar for admins only. Shows all team tasks and follow-ups with filters (status, employee, priority), overdue highlighting, and links to leads. Use it to monitor workload and follow-up compliance.
+              </p>
+              <h4 className="font-medium text-foreground mt-4">Integrations (Google Workspace)</h4>
+              <p>
+                Under <strong className="text-foreground">Integrations</strong>, connect Google to enable Calendar, Meet, and Gmail. One sign-in covers all three. Once connected:
+              </p>
+              <ul className="list-disc list-inside space-y-1">
+                <li><strong className="text-foreground">Gmail</strong> — The <strong className="text-foreground">Emails</strong> tab on each lead shows all email threads with the lead. You can read full conversations, compose new emails, and reply to threads from inside the app. Sending an email from Activity → Add activity (type: Email) also sends via Gmail and logs the activity automatically.</li>
+                <li><strong className="text-foreground">Calendar</strong> — Meeting activities can be synced to Google Calendar with auto-generated Google Meet links and email invites to attendees.</li>
+              </ul>
+              <p className="text-xs text-muted-foreground/90">
+                To reconnect or change the Google account, go to Admin Panel → Integrations and click &quot;Reconnect&quot;.
               </p>
             </AccordionContent>
           </AccordionItem>

@@ -159,7 +159,7 @@ export function LeadEmailTab({
     if (gmail.isConnected && leadEmail?.trim()) {
       fetchThreadList();
     }
-  }, [gmail.isConnected, leadEmail]);
+  }, [gmail.isConnected, leadEmail, fetchThreadList]);
 
   const openThread = async (threadId: string) => {
     setActiveThreadId(threadId);

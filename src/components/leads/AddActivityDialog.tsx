@@ -277,10 +277,11 @@ export function AddActivityDialog({
     if (!user) return;
     setSubmitting(true);
 
-    // When sending via Gmail, send first then log activity
+    // When sending via Gmail, send first then log activity with thread reference
+    let gmailResult: { id: string; threadId: string } | null = null;
     if (isEmailViaGmail) {
       try {
-        await sendEmail({
+        gmailResult = await sendEmail({
           to: leadEmail!.trim(),
           subject: emailSubject.trim(),
           body: description.trim(),
@@ -294,6 +295,15 @@ export function AddActivityDialog({
     }
 
     const attachments: ActivityAttachment[] = [];
+
+    // Store Gmail thread reference so we can link back to the thread
+    if (gmailResult) {
+      attachments.push({
+        type: 'url',
+        url: `https://mail.google.com/mail/u/0/#inbox/${gmailResult.threadId}`,
+        name: 'View in Gmail',
+      });
+    }
 
     // Upload NDA file to lead-documents storage and create a lead_documents row
     if (isNda && ndaFile) {
