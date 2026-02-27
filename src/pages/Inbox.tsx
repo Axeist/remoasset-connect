@@ -155,15 +155,25 @@ export default function Inbox() {
     setSearchParams((p) => { p.delete('thread'); return p; }, { replace: true });
   }, [setSearchParams]);
 
+  const scopeError = (err: unknown) => {
+    const msg = err instanceof Error ? err.message : '';
+    return msg.includes('403') || msg.toLowerCase().includes('forbidden')
+      ? 'Please reconnect Google (Admin → Integrations) to enable this.'
+      : msg || 'Something went wrong';
+  };
+
   const toggleStar = useCallback(
     async (threadId: string) => {
       const current = starredRef.current[threadId];
       setTogglingStar(threadId);
+      // Optimistic update
+      setStarred((s) => ({ ...s, [threadId]: !current }));
       try {
         await gmail.modifyThread(threadId, current ? { removeLabelIds: ['STARRED'] } : { addLabelIds: ['STARRED'] });
-        setStarred((s) => ({ ...s, [threadId]: !current }));
-      } catch {
-        toast({ variant: 'destructive', title: 'Failed to update star' });
+      } catch (err) {
+        // Revert on failure
+        setStarred((s) => ({ ...s, [threadId]: current }));
+        toast({ variant: 'destructive', title: 'Could not update star', description: scopeError(err) });
       } finally {
         setTogglingStar(null);
       }
@@ -174,11 +184,14 @@ export default function Inbox() {
   const markAsRead = useCallback(
     async (threadId: string) => {
       setMarkingRead(threadId);
+      // Optimistic update
+      setUnread((u) => ({ ...u, [threadId]: false }));
       try {
         await gmail.modifyThread(threadId, { removeLabelIds: ['UNREAD'] });
-        setUnread((u) => ({ ...u, [threadId]: false }));
-      } catch {
-        toast({ variant: 'destructive', title: 'Failed to mark as read' });
+      } catch (err) {
+        // Revert on failure
+        setUnread((u) => ({ ...u, [threadId]: true }));
+        toast({ variant: 'destructive', title: 'Could not mark as read', description: scopeError(err) });
       } finally {
         setMarkingRead(null);
       }

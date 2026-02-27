@@ -107,9 +107,36 @@ async function callGmailAPI<T>(url: string, token: string, options: RequestInit 
 
 // ─── Types matching Gmail API response ───
 
-interface GmailHeader {
+export interface GmailHeader {
   name: string;
   value: string;
+}
+
+export interface GmailProfile {
+  emailAddress: string;
+  messagesTotal: number;
+  historyId: string;
+}
+
+export interface GmailHistoryMessage {
+  id: string;
+  threadId: string;
+  labelIds?: string[];
+}
+
+export interface GmailHistoryItem {
+  id: string;
+  messages?: GmailHistoryMessage[];
+  messagesAdded?: Array<{ message: GmailHistoryMessage }>;
+  messagesDeleted?: Array<{ message: GmailHistoryMessage }>;
+  labelsAdded?: Array<{ message: GmailHistoryMessage; labelIds: string[] }>;
+  labelsRemoved?: Array<{ message: GmailHistoryMessage; labelIds: string[] }>;
+}
+
+export interface GmailHistoryResponse {
+  history?: GmailHistoryItem[];
+  nextPageToken?: string;
+  historyId: string;
 }
 
 interface GmailPayloadPart {
@@ -441,6 +468,32 @@ export function useGmail() {
     [getToken]
   );
 
+  const getProfile = useCallback(
+    async (): Promise<GmailProfile> => {
+      const token = getToken();
+      return callGmailAPI<GmailProfile>(`${GMAIL_API}/profile`, token);
+    },
+    [getToken]
+  );
+
+  const listHistory = useCallback(
+    async (startHistoryId: string): Promise<GmailHistoryResponse> => {
+      const token = getToken();
+      const url = `${GMAIL_API}/history?startHistoryId=${encodeURIComponent(startHistoryId)}&historyTypes=messageAdded&labelId=INBOX`;
+      return callGmailAPI<GmailHistoryResponse>(url, token);
+    },
+    [getToken]
+  );
+
+  const getMessage = useCallback(
+    async (messageId: string): Promise<GmailMessageRaw> => {
+      const token = getToken();
+      const url = `${GMAIL_API}/messages/${encodeURIComponent(messageId)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`;
+      return callGmailAPI<GmailMessageRaw>(url, token);
+    },
+    [getToken]
+  );
+
   return {
     isConnected,
     sendEmail,
@@ -448,5 +501,8 @@ export function useGmail() {
     listThreads,
     getThread,
     modifyThread,
+    getProfile,
+    listHistory,
+    getMessage,
   };
 }

@@ -39,6 +39,8 @@ export function useInboxThreads() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasFetchedRef = useRef(false);
+  // Prevents two concurrent fetches from racing (e.g. useEffect re-fire during refresh)
+  const isFetchingRef = useRef(false);
 
   const isAdmin = role === 'admin';
 
@@ -60,25 +62,35 @@ export function useInboxThreads() {
 
   const fetchThreads = useCallback(async () => {
     if (!gmail.isConnected || !user?.id) return;
+    // Guard against concurrent fetches (refresh button + useEffect race)
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     setLoading(true);
     setError(null);
     try {
       const leadList = await fetchLeads();
       if (leadList.length === 0) {
+        // Keep existing threads if we already had some
         setThreads((prev) => (prev.length === 0 ? [] : prev));
-        setLoading(false);
         return;
       }
 
       const threadIdToLead = new Map<string, { leadId: string; leadName: string; leadEmail: string }>();
       const allThreadIds: string[] = [];
 
-      // Fetch thread IDs for all leads in parallel (threads where lead is from/to = replies and sent)
       const listResults = await Promise.allSettled(
         leadList.map((lead) =>
           gmail.listThreads(lead.email!.trim(), THREADS_PER_LEAD)
         )
       );
+
+      // If every single listThreads call failed, Gmail is unreachable — preserve existing threads
+      const anyListSucceeded = listResults.some((r) => r.status === 'fulfilled');
+      if (!anyListSucceeded) {
+        setError('Could not reach Gmail. Showing cached results.');
+        return;
+      }
+
       for (let i = 0; i < listResults.length; i++) {
         const result = listResults[i];
         const lead = leadList[i];
@@ -99,7 +111,6 @@ export function useInboxThreads() {
       const toFetch = allThreadIds.slice(0, MAX_MERGED_THREADS);
       const results: InboxThreadItem[] = [];
 
-      // Fetch metadata in parallel (in one or two batches to avoid rate limit)
       for (let i = 0; i < toFetch.length; i += MAX_METADATA_PARALLEL) {
         const batch = toFetch.slice(i, i + MAX_METADATA_PARALLEL);
         const settled = await Promise.allSettled(
@@ -134,19 +145,19 @@ export function useInboxThreads() {
         }
       }
 
-      results.sort((a, b) => {
-        const da = new Date(a.date).getTime();
-        const db = new Date(b.date).getTime();
-        return db - da;
-      });
-      setThreads(results);
+      results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      // Only overwrite threads if the fetch returned data; on an empty result (e.g. all
+      // metadata calls failed) keep the existing threads so a bad refresh doesn't blank the list.
+      setThreads((prev) => (results.length > 0 ? results : prev.length > 0 ? prev : []));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load inbox');
-      // Keep existing threads on error so a failed refresh doesn't clear the list
+      // Keep existing threads on error
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [gmail.isConnected, gmail.listThreads, gmail.getThread, user?.id, fetchLeads, isAdmin]);
+  }, [gmail.isConnected, gmail.listThreads, gmail.getThread, user?.id, fetchLeads]);
 
   useEffect(() => {
     if (gmail.isConnected && user?.id && !hasFetchedRef.current) {
