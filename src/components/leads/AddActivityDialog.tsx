@@ -21,12 +21,14 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { EmailTagInput } from '@/components/ui/email-tag-input';
 import { RichTextEditor, htmlToPlainText } from '@/components/ui/rich-text-editor';
+import { useEmailSignatures } from '@/hooks/useEmailSignatures';
+import { EmailSignaturesDialog } from '@/components/leads/EmailSignaturesDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getActivityScorePoints } from '@/lib/leadScore';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
-import { useGmail } from '@/hooks/useGmail';
+import { useGmail, fileToEmailAttachment } from '@/hooks/useGmail';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail, MessageCircle, ShieldCheck, Linkedin, CalendarDays } from 'lucide-react';
 
@@ -155,6 +157,8 @@ export function AddActivityDialog({
   const { user } = useAuth();
   const { toast } = useToast();
   const { isConnected: isCalendarConnected, createEvent: createCalendarEvent } = useGoogleCalendar();
+  const { signatures, add: addSig, update: updateSig, remove: removeSig, refresh: refreshSigs } = useEmailSignatures(user?.id);
+  const [signaturesDialogOpen, setSignaturesDialogOpen] = useState(false);
   const { isConnected: isGmailConnected, sendEmail } = useGmail();
   const [type, setType] = useState<ActivityType>('call');
   const [emailSubject, setEmailSubject] = useState('');
@@ -319,12 +323,16 @@ export function AddActivityDialog({
     let gmailResult: { id: string; threadId: string } | null = null;
     if (isEmailViaGmail) {
       try {
+        const emailAttachments = files.length > 0
+          ? await Promise.all(files.map((f) => fileToEmailAttachment(f)))
+          : undefined;
         gmailResult = await sendEmail({
           to: leadEmail!.trim(),
           subject: emailSubject.trim(),
           body: description,
           cc: emailCc.trim() || undefined,
           bcc: emailBcc.trim() || undefined,
+          attachments: emailAttachments,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to send email';
@@ -520,6 +528,7 @@ export function AddActivityDialog({
   };
 
   return (
+    <>
     <Dialog
       open={open}
       onOpenChange={(o) => {
@@ -868,6 +877,8 @@ export function AddActivityDialog({
                 onChange={setDescription}
                 placeholder="Write your email message..."
                 minHeight="180px"
+                signatures={signatures}
+                onManageSignatures={() => setSignaturesDialogOpen(true)}
               />
             ) : (
               <Textarea
@@ -965,5 +976,15 @@ export function AddActivityDialog({
         </form>
       </DialogContent>
     </Dialog>
+    <EmailSignaturesDialog
+      open={signaturesDialogOpen}
+      onOpenChange={setSignaturesDialogOpen}
+      signatures={signatures}
+      onAdd={(name, content) => addSig(name, content)}
+      onUpdate={updateSig}
+      onRemove={removeSig}
+      onRefresh={refreshSigs}
+    />
+    </>
   );
 }

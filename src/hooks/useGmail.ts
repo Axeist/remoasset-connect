@@ -231,6 +231,27 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+/** One attachment for sending (base64-encoded content) */
+export interface EmailAttachment {
+  filename: string;
+  mimeType: string;
+  contentBase64: string;
+}
+
+/** Convert a File to EmailAttachment (for use in sendEmail). */
+export async function fileToEmailAttachment(file: File): Promise<EmailAttachment> {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const contentBase64 = btoa(binary);
+  return {
+    filename: file.name,
+    mimeType: file.type || 'application/octet-stream',
+    contentBase64,
+  };
+}
+
 function buildMime(params: {
   to: string;
   subject: string;
@@ -239,6 +260,7 @@ function buildMime(params: {
   bcc?: string;
   inReplyTo?: string;
   references?: string;
+  attachments?: EmailAttachment[];
 }): string {
   const headers: string[] = [`To: ${params.to}`];
   if (params.cc) headers.push(`Cc: ${params.cc}`);
@@ -248,28 +270,58 @@ function buildMime(params: {
   if (params.references) headers.push(`References: ${params.references}`);
   headers.push('MIME-Version: 1.0');
 
+  const hasAttachments = params.attachments && params.attachments.length > 0;
+
+  // Body part(s): plain, html, or both
+  let bodyPart: string;
   if (isHtml(params.body)) {
-    // Multipart: text/plain + text/html
-    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+    const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const plain = stripHtml(params.body);
-    const parts = [
-      `--${boundary}`,
+    bodyPart = [
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+      '',
+      `--${altBoundary}`,
       'Content-Type: text/plain; charset=UTF-8',
       '',
       plain,
-      `--${boundary}`,
+      `--${altBoundary}`,
       'Content-Type: text/html; charset=UTF-8',
       '',
       params.body,
-      `--${boundary}--`,
+      `--${altBoundary}--`,
+    ].join('\r\n');
+  } else {
+    bodyPart = [
+      'Content-Type: text/plain; charset=UTF-8',
+      '',
+      params.body,
+    ].join('\r\n');
+  }
+
+  if (hasAttachments) {
+    const mixedBoundary = `----=_Mixed_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    headers.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
+    const parts: string[] = [
+      `--${mixedBoundary}`,
+      bodyPart,
     ];
+    for (const att of params.attachments!) {
+      const safeName = att.filename.replace(/[\r\n"]/g, '');
+      const lineWrapped = (att.contentBase64.match(/.{1,76}/g) || []).join('\r\n');
+      parts.push(
+        `--${mixedBoundary}`,
+        `Content-Disposition: attachment; filename="${safeName}"`,
+        `Content-Type: ${att.mimeType}; name="${safeName}"`,
+        'Content-Transfer-Encoding: base64',
+        '',
+        lineWrapped
+      );
+    }
+    parts.push(`--${mixedBoundary}--`);
     return [...headers, '', ...parts].join('\r\n');
   }
 
-  // Plain text only
-  headers.push('Content-Type: text/plain; charset=UTF-8');
-  return [...headers, '', params.body].join('\r\n');
+  return [...headers, '', bodyPart].join('\r\n');
 }
 
 // ─── Public types ───
@@ -280,12 +332,14 @@ export interface SendEmailParams {
   body: string;
   cc?: string;
   bcc?: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface ReplyEmailParams extends SendEmailParams {
   threadId: string;
   inReplyTo: string;
   references?: string;
+  attachments?: EmailAttachment[];
 }
 
 // ─── Hook ───
@@ -325,6 +379,7 @@ export function useGmail() {
           bcc: params.bcc,
           inReplyTo: params.inReplyTo,
           references: params.references,
+          attachments: params.attachments,
         })
       );
       return callGmailAPI<{ id: string; threadId: string }>(

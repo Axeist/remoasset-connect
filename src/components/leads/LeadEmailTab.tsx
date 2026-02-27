@@ -6,12 +6,14 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { useGmail } from '@/hooks/useGmail';
+import { useGmail, fileToEmailAttachment } from '@/hooks/useGmail';
 import { parseGmailMessage, type ParsedGmailMessage } from '@/hooks/useGmail';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { EmailTagInput } from '@/components/ui/email-tag-input';
 import { RichTextEditor, htmlToPlainText } from '@/components/ui/rich-text-editor';
+import { useEmailSignatures } from '@/hooks/useEmailSignatures';
+import { EmailSignaturesDialog } from '@/components/leads/EmailSignaturesDialog';
 import { cn } from '@/lib/utils';
 import {
   Mail,
@@ -26,6 +28,8 @@ import {
   AlertCircle,
   Loader2,
   MailPlus,
+  Paperclip,
+  X,
 } from 'lucide-react';
 
 // ─── Helpers ───
@@ -190,6 +194,7 @@ async function syncIncomingToActivityLog(params: {
       attachments: [
         { type: 'url', url: gmailThreadUrl(threadId), name: 'View in Gmail' },
         { type: 'gmail_ref', url: msg.id, name: 'gmail_message_id' },
+        { type: 'activity_source', url: 'automation', name: 'activity_source' },
       ],
     };
     const ts = parseEmailDate(msg.date);
@@ -405,7 +410,11 @@ export function LeadEmailTab({
   const [composeBody, setComposeBody] = useState('');
   const [composeCc, setComposeCc] = useState('');
   const [composeBcc, setComposeBcc] = useState('');
+  const [composeFiles, setComposeFiles] = useState<File[]>([]);
   const [sendingCompose, setSendingCompose] = useState(false);
+  const [replyFiles, setReplyFiles] = useState<File[]>([]);
+  const { signatures, add: addSig, update: updateSig, remove: removeSig, refresh: refreshSigs } = useEmailSignatures(user?.id);
+  const [signaturesDialogOpen, setSignaturesDialogOpen] = useState(false);
 
   // ─── Log outgoing email activity with gmail_ref for dedup ───
   const logEmailActivity = useCallback(
@@ -550,6 +559,7 @@ export function LeadEmailTab({
     const subject = lastMsg.subject.startsWith('Re:') ? lastMsg.subject : `Re: ${lastMsg.subject}`;
     setSendingReply(true);
     try {
+      const replyAttachments = replyFiles.length > 0 ? await Promise.all(replyFiles.map(fileToEmailAttachment)) : undefined;
       const result = await g.replyEmail({
         to: replyTo,
         subject,
@@ -559,12 +569,14 @@ export function LeadEmailTab({
         threadId: lastMsg.threadId,
         inReplyTo: lastMsg.messageId,
         references: lastMsg.references || lastMsg.messageId,
+        attachments: replyAttachments,
       });
       await logEmailActivity({ subject, body: plainReply, threadId: result.threadId, gmailMessageId: result.id, isReply: true });
       toast({ title: 'Reply sent' });
       setReplyBody('');
       setReplyCc('');
       setReplyBcc('');
+      setReplyFiles([]);
       setReplyOpen(false);
       await openThread(lastMsg.threadId);
     } catch (err) {
@@ -572,7 +584,7 @@ export function LeadEmailTab({
     } finally {
       setSendingReply(false);
     }
-  }, [replyBody, replyCc, replyBcc, threadMessages, leadEmail, openThread, logEmailActivity, toast]);
+  }, [replyBody, replyCc, replyBcc, replyFiles, threadMessages, leadEmail, openThread, logEmailActivity, toast]);
 
   // ─── Compose ───
   const handleCompose = useCallback(async () => {
@@ -582,12 +594,14 @@ export function LeadEmailTab({
     const subject = composeSubject.trim() || '(No subject)';
     setSendingCompose(true);
     try {
+      const composeAttachments = composeFiles.length > 0 ? await Promise.all(composeFiles.map(fileToEmailAttachment)) : undefined;
       const result = await g.sendEmail({
         to: leadEmail.trim(),
         subject,
         body: composeBody,
         cc: composeCc.trim() || undefined,
         bcc: composeBcc.trim() || undefined,
+        attachments: composeAttachments,
       });
       await logEmailActivity({ subject, body: plainCompose, threadId: result.threadId, gmailMessageId: result.id });
       toast({ title: 'Email sent' });
@@ -595,6 +609,7 @@ export function LeadEmailTab({
       setComposeBody('');
       setComposeCc('');
       setComposeBcc('');
+      setComposeFiles([]);
       setView('list');
       hasFetchedRef.current = false;
       fetchThreadList();
@@ -603,7 +618,7 @@ export function LeadEmailTab({
     } finally {
       setSendingCompose(false);
     }
-  }, [composeBody, composeSubject, composeCc, composeBcc, leadEmail, fetchThreadList, logEmailActivity, toast]);
+  }, [composeBody, composeSubject, composeCc, composeBcc, composeFiles, leadEmail, fetchThreadList, logEmailActivity, toast]);
 
   // ─── Guards ───
 
@@ -675,7 +690,45 @@ export function LeadEmailTab({
             onChange={setComposeBody}
             placeholder="Compose email..."
             minHeight="250px"
+            signatures={signatures}
+            onManageSignatures={() => setSignaturesDialogOpen(true)}
           />
+
+          {/* Attachments */}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="file"
+                multiple
+                accept="image/*,.pdf"
+                className="hidden"
+                id="compose-files"
+                onChange={(e) => {
+                  const chosen = Array.from(e.target.files ?? []);
+                  const valid = chosen.filter((f) => f.size <= 10 * 1024 * 1024).slice(0, 10 - composeFiles.length);
+                  setComposeFiles((prev) => [...prev, ...valid].slice(0, 10));
+                  e.target.value = '';
+                }}
+              />
+              <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => document.getElementById('compose-files')?.click()}>
+                <Paperclip className="h-3.5 w-3.5" />
+                Attach files
+              </Button>
+              <span className="text-xs text-muted-foreground">Up to 10 files, 10MB each. Images and PDF.</span>
+            </div>
+            {composeFiles.length > 0 && (
+              <ul className="flex flex-wrap gap-2">
+                {composeFiles.map((f, i) => (
+                  <li key={i} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
+                    <span className="truncate max-w-[140px]">{f.name}</span>
+                    <button type="button" onClick={() => setComposeFiles((p) => p.filter((_, j) => j !== i))} className="shrink-0 rounded p-0.5 hover:bg-muted-foreground/20">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           {/* Actions */}
           <div className="flex items-center gap-2 pt-2">
@@ -772,7 +825,34 @@ export function LeadEmailTab({
                 placeholder="Write your reply..."
                 minHeight="150px"
                 autoFocus
+                signatures={signatures}
+                onManageSignatures={() => setSignaturesDialogOpen(true)}
               />
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  id="reply-files"
+                  onChange={(e) => {
+                    const chosen = Array.from(e.target.files ?? []);
+                    const valid = chosen.filter((f) => f.size <= 10 * 1024 * 1024).slice(0, 10 - replyFiles.length);
+                    setReplyFiles((prev) => [...prev, ...valid].slice(0, 10));
+                    e.target.value = '';
+                  }}
+                />
+                <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => document.getElementById('reply-files')?.click()}>
+                  <Paperclip className="h-3.5 w-3.5" />
+                  Attach
+                </Button>
+                {replyFiles.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {replyFiles.map((f) => f.name).join(', ')}
+                    <button type="button" onClick={() => setReplyFiles([])} className="ml-1 underline">Clear</button>
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
@@ -797,6 +877,7 @@ export function LeadEmailTab({
   // ─── Thread list view ───
 
   return (
+    <>
     <Card className="card-shadow">
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -816,7 +897,7 @@ export function LeadEmailTab({
           </Button>
           <Button
             size="sm"
-            onClick={() => { setView('compose'); setComposeSubject(''); setComposeBody(''); setComposeCc(''); setComposeBcc(''); }}
+            onClick={() => { setView('compose'); setComposeSubject(''); setComposeBody(''); setComposeCc(''); setComposeBcc(''); setComposeFiles([]); }}
             className="gap-1.5"
           >
             <MailPlus className="h-3.5 w-3.5" />
@@ -851,7 +932,7 @@ export function LeadEmailTab({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { setView('compose'); setComposeSubject(''); setComposeBody(''); setComposeCc(''); setComposeBcc(''); }}
+              onClick={() => { setView('compose'); setComposeSubject(''); setComposeBody(''); setComposeCc(''); setComposeBcc(''); setComposeFiles([]); }}
               className="gap-1.5"
             >
               <MailPlus className="h-3.5 w-3.5" />
@@ -897,5 +978,15 @@ export function LeadEmailTab({
         )}
       </CardContent>
     </Card>
+    <EmailSignaturesDialog
+      open={signaturesDialogOpen}
+      onOpenChange={setSignaturesDialogOpen}
+      signatures={signatures}
+      onAdd={(name, content) => addSig(name, content)}
+      onUpdate={updateSig}
+      onRemove={removeSig}
+      onRefresh={refreshSigs}
+    />
+  </>
   );
 }

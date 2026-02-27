@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Underline } from '@tiptap/extension-underline';
@@ -24,6 +24,8 @@ import {
   RemoveFormatting,
   Indent,
   Outdent,
+  PenLine,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -104,9 +106,24 @@ function ColorPicker({ editor }: { editor: Editor }) {
   );
 }
 
+export interface EmailSignatureOption {
+  id: string;
+  name: string;
+  content: string;
+}
+
 // ─── Toolbar ───
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({
+  editor,
+  signatures = [],
+  onManageSignatures,
+}: {
+  editor: Editor;
+  signatures?: EmailSignatureOption[];
+  onManageSignatures?: () => void;
+}) {
+  const [sigOpen, setSigOpen] = useState(false);
   const setLink = useCallback(() => {
     const prev = editor.getAttributes('link').href;
     const url = window.prompt('Enter URL', prev || 'https://');
@@ -159,6 +176,52 @@ function Toolbar({ editor }: { editor: Editor }) {
 
       {/* Remove formatting */}
       <TBtn icon={RemoveFormatting} onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} title="Remove formatting" />
+
+      {(signatures.length > 0 || onManageSignatures) && (
+        <>
+          <Divider />
+          <div className="relative">
+            <button
+              type="button"
+              title="Insert signature"
+              onClick={() => setSigOpen((o) => !o)}
+              className="p-1.5 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex items-center gap-0.5"
+            >
+              <PenLine className="h-4 w-4" />
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            {sigOpen && (
+              <>
+                <div className="absolute bottom-full left-0 mb-1 py-1 rounded-md border bg-popover shadow-md z-50 min-w-[160px]">
+                  {signatures.map((sig) => (
+                    <button
+                      key={sig.id}
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted"
+                      onClick={() => {
+                        editor.chain().focus().insertContent(sig.content).run();
+                        setSigOpen(false);
+                      }}
+                    >
+                      {sig.name}
+                    </button>
+                  ))}
+                  {onManageSignatures && (
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-sm text-primary hover:bg-muted border-t"
+                      onClick={() => { setSigOpen(false); onManageSignatures(); }}
+                    >
+                      Manage signatures…
+                    </button>
+                  )}
+                </div>
+                <div className="fixed inset-0 z-40" onClick={() => setSigOpen(false)} aria-hidden />
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -172,6 +235,8 @@ interface RichTextEditorProps {
   className?: string;
   minHeight?: string;
   autoFocus?: boolean;
+  signatures?: EmailSignatureOption[];
+  onManageSignatures?: () => void;
 }
 
 export function RichTextEditor({
@@ -181,6 +246,8 @@ export function RichTextEditor({
   className,
   minHeight = '200px',
   autoFocus = false,
+  signatures,
+  onManageSignatures,
 }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -204,6 +271,8 @@ export function RichTextEditor({
         class: cn(
           'prose prose-sm dark:prose-invert max-w-none outline-none px-3 py-2',
           'prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5',
+          'prose-ul:list-disc prose-ul:pl-6 prose-ol:list-decimal prose-ol:pl-6',
+          'prose-li:pl-1 [&>ul]:list-disc [&>ol]:list-decimal',
           'prose-a:text-primary prose-a:no-underline hover:prose-a:underline',
         ),
         style: `min-height: ${minHeight}`,
@@ -223,9 +292,9 @@ export function RichTextEditor({
   if (!editor) return null;
 
   return (
-    <div className={cn('rounded-md border bg-background overflow-hidden', className)}>
+    <div className={cn('rounded-md border bg-background overflow-hidden [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_li]:pl-1', className)}>
       <EditorContent editor={editor} />
-      <Toolbar editor={editor} />
+      <Toolbar editor={editor} signatures={signatures} onManageSignatures={onManageSignatures} />
     </div>
   );
 }

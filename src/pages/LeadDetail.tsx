@@ -859,8 +859,15 @@ function LeadActivityTab({
                 const isMeeting = a.activity_type === 'meeting';
                 const isMeetingWithCalendar = isMeeting && hasMeetingData(attachments);
                 const meetingMeta = isMeeting ? extractMeetingMeta(attachments) : null;
-                const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.type !== 'gmail_ref' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
+                const isAutomation = attachments.some((att) => att.type === 'activity_source' && att.url === 'automation');
+                const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.type !== 'gmail_ref' && att.type !== 'activity_source' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
                 const expanded = expandedIds.has(a.id);
+                const isEmail = a.activity_type === 'email';
+                const emailParts = isEmail && a.description ? (() => {
+                  const idx = a.description.indexOf('\n\n');
+                  if (idx === -1) return { subject: a.description, body: '' };
+                  return { subject: a.description.slice(0, idx).trim(), body: a.description.slice(idx + 2).trim() };
+                })() : null;
                 const descriptionPreview = a.description?.length > 120 ? a.description.slice(0, 120) + '…' : a.description;
                 const hasMore = (a.description?.length > 120) || nonMetaAttachments.length > 0 || isMeetingWithCalendar;
 
@@ -889,7 +896,7 @@ function LeadActivityTab({
                         <div className="p-3">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <Badge className={cn(
                                   'border-0 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0',
                                   isMeeting
@@ -898,6 +905,11 @@ function LeadActivityTab({
                                 )}>
                                   {config.label}
                                 </Badge>
+                                {isAutomation && (
+                                  <Badge variant="outline" className="text-[10px] font-normal px-1.5 py-0 border-amber-500/50 text-amber-700 dark:text-amber-400">
+                                    Synced
+                                  </Badge>
+                                )}
                                 <p className="text-xs text-muted-foreground">
                                   {a.profile?.full_name ?? 'Unknown'} · {safeFormat(a.created_at, 'PPp')}
                                 </p>
@@ -935,6 +947,20 @@ function LeadActivityTab({
                                   {a.description && (
                                     <p className="text-sm text-muted-foreground line-clamp-2">
                                       {descriptionPreview}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : isEmail && emailParts ? (
+                                <div className="space-y-1">
+                                  <p className="text-sm font-medium text-foreground">
+                                    {emailParts.subject}
+                                  </p>
+                                  {emailParts.body && (
+                                    <p className={cn(
+                                      'text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap',
+                                      !expanded && 'line-clamp-2'
+                                    )}>
+                                      {expanded ? emailParts.body : (emailParts.body.length > 160 ? emailParts.body.slice(0, 160) + '…' : emailParts.body)}
                                     </p>
                                   )}
                                 </div>

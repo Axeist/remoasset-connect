@@ -358,7 +358,8 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                     const isMeeting = a.activity_type === 'meeting';
                     const isMeetingWithCalendar = isMeeting && hasMeetingData(attachments);
                     const meetingMeta = isMeeting ? extractMeetingMeta(attachments) : null;
-                    const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.type !== 'gmail_ref' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
+                    const isAutomation = attachments.some((att) => att.type === 'activity_source' && att.url === 'automation');
+                    const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.type !== 'gmail_ref' && att.type !== 'activity_source' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
                     const expanded = expandedIds.has(a.id);
                     const descPreview = a.description?.length > 80 ? a.description.slice(0, 80) + '…' : a.description;
                     const hasMore = (a.description?.length > 80) || nonMetaAttachments.length > 0 || isMeetingWithCalendar;
@@ -388,13 +389,16 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-1">
                               <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5 mb-0.5">
+                                <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                                   <span className={cn(
                                     'text-[10px] font-semibold uppercase tracking-wider',
                                     isMeeting ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'
                                   )}>
                                     {config.label}
                                   </span>
+                                  {isAutomation && (
+                                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Synced</span>
+                                  )}
                                   <span className="text-[10px] text-muted-foreground">
                                     · {safeFormat(a.created_at, 'MMM d, h:mm a')}
                                   </span>
