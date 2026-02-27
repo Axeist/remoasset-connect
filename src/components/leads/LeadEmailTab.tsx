@@ -67,6 +67,85 @@ function extractEmail(fromStr: string): string {
   return fromStr.trim();
 }
 
+function parseEmailDate(dateStr: string): string | undefined {
+  if (!dateStr) return undefined;
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return undefined;
+    return d.toISOString();
+  } catch {
+    return undefined;
+  }
+}
+
+/** Gmail link for a given thread */
+function gmailThreadUrl(threadId: string): string {
+  return `https://mail.google.com/mail/u/0/#inbox/${threadId}`;
+}
+
+/**
+ * Syncs incoming emails from Gmail into lead_activities.
+ * Each message is tracked via a `gmail_ref` attachment to prevent duplicates.
+ */
+async function syncIncomingToActivityLog(params: {
+  leadId: string;
+  userId: string;
+  leadEmail: string;
+  threadData: { threadId: string; messages: ParsedGmailMessage[] }[];
+}): Promise<number> {
+  const normalizedLead = params.leadEmail.toLowerCase();
+
+  // Collect all incoming messages (from the lead) across all threads
+  const incoming: { msg: ParsedGmailMessage; threadId: string }[] = [];
+  for (const thread of params.threadData) {
+    for (const msg of thread.messages) {
+      if (extractEmail(msg.from).toLowerCase() === normalizedLead) {
+        incoming.push({ msg, threadId: thread.threadId });
+      }
+    }
+  }
+  if (incoming.length === 0) return 0;
+
+  // Get already-logged Gmail message IDs from existing activities
+  const { data: existing } = await supabase
+    .from('lead_activities')
+    .select('attachments')
+    .eq('lead_id', params.leadId)
+    .eq('activity_type', 'email');
+
+  const loggedIds = new Set<string>();
+  for (const row of existing || []) {
+    for (const att of (row.attachments as { type: string; url: string }[]) || []) {
+      if (att.type === 'gmail_ref') loggedIds.add(att.url);
+    }
+  }
+
+  // Filter to only unlogged messages
+  const toInsert = incoming.filter(({ msg }) => !loggedIds.has(msg.id));
+  if (toInsert.length === 0) return 0;
+
+  const rows = toInsert.map(({ msg, threadId }) => {
+    const snippet = (msg.body || msg.snippet || '').slice(0, 200);
+    const description = `Email from ${extractName(msg.from)}: ${msg.subject || '(No subject)'}${snippet ? `\n\n${snippet}${(msg.body || msg.snippet || '').length > 200 ? '…' : ''}` : ''}`;
+    const row: Record<string, unknown> = {
+      lead_id: params.leadId,
+      user_id: params.userId,
+      activity_type: 'email',
+      description,
+      attachments: [
+        { type: 'url', url: gmailThreadUrl(threadId), name: 'View in Gmail' },
+        { type: 'gmail_ref', url: msg.id, name: 'gmail_message_id' },
+      ],
+    };
+    const ts = parseEmailDate(msg.date);
+    if (ts) row.created_at = ts;
+    return row;
+  });
+
+  await supabase.from('lead_activities').insert(rows);
+  return rows.length;
+}
+
 // ─── Component ───
 
 export function LeadEmailTab({
@@ -88,6 +167,14 @@ export function LeadEmailTab({
   const gmailRef = useRef(gmail);
   gmailRef.current = gmail;
 
+  // Stable refs for values used inside fetchThreadList without causing re-renders
+  const userRef = useRef(user);
+  userRef.current = user;
+  const leadIdRef = useRef(leadId);
+  leadIdRef.current = leadId;
+  const onActivityLoggedRef = useRef(onActivityLogged);
+  onActivityLoggedRef.current = onActivityLogged;
+
   const [view, setView] = useState<'list' | 'thread' | 'compose'>('list');
 
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
@@ -106,30 +193,35 @@ export function LeadEmailTab({
   const [composeBody, setComposeBody] = useState('');
   const [sendingCompose, setSendingCompose] = useState(false);
 
+  // ─── Log outgoing email activity with gmail_ref for dedup ───
   const logEmailActivity = useCallback(
-    async (params: { subject: string; body: string; threadId: string; isReply?: boolean }) => {
+    async (params: {
+      subject: string;
+      body: string;
+      threadId: string;
+      gmailMessageId: string;
+      isReply?: boolean;
+    }) => {
       if (!user?.id || !leadId) return;
       const label = params.isReply ? 'Reply to lead' : 'Email to lead';
       const preview = params.body.slice(0, 200);
       const description = `${label}: ${params.subject}${preview ? `\n\n${preview}${params.body.length > 200 ? '…' : ''}` : ''}`;
-      const attachments = [
-        { type: 'url', url: `https://mail.google.com/mail/u/0/#inbox/${params.threadId}`, name: 'View in Gmail' },
-      ];
       await supabase.from('lead_activities').insert({
         lead_id: leadId,
         user_id: user.id,
         activity_type: 'email',
         description,
-        attachments,
+        attachments: [
+          { type: 'url', url: gmailThreadUrl(params.threadId), name: 'View in Gmail' },
+          { type: 'gmail_ref', url: params.gmailMessageId, name: 'gmail_message_id' },
+        ],
       });
       onActivityLogged?.();
     },
     [user?.id, leadId, onActivityLogged]
   );
 
-  // ─── Fetch thread list ───
-  // Step 1: threads.list → IDs + snippets (1 API call)
-  // Step 2: threads.get(id, 'metadata') for each → subject/from/date (N lightweight calls)
+  // ─── Fetch thread list + sync incoming emails ───
   const fetchThreadList = useCallback(async () => {
     const g = gmailRef.current;
     if (!leadEmail?.trim() || !g.isConnected) return;
@@ -141,14 +233,20 @@ export function LeadEmailTab({
         setThreads([]);
         return;
       }
+
       const summaries: ThreadSummary[] = [];
+      const allThreadData: { threadId: string; messages: ParsedGmailMessage[] }[] = [];
+
       for (const ref of threadRefs.slice(0, 20)) {
         try {
           const thread = await g.getThread(ref.id, 'metadata');
           const msgs = thread.messages || [];
           if (msgs.length === 0) continue;
-          const first = parseGmailMessage(msgs[0]);
-          const last = parseGmailMessage(msgs[msgs.length - 1]);
+          const parsed = msgs.map(parseGmailMessage);
+          allThreadData.push({ threadId: ref.id, messages: parsed });
+
+          const first = parsed[0];
+          const last = parsed[parsed.length - 1];
           summaries.push({
             id: ref.id,
             subject: first.subject || '(No subject)',
@@ -158,10 +256,27 @@ export function LeadEmailTab({
             messageCount: msgs.length,
           });
         } catch {
-          // skip individual threads that fail
+          // skip threads that fail individually
         }
       }
       setThreads(summaries);
+
+      // Auto-sync incoming emails from the lead into the activity log
+      const currentUser = userRef.current;
+      const currentLeadId = leadIdRef.current;
+      if (currentUser?.id && currentLeadId) {
+        try {
+          const synced = await syncIncomingToActivityLog({
+            leadId: currentLeadId,
+            userId: currentUser.id,
+            leadEmail: leadEmail.trim(),
+            threadData: allThreadData,
+          });
+          if (synced > 0) onActivityLoggedRef.current?.();
+        } catch {
+          // sync failure shouldn't block the UI
+        }
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to load emails';
       setThreadError(msg);
@@ -223,7 +338,13 @@ export function LeadEmailTab({
         inReplyTo: lastMsg.messageId,
         references: lastMsg.references || lastMsg.messageId,
       });
-      await logEmailActivity({ subject, body: replyBody.trim(), threadId: result.threadId, isReply: true });
+      await logEmailActivity({
+        subject,
+        body: replyBody.trim(),
+        threadId: result.threadId,
+        gmailMessageId: result.id,
+        isReply: true,
+      });
       toast({ title: 'Reply sent' });
       setReplyBody('');
       setReplyOpen(false);
@@ -251,7 +372,12 @@ export function LeadEmailTab({
         subject,
         body: composeBody.trim(),
       });
-      await logEmailActivity({ subject, body: composeBody.trim(), threadId: result.threadId });
+      await logEmailActivity({
+        subject,
+        body: composeBody.trim(),
+        threadId: result.threadId,
+        gmailMessageId: result.id,
+      });
       toast({ title: 'Email sent' });
       setComposeSubject('');
       setComposeBody('');
