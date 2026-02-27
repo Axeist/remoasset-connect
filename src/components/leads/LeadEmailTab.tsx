@@ -9,6 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useGmail } from '@/hooks/useGmail';
 import { parseGmailMessage, type ParsedGmailMessage } from '@/hooks/useGmail';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import {
   Mail,
@@ -68,15 +70,20 @@ function extractEmail(fromStr: string): string {
 // ─── Component ───
 
 export function LeadEmailTab({
+  leadId,
   leadEmail,
   leadCompanyName,
   leadContactName,
+  onActivityLogged,
 }: {
+  leadId: string;
   leadEmail?: string | null;
   leadCompanyName?: string;
   leadContactName?: string | null;
+  onActivityLogged?: () => void;
 }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const gmail = useGmail();
   const gmailRef = useRef(gmail);
   gmailRef.current = gmail;
@@ -98,6 +105,27 @@ export function LeadEmailTab({
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
   const [sendingCompose, setSendingCompose] = useState(false);
+
+  const logEmailActivity = useCallback(
+    async (params: { subject: string; body: string; threadId: string; isReply?: boolean }) => {
+      if (!user?.id || !leadId) return;
+      const label = params.isReply ? 'Reply to lead' : 'Email to lead';
+      const preview = params.body.slice(0, 200);
+      const description = `${label}: ${params.subject}${preview ? `\n\n${preview}${params.body.length > 200 ? '…' : ''}` : ''}`;
+      const attachments = [
+        { type: 'url', url: `https://mail.google.com/mail/u/0/#inbox/${params.threadId}`, name: 'View in Gmail' },
+      ];
+      await supabase.from('lead_activities').insert({
+        lead_id: leadId,
+        user_id: user.id,
+        activity_type: 'email',
+        description,
+        attachments,
+      });
+      onActivityLogged?.();
+    },
+    [user?.id, leadId, onActivityLogged]
+  );
 
   // ─── Fetch thread list ───
   // Step 1: threads.list → IDs + snippets (1 API call)
@@ -184,16 +212,18 @@ export function LeadEmailTab({
       ? leadEmail!.trim()
       : extractEmail(lastMsg.from);
 
+    const subject = lastMsg.subject.startsWith('Re:') ? lastMsg.subject : `Re: ${lastMsg.subject}`;
     setSendingReply(true);
     try {
-      await g.replyEmail({
+      const result = await g.replyEmail({
         to: replyTo,
-        subject: lastMsg.subject.startsWith('Re:') ? lastMsg.subject : `Re: ${lastMsg.subject}`,
+        subject,
         body: replyBody.trim(),
         threadId: lastMsg.threadId,
         inReplyTo: lastMsg.messageId,
         references: lastMsg.references || lastMsg.messageId,
       });
+      await logEmailActivity({ subject, body: replyBody.trim(), threadId: result.threadId, isReply: true });
       toast({ title: 'Reply sent' });
       setReplyBody('');
       setReplyOpen(false);
@@ -207,19 +237,21 @@ export function LeadEmailTab({
     } finally {
       setSendingReply(false);
     }
-  }, [replyBody, threadMessages, leadEmail, openThread, toast]);
+  }, [replyBody, threadMessages, leadEmail, openThread, logEmailActivity, toast]);
 
   // ─── Compose ───
   const handleCompose = useCallback(async () => {
     const g = gmailRef.current;
     if (!composeBody.trim() || !leadEmail?.trim()) return;
+    const subject = composeSubject.trim() || '(No subject)';
     setSendingCompose(true);
     try {
-      await g.sendEmail({
+      const result = await g.sendEmail({
         to: leadEmail.trim(),
-        subject: composeSubject.trim() || '(No subject)',
+        subject,
         body: composeBody.trim(),
       });
+      await logEmailActivity({ subject, body: composeBody.trim(), threadId: result.threadId });
       toast({ title: 'Email sent' });
       setComposeSubject('');
       setComposeBody('');
@@ -235,7 +267,7 @@ export function LeadEmailTab({
     } finally {
       setSendingCompose(false);
     }
-  }, [composeBody, composeSubject, leadEmail, fetchThreadList, toast]);
+  }, [composeBody, composeSubject, leadEmail, fetchThreadList, logEmailActivity, toast]);
 
   // ─── Not connected / no email guard ───
 

@@ -570,9 +570,11 @@ export default function LeadDetail() {
 
           <TabsContent value="emails" className="mt-6">
             <LeadEmailTab
+              leadId={id!}
               leadEmail={lead.email}
               leadCompanyName={lead.company_name}
               leadContactName={lead.contact_name}
+              onActivityLogged={fetchActivities}
             />
           </TabsContent>
 
