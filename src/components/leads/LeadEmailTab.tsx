@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useGmail, fileToEmailAttachment } from '@/hooks/useGmail';
 import { parseGmailMessage, type ParsedGmailMessage } from '@/hooks/useGmail';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCurrentUserProfile } from '@/hooks/useCurrentUserProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { EmailTagInput } from '@/components/ui/email-tag-input';
 import { RichTextEditor, htmlToPlainText } from '@/components/ui/rich-text-editor';
@@ -31,6 +32,7 @@ import {
   Paperclip,
   X,
 } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 // ─── Helpers ───
 
@@ -257,6 +259,8 @@ function MessageBubble({
   isLast,
   defaultCollapsed,
   onReply,
+  currentUserAvatarUrl,
+  currentUserEmail,
 }: {
   msg: ParsedGmailMessage;
   isFromLead: boolean;
@@ -265,11 +269,17 @@ function MessageBubble({
   isLast: boolean;
   defaultCollapsed: boolean;
   onReply: () => void;
+  currentUserAvatarUrl?: string | null;
+  currentUserEmail?: string | null;
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [showQuoted, setShowQuoted] = useState(false);
   const { original, quoted } = splitQuotedText(msg.body);
   const senderName = extractName(msg.from);
+  const fromEmail = extractEmail(msg.from);
+  const isFromCurrentUser = Boolean(
+    currentUserEmail && currentUserAvatarUrl && fromEmail.toLowerCase() === currentUserEmail.toLowerCase()
+  );
 
   if (collapsed) {
     return (
@@ -278,12 +288,24 @@ function MessageBubble({
         className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/50 transition-colors rounded-lg"
         onClick={() => setCollapsed(false)}
       >
-        <div className={cn(
-          'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium',
-          isFromLead ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-        )}>
-          {getInitials(senderName)}
-        </div>
+        {isFromCurrentUser ? (
+          <Avatar className="h-8 w-8 shrink-0">
+            <AvatarImage src={currentUserAvatarUrl!} alt={senderName} className="rounded-full" />
+            <AvatarFallback className={cn(
+              'rounded-full text-xs font-medium',
+              'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+            )}>
+              {getInitials(senderName)}
+            </AvatarFallback>
+          </Avatar>
+        ) : (
+          <div className={cn(
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium',
+            isFromLead ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+          )}>
+            {getInitials(senderName)}
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <span className="text-sm font-medium">{senderName}</span>
           <span className="text-xs text-muted-foreground ml-2">— {msg.snippet?.slice(0, 80) || '(empty)'}</span>
@@ -300,12 +322,24 @@ function MessageBubble({
     )}>
       {/* Header */}
       <div className="flex items-start gap-3 mb-3">
-        <div className={cn(
-          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-          isFromLead ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-        )}>
-          {getInitials(senderName)}
-        </div>
+        {isFromCurrentUser ? (
+          <Avatar className="h-9 w-9 shrink-0">
+            <AvatarImage src={currentUserAvatarUrl!} alt={senderName} className="rounded-full" />
+            <AvatarFallback className={cn(
+              'rounded-full text-xs font-semibold',
+              'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+            )}>
+              {getInitials(senderName)}
+            </AvatarFallback>
+          </Avatar>
+        ) : (
+          <div className={cn(
+            'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+            isFromLead ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+          )}>
+            {getInitials(senderName)}
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold">{senderName}</span>
@@ -379,6 +413,7 @@ export function LeadEmailTab({
 }) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { avatarUrl: currentUserAvatarUrl } = useCurrentUserProfile();
   const gmail = useGmail();
   const gmailRef = useRef(gmail);
   gmailRef.current = gmail;
@@ -800,6 +835,8 @@ export function LeadEmailTab({
                       setReplyOpen(true);
                       setReplyCc(msg.cc || '');
                     }}
+                    currentUserAvatarUrl={currentUserAvatarUrl}
+                    currentUserEmail={user?.email}
                   />
                 );
               })}
@@ -943,6 +980,8 @@ export function LeadEmailTab({
           <div className="divide-y divide-border -mx-6">
             {threads.map((t) => {
               const senderName = extractName(t.from);
+              const fromEmail = extractEmail(t.from);
+              const isFromCurrentUser = user?.email && currentUserAvatarUrl && fromEmail.toLowerCase() === user.email.toLowerCase();
               return (
                 <button
                   key={t.id}
@@ -950,9 +989,18 @@ export function LeadEmailTab({
                   className="w-full flex items-start gap-3 px-6 py-3.5 text-left hover:bg-muted/50 transition-colors group"
                   onClick={() => openThread(t.id)}
                 >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold mt-0.5">
-                    {getInitials(senderName)}
-                  </div>
+                  {isFromCurrentUser ? (
+                    <Avatar className="h-9 w-9 shrink-0 mt-0.5">
+                      <AvatarImage src={currentUserAvatarUrl} alt={senderName} className="rounded-full" />
+                      <AvatarFallback className="rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                        {getInitials(senderName)}
+                      </AvatarFallback>
+                    </Avatar>
+                  ) : (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold mt-0.5">
+                      {getInitials(senderName)}
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">

@@ -13,7 +13,6 @@ import {
   LogOut,
   Settings,
   Shield,
-  User,
   Activity,
   Kanban,
   Globe2,
@@ -21,11 +20,11 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCurrentUserProfile } from '@/hooks/useCurrentUserProfile';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const navItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'employee'] },
@@ -52,24 +51,10 @@ interface SidebarNavProps {
 function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
   const location = useLocation();
   const { role, signOut, user } = useAuth();
+  const { fullName, designation, avatarUrl } = useCurrentUserProfile();
   const filteredNav = navItems.filter((item) => item.roles.includes(role || 'employee'));
   const isAdmin = role === 'admin';
-  const [fullName, setFullName] = useState<string>('');
-  const [designation, setDesignation] = useState<string>('');
-
-  useEffect(() => {
-    if (user) {
-      supabase
-        .from('profiles')
-        .select('full_name, designation')
-        .eq('user_id', user.id)
-        .single()
-        .then(({ data }) => {
-          if (data?.full_name) setFullName(data.full_name);
-          if (data?.designation) setDesignation(data.designation);
-        });
-    }
-  }, [user]);
+  const initials = (fullName || user?.email || 'U').slice(0, 2).toUpperCase();
 
   return (
     <>
@@ -101,9 +86,12 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
         {!collapsed && user && (
           <div className="mb-3 rounded-xl bg-gradient-to-br from-sidebar-primary/10 via-sidebar-accent/30 to-sidebar-accent/10 p-3.5 border border-sidebar-border/40 shadow-lg">
             <div className="flex items-start gap-3 mb-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sidebar-primary to-sidebar-primary/80 shadow-md">
-                <User className="h-5 w-5 text-white" />
-              </div>
+              <Avatar className="h-10 w-10 shrink-0 rounded-full shadow-md ring-2 ring-sidebar-border/40">
+                <AvatarImage src={avatarUrl || undefined} alt={fullName || undefined} className="rounded-full" />
+                <AvatarFallback className="rounded-full bg-gradient-to-br from-sidebar-primary to-sidebar-primary/80 text-white text-sm font-semibold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-sidebar-foreground truncate mb-0.5">
                   {fullName || 'User'}

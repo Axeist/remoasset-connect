@@ -14,6 +14,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useInboxThreads, type InboxThreadItem } from '@/hooks/useInboxThreads';
 import { useGmail, parseGmailMessage, gmailThreadUrl } from '@/hooks/useGmail';
+import { useAuth } from '@/contexts/AuthContext';
+import { useCurrentUserProfile } from '@/hooks/useCurrentUserProfile';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { cn } from '@/lib/utils';
 import {
@@ -33,6 +35,7 @@ import {
   X,
   ChevronDown,
 } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { ParsedGmailMessage } from '@/hooks/useGmail';
 
 function formatEmailDate(dateStr: string): string {
@@ -78,6 +81,8 @@ function reSubject(subject: string): string {
 
 export default function Inbox() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { avatarUrl: currentUserAvatarUrl } = useCurrentUserProfile();
   const [searchParams, setSearchParams] = useSearchParams();
   const { threads, loading, error, refresh, isConnected } = useInboxThreads();
   const gmail = useGmail();
@@ -483,6 +488,7 @@ export default function Inbox() {
                     messages.map((msg) => {
                       const fromEmail = extractEmail(msg.from);
                       const isFromLead = fromEmail.toLowerCase() === selected.leadEmail.toLowerCase();
+                      const isFromCurrentUser = user?.email && fromEmail.toLowerCase() === user.email.toLowerCase();
                       const name = extractName(msg.from);
                       return (
                         <div
@@ -492,16 +498,28 @@ export default function Inbox() {
                             isFromLead ? 'bg-orange-500/5 dark:bg-orange-500/10' : 'bg-muted/30'
                           )}
                         >
-                          <div
-                            className={cn(
-                              'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium',
-                              isFromLead
-                                ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
-                                : 'bg-primary/10 text-primary'
-                            )}
-                          >
-                            {getInitials(name)}
-                          </div>
+                          {isFromCurrentUser && currentUserAvatarUrl ? (
+                            <Avatar className="h-9 w-9 shrink-0">
+                              <AvatarImage src={currentUserAvatarUrl} alt={name} className="rounded-full" />
+                              <AvatarFallback className={cn(
+                                'rounded-full text-xs font-medium',
+                                'bg-primary/10 text-primary'
+                              )}>
+                                {getInitials(name)}
+                              </AvatarFallback>
+                            </Avatar>
+                          ) : (
+                            <div
+                              className={cn(
+                                'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium',
+                                isFromLead
+                                  ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
+                                  : 'bg-primary/10 text-primary'
+                              )}
+                            >
+                              {getInitials(name)}
+                            </div>
+                          )}
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                               <span className="text-sm font-medium">{name}</span>
