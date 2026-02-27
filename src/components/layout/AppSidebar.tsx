@@ -17,6 +17,7 @@ import {
   Activity,
   Kanban,
   Globe2,
+  Inbox,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,6 +29,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 const navItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'employee'] },
+  { title: 'Inbox', url: '/inbox', icon: Inbox, roles: ['admin', 'employee'] },
   { title: 'Leads', url: '/leads', icon: Users, roles: ['admin', 'employee'] },
   { title: 'Vendors', url: '/vendors', icon: Globe2, roles: ['admin', 'employee'] },
   { title: 'My Pipeline', url: '/pipeline', icon: Kanban, roles: ['employee'] },

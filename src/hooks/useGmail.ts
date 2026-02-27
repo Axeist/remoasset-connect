@@ -4,6 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
+export function gmailThreadUrl(threadId: string): string {
+  return `https://mail.google.com/mail/u/0/#inbox/${threadId}`;
+}
+
 function getGoogleToken(): string | null {
   return localStorage.getItem('google_access_token');
 }
@@ -416,11 +420,33 @@ export function useGmail() {
     [getToken]
   );
 
+  const modifyThread = useCallback(
+    async (
+      threadId: string,
+      opts: { addLabelIds?: string[]; removeLabelIds?: string[] }
+    ): Promise<GmailThreadRaw> => {
+      const token = getToken();
+      return callGmailAPI<GmailThreadRaw>(
+        `${GMAIL_API}/threads/${encodeURIComponent(threadId)}/modify`,
+        token,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            addLabelIds: opts.addLabelIds || [],
+            removeLabelIds: opts.removeLabelIds || [],
+          }),
+        }
+      );
+    },
+    [getToken]
+  );
+
   return {
     isConnected,
     sendEmail,
     replyEmail,
     listThreads,
     getThread,
+    modifyThread,
   };
 }

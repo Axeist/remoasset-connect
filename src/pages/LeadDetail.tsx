@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -84,6 +84,7 @@ interface LeadFollowUp {
 
 export default function LeadDetail() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, role } = useAuth();
   const { toast } = useToast();
@@ -135,6 +136,14 @@ export default function LeadDetail() {
       }
     })();
   }, [isAdmin]);
+
+  // Support deep link from Inbox: /leads/:id?tab=emails&thread=THREAD_ID
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const thread = searchParams.get('thread');
+    if (tab === 'emails') setActiveTab('emails');
+    if (thread) setPendingEmailThreadId(thread);
+  }, [searchParams]);
 
   const fetchLead = async () => {
     if (!id) return;

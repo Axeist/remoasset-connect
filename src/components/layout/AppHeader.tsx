@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import { Bell, Search, Sun, Moon, Menu } from 'lucide-react';
+import { Bell, Search, Sun, Moon, Menu, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +16,24 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.2);
+  } catch {
+    // ignore
+  }
+}
+
 interface AppNotification {
   id: string;
   title: string;
@@ -23,6 +41,7 @@ interface AppNotification {
   type: string;
   is_read: boolean;
   created_at: string;
+  metadata?: { threadId?: string; leadId?: string } | null;
 }
 
 export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
@@ -37,7 +56,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
     const fetchNotifications = async () => {
       const { data } = await supabase
         .from('notifications')
-        .select('id, title, message, type, is_read, created_at')
+        .select('id, title, message, type, is_read, created_at, metadata')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(20);
@@ -54,8 +73,9 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
           table: 'notifications',
           filter: `user_id=eq.${user.id}`,
         },
-        () => {
+        (payload) => {
           fetchNotifications();
+          if (payload.eventType === 'INSERT') playNotificationSound();
         }
       )
       .subscribe();
@@ -70,6 +90,13 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const markAsRead = async (id: string) => {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id);
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+  };
+
+  const deleteNotification = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await supabase.from('notifications').delete().eq('id', id).eq('user_id', user!.id);
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
   return (
@@ -129,24 +156,49 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
           {notifications.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">No notifications</div>
           ) : (
-            notifications.map((notification) => (
-              <DropdownMenuItem
-                key={notification.id}
-                className="flex flex-col items-start p-3 cursor-pointer"
-                onClick={() => markAsRead(notification.id)}
-              >
-                <div className="flex items-center gap-2 w-full">
-                  <span className="font-medium text-sm">{notification.title}</span>
-                  {!notification.is_read && (
-                    <span className="h-2 w-2 rounded-full bg-primary ml-auto" />
-                  )}
-                </div>
-                <span className="text-xs text-muted-foreground">{notification.message}</span>
-                <span className="text-xs text-muted-foreground/80 mt-0.5">
-                  {format(new Date(notification.created_at), 'MMM d, HH:mm')}
-                </span>
-              </DropdownMenuItem>
-            ))
+            notifications.map((notification) => {
+              const meta = notification.metadata as { threadId?: string; leadId?: string } | undefined;
+              const inboxLink = notification.type === 'email' && meta?.leadId
+                ? `/leads/${meta.leadId}?tab=emails${meta.threadId ? `&thread=${meta.threadId}` : ''}`
+                : null;
+              return (
+                <DropdownMenuItem
+                  key={notification.id}
+                  className="flex flex-col items-start p-3 cursor-pointer relative pr-8"
+                  onClick={() => markAsRead(notification.id)}
+                >
+                  <div className="w-full">
+                    <button
+                      type="button"
+                      onClick={(e) => deleteNotification(e, notification.id)}
+                      className="absolute right-2 top-2 p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                      aria-label="Delete notification"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="font-medium text-sm">{notification.title}</span>
+                      {!notification.is_read && (
+                        <span className="h-2 w-2 rounded-full bg-primary ml-auto" />
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{notification.message}</span>
+                    {inboxLink && (
+                      <Link
+                        to={inboxLink}
+                        className="text-xs text-primary hover:underline mt-1 inline-block"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View in app →
+                      </Link>
+                    )}
+                    <span className="text-xs text-muted-foreground/80 mt-0.5 block">
+                      {format(new Date(notification.created_at), 'MMM d, HH:mm')}
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+              );
+            })
           )}
         </DropdownMenuContent>
         </DropdownMenu>
