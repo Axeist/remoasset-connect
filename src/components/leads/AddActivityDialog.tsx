@@ -173,6 +173,7 @@ export function AddActivityDialog({
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [addToCalendar, setAddToCalendar] = useState(false);
+  const [sendEmailViaGmail, setSendEmailViaGmail] = useState(true);
   const [meetingTitle, setMeetingTitle] = useState('');
   const [meetingStart, setMeetingStart] = useState('');
   const [meetingEnd, setMeetingEnd] = useState('');
@@ -211,11 +212,9 @@ export function AddActivityDialog({
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files ?? []);
-    const allowed = selected.filter(
-      (f) => f.size <= MAX_FILE_SIZE_MB * 1024 * 1024 && (f.type.startsWith('image/') || f.type === 'application/pdf')
-    );
+    const allowed = selected.filter((f) => f.size <= MAX_FILE_SIZE_MB * 1024 * 1024);
     if (allowed.length < selected.length) {
-      toast({ variant: 'destructive', title: 'Some files skipped', description: `Max ${MAX_FILE_SIZE_MB}MB each; images and PDF only.` });
+      toast({ variant: 'destructive', title: 'Some files skipped', description: `Max ${MAX_FILE_SIZE_MB}MB per file.` });
     }
     setFiles((prev) => [...prev, ...allowed].slice(0, MAX_FILES));
     e.target.value = '';
@@ -236,6 +235,7 @@ export function AddActivityDialog({
     setUrls(['']);
     setFiles([]);
     setAddToCalendar(false);
+    setSendEmailViaGmail(true);
     setMeetingTitle('');
     setMeetingStart('');
     setMeetingEnd('');
@@ -251,7 +251,7 @@ export function AddActivityDialog({
 
     const isMeeting = type === 'meeting';
     const isEmail = type === 'email';
-    const isEmailViaGmail = isEmail && isGmailConnected && leadEmail?.trim();
+    const isEmailViaGmail = isEmail && isGmailConnected && leadEmail?.trim() && sendEmailViaGmail;
     let effectiveDescription: string;
     if (isNda) {
       effectiveDescription = `${ndaSubActivity === 'nda_sent' ? 'NDA Sent' : 'NDA Received'}${description.trim() ? ': ' + description.trim() : ''}`;
@@ -261,7 +261,7 @@ export function AddActivityDialog({
       if (linkedinMessage.trim()) parts.push(`Message: ${linkedinMessage.trim()}`);
       if (description.trim()) parts.push(description.trim());
       effectiveDescription = parts.length > 0 ? parts.join(' | ') : 'LinkedIn outreach';
-    } else if (isEmailViaGmail) {
+    } else if (isEmail) {
       const subj = emailSubject.trim() || '(No subject)';
       const plainBody = htmlToPlainText(description);
       const bodyPreview = plainBody.slice(0, 200);
@@ -291,7 +291,7 @@ export function AddActivityDialog({
         toast({ variant: 'destructive', title: 'Start and end time required', description: 'Please set the meeting start and end time.' });
         return;
       }
-    } else if (isEmailViaGmail) {
+    } else if (isEmail) {
       if (!emailSubject.trim()) {
         toast({ variant: 'destructive', title: 'Subject required', description: 'Please enter an email subject.' });
         return;
@@ -567,6 +567,21 @@ export function AddActivityDialog({
               </p>
               {canDraftEmail && isGmailConnected && (
                 <div className="space-y-2">
+                  <div className="flex items-center gap-2 pb-1">
+                    <Checkbox
+                      id="send-via-gmail"
+                      checked={sendEmailViaGmail}
+                      onCheckedChange={(checked) => setSendEmailViaGmail(checked === true)}
+                    />
+                    <label htmlFor="send-via-gmail" className="text-sm font-medium cursor-pointer">
+                      Send via Gmail
+                    </label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {sendEmailViaGmail
+                      ? 'Click "Add activity" below to send this email via Gmail and log it to the lead.'
+                      : 'Unchecked: the email will only be logged as an activity (not sent).'}
+                  </p>
                   <div className="space-y-1">
                     <Label className="text-xs">Subject</Label>
                     <Input
@@ -578,9 +593,6 @@ export function AddActivityDialog({
                     />
                   </div>
                   <CcBccFieldsCompact cc={emailCc} onCcChange={setEmailCc} bcc={emailBcc} onBccChange={setEmailBcc} />
-                  <p className="text-xs text-muted-foreground">
-                    Click &quot;Add activity&quot; below to send this email via Gmail and log it to the lead.
-                  </p>
                 </div>
               )}
               {canDraftEmail && !isGmailConnected && (
@@ -926,12 +938,11 @@ export function AddActivityDialog({
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
               <Paperclip className="h-4 w-4" />
-              Attach files (screenshots, images, PDF)
+              Attach files
             </Label>
             <div className="flex flex-wrap gap-2">
             <Input
               type="file"
-              accept="image/*,application/pdf"
               multiple
               onChange={onFileChange}
               className="max-w-[200px]"
@@ -949,7 +960,7 @@ export function AddActivityDialog({
               </ul>
             )}
             </div>
-            <p className="text-xs text-muted-foreground">Up to {MAX_FILES} files, {MAX_FILE_SIZE_MB}MB each. Images and PDF.</p>
+            <p className="text-xs text-muted-foreground">Up to {MAX_FILES} files, {MAX_FILE_SIZE_MB}MB each. All file types allowed.</p>
           </div>
 
           <DialogFooter>

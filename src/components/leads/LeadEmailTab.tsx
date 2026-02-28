@@ -735,7 +735,6 @@ export function LeadEmailTab({
               <input
                 type="file"
                 multiple
-                accept="image/*,.pdf"
                 className="hidden"
                 id="compose-files"
                 onChange={(e) => {
@@ -749,7 +748,7 @@ export function LeadEmailTab({
                 <Paperclip className="h-3.5 w-3.5" />
                 Attach files
               </Button>
-              <span className="text-xs text-muted-foreground">Up to 10 files, 10MB each. Images and PDF.</span>
+              <span className="text-xs text-muted-foreground">Up to 10 files, 10MB each. All file types allowed.</span>
             </div>
             {composeFiles.length > 0 && (
               <ul className="flex flex-wrap gap-2">
@@ -869,7 +868,6 @@ export function LeadEmailTab({
                 <input
                   type="file"
                   multiple
-                  accept="image/*,.pdf"
                   className="hidden"
                   id="reply-files"
                   onChange={(e) => {

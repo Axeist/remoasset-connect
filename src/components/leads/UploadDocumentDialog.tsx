@@ -124,7 +124,6 @@ export function UploadDocumentDialog({
             <Input
               id="doc-file"
               type="file"
-              accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="h-10 file:mr-2 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground"
             />

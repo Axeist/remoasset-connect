@@ -50,7 +50,7 @@ function saveNotifPrefs(prefs: Record<string, boolean>) {
 export default function Settings() {
   const { user, role } = useAuth();
   const { toast } = useToast();
-  const { connectGoogleCalendar } = useAuth();
+  const { connectGoogleCalendar, disconnectGoogleCalendar } = useAuth();
   const { isConnected } = useGoogleCalendar();
   const { theme, setTheme } = useTheme();
 
@@ -322,14 +322,19 @@ export default function Settings() {
                     </div>
 
                     {isConnected ? (
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                         <div className="flex-1 rounded-lg border border-[#34A853]/20 bg-[#34A853]/[0.04] px-3 py-2 flex items-center gap-2">
                           <Zap className="h-3.5 w-3.5 text-[#188038] shrink-0" />
                           <p className="text-xs text-[#188038]/80"><span className="font-medium text-[#188038]">Active.</span> All Google services connected.</p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={connectGoogleCalendar} className="gap-1.5 text-muted-foreground shrink-0">
-                          <RefreshCw className="h-3.5 w-3.5" />Reconnect
-                        </Button>
+                        <div className="flex gap-2 shrink-0">
+                          <Button variant="outline" size="sm" onClick={connectGoogleCalendar} className="gap-1.5 text-muted-foreground">
+                            <RefreshCw className="h-3.5 w-3.5" />Reconnect
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={disconnectGoogleCalendar} className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10">
+                            Disconnect
+                          </Button>
+                        </div>
                       </div>
                     ) : (
                       <Button onClick={connectGoogleCalendar} className="gap-2 bg-[#4285F4] hover:bg-[#3367D6] shadow-md shadow-[#4285F4]/20 text-white font-medium">

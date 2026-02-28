@@ -66,7 +66,7 @@ const NAV_ITEMS: { id: Tab; icon: React.ElementType; label: string; desc: string
 export default function Admin() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { connectGoogleCalendar } = useAuth();
+  const { connectGoogleCalendar, disconnectGoogleCalendar } = useAuth();
   const { isConnected: isCalendarConnected } = useGoogleCalendar();
   const [activeTab, setActiveTab] = useState<Tab>('profile');
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -554,13 +554,18 @@ export default function Admin() {
                       <div className="flex flex-col justify-center gap-2">
                         {isCalendarConnected ? (
                           <>
-                            <div className="rounded-lg border border-[#34A853]/20 bg-[#34A853]/[0.04] p-3 flex items-start gap-2.5">
+                            <div className="rounded-lg border border-[#34A853]/20 bg-[#34A853]/[0.04] p-3 flex items-start gap-2.5 flex-1">
                               <Zap className="h-4 w-4 text-[#188038] mt-0.5 shrink-0" />
                               <p className="text-sm text-[#188038]/80"><span className="font-medium text-[#188038]">Active.</span> All Google services are connected.</p>
                             </div>
-                            <Button variant="outline" size="sm" onClick={connectGoogleCalendar} className="gap-2 text-muted-foreground w-fit">
-                              <RefreshCw className="h-4 w-4" />Reconnect
-                            </Button>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button variant="outline" size="sm" onClick={connectGoogleCalendar} className="gap-2 text-muted-foreground">
+                                <RefreshCw className="h-4 w-4" />Reconnect
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={disconnectGoogleCalendar} className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10">
+                                Disconnect
+                              </Button>
+                            </div>
                           </>
                         ) : (
                           <Button onClick={connectGoogleCalendar} size="lg" className="gap-2.5 bg-[#4285F4] hover:bg-[#3367D6] shadow-md shadow-[#4285F4]/20 text-white font-medium w-fit">
