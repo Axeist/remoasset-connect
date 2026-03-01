@@ -160,7 +160,7 @@ export function AppSidebar({
               <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
               <div className="flex items-center gap-1.5">
                 <div className="h-[1px] w-6 bg-gradient-to-r from-sidebar-primary/40 to-transparent" />
-                <p className="text-sm text-sidebar-foreground font-semibold tracking-tight">
+                <p className="font-display text-xl font-bold text-sidebar-foreground tracking-tight">
                   Connect
                 </p>
               </div>
@@ -195,14 +195,14 @@ export function AppSidebar({
             <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
             <div className="flex items-center gap-1.5">
               <div className="h-[1px] w-6 bg-gradient-to-r from-sidebar-primary/40 to-transparent" />
-              <p className="text-sm text-sidebar-foreground font-semibold tracking-tight whitespace-nowrap">
+              <p className="font-display text-xl font-bold text-sidebar-foreground tracking-tight whitespace-nowrap">
                 Connect
               </p>
             </div>
           </div>
         )}
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         <SidebarNav collapsed={collapsed} />
       </div>
     </aside>

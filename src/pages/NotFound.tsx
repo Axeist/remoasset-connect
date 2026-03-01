@@ -13,7 +13,7 @@ export default function NotFound() {
         <Card className="card-shadow max-w-md w-full">
           <CardContent className="pt-8 pb-8 text-center">
             <p className="text-6xl font-bold text-muted-foreground/50">404</p>
-            <h1 className="mt-2 text-xl font-semibold text-foreground">Page not found</h1>
+            <h1 className="mt-2 font-display text-xl font-bold text-foreground">Page not found</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               <code className="bg-muted px-1.5 py-0.5 rounded">{location.pathname}</code> doesn’t exist or you don’t have access.
             </p>
