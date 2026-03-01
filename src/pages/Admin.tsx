@@ -186,16 +186,21 @@ export default function Admin() {
     setApiKeyLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? '';
+      if (!token) {
+        setApiKeys([]);
+        setApiKeyLoading(false);
+        return;
+      }
       const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-      const token = session?.access_token ?? '';
-      const url = token ? `${baseUrl}/functions/v1/api-keys?access_token=${encodeURIComponent(token)}` : `${baseUrl}/functions/v1/api-keys`;
-      const res = await fetch(url, { method: 'GET', headers: { Apikey: anonKey } });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error ?? `HTTP ${res.status}`);
-      }
-      const data = await res.json();
+      const res = await fetch(`${baseUrl}/functions/v1/api-keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Apikey: anonKey, Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'list', __auth_token: token }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
       setApiKeys((data?.keys ?? []) as ApiKeyRow[]);
     } catch (e) {
       toast({ variant: 'destructive', title: 'Failed to load API keys', description: (e as Error)?.message });

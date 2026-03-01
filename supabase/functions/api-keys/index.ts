@@ -87,6 +87,22 @@ Deno.serve(async (req) => {
     const path = (match ? match[1] : '') || '/'
 
     if (req.method === 'POST' && (path === '/' || path === '')) {
+      if (parsedBody.action === 'list') {
+        const { data: keys, error } = await supabaseAdmin
+          .from('api_keys')
+          .select('id, name, key_prefix, created_at, last_used_at')
+          .order('created_at', { ascending: false })
+        if (error) {
+          return new Response(
+            JSON.stringify({ error: error.message }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+          )
+        }
+        return new Response(
+          JSON.stringify({ keys: keys ?? [] }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
+      }
       const name = typeof parsedBody.name === 'string' ? parsedBody.name.trim() : ''
       if (!name) {
         return new Response(
