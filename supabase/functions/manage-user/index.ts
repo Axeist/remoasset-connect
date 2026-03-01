@@ -5,6 +5,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-auth-token',
 }
 
+function getToken(req: Request, body?: Record<string, unknown>): string {
+  const authHeader = req.headers.get('Authorization')
+  if (authHeader?.startsWith('Bearer ')) return authHeader.replace('Bearer ', '')
+  const fromHeader = req.headers.get('X-Auth-Token')
+  if (fromHeader) return fromHeader
+  const url = new URL(req.url)
+  const fromQuery = url.searchParams.get('access_token')
+  if (fromQuery) return fromQuery
+  const fromBody = body && typeof body.__auth_token === 'string' ? body.__auth_token : ''
+  return fromBody
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -23,9 +35,8 @@ Deno.serve(async (req) => {
   )
 
   try {
-    const authHeader = req.headers.get('Authorization')
-    const fallbackToken = req.headers.get('X-Auth-Token')
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : (fallbackToken ?? '')
+    const body = await req.json().catch(() => ({}))
+    const token = getToken(req, body)
     if (!token) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
@@ -54,7 +65,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { action, target_user_id, new_password, ban } = await req.json()
+    const { action, target_user_id, new_password, ban } = body
 
     if (!action) {
       return new Response(
