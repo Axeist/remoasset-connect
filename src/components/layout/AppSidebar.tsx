@@ -56,8 +56,8 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
   const initials = (fullName || user?.email || 'U').slice(0, 2).toUpperCase();
 
   return (
-    <>
-      <nav className="flex-1 py-4 px-2.5 space-y-1">
+    <div className="flex flex-col flex-1 min-h-0">
+      <nav className="flex-1 min-h-0 py-4 px-2.5 space-y-1 overflow-y-auto overflow-x-hidden">
         {filteredNav.map((item) => {
           // For /admin, only match exact path, not sub-paths like /admin/team-activity
           const isActive = item.url === '/admin'
@@ -88,7 +88,7 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
           );
         })}
       </nav>
-      <div className="p-3 border-t border-sidebar-border/50">
+      <div className="shrink-0 p-3 border-t border-sidebar-border/50 mt-auto">
         {!collapsed && user && (
           <div className="mb-3 rounded-xl bg-gradient-to-br from-sidebar-primary/10 via-sidebar-accent/30 to-sidebar-accent/10 p-3.5 border border-sidebar-border/40 shadow-lg">
             <div className="flex items-start gap-3 mb-3">
@@ -132,7 +132,7 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
           {!collapsed && <span>Sign Out</span>}
         </Button>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -157,11 +157,11 @@ export function AppSidebar({
             <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-sidebar-accent/5 rounded-full blur-2xl" />
             
             <div className="relative z-10">
-              <img src="/logo-dark.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
+              <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
               <div className="flex items-center gap-1.5">
                 <div className="h-[1px] w-6 bg-gradient-to-r from-sidebar-primary/40 to-transparent" />
-                <p className="text-[11px] text-sidebar-foreground/75 font-medium tracking-wider uppercase">
-                  Connect · Vendor Resource Management
+                <p className="text-sm text-sidebar-foreground font-semibold tracking-tight">
+                  Connect
                 </p>
               </div>
             </div>
@@ -192,11 +192,11 @@ export function AppSidebar({
           <img src="/favicon.png" alt="RemoAsset Connect" className="h-9 w-9 object-contain flex-shrink-0 relative z-10" />
         ) : (
           <div className="flex-1 min-w-0 relative z-10">
-            <img src="/logo-dark.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
+            <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
             <div className="flex items-center gap-1.5">
               <div className="h-[1px] w-6 bg-gradient-to-r from-sidebar-primary/40 to-transparent" />
-              <p className="text-[11px] text-sidebar-foreground/75 font-medium tracking-wider uppercase whitespace-nowrap">
-                Connect · Vendor Resource Management
+              <p className="text-sm text-sidebar-foreground font-semibold tracking-tight whitespace-nowrap">
+                Connect
               </p>
             </div>
           </div>

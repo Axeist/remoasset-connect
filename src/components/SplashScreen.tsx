@@ -55,10 +55,10 @@ export function SplashScreen({ variant, onComplete, duration = 3200 }: SplashScr
           <h1 className="splash-success-title mt-8 font-display text-3xl sm:text-4xl font-bold tracking-tight">
             Welcome back
           </h1>
-          <p className="mt-3 text-base text-white/70">
+          <p className="mt-3 text-base text-white/80">
             Taking you to your dashboard…
           </p>
-          <img src="/logo-dark.png" alt="RemoAsset Connect" className="mt-8 h-8 w-auto object-contain opacity-70" />
+          <img src="/logo.png" alt="RemoAsset Connect" className="mt-8 h-8 w-auto object-contain opacity-80" />
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 overflow-hidden">
@@ -99,13 +99,13 @@ export function SplashScreen({ variant, onComplete, duration = 3200 }: SplashScr
         {/* Logo in glass card with glow */}
         <div className="splash-logo-wrap">
           <div className="splash-logo-glow" />
-          <img src="/logo-dark.png" alt="RemoAsset Connect" className="splash-logo-img relative z-10 h-16 w-auto object-contain drop-shadow-lg sm:h-20" />
+          <img src="/logo.png" alt="RemoAsset Connect" className="splash-logo-img relative z-10 h-16 w-auto object-contain drop-shadow-lg sm:h-20" />
         </div>
 
         <h1 className="splash-headline mt-8 font-display text-2xl font-bold tracking-tight sm:text-3xl">
           Connect
         </h1>
-        <p className="splash-tagline mt-3 max-w-md text-sm leading-relaxed text-white/70 sm:text-base">
+        <p className="splash-tagline mt-3 max-w-md text-sm leading-relaxed text-white/75 sm:text-base">
           RemoAsset’s internal vendor resource management. Manage leads, pipeline, and team performance.
         </p>
 
@@ -127,11 +127,11 @@ export function SplashScreen({ variant, onComplete, duration = 3200 }: SplashScr
         </div>
 
         {/* Custom loader */}
-        <div className="mt-12 flex flex-col items-center gap-4">
+        <div className="mt-12 flex flex-col items-center gap-5">
           <div className="splash-loader-ring">
             <div className="splash-loader-ring-inner" />
           </div>
-          <p className="text-xs font-medium uppercase tracking-widest text-white/50">Loading</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-white/60">Loading</p>
         </div>
       </div>
 

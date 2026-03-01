@@ -65,7 +65,7 @@ export default function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     if (searchParams.get('verified') === 'true') {
@@ -175,11 +175,11 @@ export default function Auth() {
     <div className="min-h-screen flex">
       {/* Left: Branding — visible on larger screens */}
       <div className="hidden lg:flex lg:w-[48%] xl:w-[52%] relative overflow-hidden bg-sidebar flex-col justify-between p-12 xl:p-16">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--sidebar-primary)/0.3),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_80%_80%,hsl(var(--accent)/0.15),transparent)]" />
-        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\' fill=\'%23fff\'/%3E%3C/g%3E%3C/svg%3E")' }} />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--sidebar-primary)/0.25),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_80%_80%,hsl(var(--accent)/0.12),transparent)]" />
+        <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '24px 24px' }} />
         <div className="relative z-10 animate-fade-in-right">
-          <img src="/logo-dark.png" alt="RemoAsset Connect" className="h-10 w-auto object-contain drop-shadow-sm" />
+          <img src="/logo.png" alt="RemoAsset Connect" className="h-10 w-auto object-contain drop-shadow-sm" />
         </div>
         <div className="relative z-10 space-y-8">
           <div className="space-y-6 animate-fade-in-right animate-fade-in-right-delay-1">
@@ -224,8 +224,9 @@ export default function Auth() {
 
       {/* Right: Form */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-background relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_0%_50%,hsl(var(--primary)/0.06),transparent)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_70%_at_100%_80%,hsl(var(--accent)/0.05),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_0%_50%,hsl(var(--primary)/0.08),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_70%_at_100%_80%,hsl(var(--accent)/0.06),transparent)]" />
+        <div className="auth-form-dots absolute inset-0 pointer-events-none" aria-hidden />
 
         {/* Theme toggle — top right corner */}
         <Button
@@ -240,13 +241,15 @@ export default function Auth() {
         </Button>
 
         <div className="w-full max-w-[420px] relative z-10">
-          <div className="rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm shadow-xl shadow-black/5 p-8 sm:p-10 animate-fade-in-up">
-            <div className="lg:hidden mb-6">
-              <img src={resolvedTheme === 'dark' ? '/logo-dark.png' : '/logo-light.png'} alt="RemoAsset Connect" className="h-9 w-auto object-contain" />
+          <div className="rounded-2xl border border-border/80 bg-card/95 backdrop-blur-md shadow-2xl shadow-black/10 dark:shadow-black/30 p-8 sm:p-10 animate-fade-in-up">
+            <div className="lg:hidden mb-6 flex justify-center">
+              <div className="rounded-xl bg-[#1a1a1e] px-5 py-2.5 inline-flex items-center justify-center">
+                <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain" />
+              </div>
             </div>
             <div className="mb-8">
               <h2 className="font-display text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Welcome back</h2>
-              <p className="text-muted-foreground mt-2">Sign in or create an account to continue.</p>
+              <p className="text-muted-foreground mt-2 text-[15px]">Sign in or create an account to continue.</p>
             </div>
 
             <Tabs defaultValue="login" className="w-full">

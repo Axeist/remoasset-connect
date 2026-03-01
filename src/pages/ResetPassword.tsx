@@ -109,9 +109,10 @@ export default function ResetPassword() {
 
       <div className="w-full max-w-[420px] relative z-10">
         <div className="rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm shadow-xl shadow-black/5 p-8 sm:p-10 animate-fade-in-up">
-          <div className="mb-6">
-            <img src="/logo-light.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain dark:hidden" />
-            <img src="/logo-dark.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain hidden dark:block" />
+          <div className="mb-6 flex justify-center">
+            <div className="rounded-xl bg-[#1a1a1e] px-5 py-2.5 inline-flex items-center justify-center">
+              <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain" />
+            </div>
           </div>
 
           {success ? (
