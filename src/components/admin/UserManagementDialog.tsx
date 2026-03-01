@@ -37,8 +37,11 @@ interface UserManagementDialogProps {
 }
 
 async function callManageUser(action: string, targetUserId: string, extras?: Record<string, unknown>) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers = session?.access_token ? { 'X-Auth-Token': session.access_token } : {};
   const { data, error } = await supabase.functions.invoke('manage-user', {
     body: { action, target_user_id: targetUserId, ...extras },
+    headers,
   });
 
   if (error) throw new Error(error.message || 'Request failed');

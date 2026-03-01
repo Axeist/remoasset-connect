@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-auth-token',
 }
 
 Deno.serve(async (req) => {
@@ -23,10 +23,16 @@ Deno.serve(async (req) => {
   )
 
   try {
-    const authHeader = req.headers.get('Authorization')!
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    )
+    const authHeader = req.headers.get('Authorization')
+    const fallbackToken = req.headers.get('X-Auth-Token')
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : (fallbackToken ?? '')
+    if (!token) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      )
+    }
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
 
     if (userError || !user) {
       return new Response(

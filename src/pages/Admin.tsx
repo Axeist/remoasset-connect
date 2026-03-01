@@ -110,7 +110,9 @@ export default function Admin() {
 
   const fetchAuthUsers = async (): Promise<Record<string, { email?: string; banned_until?: string | null; last_sign_in_at?: string | null }>> => {
     try {
-      const { data, error } = await supabase.functions.invoke('manage-user', { body: { action: 'list_users' } });
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = session?.access_token ? { 'X-Auth-Token': session.access_token } : {};
+      const { data, error } = await supabase.functions.invoke('manage-user', { body: { action: 'list_users' }, headers });
       if (error || !data?.users) return {};
       return (data.users as { id: string; email?: string; banned_until?: string | null; last_sign_in_at?: string | null }[]).reduce(
         (acc, u) => { acc[u.id] = { email: u.email, banned_until: u.banned_until, last_sign_in_at: u.last_sign_in_at }; return acc; },
@@ -183,7 +185,9 @@ export default function Admin() {
   const fetchApiKeys = async () => {
     setApiKeyLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('api-keys', { method: 'GET' });
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = session?.access_token ? { 'X-Auth-Token': session.access_token } : {};
+      const { data, error } = await supabase.functions.invoke('api-keys', { method: 'GET', headers });
       if (error) throw error;
       setApiKeys((data?.keys ?? []) as ApiKeyRow[]);
     } catch (e) {
@@ -205,7 +209,9 @@ export default function Admin() {
     }
     setApiKeyLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('api-keys', { method: 'POST', body: { name } });
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = session?.access_token ? { 'X-Auth-Token': session.access_token } : {};
+      const { data, error } = await supabase.functions.invoke('api-keys', { method: 'POST', body: { name }, headers });
       if (error) throw error;
       setCreatedKeyOnce({ api_key: data.api_key, name: data.name, key_prefix: data.key_prefix });
       fetchApiKeys();
@@ -219,7 +225,9 @@ export default function Admin() {
   const handleRevokeApiKey = async () => {
     if (!revokeKeyId) return;
     try {
-      const { error } = await supabase.functions.invoke('api-keys', { method: 'DELETE', body: { id: revokeKeyId } });
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = session?.access_token ? { 'X-Auth-Token': session.access_token } : {};
+      const { error } = await supabase.functions.invoke('api-keys', { method: 'DELETE', body: { id: revokeKeyId }, headers });
       if (error) throw error;
       setRevokeKeyId(null);
       fetchApiKeys();

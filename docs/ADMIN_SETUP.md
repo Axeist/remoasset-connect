@@ -45,10 +45,19 @@ The **Add user** button in the Admin panel calls a Supabase Edge Function. You n
 
    `SUPABASE_URL` is provided automatically in the function environment.
 
-4. Deploy the function:
+4. Deploy the functions used by the Admin panel:
 
    ```bash
    supabase functions deploy create-user
+   supabase functions deploy manage-user
+   supabase functions deploy api-keys
    ```
 
-After deployment, admins can open **Admin Panel** → **Users** → **Add user**, enter email, password, full name, and role (Admin or Employee). The new user can sign in at `/auth`.
+   All three use the same `SUPABASE_SERVICE_ROLE_KEY` secret; `SUPABASE_URL` is provided automatically.
+
+After deployment, admins can open **Admin Panel** → **Users** → **Add user**, create/list/manage users, and use the **API** tab to create and revoke API keys.
+
+### If you see 404 or 401 on Admin → API or Users
+
+- **404 on `api-keys`** or **401 on `manage-user`** usually means those Edge Functions are not deployed. Deploy them as above, then reload the Admin panel.
+- When using a proxy (e.g. JioBase), ensure your app’s `VITE_SUPABASE_URL` points at the proxy URL so the browser sends the JWT to the same host. In DevTools → Network, check that the failing request has an **Authorization: Bearer …** header; if it’s missing, the proxy or client config may be stripping it.
