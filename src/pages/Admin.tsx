@@ -12,7 +12,7 @@ import {
   Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink,
   Settings2, Ban, ShieldCheck, Puzzle, Check, Zap, Globe, Tag, Building2,
   Activity, MapPin, TrendingUp, ChevronRight, AlertTriangle, ListTodo,
-  CalendarCheck, Layers, Database, RefreshCw, UserCheck,
+  CalendarCheck, Layers, Database, RefreshCw, UserCheck, Key, Copy, Trash2,
 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,6 +25,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
@@ -53,13 +55,22 @@ interface Country {
   code: string;
 }
 
-type Tab = 'profile' | 'users' | 'configuration' | 'integrations' | 'analytics';
+type Tab = 'profile' | 'users' | 'configuration' | 'integrations' | 'api' | 'analytics';
+
+interface ApiKeyRow {
+  id: string;
+  name: string;
+  key_prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+}
 
 const NAV_ITEMS: { id: Tab; icon: React.ElementType; label: string; desc: string }[] = [
   { id: 'profile', icon: User, label: 'Profile', desc: 'Your info & account' },
   { id: 'users', icon: Users, label: 'Users', desc: 'Team management' },
   { id: 'configuration', icon: Sliders, label: 'Configuration', desc: 'Statuses, countries & pipeline' },
   { id: 'integrations', icon: Puzzle, label: 'Integrations', desc: 'Connected services' },
+  { id: 'api', icon: Key, label: 'API', desc: 'Keys & integration' },
   { id: 'analytics', icon: BarChart3, label: 'Analytics', desc: 'Reports & insights' },
 ];
 
@@ -90,6 +101,12 @@ export default function Admin() {
     teamActivity: { name: string; activities: number }[];
     totalActivities: number;
   }>({ byStatus: [], byCountry: [], teamActivity: [], totalActivities: 0 });
+  const [apiKeys, setApiKeys] = useState<ApiKeyRow[]>([]);
+  const [apiKeyLoading, setApiKeyLoading] = useState(false);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [createKeyOpen, setCreateKeyOpen] = useState(false);
+  const [createdKeyOnce, setCreatedKeyOnce] = useState<{ api_key: string; name: string; key_prefix: string } | null>(null);
+  const [revokeKeyId, setRevokeKeyId] = useState<string | null>(null);
 
   const fetchAuthUsers = async (): Promise<Record<string, { email?: string; banned_until?: string | null; last_sign_in_at?: string | null }>> => {
     try {
@@ -163,8 +180,54 @@ export default function Admin() {
     setAnalytics({ byStatus, byCountry, teamActivity, totalActivities });
   };
 
+  const fetchApiKeys = async () => {
+    setApiKeyLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('api-keys', { method: 'GET' });
+      if (error) throw error;
+      setApiKeys((data?.keys ?? []) as ApiKeyRow[]);
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Failed to load API keys', description: (e as Error)?.message });
+    } finally {
+      setApiKeyLoading(false);
+    }
+  };
+
   useEffect(() => { fetchData(); }, []);
   useEffect(() => { fetchAnalytics(); }, [teamMembers.length, statuses.length, countries.length]);
+  useEffect(() => { if (activeTab === 'api') fetchApiKeys(); }, [activeTab]);
+
+  const handleCreateApiKey = async () => {
+    const name = newKeyName.trim();
+    if (!name) {
+      toast({ variant: 'destructive', title: 'Name required' });
+      return;
+    }
+    setApiKeyLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('api-keys', { method: 'POST', body: { name } });
+      if (error) throw error;
+      setCreatedKeyOnce({ api_key: data.api_key, name: data.name, key_prefix: data.key_prefix });
+      fetchApiKeys();
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Failed to create API key', description: (e as Error)?.message });
+    } finally {
+      setApiKeyLoading(false);
+    }
+  };
+
+  const handleRevokeApiKey = async () => {
+    if (!revokeKeyId) return;
+    try {
+      const { error } = await supabase.functions.invoke('api-keys', { method: 'DELETE', body: { id: revokeKeyId } });
+      if (error) throw error;
+      setRevokeKeyId(null);
+      fetchApiKeys();
+      toast({ title: 'API key revoked' });
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Failed to revoke', description: (e as Error)?.message });
+    }
+  };
 
   const handleDeleteStatus = async () => {
     if (!deleteStatus) return;
@@ -595,6 +658,97 @@ export default function Admin() {
               </div>
             )}
 
+            {/* ── API ── */}
+            {activeTab === 'api' && (
+              <div className="space-y-6 max-w-3xl">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold">API for integrations</h2>
+                    <p className="text-sm text-muted-foreground">Create API keys and integrate external apps with Connect (leads, tasks, follow-ups, activities)</p>
+                  </div>
+                  <Button size="sm" className="gap-2 gradient-primary text-white" onClick={() => { setCreatedKeyOnce(null); setNewKeyName(''); setCreateKeyOpen(true); }}>
+                    <Plus className="h-4 w-4" />Create API key
+                  </Button>
+                </div>
+
+                <div className="rounded-xl border overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3 bg-muted/30 border-b">
+                    <Key className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium text-sm">Your API keys</span>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 ml-1" onClick={fetchApiKeys} disabled={apiKeyLoading}>
+                      <RefreshCw className={cn('h-3.5 w-3.5', apiKeyLoading && 'animate-spin')} />
+                    </Button>
+                  </div>
+                  {apiKeyLoading ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>
+                  ) : apiKeys.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">No API keys yet. Create one to let external apps access the API.</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/20 hover:bg-muted/20">
+                          <TableHead>Name</TableHead>
+                          <TableHead>Key prefix</TableHead>
+                          <TableHead>Created</TableHead>
+                          <TableHead>Last used</TableHead>
+                          <TableHead className="w-20" />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {apiKeys.map((k) => (
+                          <TableRow key={k.id}>
+                            <TableCell className="font-medium">{k.name}</TableCell>
+                            <TableCell className="font-mono text-xs text-muted-foreground">{k.key_prefix}</TableCell>
+                            <TableCell className="text-muted-foreground text-sm">{new Date(k.created_at).toLocaleDateString()}</TableCell>
+                            <TableCell className="text-muted-foreground text-sm">{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : '—'}</TableCell>
+                            <TableCell>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setRevokeKeyId(k.id)} title="Revoke key">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+
+                <div className="rounded-xl border p-4 space-y-3">
+                  <h3 className="font-medium text-sm flex items-center gap-2">
+                    <Database className="h-4 w-4 text-primary" />
+                    API base URL
+                  </h3>
+                  <p className="text-xs text-muted-foreground">Use this URL as the base for all API requests. Send your API key in the <code className="rounded bg-muted px-1 py-0.5">Authorization: Bearer &lt;api_key&gt;</code> header.</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded-lg bg-muted px-3 py-2 text-sm font-mono break-all">
+                      {import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')}/functions/v1/api
+                    </code>
+                    <Button variant="outline" size="icon" className="shrink-0" onClick={() => { navigator.clipboard.writeText(`${import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')}/functions/v1/api`); toast({ title: 'Copied' }); }}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border p-4 space-y-2">
+                  <h3 className="font-medium text-sm">Endpoints</h3>
+                  <ul className="text-xs text-muted-foreground space-y-1 font-mono">
+                    <li><strong className="text-foreground">GET /leads</strong> — List leads (query: limit, offset, status_id, owner_id)</li>
+                    <li><strong className="text-foreground">POST /leads</strong> — Create lead</li>
+                    <li><strong className="text-foreground">GET /leads/:id</strong> — Get lead · <strong className="text-foreground">PATCH /leads/:id</strong> · <strong className="text-foreground">DELETE /leads/:id</strong></li>
+                    <li><strong className="text-foreground">GET /tasks</strong> — List tasks (query: limit, offset, assignee_id, lead_id, is_completed)</li>
+                    <li><strong className="text-foreground">POST /tasks</strong> — Create task · <strong className="text-foreground">PATCH /tasks/:id</strong> · <strong className="text-foreground">DELETE /tasks/:id</strong></li>
+                    <li><strong className="text-foreground">GET /follow_ups</strong> — List follow-ups (query: limit, offset, lead_id, user_id)</li>
+                    <li><strong className="text-foreground">POST /follow_ups</strong> — Create follow-up · <strong className="text-foreground">PATCH /follow_ups/:id</strong> · <strong className="text-foreground">DELETE /follow_ups/:id</strong></li>
+                    <li><strong className="text-foreground">GET /activities</strong> — List activities (query: limit, offset, lead_id)</li>
+                    <li><strong className="text-foreground">POST /activities</strong> — Create activity · <strong className="text-foreground">PATCH /activities/:id</strong> · <strong className="text-foreground">DELETE /activities/:id</strong></li>
+                    <li><strong className="text-foreground">GET /statuses</strong> — List lead statuses</li>
+                    <li><strong className="text-foreground">GET /countries</strong> — List countries</li>
+                    <li><strong className="text-foreground">GET /profiles</strong> — List user profiles</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
             {/* ── ANALYTICS ── */}
             {activeTab === 'analytics' && (
               <div className="space-y-6">
@@ -710,6 +864,52 @@ export default function Admin() {
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>Mark all tasks as completed?</AlertDialogTitle><AlertDialogDescription>All incomplete tasks due up to now will be marked completed. Future tasks remain unchanged.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { markAllTasksCompleted(); setCompleteTasksDialog(false); }}>Complete All</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={createKeyOpen} onOpenChange={(open) => { setCreateKeyOpen(open); if (!open) { setCreatedKeyOnce(null); setNewKeyName(''); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{createdKeyOnce ? 'API key created' : 'Create API key'}</DialogTitle>
+          </DialogHeader>
+          {createdKeyOnce ? (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-muted-foreground">Copy this key now. It won’t be shown again.</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded-lg bg-muted px-3 py-2 text-sm font-mono break-all">{createdKeyOnce.api_key}</code>
+                <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(createdKeyOnce.api_key); toast({ title: 'Copied' }); }}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => { setCreateKeyOpen(false); setCreatedKeyOnce(null); }}>Done</Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2 py-2">
+                <Label htmlFor="api-key-name">Key name</Label>
+                <Input id="api-key-name" placeholder="e.g. Production app" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCreateKeyOpen(false)}>Cancel</Button>
+                <Button onClick={handleCreateApiKey} disabled={apiKeyLoading}>{apiKeyLoading ? 'Creating…' : 'Create key'}</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!revokeKeyId} onOpenChange={(open) => !open && setRevokeKeyId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke API key?</AlertDialogTitle>
+            <AlertDialogDescription>Any app using this key will stop working. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRevokeApiKey} className="bg-destructive text-destructive-foreground">Revoke</AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </AppLayout>
