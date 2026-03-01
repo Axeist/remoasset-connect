@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -145,6 +145,25 @@ export function AppSidebar({
 }) {
   const [collapsed, setCollapsed] = useState(true);
   const isMobile = useIsMobile();
+  const collapseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = () => {
+    if (collapseTimeoutRef.current) {
+      clearTimeout(collapseTimeoutRef.current);
+      collapseTimeoutRef.current = null;
+    }
+    setCollapsed(false);
+  };
+
+  const handleMouseLeave = () => {
+    collapseTimeoutRef.current = setTimeout(() => setCollapsed(true), 200);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (collapseTimeoutRef.current) clearTimeout(collapseTimeoutRef.current);
+    };
+  }, []);
 
   if (isMobile) {
     return (
@@ -174,8 +193,8 @@ export function AppSidebar({
 
   return (
     <aside
-      onMouseEnter={() => setCollapsed(false)}
-      onMouseLeave={() => setCollapsed(true)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       className={cn(
         'h-screen bg-sidebar text-sidebar-foreground flex flex-col sticky top-0 border-r border-sidebar-border/30 overflow-hidden',
         'transition-[width] duration-300 ease-in-out',
