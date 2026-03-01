@@ -300,6 +300,27 @@ img[src="/logo.png"] {
   background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.06) 1px, transparent 0);
 }
 
+/* Auth page: left branding pane (warm dark) */
+.auth-left-pane {
+  background: linear-gradient(165deg, hsl(340 9% 14%) 0%, hsl(340 9% 17%) 40%, hsl(340 10% 12%) 100%);
+}
+.dark .auth-left-pane {
+  background: linear-gradient(165deg, hsl(340 9% 10%) 0%, hsl(340 9% 14%) 50%, hsl(340 9% 8%) 100%);
+}
+
+/* Auth page: right form pane */
+.auth-right-pane {
+  background: hsl(var(--background));
+}
+
+/* Auth form card: soft glow on focus/border */
+.auth-form-card {
+  box-shadow: 0 0 0 1px hsl(var(--border) / 0.5), 0 25px 50px -12px rgb(0 0 0 / 0.08);
+}
+.dark .auth-form-card {
+  box-shadow: 0 0 0 1px hsl(var(--border) / 0.3), 0 25px 50px -12px rgb(0 0 0 / 0.5);
+}
+
 /* ========== Splash screens – exotic loading & success ========== */
 .bg-splash-dark {
   background: linear-gradient(160deg, #1a1618 0%, #30282B 35%, #1a1618 70%, #251f22 100%);

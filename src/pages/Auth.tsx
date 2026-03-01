@@ -172,60 +172,74 @@ export default function Auth() {
           }}
         />
       )}
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex bg-background">
       {/* Left: Branding — visible on larger screens */}
-      <div className="hidden lg:flex lg:w-[48%] xl:w-[52%] relative overflow-hidden bg-sidebar flex-col justify-between p-12 xl:p-16">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--sidebar-primary)/0.25),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_80%_80%,hsl(var(--accent)/0.12),transparent)]" />
-        <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+      <div className="hidden lg:flex lg:w-[48%] xl:w-[52%] relative overflow-hidden auth-left-pane flex-col justify-between p-12 xl:p-16">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_70%_at_30%_0%,hsl(var(--sidebar-primary)/0.35),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_85%_90%,hsl(var(--accent)/0.18),transparent_50%)]" />
+        <div className="absolute top-1/4 -left-20 w-72 h-72 rounded-full bg-primary/20 blur-[80px] pointer-events-none" />
+        <div className="absolute bottom-1/3 -right-20 w-64 h-64 rounded-full bg-accent/15 blur-[70px] pointer-events-none" />
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.2) 1px, transparent 0)', backgroundSize: '28px 28px' }} />
         <div className="relative z-10 animate-fade-in-right">
-          <img src="/logo.png" alt="RemoAsset Connect" className="h-10 w-auto object-contain drop-shadow-sm" />
+          <img src="/logo.png" alt="RemoAsset Connect" className="h-11 w-auto object-contain drop-shadow-md" />
         </div>
-        <div className="relative z-10 space-y-8">
+        <div className="relative z-10 space-y-10">
           <div className="space-y-6 animate-fade-in-right animate-fade-in-right-delay-1">
-            <h1 className="font-display text-3xl xl:text-4xl font-bold text-sidebar-foreground tracking-tight leading-tight">
+            <h1 className="font-display text-4xl xl:text-5xl font-bold text-sidebar-foreground tracking-tight leading-tight">
               Connect
             </h1>
-            <p className="text-sidebar-foreground/80 text-lg max-w-md leading-relaxed">
+            <p className="text-sidebar-foreground/85 text-lg xl:text-xl max-w-md leading-relaxed">
               RemoAsset’s internal vendor resource management. Manage leads, track activities, and close deals in one place.
             </p>
           </div>
-          <ul className="space-y-4 animate-fade-in-right animate-fade-in-right-delay-2">
-            <li className="flex items-center gap-3 text-sidebar-foreground/90">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/20 text-primary">
+          <ul className="space-y-3 animate-fade-in-right animate-fade-in-right-delay-2">
+            <li className="flex items-center gap-4 p-3 rounded-2xl bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.08] transition-all duration-200">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary">
                 <Users className="h-5 w-5" />
               </span>
-              <span><strong className="text-sidebar-foreground">Lead pipeline</strong> — Track status, score, and ownership</span>
+              <div>
+                <span className="font-semibold text-sidebar-foreground">Lead pipeline</span>
+                <span className="text-sidebar-foreground/75"> — Track status, score, and ownership</span>
+              </div>
             </li>
-            <li className="flex items-center gap-3 text-sidebar-foreground/90">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20 text-accent">
+            <li className="flex items-center gap-4 p-3 rounded-2xl bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.08] transition-all duration-200">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/20 text-accent">
                 <BarChart3 className="h-5 w-5" />
               </span>
-              <span><strong className="text-sidebar-foreground">Tasks & follow-ups</strong> — Never miss a touchpoint</span>
+              <div>
+                <span className="font-semibold text-sidebar-foreground">Tasks & follow-ups</span>
+                <span className="text-sidebar-foreground/75"> — Never miss a touchpoint</span>
+              </div>
             </li>
-            <li className="flex items-center gap-3 text-sidebar-foreground/90">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/20 text-success">
+            <li className="flex items-center gap-4 p-3 rounded-2xl bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.08] transition-all duration-200">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-success/20 text-success">
                 <Zap className="h-5 w-5" />
               </span>
-              <span><strong className="text-sidebar-foreground">Activity timeline</strong> — Calls, emails, meetings in one log</span>
+              <div>
+                <span className="font-semibold text-sidebar-foreground">Activity timeline</span>
+                <span className="text-sidebar-foreground/75"> — Calls, emails, meetings in one log</span>
+              </div>
             </li>
-            <li className="flex items-center gap-3 text-sidebar-foreground/90">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sidebar-primary/20 text-sidebar-primary">
+            <li className="flex items-center gap-4 p-3 rounded-2xl bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.08] transition-all duration-200">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary/20 text-sidebar-primary">
                 <Shield className="h-5 w-5" />
               </span>
-              <span><strong className="text-sidebar-foreground">Secure & role-based</strong> — Admin controls and team visibility</span>
+              <div>
+                <span className="font-semibold text-sidebar-foreground">Secure & role-based</span>
+                <span className="text-sidebar-foreground/75"> — Admin controls and team visibility</span>
+              </div>
             </li>
           </ul>
-          <p className="text-sidebar-foreground/50 text-sm pt-4 animate-fade-in-up animate-fade-in-up-delay-2">
+          <p className="text-sidebar-foreground/50 text-sm pt-2 animate-fade-in-up animate-fade-in-up-delay-2">
             Internal tool for RemoAsset teams.
           </p>
         </div>
       </div>
 
       {/* Right: Form */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-background relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_0%_50%,hsl(var(--primary)/0.08),transparent)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_70%_at_100%_80%,hsl(var(--accent)/0.06),transparent)]" />
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 auth-right-pane relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_20%_40%,hsl(var(--primary)/0.12),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_80%_at_90%_60%,hsl(var(--accent)/0.08),transparent_50%)]" />
         <div className="auth-form-dots absolute inset-0 pointer-events-none" aria-hidden />
 
         {/* Theme toggle — top right corner */}
@@ -233,17 +247,17 @@ export default function Auth() {
           variant="ghost"
           size="icon"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="absolute top-4 right-4 z-20 h-9 w-9 rounded-full border border-border/60 bg-card/80 backdrop-blur-sm shadow-sm hover:bg-muted"
+          className="absolute top-4 right-4 z-20 h-10 w-10 rounded-full border border-border/50 bg-card/90 backdrop-blur-md shadow-md hover:bg-muted/80 hover:border-primary/20 transition-all duration-200"
         >
-          <Sun className="h-[18px] w-[18px] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-[18px] w-[18px] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           <span className="sr-only">Toggle theme</span>
         </Button>
 
         <div className="w-full max-w-[420px] relative z-10">
-          <div className="rounded-2xl border border-border/80 bg-card/95 backdrop-blur-md shadow-2xl shadow-black/10 dark:shadow-black/30 p-8 sm:p-10 animate-fade-in-up">
+          <div className="auth-form-card rounded-2xl border border-border/60 bg-card/95 dark:bg-card/90 backdrop-blur-xl shadow-2xl shadow-black/5 dark:shadow-black/40 p-8 sm:p-10 animate-fade-in-up">
             <div className="lg:hidden mb-6 flex justify-center">
-              <div className="rounded-xl bg-[#1a1a1e] px-5 py-2.5 inline-flex items-center justify-center">
+              <div className="rounded-xl bg-sidebar/90 px-5 py-2.5 inline-flex items-center justify-center border border-white/10">
                 <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain" />
               </div>
             </div>
@@ -253,11 +267,11 @@ export default function Auth() {
             </div>
 
             <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 h-11 bg-muted/60 p-1 rounded-xl">
-              <TabsTrigger value="login" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all duration-200">
+            <TabsList className="grid w-full grid-cols-2 h-12 bg-muted/50 p-1.5 rounded-xl border border-border/50">
+              <TabsTrigger value="login" className="rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground data-[state=active]:border border border-transparent transition-all duration-200">
                 Sign in
               </TabsTrigger>
-              <TabsTrigger value="signup" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all duration-200">
+              <TabsTrigger value="signup" className="rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground data-[state=active]:border border border-transparent transition-all duration-200">
                 Sign up
               </TabsTrigger>
             </TabsList>
@@ -276,7 +290,7 @@ export default function Auth() {
                           placeholder="you@company.com"
                           value={loginForm.email}
                           onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                          className="pl-10 h-11 rounded-xl border-border/80 bg-background focus-visible:ring-2 focus-visible:ring-primary/20 transition-shadow"
+                          className="pl-10 h-11 rounded-xl border-border/70 bg-background/80 hover:bg-background focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:border-primary/30 transition-all duration-200"
                         />
                       </div>
                       {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
@@ -291,7 +305,7 @@ export default function Auth() {
                           placeholder="••••••••"
                           value={loginForm.password}
                           onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                          className="pl-10 pr-10 h-11 rounded-xl border-border/80 bg-background focus-visible:ring-2 focus-visible:ring-primary/20 transition-shadow"
+                          className="pl-10 pr-10 h-11 rounded-xl border-border/70 bg-background/80 hover:bg-background focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:border-primary/30 transition-all duration-200"
                         />
                         <button
                           type="button"
@@ -307,7 +321,7 @@ export default function Auth() {
                     </div>
                     <Button
                       type="submit"
-                      className="w-full h-11 rounded-xl gradient-primary text-white font-medium shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-200 hover:opacity-95"
+                      className="w-full h-12 rounded-xl gradient-primary text-white font-semibold shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
                       disabled={isLoading}
                     >
                       {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -317,7 +331,7 @@ export default function Auth() {
                       <button
                         type="button"
                         onClick={() => { setForgotMode(true); setForgotSent(false); setForgotEmail(loginForm.email); }}
-                        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        className="text-sm text-muted-foreground hover:text-primary transition-colors"
                       >
                         Forgot your password?
                       </button>
@@ -329,7 +343,7 @@ export default function Auth() {
                   <button
                     type="button"
                     onClick={() => { setForgotMode(false); setForgotSent(false); }}
-                    className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Back to sign in
@@ -337,8 +351,8 @@ export default function Auth() {
 
                   {forgotSent ? (
                     <div className="text-center py-6 space-y-4">
-                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100 dark:bg-green-500/10">
-                        <CheckCircle2 className="h-7 w-7 text-green-600" />
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success/15 border border-success/20">
+                        <CheckCircle2 className="h-7 w-7 text-success" />
                       </div>
                       <div>
                         <h3 className="text-lg font-semibold">Check your email</h3>
@@ -372,14 +386,14 @@ export default function Auth() {
                             placeholder="you@company.com"
                             value={forgotEmail}
                             onChange={(e) => setForgotEmail(e.target.value)}
-                            className="pl-10 h-11 rounded-xl border-border/80 bg-background focus-visible:ring-2 focus-visible:ring-primary/20 transition-shadow"
+                            className="pl-10 h-11 rounded-xl border-border/70 bg-background/80 hover:bg-background focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:border-primary/30 transition-all duration-200"
                             autoFocus
                           />
                         </div>
                       </div>
                       <Button
                         type="submit"
-                        className="w-full h-11 rounded-xl gradient-primary text-white font-medium shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-200 hover:opacity-95"
+                        className="w-full h-12 rounded-xl gradient-primary text-white font-semibold shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
                         disabled={isLoading}
                       >
                         {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -403,7 +417,7 @@ export default function Auth() {
                       placeholder="John Doe"
                       value={signupForm.fullName}
                       onChange={(e) => setSignupForm({ ...signupForm, fullName: e.target.value })}
-                      className="pl-10 h-11 rounded-xl border-border/80 bg-background focus-visible:ring-2 focus-visible:ring-primary/20 transition-shadow"
+                      className="pl-10 h-11 rounded-xl border-border/70 bg-background/80 hover:bg-background focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:border-primary/30 transition-all duration-200"
                     />
                   </div>
                   {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
@@ -418,7 +432,7 @@ export default function Auth() {
                       placeholder={`you@${ALLOWED_SIGNUP_DOMAIN}`}
                       value={signupForm.email}
                       onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
-                      className="pl-10 h-11 rounded-xl border-border/80 bg-background focus-visible:ring-2 focus-visible:ring-primary/20 transition-shadow"
+                      className="pl-10 h-11 rounded-xl border-border/70 bg-background/80 hover:bg-background focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:border-primary/30 transition-all duration-200"
                     />
                   </div>
                   {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
@@ -433,7 +447,7 @@ export default function Auth() {
                       placeholder="Strong password"
                       value={signupForm.password}
                       onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
-                      className="pl-10 pr-10 h-11 rounded-xl border-border/80 bg-background focus-visible:ring-2 focus-visible:ring-primary/20 transition-shadow"
+                      className="pl-10 pr-10 h-11 rounded-xl border-border/70 bg-background/80 hover:bg-background focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:border-primary/30 transition-all duration-200"
                     />
                     <button
                       type="button"
@@ -462,7 +476,7 @@ export default function Auth() {
                       placeholder="••••••••"
                       value={signupForm.confirmPassword}
                       onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
-                      className="pl-10 pr-10 h-11 rounded-xl border-border/80 bg-background focus-visible:ring-2 focus-visible:ring-primary/20 transition-shadow"
+                      className="pl-10 pr-10 h-11 rounded-xl border-border/70 bg-background/80 hover:bg-background focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:border-primary/30 transition-all duration-200"
                     />
                     <button
                       type="button"
@@ -478,7 +492,7 @@ export default function Auth() {
                 </div>
                 <Button
                   type="submit"
-                  className="w-full h-11 rounded-xl gradient-primary text-white font-medium shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-200 hover:opacity-95"
+                  className="w-full h-12 rounded-xl gradient-primary text-white font-semibold shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
                   disabled={isLoading}
                 >
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
