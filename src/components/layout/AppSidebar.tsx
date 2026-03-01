@@ -8,8 +8,6 @@ import {
   Bell,
   BarChart3,
   HelpCircle,
-  ChevronLeft,
-  ChevronRight,
   LogOut,
   Settings,
   Shield,
@@ -78,7 +76,14 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
               )}
             >
               <item.icon className={cn('h-[19px] w-[19px] shrink-0', isActive && 'text-sidebar-primary-foreground')} />
-              {!collapsed && <span className="text-sm font-medium">{item.title}</span>}
+              <span
+                className={cn(
+                  'text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-200',
+                  collapsed ? 'opacity-0 w-0 max-w-0' : 'opacity-100 w-auto max-w-[200px] delay-100'
+                )}
+              >
+                {item.title}
+              </span>
             </NavLink>
           );
         })}
@@ -138,7 +143,7 @@ export function AppSidebar({
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const isMobile = useIsMobile();
 
   if (isMobile) {
@@ -152,7 +157,7 @@ export function AppSidebar({
             <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-sidebar-accent/5 rounded-full blur-2xl" />
             
             <div className="relative z-10">
-              <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
+              <img src="/logo-dark.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
               <div className="flex items-center gap-1.5">
                 <div className="h-[1px] w-6 bg-gradient-to-r from-sidebar-primary/40 to-transparent" />
                 <p className="text-[11px] text-sidebar-foreground/75 font-medium tracking-wider uppercase">
@@ -169,12 +174,15 @@ export function AppSidebar({
 
   return (
     <aside
+      onMouseEnter={() => setCollapsed(false)}
+      onMouseLeave={() => setCollapsed(true)}
       className={cn(
-        'h-screen bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-300 sticky top-0 border-r border-sidebar-border/30',
+        'h-screen bg-sidebar text-sidebar-foreground flex flex-col sticky top-0 border-r border-sidebar-border/30 overflow-hidden',
+        'transition-[width] duration-300 ease-in-out',
         collapsed ? 'w-16' : 'w-[270px]'
       )}
     >
-      <div className="relative flex items-center justify-between px-4 py-5 border-b border-sidebar-border/40 overflow-hidden">
+      <div className="relative flex items-center justify-between min-w-0 px-4 py-5 border-b border-sidebar-border/40 overflow-hidden shrink-0">
         {/* Decorative background elements */}
         <div className="absolute inset-0 bg-gradient-to-br from-sidebar-primary/5 via-transparent to-sidebar-accent/5" />
         <div className="absolute -top-10 -right-10 w-32 h-32 bg-sidebar-primary/5 rounded-full blur-2xl" />
@@ -184,25 +192,19 @@ export function AppSidebar({
           <img src="/favicon.png" alt="RemoAsset Connect" className="h-9 w-9 object-contain flex-shrink-0 relative z-10" />
         ) : (
           <div className="flex-1 min-w-0 relative z-10">
-            <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
+            <img src="/logo-dark.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
             <div className="flex items-center gap-1.5">
               <div className="h-[1px] w-6 bg-gradient-to-r from-sidebar-primary/40 to-transparent" />
-              <p className="text-[11px] text-sidebar-foreground/75 font-medium tracking-wider uppercase">
+              <p className="text-[11px] text-sidebar-foreground/75 font-medium tracking-wider uppercase whitespace-nowrap">
                 Connect · Vendor Resource Management
               </p>
             </div>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setCollapsed(!collapsed)}
-          className="h-7 w-7 shrink-0 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 rounded-md transition-all relative z-10"
-        >
-          {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
-        </Button>
       </div>
-      <SidebarNav collapsed={collapsed} />
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <SidebarNav collapsed={collapsed} />
+      </div>
     </aside>
   );
 }

@@ -58,7 +58,7 @@ export function SplashScreen({ variant, onComplete, duration = 3200 }: SplashScr
           <p className="mt-3 text-base text-white/70">
             Taking you to your dashboard…
           </p>
-          <img src="/logo.png" alt="RemoAsset Connect" className="mt-8 h-8 w-auto object-contain opacity-70" />
+          <img src="/logo-dark.png" alt="RemoAsset Connect" className="mt-8 h-8 w-auto object-contain opacity-70" />
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 overflow-hidden">
@@ -99,7 +99,7 @@ export function SplashScreen({ variant, onComplete, duration = 3200 }: SplashScr
         {/* Logo in glass card with glow */}
         <div className="splash-logo-wrap">
           <div className="splash-logo-glow" />
-          <img src="/logo.png" alt="RemoAsset Connect" className="splash-logo-img relative z-10 h-16 w-auto object-contain drop-shadow-lg sm:h-20" />
+          <img src="/logo-dark.png" alt="RemoAsset Connect" className="splash-logo-img relative z-10 h-16 w-auto object-contain drop-shadow-lg sm:h-20" />
         </div>
 
         <h1 className="splash-headline mt-8 font-display text-2xl font-bold tracking-tight sm:text-3xl">

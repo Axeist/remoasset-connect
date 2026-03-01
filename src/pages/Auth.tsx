@@ -65,7 +65,7 @@ export default function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   useEffect(() => {
     if (searchParams.get('verified') === 'true') {
@@ -179,7 +179,7 @@ export default function Auth() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_80%_80%,hsl(var(--accent)/0.15),transparent)]" />
         <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\' fill=\'%23fff\'/%3E%3C/g%3E%3C/svg%3E")' }} />
         <div className="relative z-10 animate-fade-in-right">
-          <img src="/logo.png" alt="RemoAsset Connect" className="h-10 w-auto object-contain drop-shadow-sm" />
+          <img src="/logo-dark.png" alt="RemoAsset Connect" className="h-10 w-auto object-contain drop-shadow-sm" />
         </div>
         <div className="relative z-10 space-y-8">
           <div className="space-y-6 animate-fade-in-right animate-fade-in-right-delay-1">
@@ -242,7 +242,7 @@ export default function Auth() {
         <div className="w-full max-w-[420px] relative z-10">
           <div className="rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm shadow-xl shadow-black/5 p-8 sm:p-10 animate-fade-in-up">
             <div className="lg:hidden mb-6">
-              <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain" />
+              <img src={resolvedTheme === 'dark' ? '/logo-dark.png' : '/logo-light.png'} alt="RemoAsset Connect" className="h-9 w-auto object-contain" />
             </div>
             <div className="mb-8">
               <h2 className="font-display text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Welcome back</h2>
