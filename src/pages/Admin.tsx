@@ -185,7 +185,12 @@ export default function Admin() {
   const fetchApiKeys = async () => {
     setApiKeyLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      let { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        await supabase.auth.refreshSession();
+        const ref = await supabase.auth.getSession();
+        session = ref.data.session;
+      }
       const token = session?.access_token ?? '';
       if (!token) {
         setApiKeys([]);
@@ -194,13 +199,21 @@ export default function Admin() {
       }
       const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+      if (!baseUrl || !anonKey) {
+        toast({ variant: 'destructive', title: 'Config missing', description: 'VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set.' });
+        setApiKeyLoading(false);
+        return;
+      }
       const res = await fetch(`${baseUrl}/functions/v1/api-keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Apikey: anonKey, Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: 'list', __auth_token: token }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+      if (!res.ok) {
+        const msg = data?.error ?? data?.message ?? data?.hint ?? `HTTP ${res.status}`;
+        throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      }
       setApiKeys((data?.keys ?? []) as ApiKeyRow[]);
     } catch (e) {
       toast({ variant: 'destructive', title: 'Failed to load API keys', description: (e as Error)?.message });
