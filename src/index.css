@@ -288,7 +288,7 @@ textarea:focus-visible,
 
 /* Logo: make black pixels in PNG show background (removes black fill) */
 img[src="/logo.png"] {
-  mix-blend-mode: screen;
+  mix-blend-mode: multiply;
 }
 
 /* Auth form: subtle dot pattern (light and dark) */
