@@ -45,9 +45,10 @@ const navItems = [
 interface SidebarNavProps {
   collapsed?: boolean;
   onNavigate?: () => void;
+  onNavClick?: () => void;
 }
 
-function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
+function SidebarNav({ collapsed = false, onNavigate, onNavClick }: SidebarNavProps) {
   const location = useLocation();
   const { role, signOut, user } = useAuth();
   const { fullName, designation, avatarUrl } = useCurrentUserProfile();
@@ -67,7 +68,10 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
             <NavLink
               key={item.title}
               to={item.url}
-              onClick={onNavigate}
+              onClick={() => {
+                onNavClick?.();
+                onNavigate?.();
+              }}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-all duration-200 group',
                 isActive
@@ -158,13 +162,13 @@ export function AppSidebar({
 
   const handleMouseLeave = () => {
     collapseTimeoutRef.current = setTimeout(() => {
-      // Don't collapse if user just clicked a nav link (e.g. navigation caused a leave)
-      if (Date.now() - lastClickInSidebarRef.current < 700) return;
+      // Don't collapse if user just clicked a nav link (navigation can trigger leave)
+      if (Date.now() - lastClickInSidebarRef.current < 800) return;
       setCollapsed(true);
-    }, 200);
+    }, 250);
   };
 
-  const handleSidebarClick = () => {
+  const handleNavClick = () => {
     lastClickInSidebarRef.current = Date.now();
   };
 
@@ -204,7 +208,7 @@ export function AppSidebar({
     <aside
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onClick={handleSidebarClick}
+      onMouseDown={handleNavClick}
       className={cn(
         'h-screen bg-sidebar text-sidebar-foreground flex flex-col sticky top-0 border-r border-sidebar-border/30 overflow-hidden',
         'transition-[width] duration-300 ease-in-out',
@@ -232,7 +236,7 @@ export function AppSidebar({
         )}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        <SidebarNav collapsed={collapsed} />
+        <SidebarNav collapsed={collapsed} onNavClick={handleNavClick} />
       </div>
     </aside>
   );
