@@ -55,7 +55,7 @@ const activityTypeConfig = {
   note: { icon: FileText, label: 'Note', color: 'bg-warning/10 text-warning' },
   whatsapp: { icon: MessageCircle, label: 'WhatsApp', color: 'bg-green-500/10 text-green-600' },
   linkedin: { icon: Linkedin, label: 'LinkedIn', color: 'bg-sky-500/10 text-sky-600' },
-  nda: { icon: ShieldCheck, label: 'NDA', color: 'bg-blue-500/10 text-blue-600' },
+  nda: { icon: ShieldCheck, label: 'NDA', color: 'bg-primary/10 text-primary' },
 };
 
 interface LeadSidePanelProps {
@@ -370,7 +370,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                         className={cn(
                           'rounded-lg border shadow-sm transition-all group',
                           isMeeting
-                            ? 'bg-gradient-to-r from-blue-50/60 to-card dark:from-blue-950/20 dark:to-card border-blue-200/50 dark:border-blue-800/30'
+                            ? 'bg-gradient-to-r from-primary/5 to-card dark:from-primary/10 dark:to-card border-primary/20 dark:border-primary/20'
                             : 'bg-card',
                           hasMore ? 'cursor-pointer hover:shadow-md' : ''
                         )}
@@ -381,7 +381,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                           <div
                             className={cn(
                               'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
-                              isMeeting ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : config.color
+                              isMeeting ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary' : config.color
                             )}
                           >
                             {isMeeting ? <Video className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
@@ -392,7 +392,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                                 <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                                   <span className={cn(
                                     'text-[10px] font-semibold uppercase tracking-wider',
-                                    isMeeting ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'
+                                    isMeeting ? 'text-primary dark:text-primary' : 'text-muted-foreground'
                                   )}>
                                     {config.label}
                                   </span>
@@ -412,7 +412,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                                     )}
                                     {meetingMeta.startTime && meetingMeta.endTime && (
                                       <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                                        <Clock className="h-3 w-3 text-blue-500 shrink-0" />
+                                        <Clock className="h-3 w-3 text-primary shrink-0" />
                                         {safeFormat(meetingMeta.startTime, 'MMM d, h:mm a')}
                                         {' – '}
                                         {safeFormat(meetingMeta.endTime, 'h:mm a')}
@@ -420,7 +420,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                                     )}
                                     {meetingMeta.attendees && meetingMeta.attendees.length > 0 && (
                                       <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                        <Users className="h-3 w-3 text-blue-500 shrink-0" />
+                                        <Users className="h-3 w-3 text-primary shrink-0" />
                                         {meetingMeta.attendees.length} attendee{meetingMeta.attendees.length !== 1 ? 's' : ''}
                                       </p>
                                     )}
@@ -436,7 +436,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                                 {!expanded && (nonMetaAttachments.length > 0 || isMeetingWithCalendar) && (
                                   <div className="flex items-center gap-2 mt-1">
                                     {isMeetingWithCalendar && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 font-medium">
+                                      <span className="inline-flex items-center gap-1 text-[10px] text-primary dark:text-primary font-medium">
                                         <Video className="h-2.5 w-2.5" />
                                         Meet
                                       </span>

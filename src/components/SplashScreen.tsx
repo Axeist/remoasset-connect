@@ -58,7 +58,7 @@ export function SplashScreen({ variant, onComplete, duration = 3200 }: SplashScr
           <p className="mt-3 text-base text-white/70">
             Taking you to your dashboard…
           </p>
-          <img src="/logo.png" alt="RemoAsset" className="mt-8 h-8 w-auto object-contain opacity-70" />
+          <img src="/logo.png" alt="RemoAsset Connect" className="mt-8 h-8 w-auto object-contain opacity-70" />
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 overflow-hidden">
@@ -73,7 +73,7 @@ export function SplashScreen({ variant, onComplete, duration = 3200 }: SplashScr
     <div
       className="splash-wrap fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-splash-dark"
       aria-live="polite"
-      aria-label="Loading RemoAsset"
+      aria-label="Loading Connect"
     >
       {/* Animated mesh / gradient background */}
       <div className="splash-mesh-bg" />
@@ -99,23 +99,23 @@ export function SplashScreen({ variant, onComplete, duration = 3200 }: SplashScr
         {/* Logo in glass card with glow */}
         <div className="splash-logo-wrap">
           <div className="splash-logo-glow" />
-          <img src="/logo.png" alt="RemoAsset" className="splash-logo-img relative z-10 h-16 w-auto object-contain drop-shadow-lg sm:h-20" />
+          <img src="/logo.png" alt="RemoAsset Connect" className="splash-logo-img relative z-10 h-16 w-auto object-contain drop-shadow-lg sm:h-20" />
         </div>
 
         <h1 className="splash-headline mt-8 font-display text-2xl font-bold tracking-tight sm:text-3xl">
-          Remote IT Asset Management
+          Connect
         </h1>
         <p className="splash-tagline mt-3 max-w-md text-sm leading-relaxed text-white/70 sm:text-base">
-          Procure, track, manage & recover hardware for distributed teams worldwide.
+          RemoAsset’s internal vendor resource management. Manage leads, pipeline, and team performance.
         </p>
 
         {/* Icon pills */}
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4 sm:gap-6">
           {[
-            { Icon: Package, label: 'Procure' },
-            { Icon: MapPin, label: 'Track' },
-            { Icon: Settings, label: 'Manage' },
-            { Icon: RefreshCw, label: 'Recover' },
+            { Icon: Package, label: 'Leads' },
+            { Icon: MapPin, label: 'Pipeline' },
+            { Icon: Settings, label: 'Tasks' },
+            { Icon: RefreshCw, label: 'Reports' },
           ].map(({ Icon, label }, i) => (
             <div key={label} className="splash-pill" style={{ animationDelay: `${i * 120}ms` }}>
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm sm:h-12 sm:w-12">

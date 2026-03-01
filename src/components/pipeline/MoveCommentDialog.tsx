@@ -22,7 +22,7 @@ export interface StageTransitionResult {
 }
 
 const CONTACT_ACTIVITY_OPTIONS = [
-  { value: 'call', label: 'Call', icon: Phone, activeClass: 'border-blue-500/50 bg-blue-500/10 text-blue-700 ring-2 ring-blue-500/20' },
+  { value: 'call', label: 'Call', icon: Phone, activeClass: 'border-primary/50 bg-primary/10 text-primary ring-2 ring-primary/20' },
   { value: 'email', label: 'Email', icon: Mail, activeClass: 'border-orange-500/50 bg-orange-500/10 text-orange-700 ring-2 ring-orange-500/20' },
   { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, activeClass: 'border-green-500/50 bg-green-500/10 text-green-700 ring-2 ring-green-500/20' },
   { value: 'linkedin', label: 'LinkedIn', icon: Linkedin, activeClass: 'border-sky-500/50 bg-sky-500/10 text-sky-700 ring-2 ring-sky-500/20' },
@@ -137,9 +137,9 @@ export function MoveCommentDialog({
           )}
 
           {transitionMode === 'nda_sent' && (
-            <div className="flex items-center gap-3 rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/10 shrink-0">
-                <ShieldCheck className="h-4 w-4 text-blue-600" />
+            <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 shrink-0">
+                <ShieldCheck className="h-4 w-4 text-primary" />
               </div>
               <div>
                 <p className="text-sm font-medium">NDA Sent</p>

@@ -293,7 +293,7 @@ function MessageBubble({
             <AvatarImage src={currentUserAvatarUrl!} alt={senderName} className="rounded-full" />
             <AvatarFallback className={cn(
               'rounded-full text-xs font-medium',
-              'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+              'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
             )}>
               {getInitials(senderName)}
             </AvatarFallback>
@@ -301,7 +301,7 @@ function MessageBubble({
         ) : (
           <div className={cn(
             'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium',
-            isFromLead ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+            isFromLead ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
           )}>
             {getInitials(senderName)}
           </div>
@@ -327,7 +327,7 @@ function MessageBubble({
             <AvatarImage src={currentUserAvatarUrl!} alt={senderName} className="rounded-full" />
             <AvatarFallback className={cn(
               'rounded-full text-xs font-semibold',
-              'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+              'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
             )}>
               {getInitials(senderName)}
             </AvatarFallback>
@@ -335,7 +335,7 @@ function MessageBubble({
         ) : (
           <div className={cn(
             'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-            isFromLead ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+            isFromLead ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
           )}>
             {getInitials(senderName)}
           </div>

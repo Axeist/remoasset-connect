@@ -65,13 +65,13 @@ export function MeetingActivityCard({ description, attachments, createdAt }: Mee
   const isUpcoming = startTime ? new Date(startTime) > new Date() : false;
 
   return (
-    <div className="rounded-lg border border-blue-200/60 bg-gradient-to-br from-blue-50/80 via-white to-indigo-50/40 dark:from-blue-950/30 dark:via-card dark:to-indigo-950/20 dark:border-blue-800/40 overflow-hidden">
+    <div className="rounded-lg border border-primary/20 bg-gradient-to-br from-primary/5 via-white to-primary/5 dark:from-primary/10 dark:via-card dark:to-primary/5 dark:border-primary/20 overflow-hidden">
       {/* Header bar */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-blue-100/60 dark:bg-blue-900/30 border-b border-blue-200/40 dark:border-blue-800/30">
-        <div className="flex h-5 w-5 items-center justify-center rounded bg-blue-600 dark:bg-blue-500">
+      <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 dark:bg-primary/20 border-b border-primary/20 dark:border-primary/20">
+        <div className="flex h-5 w-5 items-center justify-center rounded bg-primary dark:bg-primary">
           <Video className="h-3 w-3 text-white" />
         </div>
-        <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+        <span className="text-xs font-semibold text-primary dark:text-primary-foreground uppercase tracking-wider">
           Scheduled Meeting
         </span>
         {isUpcoming && (
@@ -97,7 +97,7 @@ export function MeetingActivityCard({ description, attachments, createdAt }: Mee
         {/* Time info */}
         {startTime && endTime && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Clock className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+            <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
             <span>
               {safeFormat(startTime, 'EEE, MMM d · h:mm a')}
               {' – '}
@@ -114,12 +114,12 @@ export function MeetingActivityCard({ description, attachments, createdAt }: Mee
         {/* Attendees */}
         {attendees.length > 0 && (
           <div className="flex items-start gap-2">
-            <Users className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
+            <Users className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
             <div className="flex flex-wrap gap-1">
               {attendees.map((email, i) => (
                 <span
                   key={i}
-                  className="inline-flex items-center rounded-full bg-blue-100/60 dark:bg-blue-900/30 px-2 py-0.5 text-[11px] text-blue-700 dark:text-blue-300 ring-1 ring-blue-200/50 dark:ring-blue-800/40"
+                  className="inline-flex items-center rounded-full bg-primary/10 dark:bg-primary/20 px-2 py-0.5 text-[11px] text-primary dark:text-primary ring-1 ring-primary/20 dark:ring-primary/30"
                 >
                   {email}
                 </span>
@@ -161,7 +161,7 @@ export function MeetingActivityCard({ description, attachments, createdAt }: Mee
             href={calendarLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+            className="inline-flex items-center gap-1.5 text-[11px] text-primary dark:text-primary hover:underline"
           >
             <CalendarDays className="h-3 w-3" />
             View in Google Calendar
@@ -189,10 +189,10 @@ export function MeetingActivityCardCompact({ description, attachments, createdAt
   const isUpcoming = startTime ? new Date(startTime) > new Date() : false;
 
   return (
-    <div className="rounded-md border border-blue-200/50 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800/30 overflow-hidden">
-      <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-100/50 dark:bg-blue-900/20 border-b border-blue-200/30 dark:border-blue-800/20">
-        <Video className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-        <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+    <div className="rounded-md border border-primary/20 bg-primary/5 dark:bg-primary/10 dark:border-primary/20 overflow-hidden">
+      <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 dark:bg-primary/20 border-b border-primary/20 dark:border-primary/20">
+        <Video className="h-3 w-3 text-primary dark:text-primary" />
+        <span className="text-[10px] font-semibold text-primary dark:text-primary uppercase tracking-wider">
           Meeting
         </span>
         {isUpcoming && (
@@ -212,7 +212,7 @@ export function MeetingActivityCardCompact({ description, attachments, createdAt
         )}
         {startTime && (
           <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-            <Clock className="h-3 w-3 text-blue-500" />
+            <Clock className="h-3 w-3 text-primary" />
             {safeFormat(startTime, 'MMM d, h:mm a')}
             {endTime && ` – ${safeFormat(endTime, 'h:mm a')}`}
           </p>
@@ -242,7 +242,7 @@ export function MeetingActivityCardCompact({ description, attachments, createdAt
               href={calendarLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+              className="inline-flex items-center gap-1 text-[10px] text-primary dark:text-primary hover:underline"
             >
               <CalendarDays className="h-2.5 w-2.5" />
               Calendar

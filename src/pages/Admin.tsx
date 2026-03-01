@@ -135,7 +135,7 @@ export default function Admin() {
     type Row = { lead_statuses: { name: string; color: string } | null };
     (leadsWithStatus ?? []).forEach((l: Row) => {
       const name = l.lead_statuses?.name ?? 'Unassigned';
-      const color = l.lead_statuses?.color ?? '#6B7280';
+      const color = l.lead_statuses?.color ?? '#6E7180';
       if (!statusCounts[name]) statusCounts[name] = { count: 0, color };
       statusCounts[name].count++;
     });
@@ -237,7 +237,7 @@ export default function Admin() {
         {/* Stats bar */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { icon: Users, label: 'Team Members', value: teamMembers.length, sub: `${activeCount} active`, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+            { icon: Users, label: 'Team Members', value: teamMembers.length, sub: `${activeCount} active`, color: 'text-primary', bg: 'bg-primary/10' },
             { icon: TrendingUp, label: 'Total Leads', value: totalLeads, sub: `${analytics.byStatus.length} statuses`, color: 'text-orange-500', bg: 'bg-orange-500/10' },
             { icon: MapPin, label: 'Countries', value: countries.length, sub: 'In the system', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
             { icon: Activity, label: 'Activities', value: analytics.totalActivities, sub: 'All time', color: 'text-purple-500', bg: 'bg-purple-500/10' },
@@ -488,7 +488,7 @@ export default function Admin() {
                     </div>
                     <div className="rounded-lg border p-4 space-y-2">
                       <div className="flex items-center gap-2">
-                        <ListTodo className="h-4 w-4 text-blue-500" />
+                        <ListTodo className="h-4 w-4 text-primary" />
                         <span className="text-sm font-medium">Complete Overdue Tasks</span>
                       </div>
                       <p className="text-xs text-muted-foreground">Mark all incomplete tasks with a past due date as completed.</p>
@@ -511,7 +511,7 @@ export default function Admin() {
 
                 {/* Google Workspace card */}
                 <div className="relative overflow-hidden rounded-xl border border-border/60">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-[#4285F4]/[0.03] rounded-full -translate-y-1/3 translate-x-1/3" />
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-primary/[0.03] rounded-full -translate-y-1/3 translate-x-1/3" />
                   <div className="absolute bottom-0 left-0 w-44 h-44 bg-[#34A853]/[0.03] rounded-full translate-y-1/3 -translate-x-1/3" />
                   <div className="relative p-6">
                     <div className="flex items-center justify-between mb-6">
@@ -538,10 +538,10 @@ export default function Admin() {
                     <div className="grid sm:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         {[
-                          { color: '#4285F4', text: 'Creates calendar events for meetings' },
+                          { color: 'var(--color-primary)', text: 'Creates calendar events for meetings' },
                           { color: '#EA4335', text: 'Auto-generates Google Meet links' },
                           { color: '#34A853', text: 'Send and read Gmail from Emails tab' },
-                          { color: '#FBBC04', text: 'Reply to lead threads in-app' },
+                          { color: '#E8943A', text: 'Reply to lead threads in-app' },
                         ].map((item, i) => (
                           <div key={i} className="flex items-center gap-2.5 text-sm text-muted-foreground">
                             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md" style={{ backgroundColor: `${item.color}18` }}>
@@ -568,7 +568,7 @@ export default function Admin() {
                             </div>
                           </>
                         ) : (
-                          <Button onClick={connectGoogleCalendar} size="lg" className="gap-2.5 bg-[#4285F4] hover:bg-[#3367D6] shadow-md shadow-[#4285F4]/20 text-white font-medium w-fit">
+                          <Button onClick={connectGoogleCalendar} size="lg" className="gap-2.5 bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 text-white font-medium w-fit">
                             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none"><path d="M18.316 5.684H5.684v12.632h12.632V5.684z" fill="#fff" /><path d="M18.316 24l5.684-5.684h-5.684V24z" fill="#EA4335" /><path d="M24 5.684V0h-5.684v5.684H24z" fill="#188038" /><path d="M18.316 18.316H24V5.684h-5.684v12.632z" fill="#34A853" /><path d="M0 18.316h5.684V5.684H0v12.632z" fill="#fff" opacity=".6" /><path d="M5.684 5.684h12.632V0H5.684v5.684z" fill="#EA4335" opacity=".25" /></svg>
                             Sign in with Google
                           </Button>
@@ -612,7 +612,7 @@ export default function Admin() {
                 <div className="grid grid-cols-3 gap-3">
                   {[
                     { label: 'Total leads', value: totalLeads, icon: Building2, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-                    { label: 'Status groups', value: analytics.byStatus.length, icon: Tag, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+                    { label: 'Status groups', value: analytics.byStatus.length, icon: Tag, color: 'text-primary', bg: 'bg-primary/10' },
                     { label: 'Countries active', value: analytics.byCountry.length, icon: Globe, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
                   ].map((s) => (
                     <div key={s.label} className="rounded-xl border p-4 flex items-center gap-3">

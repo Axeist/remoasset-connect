@@ -152,14 +152,14 @@ export function AddFollowUpDialog({
             />
           </div>
           {isCalendarConnected && (
-            <div className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-50/50 p-3">
+            <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
               <Checkbox
                 id="followup-calendar"
                 checked={addToCalendar}
                 onCheckedChange={(checked) => setAddToCalendar(checked === true)}
               />
               <label htmlFor="followup-calendar" className="text-sm font-medium flex items-center gap-1.5 cursor-pointer">
-                <CalendarDays className="h-4 w-4 text-blue-600" />
+                <CalendarDays className="h-4 w-4 text-primary" />
                 Add to Google Calendar
                 {leadEmail?.trim() ? ' & send invite' : ''}
               </label>

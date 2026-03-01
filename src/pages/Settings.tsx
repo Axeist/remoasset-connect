@@ -282,7 +282,7 @@ export default function Settings() {
 
                 {/* Google Workspace */}
                 <div className="relative overflow-hidden rounded-xl border border-border/60">
-                  <div className="absolute top-0 right-0 w-52 h-52 bg-[#4285F4]/[0.03] rounded-full -translate-y-1/3 translate-x-1/3" />
+                  <div className="absolute top-0 right-0 w-52 h-52 bg-primary/[0.03] rounded-full -translate-y-1/3 translate-x-1/3" />
                   <div className="absolute bottom-0 left-0 w-36 h-36 bg-[#34A853]/[0.03] rounded-full translate-y-1/3 -translate-x-1/3" />
                   <div className="relative p-5">
                     <div className="flex items-center justify-between mb-5">
@@ -308,7 +308,7 @@ export default function Settings() {
 
                     <div className="space-y-2 mb-4">
                       {[
-                        { color: '#4285F4', text: 'Calendar events with Google Meet links' },
+                        { color: 'var(--color-primary)', text: 'Calendar events with Google Meet links' },
                         { color: '#34A853', text: 'Send and read Gmail in the Emails tab' },
                         { color: '#FBBC04', text: 'Sync follow-up reminders to calendar' },
                       ].map((item, i) => (
@@ -337,7 +337,7 @@ export default function Settings() {
                         </div>
                       </div>
                     ) : (
-                      <Button onClick={connectGoogleCalendar} className="gap-2 bg-[#4285F4] hover:bg-[#3367D6] shadow-md shadow-[#4285F4]/20 text-white font-medium">
+                      <Button onClick={connectGoogleCalendar} className="gap-2 bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 text-white font-medium">
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="M18.316 5.684H5.684v12.632h12.632V5.684z" fill="#fff" /><path d="M18.316 24l5.684-5.684h-5.684V24z" fill="#EA4335" /><path d="M24 5.684V0h-5.684v5.684H24z" fill="#188038" /><path d="M18.316 18.316H24V5.684h-5.684v12.632z" fill="#34A853" /><path d="M0 18.316h5.684V5.684H0v12.632z" fill="#fff" opacity=".6" /></svg>
                         Sign in with Google
                       </Button>

@@ -78,12 +78,12 @@ function MiniBar({ segments, total }: { segments: MiniBarSegment[]; total: numbe
 }
 
 const ACTIVITY_META: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  call: { label: 'Call', color: '#3b82f6', icon: Phone },
-  email: { label: 'Email', color: '#f97316', icon: Mail },
-  meeting: { label: 'Meeting', color: '#22c55e', icon: Calendar },
+  call: { label: 'Call', color: '#EA6E35', icon: Phone },
+  email: { label: 'Email', color: '#F09A72', icon: Mail },
+  meeting: { label: 'Meeting', color: '#3B9B6D', icon: Calendar },
   whatsapp: { label: 'WhatsApp', color: '#25d366', icon: MessageCircle },
-  linkedin: { label: 'LinkedIn', color: '#0ea5e9', icon: Linkedin },
-  nda: { label: 'NDA', color: '#6366f1', icon: ShieldCheck },
+  linkedin: { label: 'LinkedIn', color: '#6E7180', icon: Linkedin },
+  nda: { label: 'NDA', color: '#30282B', icon: ShieldCheck },
 };
 
 interface PipelineWidgetsProps {
@@ -173,7 +173,7 @@ export function PipelineWidgets({ viewMode, leads, statuses, lastActivityMap, is
 
   return (
     <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin animate-in fade-in-0 slide-in-from-top-1 duration-300">
-      <Widget icon={Users} label="Total Leads" value={stats.total} color="text-blue-600" />
+      <Widget icon={Users} label="Total Leads" value={stats.total} color="text-primary" />
       <Widget
         icon={BarChart3}
         label="Avg Score"

@@ -71,10 +71,10 @@ function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
               to={item.url}
               onClick={onNavigate}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group',
+                'flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-all duration-200 group',
                 isActive
                   ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                  : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                  : 'text-[#9DA2B3] hover:text-[#FAFBFF] hover:bg-sidebar-accent/50'
               )}
             >
               <item.icon className={cn('h-[19px] w-[19px] shrink-0', isActive && 'text-sidebar-primary-foreground')} />
@@ -152,11 +152,11 @@ export function AppSidebar({
             <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-sidebar-accent/5 rounded-full blur-2xl" />
             
             <div className="relative z-10">
-              <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
+              <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
               <div className="flex items-center gap-1.5">
                 <div className="h-[1px] w-6 bg-gradient-to-r from-sidebar-primary/40 to-transparent" />
                 <p className="text-[11px] text-sidebar-foreground/75 font-medium tracking-wider uppercase">
-                  Vendor Resource Management
+                  Connect · Vendor Resource Management
                 </p>
               </div>
             </div>
@@ -181,14 +181,14 @@ export function AppSidebar({
         <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-sidebar-accent/5 rounded-full blur-2xl" />
         
         {collapsed ? (
-          <img src="/favicon.png" alt="RemoAsset" className="h-9 w-9 object-contain flex-shrink-0 relative z-10" />
+          <img src="/favicon.png" alt="RemoAsset Connect" className="h-9 w-9 object-contain flex-shrink-0 relative z-10" />
         ) : (
           <div className="flex-1 min-w-0 relative z-10">
-            <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
+            <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain mb-2 drop-shadow-sm" />
             <div className="flex items-center gap-1.5">
               <div className="h-[1px] w-6 bg-gradient-to-r from-sidebar-primary/40 to-transparent" />
               <p className="text-[11px] text-sidebar-foreground/75 font-medium tracking-wider uppercase">
-                Vendor Resource Management
+                Connect · Vendor Resource Management
               </p>
             </div>
           </div>

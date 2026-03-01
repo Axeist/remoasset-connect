@@ -642,8 +642,8 @@ export function AddActivityDialog({
           )}
 
           {type === 'meeting' && (
-            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
-              <p className="text-xs font-medium text-blue-700 dark:text-blue-400">
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+              <p className="text-xs font-medium text-primary dark:text-primary">
                 Meeting details are saved in the activity and shown in the log. Add notes below if needed.
               </p>
               <div className="space-y-3">
@@ -751,14 +751,14 @@ export function AddActivityDialog({
                 </div>
               </div>
               {isCalendarConnected && (
-                <div className="flex items-center gap-2 pt-1 border-t border-blue-200/50 dark:border-blue-800/30">
+                <div className="flex items-center gap-2 pt-1 border-t border-primary/20 dark:border-primary/20">
                   <Checkbox
                     id="add-to-calendar"
                     checked={addToCalendar}
                     onCheckedChange={(checked) => setAddToCalendar(checked === true)}
                   />
                   <label htmlFor="add-to-calendar" className="text-sm font-medium flex items-center gap-1.5 cursor-pointer">
-                    <CalendarDays className="h-4 w-4 text-blue-600" />
+                    <CalendarDays className="h-4 w-4 text-primary" />
                     Add to Google Calendar & send invite
                   </label>
                 </div>
@@ -810,8 +810,8 @@ export function AddActivityDialog({
           )}
 
           {type === 'nda' && (
-            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 space-y-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-primary">
                 <ShieldCheck className="h-4 w-4" />
                 NDA Activity
               </div>

@@ -171,7 +171,7 @@ export function useDashboardData() {
         leadList.forEach((l: { status_id: string | null }) => {
           const s = l.status_id ? statusById[l.status_id] : null;
           const name = s?.name ?? 'Unassigned';
-          const color = s?.color ?? '#6B7280';
+          const color = s?.color ?? '#6E7180';
           if (!statusCounts[name]) statusCounts[name] = { count: 0, color };
           statusCounts[name].count++;
         });

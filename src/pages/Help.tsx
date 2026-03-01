@@ -40,7 +40,7 @@ export default function Help() {
                 Help & Documentation
               </h1>
               <p className="text-muted-foreground text-sm mt-0.5">
-                Complete guide to Vendor Resource Management (VRM)
+                Complete guide to Connect (Vendor Resource Management)
               </p>
             </div>
           </div>

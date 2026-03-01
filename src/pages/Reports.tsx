@@ -180,7 +180,7 @@ export default function Reports() {
         leadList.forEach((l: { status_id: string | null }) => {
           const s = l.status_id ? statusMap[l.status_id] : null;
           const name = s?.name ?? 'Unassigned';
-          const color = s?.color ?? '#6B7280';
+          const color = s?.color ?? '#6E7180';
           if (!statusCounts[name]) statusCounts[name] = { count: 0, color };
           statusCounts[name].count++;
         });
@@ -613,10 +613,10 @@ export default function Reports() {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Leads/Day</p>
-                      <p className="text-2xl font-bold text-blue-500">{productivityMetrics.leadsPerDay}</p>
+                      <p className="text-2xl font-bold text-primary">{productivityMetrics.leadsPerDay}</p>
                     </div>
-                    <div className="p-2 rounded-lg bg-blue-500/10">
-                      <TrendingUp className="h-5 w-5 text-blue-500" />
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <TrendingUp className="h-5 w-5 text-primary" />
                     </div>
                   </div>
                 </CardContent>

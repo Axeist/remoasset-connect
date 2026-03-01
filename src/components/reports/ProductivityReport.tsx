@@ -36,19 +36,19 @@ const TARGET_CATEGORIES = ['outreach', 'meeting', 'nda', 'deal_closed'] as const
 type TargetCategoryKey = typeof TARGET_CATEGORIES[number];
 
 const META: Record<ActivityKey, { label: string; color: string; icon: React.ElementType }> = {
-  email:        { label: 'Emails',    color: '#f97316', icon: Mail },
-  call:         { label: 'Calls',     color: '#3b82f6', icon: Phone },
-  meeting:      { label: 'Meetings',  color: '#22c55e', icon: Calendar },
-  linkedin:     { label: 'LinkedIn',  color: '#0ea5e9', icon: Linkedin },
+  email:        { label: 'Emails',    color: '#F09A72', icon: Mail },
+  call:         { label: 'Calls',     color: '#EA6E35', icon: Phone },
+  meeting:      { label: 'Meetings',  color: '#3B9B6D', icon: Calendar },
+  linkedin:     { label: 'LinkedIn',  color: '#6E7180', icon: Linkedin },
   whatsapp:     { label: 'WhatsApp',  color: '#25d366', icon: MessageCircle },
-  nda:          { label: 'NDAs',      color: '#6366f1', icon: ShieldCheck },
+  nda:          { label: 'NDAs',      color: '#30282B', icon: ShieldCheck },
   deal_closed:  { label: 'Deals Won', color: '#ec4899', icon: Trophy },
 };
 
 const CATEGORY_META: Record<TargetCategoryKey, { label: string; color: string; icon: React.ElementType }> = {
-  outreach:     { label: 'Outreach',  color: '#f97316', icon: Mail },
-  meeting:      { label: 'Meetings',  color: '#22c55e', icon: Calendar },
-  nda:          { label: 'NDAs',      color: '#6366f1', icon: ShieldCheck },
+  outreach:     { label: 'Outreach',  color: '#EA6E35', icon: Mail },
+  meeting:      { label: 'Meetings',  color: '#3B9B6D', icon: Calendar },
+  nda:          { label: 'NDAs',      color: '#30282B', icon: ShieldCheck },
   deal_closed:  { label: 'Deals Won', color: '#ec4899', icon: Trophy },
 };
 

@@ -29,7 +29,7 @@ export function GoogleCalendarCard() {
   return (
     <Card className="card-shadow overflow-hidden border-border/60">
       <div className="relative">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#4285F4]/[0.03] rounded-full -translate-y-1/3 translate-x-1/3" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/[0.03] rounded-full -translate-y-1/3 translate-x-1/3" />
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-[#34A853]/[0.03] rounded-full translate-y-1/3 -translate-x-1/3" />
 
         <CardContent className="relative p-6">
@@ -89,8 +89,8 @@ export function GoogleCalendarCard() {
                   'Sync follow-up reminders to calendar',
                 ].map((text, i) => (
                   <div key={i} className="flex items-center gap-2.5 text-sm text-muted-foreground">
-                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[#4285F4]/10">
-                      <Check className="h-3 w-3 text-[#4285F4]" />
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                      <Check className="h-3 w-3 text-primary" />
                     </div>
                     {text}
                   </div>
@@ -98,7 +98,7 @@ export function GoogleCalendarCard() {
               </div>
               <Button
                 onClick={connectGoogleCalendar}
-                className="gap-2.5 bg-[#4285F4] hover:bg-[#3367D6] shadow-md shadow-[#4285F4]/20 text-white font-medium"
+                className="gap-2.5 bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 text-white font-medium"
               >
                 <GoogleCalendarIcon className="h-4.5 w-4.5" />
                 Sign in with Google

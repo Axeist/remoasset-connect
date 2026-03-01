@@ -41,7 +41,7 @@ const activityTypeConfig = {
   note: { icon: FileText, label: 'Note', color: 'bg-warning/10 text-warning', score: 2 },
   whatsapp: { icon: MessageCircle, label: 'WhatsApp', color: 'bg-green-500/10 text-green-600', score: 5 },
   linkedin: { icon: Linkedin, label: 'LinkedIn', color: 'bg-sky-500/10 text-sky-600', score: 4 },
-  nda: { icon: ShieldCheck, label: 'NDA', color: 'bg-blue-500/10 text-blue-600', score: 8 },
+  nda: { icon: ShieldCheck, label: 'NDA', color: 'bg-primary/10 text-primary', score: 8 },
 };
 
 /** Lead score points for activity types. Notes get score from description (Task/Follow-up/Lead updated). */
@@ -885,7 +885,7 @@ function LeadActivityTab({
                     <div
                       className={cn(
                         'absolute left-0 z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-background shadow-sm',
-                        isMeeting ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' : config.color
+                        isMeeting ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary' : config.color
                       )}
                     >
                       {isMeeting ? <Video className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
@@ -895,7 +895,7 @@ function LeadActivityTab({
                         className={cn(
                           'rounded-lg border shadow-sm transition-all',
                           isMeeting
-                            ? 'border-blue-200/50 bg-gradient-to-r from-blue-50/60 to-white dark:from-blue-950/20 dark:to-card dark:border-blue-800/30'
+                            ? 'border-primary/20 bg-gradient-to-r from-primary/5 to-white dark:from-primary/10 dark:to-card dark:border-primary/20'
                             : 'bg-card',
                           hasMore ? 'cursor-pointer hover:shadow-md' : ''
                         )}
@@ -909,7 +909,7 @@ function LeadActivityTab({
                                 <Badge className={cn(
                                   'border-0 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0',
                                   isMeeting
-                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                                    ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
                                     : `${config.color} bg-opacity-20`
                                 )}>
                                   {config.label}
@@ -933,7 +933,7 @@ function LeadActivityTab({
                                   )}
                                   {meetingMeta.startTime && meetingMeta.endTime && (
                                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                      <Clock className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                      <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
                                       <span>
                                         {safeFormat(meetingMeta.startTime, 'EEE, MMM d · h:mm a')}
                                         {' – '}
@@ -943,10 +943,10 @@ function LeadActivityTab({
                                   )}
                                   {meetingMeta.attendees && meetingMeta.attendees.length > 0 && (
                                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
-                                      <Users className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                      <Users className="h-3.5 w-3.5 text-primary shrink-0" />
                                       <span className="flex flex-wrap gap-x-1.5 gap-y-0.5">
                                         {meetingMeta.attendees.map((email, i) => (
-                                          <span key={i} className="inline-flex items-center rounded-full bg-blue-100/60 dark:bg-blue-900/30 px-2 py-0.5 text-[11px] text-blue-700 dark:text-blue-300">
+                                          <span key={i} className="inline-flex items-center rounded-full bg-primary/10 dark:bg-primary/20 px-2 py-0.5 text-[11px] text-primary dark:text-primary">
                                             {email}
                                           </span>
                                         ))}
@@ -985,7 +985,7 @@ function LeadActivityTab({
                               {!expanded && (nonMetaAttachments.length > 0 || isMeetingWithCalendar) && (
                                 <div className="flex items-center gap-2 mt-1.5">
                                   {isMeetingWithCalendar && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 font-medium">
+                                    <span className="inline-flex items-center gap-1 text-[11px] text-primary dark:text-primary font-medium">
                                       <Video className="h-3 w-3" />
                                       Google Meet
                                     </span>

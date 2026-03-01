@@ -55,12 +55,12 @@ import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 
 const ACTIVITY_COLUMNS = [
   { id: '__no_activity__', label: 'No Activity', color: '#6b7280', icon: FileText },
-  { id: 'call', label: 'Call', color: '#3b82f6', icon: Phone },
+  { id: 'call', label: 'Call', color: '#EA6E35', icon: Phone },
   { id: 'email', label: 'Email Sent', color: '#f97316', icon: Mail },
   { id: 'meeting', label: 'Meeting', color: '#22c55e', icon: CalendarIcon },
   { id: 'whatsapp', label: 'WhatsApp', color: '#25d366', icon: MessageCircle },
   { id: 'linkedin', label: 'LinkedIn', color: '#0ea5e9', icon: Linkedin },
-  { id: 'nda', label: 'NDA', color: '#6366f1', icon: ShieldCheck },
+  { id: 'nda', label: 'NDA', color: '#30282B', icon: ShieldCheck },
 ];
 
 // ------- Filter types -------

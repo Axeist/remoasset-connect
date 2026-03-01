@@ -357,7 +357,7 @@ export default function Vendors() {
           </Card>
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div>
@@ -745,7 +745,7 @@ export default function Vendors() {
                                     <button
                                       key={d.id}
                                       onClick={() => handleViewDoc(d)}
-                                      className="inline-flex items-center gap-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 transition-all"
+                                      className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary dark:text-primary hover:bg-primary/20 transition-all"
                                     >
                                       <ShieldCheck className="h-3 w-3" />
                                       {d.custom_name || 'NDA'}

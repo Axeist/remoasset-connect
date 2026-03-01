@@ -179,15 +179,15 @@ export default function Auth() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_80%_80%,hsl(var(--accent)/0.15),transparent)]" />
         <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\' fill=\'%23fff\'/%3E%3C/g%3E%3C/svg%3E")' }} />
         <div className="relative z-10 animate-fade-in-right">
-          <img src="/logo.png" alt="RemoAsset" className="h-10 w-auto object-contain drop-shadow-sm" />
+          <img src="/logo.png" alt="RemoAsset Connect" className="h-10 w-auto object-contain drop-shadow-sm" />
         </div>
         <div className="relative z-10 space-y-8">
           <div className="space-y-6 animate-fade-in-right animate-fade-in-right-delay-1">
             <h1 className="font-display text-3xl xl:text-4xl font-bold text-sidebar-foreground tracking-tight leading-tight">
-              Vendor Resource Management
+              Connect
             </h1>
             <p className="text-sidebar-foreground/80 text-lg max-w-md leading-relaxed">
-              Manage leads, track activities, and close deals in one place. Built for teams that move fast.
+              RemoAsset’s internal vendor resource management. Manage leads, track activities, and close deals in one place.
             </p>
           </div>
           <ul className="space-y-4 animate-fade-in-right animate-fade-in-right-delay-2">
@@ -217,7 +217,7 @@ export default function Auth() {
             </li>
           </ul>
           <p className="text-sidebar-foreground/50 text-sm pt-4 animate-fade-in-up animate-fade-in-up-delay-2">
-            Trusted by teams to centralize vendor and lead workflows.
+            Internal tool for RemoAsset teams.
           </p>
         </div>
       </div>
@@ -242,7 +242,7 @@ export default function Auth() {
         <div className="w-full max-w-[420px] relative z-10">
           <div className="rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm shadow-xl shadow-black/5 p-8 sm:p-10 animate-fade-in-up">
             <div className="lg:hidden mb-6">
-              <img src="/logo.png" alt="RemoAsset" className="h-9 w-auto object-contain" />
+              <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain" />
             </div>
             <div className="mb-8">
               <h2 className="font-display text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Welcome back</h2>
