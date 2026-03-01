@@ -730,20 +730,18 @@ export default function Admin() {
                 </div>
 
                 <div className="rounded-xl border p-4 space-y-2">
-                  <h3 className="font-medium text-sm">Endpoints</h3>
+                  <h3 className="font-medium text-sm">Endpoints (Zapier & internal apps)</h3>
                   <ul className="text-xs text-muted-foreground space-y-1 font-mono">
-                    <li><strong className="text-foreground">GET /leads</strong> — List leads (query: limit, offset, status_id, owner_id)</li>
-                    <li><strong className="text-foreground">POST /leads</strong> — Create lead</li>
-                    <li><strong className="text-foreground">GET /leads/:id</strong> — Get lead · <strong className="text-foreground">PATCH /leads/:id</strong> · <strong className="text-foreground">DELETE /leads/:id</strong></li>
-                    <li><strong className="text-foreground">GET /tasks</strong> — List tasks (query: limit, offset, assignee_id, lead_id, is_completed)</li>
-                    <li><strong className="text-foreground">POST /tasks</strong> — Create task · <strong className="text-foreground">PATCH /tasks/:id</strong> · <strong className="text-foreground">DELETE /tasks/:id</strong></li>
-                    <li><strong className="text-foreground">GET /follow_ups</strong> — List follow-ups (query: limit, offset, lead_id, user_id)</li>
-                    <li><strong className="text-foreground">POST /follow_ups</strong> — Create follow-up · <strong className="text-foreground">PATCH /follow_ups/:id</strong> · <strong className="text-foreground">DELETE /follow_ups/:id</strong></li>
-                    <li><strong className="text-foreground">GET /activities</strong> — List activities (query: limit, offset, lead_id)</li>
-                    <li><strong className="text-foreground">POST /activities</strong> — Create activity · <strong className="text-foreground">PATCH /activities/:id</strong> · <strong className="text-foreground">DELETE /activities/:id</strong></li>
-                    <li><strong className="text-foreground">GET /statuses</strong> — List lead statuses</li>
-                    <li><strong className="text-foreground">GET /countries</strong> — List countries</li>
-                    <li><strong className="text-foreground">GET /profiles</strong> — List user profiles</li>
+                    <li><strong className="text-foreground">GET /leads</strong> — List (limit, offset, status_id, owner_id, search or q)</li>
+                    <li><strong className="text-foreground">POST /leads</strong> · <strong className="text-foreground">GET/PATCH/DELETE /leads/:id</strong></li>
+                    <li><strong className="text-foreground">PATCH /leads/bulk</strong> — Body: lead_ids[], status_id or owner_id or country_id</li>
+                    <li><strong className="text-foreground">GET /tasks</strong> — List (assignee_id, lead_id, is_completed) · <strong className="text-foreground">POST /tasks</strong> · <strong className="text-foreground">PATCH/DELETE /tasks/:id</strong></li>
+                    <li><strong className="text-foreground">GET /follow_ups</strong> — List (lead_id, user_id) · <strong className="text-foreground">POST /follow_ups</strong> · <strong className="text-foreground">PATCH/DELETE /follow_ups/:id</strong></li>
+                    <li><strong className="text-foreground">GET /activities</strong> — List (lead_id) · <strong className="text-foreground">POST /activities</strong> · <strong className="text-foreground">PATCH/DELETE /activities/:id</strong></li>
+                    <li><strong className="text-foreground">GET /documents?lead_id=</strong> · <strong className="text-foreground">POST /documents</strong> (lead_id, document_type, file_path, file_name, uploaded_by) · <strong className="text-foreground">GET/DELETE /documents/:id</strong></li>
+                    <li><strong className="text-foreground">GET /notifications?user_id=</strong> · <strong className="text-foreground">POST /notifications</strong> (user_id, title, message, type, metadata)</li>
+                    <li><strong className="text-foreground">GET /team</strong> — List team (user_id, role, full_name) for owner/assignee dropdowns</li>
+                    <li><strong className="text-foreground">GET /statuses</strong> · <strong className="text-foreground">GET /countries</strong> · <strong className="text-foreground">GET /profiles</strong></li>
                   </ul>
                 </div>
               </div>
