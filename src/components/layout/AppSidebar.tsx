@@ -58,7 +58,7 @@ function SidebarNav({ collapsed = false, onNavigate, onNavClick }: SidebarNavPro
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <nav className="flex-1 min-h-0 py-4 px-2.5 space-y-1 overflow-y-auto overflow-x-hidden">
+      <nav className="flex-1 min-h-0 py-4 px-2.5 space-y-1 overflow-y-auto overflow-x-hidden w-full">
         {filteredNav.map((item) => {
           // For /admin, only match exact path, not sub-paths like /admin/team-activity
           const isActive = item.url === '/admin'
@@ -73,7 +73,7 @@ function SidebarNav({ collapsed = false, onNavigate, onNavClick }: SidebarNavPro
                 onNavigate?.();
               }}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-all duration-200 group',
+                'flex items-center gap-3 w-full min-w-0 px-3 py-2.5 rounded-[10px] transition-all duration-200 group',
                 isActive
                   ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                   : 'text-[#9DA2B3] hover:text-[#FAFBFF] hover:bg-sidebar-accent/50'
@@ -171,6 +171,12 @@ export function AppSidebar({
   const handleNavClick = () => {
     lastClickInSidebarRef.current = Date.now();
   };
+
+  const { pathname } = useLocation();
+  useEffect(() => {
+    // Keep sidebar open after route change (e.g. click on right edge of tab still navigates)
+    lastClickInSidebarRef.current = Date.now();
+  }, [pathname]);
 
   useEffect(() => {
     return () => {
