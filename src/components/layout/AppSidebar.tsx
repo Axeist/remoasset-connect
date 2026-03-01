@@ -146,6 +146,7 @@ export function AppSidebar({
   const [collapsed, setCollapsed] = useState(true);
   const isMobile = useIsMobile();
   const collapseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastClickInSidebarRef = useRef(0);
 
   const handleMouseEnter = () => {
     if (collapseTimeoutRef.current) {
@@ -156,7 +157,15 @@ export function AppSidebar({
   };
 
   const handleMouseLeave = () => {
-    collapseTimeoutRef.current = setTimeout(() => setCollapsed(true), 200);
+    collapseTimeoutRef.current = setTimeout(() => {
+      // Don't collapse if user just clicked a nav link (e.g. navigation caused a leave)
+      if (Date.now() - lastClickInSidebarRef.current < 700) return;
+      setCollapsed(true);
+    }, 200);
+  };
+
+  const handleSidebarClick = () => {
+    lastClickInSidebarRef.current = Date.now();
   };
 
   useEffect(() => {
@@ -195,6 +204,7 @@ export function AppSidebar({
     <aside
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onClick={handleSidebarClick}
       className={cn(
         'h-screen bg-sidebar text-sidebar-foreground flex flex-col sticky top-0 border-r border-sidebar-border/30 overflow-hidden',
         'transition-[width] duration-300 ease-in-out',
