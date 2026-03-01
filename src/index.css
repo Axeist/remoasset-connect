@@ -286,6 +286,11 @@ textarea:focus-visible,
   box-shadow: 0 0 0 3px rgba(234, 110, 53, 0.15);
 }
 
+/* Logo: make black pixels in PNG show background (removes black fill) */
+img[src="/logo.png"] {
+  mix-blend-mode: screen;
+}
+
 /* Auth form: subtle dot pattern (light and dark) */
 .auth-form-dots {
   background-image: radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.06) 1px, transparent 0);
