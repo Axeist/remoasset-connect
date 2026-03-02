@@ -98,3 +98,18 @@ Add them for **Production**, **Preview**, and **Development** if you use Vercel 
 | 5 | (Optional) Link CLI via `supabase link` or `config.toml` |
 
 After this, the app uses your Supabase project instead of Lovable’s.
+
+## Troubleshooting: 429 (Too Many Requests) after changing the Supabase URL
+
+If you revert or change `VITE_SUPABASE_URL` and see **429** on `auth/v1/token` (or “Too many requests” in the app):
+
+1. **Clear auth and sign in again**  
+   The browser may still have old session/refresh tokens. Sign out, then clear this site’s storage and sign back in:
+   - **Chrome/Edge:** DevTools → Application → Storage → “Clear site data” for `remoasset.cuephoriatech.in` (or your app origin).  
+   - Or at least remove keys that start with `sb-` (Supabase auth) in Application → Local Storage.
+2. **Wait a minute**  
+   Supabase rate-limits token refresh. After clearing storage, wait 1–2 minutes before signing in again so you don’t hit the limit immediately.
+3. **Use one tab**  
+   Avoid opening many tabs of the app at once; each can trigger refresh and contribute to 429.
+
+The app now uses a refresh cooldown to reduce repeated token refresh; if you still see 429, clearing storage and signing in again usually fixes it.

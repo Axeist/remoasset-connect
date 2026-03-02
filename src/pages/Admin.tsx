@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
+import { refreshSessionWithCooldown } from '@/lib/authRefresh';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
 import { AddUserDialog } from '@/components/admin/AddUserDialog';
 import { UserManagementDialog } from '@/components/admin/UserManagementDialog';
@@ -112,7 +113,7 @@ export default function Admin() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const body = { action: 'list_users', ...(session?.access_token ? { __auth_token: session.access_token } : {}) };
-      const { data, error } = await supabase.functions.invoke('manage-user', { body, headers: session?.access_token ? { 'X-Auth-Token': session.access_token } : {} });
+      const { data, error } = await supabase.functions.invoke('manage-user', { body, headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} });
       if (error || !data?.users) return {};
       return (data.users as { id: string; email?: string; banned_until?: string | null; last_sign_in_at?: string | null }[]).reduce(
         (acc, u) => { acc[u.id] = { email: u.email, banned_until: u.banned_until, last_sign_in_at: u.last_sign_in_at }; return acc; },
@@ -187,9 +188,13 @@ export default function Admin() {
     try {
       let { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        await supabase.auth.refreshSession();
-        const ref = await supabase.auth.getSession();
-        session = ref.data.session;
+        const { data: refData, error: refreshError } = await refreshSessionWithCooldown();
+        if (refreshError?.status === 429) {
+          toast({ variant: 'destructive', title: 'Too many requests', description: 'Wait a minute and try again, or sign out and sign back in.' });
+          setApiKeyLoading(false);
+          return;
+        }
+        session = refData.session;
       }
       const token = session?.access_token ?? '';
       if (!token) {

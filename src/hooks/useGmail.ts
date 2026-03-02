@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { refreshSessionWithCooldown } from '@/lib/authRefresh';
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
@@ -33,7 +33,7 @@ function storeToken(token: string) {
  */
 async function tryRefreshToken(): Promise<string | null> {
   try {
-    const { data, error } = await supabase.auth.refreshSession();
+    const { data, error } = await refreshSessionWithCooldown();
     if (error || !data.session) return null;
     const newToken = data.session.provider_token;
     if (newToken) {
