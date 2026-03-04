@@ -203,7 +203,7 @@ export default function Reports() {
           // Admin: Fetch comprehensive team productivity data
           const [activitiesRes, allLeadsForConv, statusesForConv, tasksRes, followUpsRes] = await Promise.all([
             supabase.from('lead_activities').select('user_id, activity_type, created_at, lead_id'),
-            supabase.from('leads').select('owner_id, status_id, created_at'),
+            supabase.from('leads').select('id, owner_id, status_id, created_at'),
             supabase.from('lead_statuses').select('id, name'),
             supabase.from('tasks').select('assignee_id, is_completed, created_at, due_date, updated_at'),
             supabase.from('follow_ups').select('user_id, is_completed, scheduled_at, created_at, completed_at'),
@@ -287,7 +287,7 @@ export default function Reports() {
             let totalResponseDays = 0;
             let responseCount = 0;
             leadIds.forEach(leadId => {
-              const lead = (allLeadsForConv.data ?? []).find((l: { owner_id: string }) => l.owner_id === uid);
+              const lead = (allLeadsForConv.data ?? []).find((l: { owner_id: string; id?: string }) => l.owner_id === uid && (l as any).id === leadId);
               if (!lead) return;
               const firstActivity = userActivities
                 .filter((a: { lead_id: string }) => a.lead_id === leadId)
@@ -300,7 +300,7 @@ export default function Reports() {
                 responseCount++;
               }
             });
-            const avgResponseTime = responseCount > 0 ? totalResponseDays / responseCount : 0;
+            const avgResponseTime = responseCount > 0 ? Math.max(0, totalResponseDays / responseCount) : 0;
 
             // Follow-up completion rate
             const completedFollowUps = userFollowUps.filter((f: { is_completed: boolean }) => f.is_completed).length;
@@ -442,7 +442,7 @@ export default function Reports() {
                 responseCount++;
               }
             });
-            const avgResponseTime = responseCount > 0 ? totalResponseDays / responseCount : 0;
+            const avgResponseTime = responseCount > 0 ? Math.max(0, totalResponseDays / responseCount) : 0;
 
             setProductivityMetrics({
               avgResponseTime: Math.round(avgResponseTime * 10) / 10,
@@ -551,90 +551,27 @@ export default function Reports() {
         ) : (
           <>
             {/* Productivity KPI Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 animate-fade-in-up animate-fade-in-up-delay-2">
-              <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Avg Response</p>
-                      <p className="text-2xl font-bold text-primary">{productivityMetrics.avgResponseTime}d</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 animate-fade-in-up animate-fade-in-up-delay-2">
+              {[
+                { label: 'Avg Response', value: `${productivityMetrics.avgResponseTime}d`, icon: Timer, color: 'text-primary', bg: 'bg-primary/10' },
+                { label: 'Follow-up Rate', value: `${productivityMetrics.followUpCompletionRate}%`, icon: CheckCircle2, color: 'text-success', bg: 'bg-success/10' },
+                { label: 'Task Rate', value: `${productivityMetrics.taskCompletionRate}%`, icon: CheckCircle2, color: 'text-accent', bg: 'bg-accent/10' },
+                { label: 'Daily Activity', value: `${productivityMetrics.dailyActivityAvg}`, icon: Zap, color: 'text-warning', bg: 'bg-warning/10' },
+                { label: 'Leads / Day', value: `${productivityMetrics.leadsPerDay}`, icon: TrendingUp, color: 'text-primary', bg: 'bg-primary/10' },
+                { label: 'Activity / Lead', value: `${productivityMetrics.activitiesPerLead}`, icon: Activity, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+              ].map((item) => (
+                <Card key={item.label} className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
+                  <CardContent className="p-4 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide leading-tight">{item.label}</p>
+                      <div className={`p-1.5 rounded-lg shrink-0 ${item.bg}`}>
+                        <item.icon className={`h-4 w-4 ${item.color}`} />
+                      </div>
                     </div>
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <Timer className="h-5 w-5 text-primary" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Follow-up Rate</p>
-                      <p className="text-2xl font-bold text-success">{productivityMetrics.followUpCompletionRate}%</p>
-                    </div>
-                    <div className="p-2 rounded-lg bg-success/10">
-                      <CheckCircle2 className="h-5 w-5 text-success" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Task Rate</p>
-                      <p className="text-2xl font-bold text-accent">{productivityMetrics.taskCompletionRate}%</p>
-                    </div>
-                    <div className="p-2 rounded-lg bg-accent/10">
-                      <CheckCircle2 className="h-5 w-5 text-accent" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Daily Activity</p>
-                      <p className="text-2xl font-bold text-warning">{productivityMetrics.dailyActivityAvg}</p>
-                    </div>
-                    <div className="p-2 rounded-lg bg-warning/10">
-                      <Zap className="h-5 w-5 text-warning" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Leads/Day</p>
-                      <p className="text-2xl font-bold text-primary">{productivityMetrics.leadsPerDay}</p>
-                    </div>
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <TrendingUp className="h-5 w-5 text-primary" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Activity/Lead</p>
-                      <p className="text-2xl font-bold text-purple-500">{productivityMetrics.activitiesPerLead}</p>
-                    </div>
-                    <div className="p-2 rounded-lg bg-purple-500/10">
-                      <Activity className="h-5 w-5 text-purple-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    <p className={`text-2xl font-bold ${item.color} leading-none`}>{item.value}</p>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
