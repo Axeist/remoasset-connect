@@ -347,31 +347,10 @@ function buildMime(params: {
 
   const hasAttachments = params.attachments && params.attachments.length > 0;
 
-  // Body part(s): plain, html, or both
-  let bodyPart: string;
-  if (isHtml(params.body)) {
-    const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const plain = stripHtml(params.body);
-    bodyPart = [
-      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
-      '',
-      `--${altBoundary}`,
-      'Content-Type: text/plain; charset=UTF-8',
-      '',
-      plain,
-      `--${altBoundary}`,
-      'Content-Type: text/html; charset=UTF-8',
-      '',
-      params.body,
-      `--${altBoundary}--`,
-    ].join('\r\n');
-  } else {
-    bodyPart = [
-      'Content-Type: text/plain; charset=UTF-8',
-      '',
-      params.body,
-    ].join('\r\n');
-  }
+  // Single body part: plain or HTML only (no multipart/alternative)
+  const bodyPart = isHtml(params.body)
+    ? ['Content-Type: text/html; charset=UTF-8', '', params.body].join('\r\n')
+    : ['Content-Type: text/plain; charset=UTF-8', '', params.body].join('\r\n');
 
   if (hasAttachments) {
     const mixedBoundary = `----=_Mixed_${Date.now()}_${Math.random().toString(36).slice(2)}`;
