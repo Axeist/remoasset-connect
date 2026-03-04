@@ -182,9 +182,50 @@ function getHeader(headers: GmailHeader[] | undefined, name: string): string {
   return headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';
 }
 
+/**
+ * When Gmail returns the full raw MIME in payload.body.data (e.g. for multipart
+ * messages we sent), parse it and return only the displayable content so we
+ * don't show headers/boundaries to the user.
+ */
+function parseRawMimeBody(raw: string): string {
+  if (!raw || !/Content-Type:\s*multipart\//i.test(raw)) return raw;
+  const boundaryMatch = raw.match(/boundary\s*=\s*["']?([^"'\s;]+)["']?/i);
+  if (!boundaryMatch) return raw;
+  const boundary = boundaryMatch[1].trim();
+  const normalized = raw.replace(/\r\n/g, '\n');
+  const parts = normalized.split(new RegExp(`\\n--${escapeRegex(boundary)}(?:--)?\\n?`));
+  let textPlain = '';
+  let textHtml = '';
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const blankIdx = part.indexOf('\n\n');
+    if (blankIdx === -1) continue;
+    const headerBlock = part.slice(0, blankIdx);
+    const body = part.slice(blankIdx + 2).trim();
+    if (!body) continue;
+    const contentType = headerBlock.match(/Content-Type:\s*([^;\s\n]+)/i)?.[1]?.toLowerCase();
+    if (contentType === 'text/plain') textPlain = body;
+    else if (contentType === 'text/html') textHtml = body;
+    else if (contentType?.startsWith('multipart/') && body) {
+      const nested = parseRawMimeBody(part);
+      if (nested !== part) return nested;
+    }
+  }
+  if (textPlain) return textPlain;
+  if (textHtml) return stripHtml(textHtml);
+  return raw;
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function extractBody(payload: GmailPayload | undefined): string {
   if (!payload) return '';
-  if (payload.body?.data) return fromBase64Url(payload.body.data);
+  if (payload.body?.data) {
+    const decoded = fromBase64Url(payload.body.data);
+    return parseRawMimeBody(decoded);
+  }
   if (payload.parts) {
     const textPlain = payload.parts.find((p) => p.mimeType === 'text/plain');
     if (textPlain?.body?.data) return fromBase64Url(textPlain.body.data);
