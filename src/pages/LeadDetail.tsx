@@ -1344,6 +1344,7 @@ interface LeadDocumentRow {
 
 const DOCUMENT_TYPE_OPTIONS = [
   { value: 'nda', label: 'NDA' },
+  { value: 'quotation', label: 'Quotation' },
   { value: 'pricing', label: 'Pricing' },
   { value: 'custom', label: 'Custom' },
 ] as const;

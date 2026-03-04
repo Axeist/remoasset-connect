@@ -30,9 +30,9 @@ import { getActivityScorePoints } from '@/lib/leadScore';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 import { useGmail, fileToEmailAttachment } from '@/hooks/useGmail';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail, MessageCircle, ShieldCheck, Linkedin, CalendarDays } from 'lucide-react';
+import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail, MessageCircle, ShieldCheck, Linkedin, CalendarDays, FileText } from 'lucide-react';
 
-export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'whatsapp' | 'nda' | 'linkedin';
+export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'whatsapp' | 'nda' | 'linkedin' | 'quotation';
 
 export type NdaSubActivity = 'nda_sent' | 'nda_received';
 
@@ -49,6 +49,7 @@ const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'linkedin', label: 'LinkedIn' },
   { value: 'nda', label: 'NDA' },
+  { value: 'quotation', label: 'Quotation' },
   { value: 'note', label: 'Note' },
 ];
 
@@ -166,6 +167,8 @@ export function AddActivityDialog({
   const [emailBcc, setEmailBcc] = useState('');
   const [ndaSubActivity, setNdaSubActivity] = useState<NdaSubActivity>('nda_sent');
   const [ndaFile, setNdaFile] = useState<File | null>(null);
+  const [quotationFiles, setQuotationFiles] = useState<File[]>([]);
+  const [quotationVendor, setQuotationVendor] = useState('');
   const [linkedinProfileUrl, setLinkedinProfileUrl] = useState('');
   const [linkedinMessage, setLinkedinMessage] = useState('');
   const [description, setDescription] = useState('');
@@ -226,6 +229,8 @@ export function AddActivityDialog({
     setType('call');
     setNdaSubActivity('nda_sent');
     setNdaFile(null);
+    setQuotationFiles([]);
+    setQuotationVendor('');
     setLinkedinProfileUrl('');
     setLinkedinMessage('');
     setDescription('');
@@ -248,6 +253,7 @@ export function AddActivityDialog({
 
     const isNda = type === 'nda';
     const isLinkedin = type === 'linkedin';
+    const isQuotation = type === 'quotation';
 
     const isMeeting = type === 'meeting';
     const isEmail = type === 'email';
@@ -255,6 +261,14 @@ export function AddActivityDialog({
     let effectiveDescription: string;
     if (isNda) {
       effectiveDescription = `${ndaSubActivity === 'nda_sent' ? 'NDA Sent' : 'NDA Received'}${description.trim() ? ': ' + description.trim() : ''}`;
+    } else if (isQuotation) {
+      const vendor = quotationVendor.trim();
+      const fileNames = quotationFiles.map((f) => f.name).join(', ');
+      const parts: string[] = ['Quotation received'];
+      if (vendor) parts.push(`from ${vendor}`);
+      if (fileNames) parts.push(`— ${fileNames}`);
+      if (description.trim()) parts.push(`\nNotes: ${description.trim()}`);
+      effectiveDescription = parts.join(' ');
     } else if (isLinkedin) {
       const parts: string[] = [];
       if (linkedinProfileUrl.trim()) parts.push(`Profile: ${linkedinProfileUrl.trim()}`);
@@ -300,12 +314,16 @@ export function AddActivityDialog({
         toast({ variant: 'destructive', title: 'Message required', description: 'Please enter the email body.' });
         return;
       }
-    } else if (!isNda && !isLinkedin && !description.trim()) {
+    } else if (!isNda && !isLinkedin && !isQuotation && !description.trim()) {
       toast({ variant: 'destructive', title: 'Description required' });
       return;
     }
     if (isLinkedin && !linkedinProfileUrl.trim()) {
       toast({ variant: 'destructive', title: 'LinkedIn profile URL required' });
+      return;
+    }
+    if (isQuotation && quotationFiles.length === 0) {
+      toast({ variant: 'destructive', title: 'Quotation file required', description: 'Please upload at least one quotation document.' });
       return;
     }
     if (isNda && ndaSubActivity === 'nda_received' && !ndaFile) {
@@ -351,6 +369,45 @@ export function AddActivityDialog({
         url: `https://mail.google.com/mail/u/0/#inbox/${gmailResult.threadId}`,
         name: 'View in Gmail',
       });
+    }
+
+    // Upload quotation files to lead-documents storage and create lead_documents rows
+    if (isQuotation && quotationFiles.length > 0) {
+      for (const file of quotationFiles) {
+        const ext = file.name.split('.').pop() ?? '';
+        const docPath = `${leadId}/${crypto.randomUUID()}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from('lead-documents')
+          .upload(docPath, file, { upsert: false });
+        if (uploadError) {
+          toast({ variant: 'destructive', title: 'Quotation upload failed', description: uploadError.message });
+          setSubmitting(false);
+          return;
+        }
+        const customName = quotationVendor.trim()
+          ? `Quotation — ${quotationVendor.trim()}`
+          : `Quotation — ${file.name}`;
+        const { error: docInsertError } = await supabase.from('lead_documents').insert({
+          lead_id: leadId,
+          document_type: 'quotation',
+          custom_name: customName,
+          file_path: docPath,
+          file_name: file.name,
+          file_size: file.size,
+          uploaded_by: user.id,
+        });
+        if (docInsertError) {
+          toast({ variant: 'destructive', title: 'Error saving quotation document', description: docInsertError.message });
+          setSubmitting(false);
+          return;
+        }
+        const { data: signedUrlData } = await supabase.storage
+          .from('lead-documents')
+          .createSignedUrl(docPath, 60 * 60 * 24 * 365);
+        if (signedUrlData?.signedUrl) {
+          attachments.push({ type: 'file', url: signedUrlData.signedUrl, name: file.name });
+        }
+      }
     }
 
     // Upload NDA file to lead-documents storage and create a lead_documents row
@@ -540,7 +597,7 @@ export function AddActivityDialog({
         <DialogHeader>
           <DialogTitle>Add activity</DialogTitle>
           <DialogDescription>
-            Log a call, email, meeting, NDA, or note. Add links and attach files.
+            Log a call, email, meeting, NDA, quotation, or note. Add links and attach files.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -809,6 +866,68 @@ export function AddActivityDialog({
             </div>
           )}
 
+          {type === 'quotation' && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+                <FileText className="h-4 w-4" />
+                Quotation
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Vendor / Warehouse name</Label>
+                <Input
+                  type="text"
+                  placeholder="e.g. ABC Warehouse, XYZ Supplier..."
+                  value={quotationVendor}
+                  onChange={(e) => setQuotationVendor(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Upload quotation files *</Label>
+                <Input
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.files ?? []);
+                    const allowed = selected.filter((f) => f.size <= MAX_FILE_SIZE_MB * 1024 * 1024);
+                    if (allowed.length < selected.length) {
+                      toast({ variant: 'destructive', title: 'Some files skipped', description: `Max ${MAX_FILE_SIZE_MB}MB per file.` });
+                    }
+                    setQuotationFiles((prev) => [...prev, ...allowed].slice(0, MAX_FILES));
+                    e.target.value = '';
+                  }}
+                  className="h-10 file:mr-2 file:rounded-md file:border-0 file:bg-amber-600 file:px-3 file:py-1 file:text-white"
+                />
+                {quotationFiles.length > 0 && (
+                  <ul className="space-y-1">
+                    {quotationFiles.map((f, i) => (
+                      <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate max-w-[240px]">{f.name}</span>
+                        <span className="text-xs shrink-0">({(f.size / 1024).toFixed(0)} KB)</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0"
+                          onClick={() => setQuotationFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Files will be saved to the lead&apos;s Documents section. PDF, Word, Excel, or image formats.
+                </p>
+              </div>
+            </div>
+          )}
+
           {type === 'nda' && (
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-primary">
@@ -875,9 +994,9 @@ export function AddActivityDialog({
 
           <div className="space-y-2">
             <Label htmlFor="desc">
-              {type === 'nda' || type === 'linkedin'
-                ? 'Additional notes (optional)'
-                : type === 'meeting'
+            {type === 'nda' || type === 'linkedin' || type === 'quotation'
+              ? 'Additional notes (optional)'
+              : type === 'meeting'
                   ? 'Notes (optional)'
                   : type === 'email' && isGmailConnected && leadEmail?.trim()
                     ? 'Message *'
