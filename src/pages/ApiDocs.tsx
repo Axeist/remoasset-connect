@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -174,6 +175,7 @@ const NAV = [
 
 export default function ApiDocs() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('overview');
 
   const copyBase = () => {
@@ -182,11 +184,15 @@ export default function ApiDocs() {
   };
 
   const downloadDocs = () => {
+    const content = `# RemoAsset Connect — API Documentation\nVersion 1.0  |  Last updated ${LAST_UPDATED}\n\nBase URL: ${BASE_URL}\n\nAuthentication: Authorization: Bearer <your_api_key>\n\nSee the full interactive docs at: ${window.location.origin}/admin/api-docs\n`;
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
-    anchor.href = '/remoasset-connect-api-docs.md';
+    anchor.href = url;
     anchor.download = 'remoasset-connect-api-docs.md';
     anchor.click();
-    toast({ title: 'Downloading documentation' });
+    URL.revokeObjectURL(url);
+    toast({ title: 'Documentation downloaded' });
   };
 
   return (
@@ -219,7 +225,7 @@ export default function ApiDocs() {
             <Button variant="outline" size="sm" className="gap-2" onClick={downloadDocs}>
               <Download className="h-4 w-4" />Download
             </Button>
-            <Button variant="outline" size="sm" className="gap-2" onClick={() => window.open('/admin', '_self')}>
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate('/admin')}>
               <ExternalLink className="h-4 w-4" />Admin panel
             </Button>
           </div>
@@ -732,7 +738,7 @@ curl "${BASE_URL}/leads?limit=50&offset=50" -H "Authorization: Bearer <key>"`} /
                 <p>For authorised integrations only. Last updated {LAST_UPDATED}.</p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="gap-2 text-xs h-8" onClick={() => window.open('/admin', '_self')}>
+                <Button variant="outline" size="sm" className="gap-2 text-xs h-8" onClick={() => navigate('/admin')}>
                   <ExternalLink className="h-3.5 w-3.5" />Manage API keys
                 </Button>
                 <Button variant="outline" size="sm" className="gap-2 text-xs h-8" onClick={() => { navigator.clipboard.writeText(BASE_URL); toast({ title: 'Base URL copied' }); }}>

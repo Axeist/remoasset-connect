@@ -1597,7 +1597,7 @@ curl -X POST ${baseUrl}/notifications \\
                     </Button>
                   </div>
                   <div className="pt-1">
-                    <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => window.open('/admin/api-docs', '_blank')}>
+                    <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => navigate('/admin/api-docs')}>
                       <FileText className="h-3.5 w-3.5" />
                       View full API documentation
                       <ExternalLink className="h-3 w-3 text-muted-foreground" />
