@@ -38,8 +38,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
 
   useEffect(() => {
+    const ALLOWED_DOMAIN = 'remoasset.com';
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
+        // Block any Google (or other OAuth) sign-in from non-remoasset.com accounts
+        if (session?.user) {
+          const email = session.user.email ?? '';
+          const isOAuth = session.user.app_metadata?.provider !== 'email';
+          if (isOAuth && !email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
+            await supabase.auth.signOut();
+            // Surface the error via a custom event so the Auth page can show a toast
+            window.dispatchEvent(new CustomEvent('auth:domain-blocked', { detail: { email } }));
+            return;
+          }
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
 
