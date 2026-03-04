@@ -1045,9 +1045,6 @@ export default function Admin() {
                     API base URL
                   </h3>
                   <p className="text-xs text-muted-foreground">Use this URL as the base for all API requests. Send your API key in the <code className="rounded bg-muted px-1 py-0.5">Authorization: Bearer &lt;api_key&gt;</code> header.</p>
-                  {!import.meta.env.VITE_SUPABASE_URL?.includes('jiobase.com') && (
-                    <p className="text-xs text-amber-600 dark:text-amber-500">Using direct Supabase URL. For proxy (JioBase), set VITE_SUPABASE_URL to https://remoasset.jiobase.com in Vercel and redeploy.</p>
-                  )}
                   <div className="flex items-center gap-2">
                     <code className="flex-1 rounded-lg bg-muted px-3 py-2 text-sm font-mono break-all">
                       {import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')}/functions/v1/api
