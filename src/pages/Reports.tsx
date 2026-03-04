@@ -574,7 +574,7 @@ export default function Reports() {
               ))}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-6 lg:grid-cols-2 mt-6">
               {/* Weekly Productivity Trend */}
               <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover lg:col-span-2 animate-fade-in-up animate-fade-in-up-delay-3">
                 <CardHeader>
