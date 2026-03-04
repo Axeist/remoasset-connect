@@ -309,8 +309,8 @@ Deno.serve(async (req) => {
             const body = await req.json().catch(() => ({}))
             const { lead_id, document_type, file_path, file_name, file_size, custom_name, uploaded_by } = body
             if (!lead_id || !document_type || !file_path || !file_name || !uploaded_by) return err('lead_id, document_type, file_path, file_name, uploaded_by (user_id) are required', 400)
-            const validTypes = ['nda', 'pricing', 'custom']
-            if (!validTypes.includes(document_type)) return err('document_type must be nda, pricing, or custom', 400)
+            const validTypes = ['nda', 'pricing', 'custom', 'quotation']
+            if (!validTypes.includes(document_type)) return err('document_type must be nda, pricing, custom, or quotation', 400)
             const insertPayload: Record<string, unknown> = { lead_id, document_type, file_path, file_name, uploaded_by }
             if (file_size != null) insertPayload.file_size = file_size
             if (custom_name != null) insertPayload.custom_name = custom_name
