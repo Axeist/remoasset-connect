@@ -25,6 +25,7 @@ interface UploadDocumentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   leadId: string;
+  leadCompanyName?: string;
   onSuccess: () => void;
 }
 
@@ -32,6 +33,7 @@ export function UploadDocumentDialog({
   open,
   onOpenChange,
   leadId,
+  leadCompanyName,
   onSuccess,
 }: UploadDocumentDialogProps) {
   const { user } = useAuth();
@@ -77,6 +79,19 @@ export function UploadDocumentDialog({
       toast({ variant: 'destructive', title: 'Error', description: insertError.message });
       return;
     }
+    // Fire Slack notification (non-blocking)
+    supabase.functions.invoke('slack-notify', {
+      body: {
+        event: 'document_sent',
+        payload: {
+          company_name: leadCompanyName ?? 'Unknown Lead',
+          document_type: docType,
+          file_name: file.name,
+          sent_by: user.email ?? 'Unknown',
+          lead_id: leadId,
+        },
+      },
+    }).catch(() => {});
     toast({ title: 'Document uploaded' });
     resetForm();
     onSuccess();

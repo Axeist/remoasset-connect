@@ -17,7 +17,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 import { safeFormat } from '@/lib/date';
 import { Loader2, CalendarDays } from 'lucide-react';
-
 interface AddFollowUpDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -102,6 +101,19 @@ export function AddFollowUpDialog({
       activity_type: 'note',
       description: `Follow-up scheduled for ${safeFormat(scheduledDate.toISOString(), 'PPp')}${notes.trim() ? `: ${notes.trim()}` : ''}`,
     });
+    // Fire Slack notification (non-blocking)
+    supabase.functions.invoke('slack-notify', {
+      body: {
+        event: 'followup_created',
+        payload: {
+          company_name: leadCompanyName ?? 'Unknown Lead',
+          scheduled_at: scheduledDate.toISOString(),
+          notes: notes.trim() || null,
+          assigned_to: user.email ?? 'Unknown',
+          lead_id: leadId,
+        },
+      },
+    }).catch(() => {});
     setSubmitting(false);
     toast({ title: addToCalendar ? 'Follow-up scheduled & added to calendar' : 'Follow-up scheduled' });
     resetForm();

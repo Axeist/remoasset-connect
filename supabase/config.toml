@@ -1,1 +1,10 @@
 project_id = "snashlomudlvooanyqwt"
+
+[functions.slack-notify]
+verify_jwt = false
+
+[functions.slack-reminders]
+verify_jwt = false
+
+[functions.slack-digest]
+verify_jwt = false

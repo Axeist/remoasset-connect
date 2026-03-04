@@ -141,6 +141,23 @@ export default function Tasks() {
     await supabase.from('tasks').update({ is_completed: completed }).eq('id', taskId);
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, is_completed: completed } : t)));
     if (detailTask?.id === taskId) setDetailTask((t) => (t ? { ...t, is_completed: completed } : null));
+    // Fire Slack notification when task is marked complete
+    if (completed) {
+      const task = tasks.find((t) => t.id === taskId);
+      if (task) {
+        supabase.functions.invoke('slack-notify', {
+          body: {
+            event: 'task_completed',
+            payload: {
+              task_title: task.title,
+              completed_by: user?.email ?? 'Unknown',
+              lead_name: task.lead?.company_name ?? null,
+              lead_id: task.lead_id ?? null,
+            },
+          },
+        }).catch(() => {});
+      }
+    }
   };
 
   const pendingTasks = tasks.filter((t) => !t.is_completed);

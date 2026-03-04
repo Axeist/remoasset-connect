@@ -534,6 +534,18 @@ export default function LeadDetail() {
                             message: `${lead.company_name} has been assigned to you.`,
                             type: 'lead',
                           });
+                          // Fire Slack notification (non-blocking)
+                          supabase.functions.invoke('slack-notify', {
+                            body: {
+                              event: 'lead_assigned',
+                              payload: {
+                                company_name: lead.company_name,
+                                assigned_to: newName,
+                                assigned_by: user?.email ?? 'Unknown',
+                                lead_id: lead.id,
+                              },
+                            },
+                          }).catch(() => {});
                         }
                         toast({ title: 'Owner updated' });
                         fetchLead();
@@ -1556,6 +1568,7 @@ function LeadDocumentsTab({ leadId, isAdmin, canEdit }: { leadId: string; isAdmi
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
         leadId={leadId}
+        leadCompanyName={lead?.company_name}
         onSuccess={fetchDocuments}
       />
 

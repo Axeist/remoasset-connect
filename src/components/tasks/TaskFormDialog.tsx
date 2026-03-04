@@ -25,6 +25,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+
+async function slackNotify(event: string, payload: Record<string, unknown>) {
+  supabase.functions.invoke('slack-notify', { body: { event, payload } }).catch(() => {});
+}
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
@@ -148,7 +152,7 @@ export function TaskFormDialog({
       }
       toast({ title: 'Task updated' });
     } else {
-      const { error } = await supabase.from('tasks').insert(payload);
+      const { data: newTask, error } = await supabase.from('tasks').insert(payload).select('id').single();
       if (error) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
         return;
@@ -161,6 +165,22 @@ export function TaskFormDialog({
           description: `Task created: ${payload.title}`,
         });
       }
+      // Find assignee name for Slack
+      const assigneeName = assignees.find((a) => a.id === payload.assignee_id)?.full_name
+        ?? (payload.assignee_id === user?.id ? user?.email : null)
+        ?? 'Unknown';
+      const linkedLead = leads.find((l) => l.id === payload.lead_id);
+      slackNotify('task_created', {
+        task_title: payload.title,
+        description: payload.description,
+        assigned_to: assigneeName,
+        due_date: payload.due_date,
+        priority: payload.priority,
+        lead_name: linkedLead?.company_name ?? null,
+        lead_id: payload.lead_id ?? null,
+        created_by: user?.email ?? 'Unknown',
+        task_id: newTask?.id ?? '',
+      });
       toast({ title: 'Task created' });
     }
     onOpenChange(false);

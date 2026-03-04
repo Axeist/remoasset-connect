@@ -55,6 +55,7 @@ export default function Settings() {
   const { theme, setTheme } = useTheme();
 
   const [activeTab, setActiveTab] = useState<Tab>('profile');
+  const [slackActive, setSlackActive] = useState<boolean | null>(null);
 
   // Profile state
   const [profileLoading, setProfileLoading] = useState(true);
@@ -96,6 +97,9 @@ export default function Settings() {
       }
       setProfileLoading(false);
     })();
+    // Load real Slack status
+    supabase.from('app_settings').select('slack_enabled, slack_webhook_url').limit(1).single()
+      .then(({ data }) => setSlackActive(!!(data?.slack_enabled && data?.slack_webhook_url)));
   }, [user?.id]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -371,9 +375,19 @@ export default function Settings() {
                       <p className="text-xs text-muted-foreground mt-0.5">Notifications for new leads, tasks, and activities</p>
                     </div>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-500/20 shrink-0">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />Active
-                  </span>
+                  {slackActive === null ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground ring-1 ring-border shrink-0">
+                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />Loading…
+                    </span>
+                  ) : slackActive ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-500/20 shrink-0">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />Active
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground ring-1 ring-border shrink-0">
+                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />Not configured
+                    </span>
+                  )}
                 </div>
               </div>
             )}

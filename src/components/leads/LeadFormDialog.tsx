@@ -226,7 +226,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
 
       toast({ title: 'Lead updated', description: 'Changes saved successfully.' });
     } else {
-      const { error } = await supabase.from('leads').insert(payload);
+      const { data: newLead, error } = await supabase.from('leads').insert(payload).select('id').single();
       if (error) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
         return;
@@ -244,7 +244,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
             status: selectedStatus?.name || null,
             country: selectedCountry?.name || null,
             lead_score: 0,
-            lead_id: 'new',
+            lead_id: newLead?.id ?? '',
           },
         },
       }).catch(() => {/* silent fail */});

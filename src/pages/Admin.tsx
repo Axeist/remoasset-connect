@@ -115,15 +115,42 @@ export default function Admin() {
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
   const [slackSaving, setSlackSaving] = useState(false);
   const [slackTesting, setSlackTesting] = useState(false);
+  const [slackDigestTesting, setSlackDigestTesting] = useState(false);
   const [slackSettingsId, setSlackSettingsId] = useState<string | null>(null);
+  const [slackToggles, setSlackToggles] = useState({
+    slack_notify_lead_created: true,
+    slack_notify_stage_changed: true,
+    slack_notify_activity_logged: true,
+    slack_notify_task_created: true,
+    slack_notify_task_completed: true,
+    slack_notify_followup_created: true,
+    slack_notify_lead_assigned: true,
+    slack_notify_document_sent: true,
+    slack_notify_daily_digest: false,
+  });
+  const [slackDigestHour, setSlackDigestHour] = useState(9);
+  const [slackReminderMinutes, setSlackReminderMinutes] = useState(30);
 
   useEffect(() => {
     const loadSlackSettings = async () => {
-      const { data } = await supabase.from('app_settings').select('id, slack_enabled, slack_webhook_url').limit(1).single();
+      const { data } = await supabase.from('app_settings').select('id, slack_enabled, slack_webhook_url, slack_notify_lead_created, slack_notify_stage_changed, slack_notify_activity_logged, slack_notify_task_created, slack_notify_task_completed, slack_notify_followup_created, slack_notify_lead_assigned, slack_notify_document_sent, slack_notify_daily_digest, slack_digest_hour, slack_reminder_minutes_before').limit(1).single();
       if (data) {
         setSlackSettingsId(data.id);
         setSlackEnabled(data.slack_enabled ?? false);
         setSlackWebhookUrl(data.slack_webhook_url ?? '');
+        setSlackToggles({
+          slack_notify_lead_created: data.slack_notify_lead_created ?? true,
+          slack_notify_stage_changed: data.slack_notify_stage_changed ?? true,
+          slack_notify_activity_logged: data.slack_notify_activity_logged ?? true,
+          slack_notify_task_created: data.slack_notify_task_created ?? true,
+          slack_notify_task_completed: data.slack_notify_task_completed ?? true,
+          slack_notify_followup_created: data.slack_notify_followup_created ?? true,
+          slack_notify_lead_assigned: data.slack_notify_lead_assigned ?? true,
+          slack_notify_document_sent: data.slack_notify_document_sent ?? true,
+          slack_notify_daily_digest: data.slack_notify_daily_digest ?? false,
+        });
+        setSlackDigestHour(data.slack_digest_hour ?? 9);
+        setSlackReminderMinutes(data.slack_reminder_minutes_before ?? 30);
       }
     };
     loadSlackSettings();
@@ -131,11 +158,18 @@ export default function Admin() {
 
   const saveSlackSettings = async () => {
     setSlackSaving(true);
+    const updates = {
+      slack_enabled: slackEnabled,
+      slack_webhook_url: slackWebhookUrl,
+      ...slackToggles,
+      slack_digest_hour: slackDigestHour,
+      slack_reminder_minutes_before: slackReminderMinutes,
+    };
     try {
       if (slackSettingsId) {
-        await supabase.from('app_settings').update({ slack_enabled: slackEnabled, slack_webhook_url: slackWebhookUrl }).eq('id', slackSettingsId);
+        await supabase.from('app_settings').update(updates).eq('id', slackSettingsId);
       } else {
-        const { data } = await supabase.from('app_settings').insert({ slack_enabled: slackEnabled, slack_webhook_url: slackWebhookUrl }).select('id').single();
+        const { data } = await supabase.from('app_settings').insert(updates).select('id').single();
         if (data) setSlackSettingsId(data.id);
       }
       toast({ title: 'Slack settings saved' });
@@ -168,6 +202,20 @@ export default function Admin() {
       toast({ variant: 'destructive', title: 'Test failed', description: 'Check the webhook URL and try again.' });
     } finally {
       setSlackTesting(false);
+    }
+  };
+
+  const testSlackDigest = async () => {
+    if (!slackWebhookUrl.trim()) return;
+    setSlackDigestTesting(true);
+    try {
+      const { error } = await supabase.functions.invoke('slack-digest', { body: { force: true } });
+      if (error) throw error;
+      toast({ title: 'Daily digest sent!', description: 'Check your Slack channel.' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Digest test failed', description: 'Make sure the slack-digest function is deployed.' });
+    } finally {
+      setSlackDigestTesting(false);
     }
   };
 
@@ -779,7 +827,7 @@ export default function Admin() {
                         </div>
                         <div>
                           <h3 className="font-semibold text-base">Slack</h3>
-                          <p className="text-sm text-muted-foreground">Team notifications for new leads and activities</p>
+                          <p className="text-sm text-muted-foreground">Team notifications for leads, tasks, and reminders</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -797,7 +845,8 @@ export default function Admin() {
                     </div>
 
                     {slackEnabled && (
-                      <div className="space-y-3 pt-2 border-t border-border/50">
+                      <div className="space-y-4 pt-2 border-t border-border/50">
+                        {/* Webhook URL */}
                         <div className="space-y-1.5">
                           <Label className="text-sm">Webhook URL</Label>
                           <Input
@@ -812,21 +861,92 @@ export default function Admin() {
                           </p>
                         </div>
 
-                        <div className="rounded-lg bg-muted/40 p-3 space-y-1.5">
-                          <p className="text-xs font-medium flex items-center gap-1.5"><Bell className="h-3.5 w-3.5" />Notifies on:</p>
-                          {[
-                            '🆕 New lead created',
-                            '📞 Activity logged (call, meeting, quotation, NDA, etc.)',
-                            '🔀 Lead moved to a new pipeline stage',
-                          ].map((item) => (
-                            <p key={item} className="text-xs text-muted-foreground pl-5">{item}</p>
-                          ))}
+                        {/* Per-event toggles */}
+                        <div className="rounded-lg border overflow-hidden">
+                          <div className="px-3 py-2 bg-muted/40 border-b">
+                            <p className="text-xs font-medium flex items-center gap-1.5"><Bell className="h-3.5 w-3.5" />Notification events</p>
+                          </div>
+                          <div className="divide-y">
+                            {([
+                              { key: 'slack_notify_lead_created',    label: '🆕 New lead created' },
+                              { key: 'slack_notify_stage_changed',   label: '🔀 Lead stage changed' },
+                              { key: 'slack_notify_activity_logged', label: '📌 Activity logged (call, meeting, etc.)' },
+                              { key: 'slack_notify_lead_assigned',   label: '👤 Lead assigned / reassigned' },
+                              { key: 'slack_notify_task_created',    label: '✅ Task created' },
+                              { key: 'slack_notify_task_completed',  label: '🎉 Task completed' },
+                              { key: 'slack_notify_followup_created',label: '📅 Follow-up scheduled' },
+                              { key: 'slack_notify_document_sent',   label: '📄 Document uploaded (NDA, quotation, etc.)' },
+                            ] as { key: keyof typeof slackToggles; label: string }[]).map(({ key, label }) => (
+                              <div key={key} className="flex items-center justify-between px-3 py-2 hover:bg-muted/20 transition-colors">
+                                <span className="text-xs text-muted-foreground">{label}</span>
+                                <Switch
+                                  checked={slackToggles[key]}
+                                  onCheckedChange={(v) => setSlackToggles((prev) => ({ ...prev, [key]: v }))}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Reminders config */}
+                        <div className="rounded-lg border overflow-hidden">
+                          <div className="px-3 py-2 bg-muted/40 border-b">
+                            <p className="text-xs font-medium flex items-center gap-1.5">⏰ Scheduled reminders</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">Requires deploying <code className="rounded bg-muted px-1">slack-reminders</code> function on a 15-min cron.</p>
+                          </div>
+                          <div className="p-3 space-y-3">
+                            <div className="flex items-center gap-3">
+                              <Label className="text-xs text-muted-foreground w-44 shrink-0">Remind before due (minutes)</Label>
+                              <Input
+                                type="number"
+                                min={5}
+                                max={120}
+                                value={slackReminderMinutes}
+                                onChange={(e) => setSlackReminderMinutes(Number(e.target.value))}
+                                className="w-24 h-8 text-sm"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Daily digest config */}
+                        <div className="rounded-lg border overflow-hidden">
+                          <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b">
+                            <div>
+                              <p className="text-xs font-medium flex items-center gap-1.5">📊 Daily digest</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">Morning summary: new leads, tasks due today, overdue items.</p>
+                            </div>
+                            <Switch
+                              checked={slackToggles.slack_notify_daily_digest}
+                              onCheckedChange={(v) => setSlackToggles((prev) => ({ ...prev, slack_notify_daily_digest: v }))}
+                            />
+                          </div>
+                          {slackToggles.slack_notify_daily_digest && (
+                            <div className="p-3 space-y-3">
+                              <div className="flex items-center gap-3">
+                                <Label className="text-xs text-muted-foreground w-44 shrink-0">Send at (UTC hour, 0–23)</Label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={23}
+                                  value={slackDigestHour}
+                                  onChange={(e) => setSlackDigestHour(Number(e.target.value))}
+                                  className="w-24 h-8 text-sm"
+                                />
+                              </div>
+                              <p className="text-xs text-muted-foreground">Requires deploying <code className="rounded bg-muted px-1">slack-digest</code> function on an hourly cron.</p>
+                              <Button size="sm" variant="outline" onClick={testSlackDigest} disabled={slackDigestTesting || !slackWebhookUrl.trim()} className="gap-2 h-7 text-xs">
+                                {slackDigestTesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                                Send test digest now
+                              </Button>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex gap-2 pt-1">
                           <Button size="sm" onClick={saveSlackSettings} disabled={slackSaving} className="gap-2">
                             {slackSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                            Save
+                            Save settings
                           </Button>
                           <Button size="sm" variant="outline" onClick={testSlackWebhook} disabled={slackTesting || !slackWebhookUrl.trim()} className="gap-2">
                             {slackTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
