@@ -241,7 +241,10 @@ function extractBody(payload: GmailPayload | undefined): string {
       return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     }
     const anyData = payload.parts.find((p) => p.body?.data);
-    if (anyData?.body?.data) return fromBase64Url(anyData.body.data);
+    if (anyData?.body?.data) {
+      const decoded = fromBase64Url(anyData.body.data);
+      return parseRawMimeBody(decoded);
+    }
   }
   return '';
 }
