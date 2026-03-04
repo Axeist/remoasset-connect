@@ -368,15 +368,14 @@ function buildMime(params: {
   headers.push('MIME-Version: 1.0');
 
   const hasAttachments = params.attachments && params.attachments.length > 0;
-
-  // Single body part: plain or HTML only (no multipart/alternative)
-  const bodyPart = isHtml(params.body)
-    ? ['Content-Type: text/html; charset=UTF-8', '', params.body].join('\r\n')
-    : ['Content-Type: text/plain; charset=UTF-8', '', params.body].join('\r\n');
+  const bodyIsHtml = isHtml(params.body);
 
   if (hasAttachments) {
     const mixedBoundary = `----=_Mixed_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     headers.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
+    const bodyPart = bodyIsHtml
+      ? ['Content-Type: text/html; charset=UTF-8', '', params.body].join('\r\n')
+      : ['Content-Type: text/plain; charset=UTF-8', '', params.body].join('\r\n');
     const parts: string[] = [
       `--${mixedBoundary}`,
       bodyPart,
@@ -397,7 +396,9 @@ function buildMime(params: {
     return [...headers, '', ...parts].join('\r\n');
   }
 
-  return [...headers, '', bodyPart].join('\r\n');
+  // No attachments: Content-Type goes in the headers section (before the blank separator line)
+  headers.push(bodyIsHtml ? 'Content-Type: text/html; charset=UTF-8' : 'Content-Type: text/plain; charset=UTF-8');
+  return [...headers, '', params.body].join('\r\n');
 }
 
 // ─── Public types ───
