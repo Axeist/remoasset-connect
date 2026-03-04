@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
-import { refreshSessionWithCooldown } from '@/lib/authRefresh';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
 import { AddUserDialog } from '@/components/admin/AddUserDialog';
 import { UserManagementDialog } from '@/components/admin/UserManagementDialog';
@@ -264,9 +263,9 @@ export default function Admin() {
 
   const fetchAuthUsers = async (): Promise<Record<string, { email?: string; banned_until?: string | null; last_sign_in_at?: string | null }>> => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const body = { action: 'list_users', ...(session?.access_token ? { __auth_token: session.access_token } : {}) };
-      const { data, error } = await supabase.functions.invoke('manage-user', { body, headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} });
+      const { data, error } = await supabase.functions.invoke('manage-user', {
+        body: { action: 'list_users' },
+      });
       if (error || !data?.users) return {};
       return (data.users as { id: string; email?: string; banned_until?: string | null; last_sign_in_at?: string | null }[]).reduce(
         (acc, u) => { acc[u.id] = { email: u.email, banned_until: u.banned_until, last_sign_in_at: u.last_sign_in_at }; return acc; },
@@ -339,39 +338,10 @@ export default function Admin() {
   const fetchApiKeys = async () => {
     setApiKeyLoading(true);
     try {
-      let { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        const { data: refData, error: refreshError } = await refreshSessionWithCooldown();
-        if (refreshError?.status === 429) {
-          toast({ variant: 'destructive', title: 'Too many requests', description: 'Wait a minute and try again, or sign out and sign back in.' });
-          setApiKeyLoading(false);
-          return;
-        }
-        session = refData.session;
-      }
-      const token = session?.access_token ?? '';
-      if (!token) {
-        setApiKeys([]);
-        setApiKeyLoading(false);
-        return;
-      }
-      const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-      if (!baseUrl || !anonKey) {
-        toast({ variant: 'destructive', title: 'Config missing', description: 'VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set.' });
-        setApiKeyLoading(false);
-        return;
-      }
-      const res = await fetch(`${baseUrl}/functions/v1/api-keys`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Apikey: anonKey, Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action: 'list', __auth_token: token }),
+      const { data, error } = await supabase.functions.invoke('api-keys', {
+        body: { action: 'list' },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const msg = data?.error ?? data?.message ?? data?.hint ?? `HTTP ${res.status}`;
-        throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
-      }
+      if (error) throw error;
       setApiKeys((data?.keys ?? []) as ApiKeyRow[]);
     } catch (e) {
       toast({ variant: 'destructive', title: 'Failed to load API keys', description: (e as Error)?.message });
@@ -392,22 +362,11 @@ export default function Admin() {
     }
     setApiKeyLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token ?? '';
-      if (!token) {
-        toast({ variant: 'destructive', title: 'Session expired', description: 'Please sign in again.' });
-        setApiKeyLoading(false);
-        return;
-      }
-      const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-      const res = await fetch(`${baseUrl}/functions/v1/api-keys`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Apikey: anonKey, Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name, __auth_token: token }),
+      const { data, error } = await supabase.functions.invoke('api-keys', {
+        body: { name },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       setCreatedKeyOnce({ api_key: data.api_key, name: data.name, key_prefix: data.key_prefix });
       fetchApiKeys();
     } catch (e) {
@@ -420,21 +379,12 @@ export default function Admin() {
   const handleRevokeApiKey = async () => {
     if (!revokeKeyId) return;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token ?? '';
-      if (!token) {
-        toast({ variant: 'destructive', title: 'Session expired', description: 'Please sign in again.' });
-        return;
-      }
-      const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-      const res = await fetch(`${baseUrl}/functions/v1/api-keys`, {
+      const { data, error } = await supabase.functions.invoke('api-keys', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', Apikey: anonKey, Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ id: revokeKeyId, __auth_token: token }),
+        body: { id: revokeKeyId },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       setRevokeKeyId(null);
       fetchApiKeys();
       toast({ title: 'API key revoked' });
