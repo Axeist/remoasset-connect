@@ -142,6 +142,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [owners, setOwners] = useState<{ id: string; full_name: string | null }[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [refReady, setRefReady] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   // Move comment dialog state
@@ -167,6 +168,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
       if (statusRes.data) setStatuses(statusRes.data);
       if (countryRes.data) setCountries(countryRes.data);
       if (ownerRes.data) setOwners(ownerRes.data.map((p) => ({ id: p.user_id, full_name: p.full_name })));
+      setRefReady(true);
     };
     fetchRef();
   }, []);
@@ -209,23 +211,23 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     }
 
     const rawLeads = (data ?? []) as (Lead & { owner_id?: string | null })[];
-    const ownerIds = [...new Set(rawLeads.map((l) => l.owner_id).filter(Boolean))] as string[];
-    let ownerMap: Record<string, { full_name: string | null }> = {};
-    if (ownerIds.length > 0) {
-      const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', ownerIds);
-      ownerMap = (profiles ?? []).reduce((acc, p) => { acc[p.user_id] = { full_name: p.full_name }; return acc; }, {} as Record<string, { full_name: string | null }>);
-    }
 
+    // Reuse already-loaded owners instead of fetching profiles again
+    const ownerMap = owners.reduce((acc, o) => { acc[o.id] = { full_name: o.full_name }; return acc; }, {} as Record<string, { full_name: string | null }>);
     const enrichedLeads = rawLeads.map((l) => ({ ...l, owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null }));
     setLeads(enrichedLeads);
 
     const leadIds = enrichedLeads.map((l) => l.id);
     if (leadIds.length > 0) {
+      // Fetch only the single latest activity per lead by limiting to 1 row per lead_id.
+      // We use a large-enough limit relative to lead count to get one per lead cheaply,
+      // and stop collecting once every lead is covered.
       const { data: activityRows } = await supabase
         .from('lead_activities')
-        .select('lead_id, activity_type, created_at')
+        .select('lead_id, activity_type')
         .in('lead_id', leadIds)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(leadIds.length * 2);
 
       const actMap: Record<string, string> = {};
       (activityRows ?? []).forEach((row) => {
@@ -239,9 +241,9 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     }
 
     setLoading(false);
-  }, [filters, user, role, toast]);
+  }, [filters, user, role, toast, owners]);
 
-  useEffect(() => { fetchLeads(); }, [fetchLeads]);
+  useEffect(() => { if (refReady) fetchLeads(); }, [fetchLeads, refReady]);
 
   // ------- Status view columns -------
   const statusColumns = useMemo(() => {
