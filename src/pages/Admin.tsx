@@ -13,7 +13,7 @@ import {
   Settings2, Ban, ShieldCheck, Puzzle, Check, Zap, Globe, Tag, Building2,
   Activity, MapPin, TrendingUp, ChevronRight, AlertTriangle, ListTodo,
   CalendarCheck, Layers, Database, RefreshCw, UserCheck, Key, Copy, Trash2,
-  Loader2, Bell,
+  Loader2, Bell, FileText,
 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
@@ -400,6 +400,549 @@ export default function Admin() {
     if (error) { toast({ variant: 'destructive', title: 'Error', description: error.message }); return; }
     toast({ title: 'Status deleted' });
     fetchData(); fetchAnalytics();
+  };
+
+  const generateApiDocs = () => {
+    const baseUrl = `${import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')}/functions/v1/api`;
+    const doc = `# RemoAsset Connect — API Documentation
+Version 1.0  |  Generated ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+
+---
+
+## Overview
+
+The RemoAsset Connect API lets you build workflows, automate processes, and integrate with external tools. All requests are authenticated via an API key and communicate over HTTPS using JSON.
+
+**Base URL**
+\`\`\`
+${baseUrl}
+\`\`\`
+
+**Authentication**
+Include your API key in every request as a Bearer token:
+\`\`\`
+Authorization: Bearer <your_api_key>
+\`\`\`
+API keys are created in Admin Panel → API for Integrations.
+
+**Content type**
+All request and response bodies use JSON:
+\`\`\`
+Content-Type: application/json
+\`\`\`
+
+**Rate limits**
+No hard rate limit is enforced currently. Use responsibly.
+
+**Error format**
+All errors return a JSON body with an \`error\` field and an appropriate HTTP status code.
+\`\`\`json
+{ "error": "Description of what went wrong" }
+\`\`\`
+
+---
+
+## Pagination
+
+List endpoints support \`limit\` (max 100, default 50) and \`offset\` query parameters.
+Responses include a \`total\` field with the full record count.
+
+\`\`\`
+GET /leads?limit=25&offset=50
+\`\`\`
+
+---
+
+## Endpoints
+
+---
+
+### Leads
+
+#### List leads
+\`\`\`
+GET ${baseUrl}/leads
+\`\`\`
+
+**Query parameters**
+
+| Parameter  | Type   | Description                                     |
+|------------|--------|-------------------------------------------------|
+| limit      | number | Max records to return (default 50, max 100)     |
+| offset     | number | Records to skip for pagination (default 0)      |
+| status_id  | uuid   | Filter by pipeline status                       |
+| owner_id   | uuid   | Filter by assigned team member                  |
+| search / q | string | Full-text search on company name, contact, email|
+
+**Response**
+\`\`\`json
+{
+  "data": [ { ...lead } ],
+  "total": 120
+}
+\`\`\`
+
+---
+
+#### Get a lead
+\`\`\`
+GET ${baseUrl}/leads/:id
+\`\`\`
+
+Returns the full lead object for the given UUID.
+
+---
+
+#### Create a lead
+\`\`\`
+POST ${baseUrl}/leads
+\`\`\`
+
+**Request body** (all fields optional except as noted)
+
+| Field         | Type   | Required | Description                          |
+|---------------|--------|----------|--------------------------------------|
+| company_name  | string | Yes      | Name of the company                  |
+| contact_name  | string |          | Primary contact person               |
+| email         | string |          | Contact email address                |
+| phone         | string |          | Contact phone number                 |
+| status_id     | uuid   |          | Pipeline stage (from /statuses)      |
+| owner_id      | uuid   |          | Assigned team member (from /team)    |
+| country_id    | uuid   |          | Country (from /countries)            |
+| deal_value    | number |          | Estimated deal value                 |
+| notes         | string |          | Free-form notes                      |
+
+**Response** — 201 with the created lead object.
+
+---
+
+#### Update a lead
+\`\`\`
+PATCH ${baseUrl}/leads/:id
+\`\`\`
+
+Send only the fields you want to update. Returns the updated lead object.
+
+---
+
+#### Delete a lead
+\`\`\`
+DELETE ${baseUrl}/leads/:id
+\`\`\`
+
+Returns \`{ "success": true }\`.
+
+---
+
+#### Bulk update leads
+\`\`\`
+PATCH ${baseUrl}/leads/bulk
+\`\`\`
+
+Update multiple leads at once.
+
+**Request body**
+
+| Field      | Type   | Required | Description                                |
+|------------|--------|----------|--------------------------------------------|
+| lead_ids   | uuid[] | Yes      | Array of lead IDs to update                |
+| status_id  | uuid   |          | Set pipeline stage for all leads           |
+| owner_id   | uuid   |          | Reassign all leads to this team member     |
+| country_id | uuid   |          | Set country for all leads                  |
+
+At least one of \`status_id\`, \`owner_id\`, or \`country_id\` is required.
+
+**Response**
+\`\`\`json
+{ "updated": 5, "leads": [ { ...lead } ] }
+\`\`\`
+
+---
+
+### Tasks
+
+#### List tasks
+\`\`\`
+GET ${baseUrl}/tasks
+\`\`\`
+
+**Query parameters**
+
+| Parameter   | Type    | Description                              |
+|-------------|---------|------------------------------------------|
+| assignee_id | uuid    | Filter by assigned team member           |
+| lead_id     | uuid    | Filter by associated lead                |
+| is_completed| boolean | true or false to filter by status        |
+| limit       | number  | Max records (default 50, max 100)        |
+| offset      | number  | Pagination offset                        |
+
+---
+
+#### Get a task
+\`\`\`
+GET ${baseUrl}/tasks/:id
+\`\`\`
+
+---
+
+#### Create a task
+\`\`\`
+POST ${baseUrl}/tasks
+\`\`\`
+
+**Request body**
+
+| Field        | Type    | Required | Description                          |
+|--------------|---------|----------|--------------------------------------|
+| title        | string  | Yes      | Task title                           |
+| description  | string  |          | Detailed description                 |
+| lead_id      | uuid    |          | Link to a lead                       |
+| assignee_id  | uuid    |          | Assign to a team member              |
+| due_date     | date    |          | Due date (ISO 8601: YYYY-MM-DD)      |
+| priority     | string  |          | low, medium, or high                 |
+| is_completed | boolean |          | Default false                        |
+
+---
+
+#### Update a task
+\`\`\`
+PATCH ${baseUrl}/tasks/:id
+\`\`\`
+
+Send only the fields to update. Use \`is_completed: true\` to mark done.
+
+---
+
+#### Delete a task
+\`\`\`
+DELETE ${baseUrl}/tasks/:id
+\`\`\`
+
+---
+
+### Follow-ups
+
+#### List follow-ups
+\`\`\`
+GET ${baseUrl}/follow_ups
+\`\`\`
+
+**Query parameters**
+
+| Parameter | Type   | Description                      |
+|-----------|--------|----------------------------------|
+| lead_id   | uuid   | Filter by lead                   |
+| user_id   | uuid   | Filter by assigned team member   |
+| limit     | number | Default 50, max 100              |
+| offset    | number | Pagination offset                |
+
+Results are ordered by \`scheduled_at\` ascending.
+
+---
+
+#### Get a follow-up
+\`\`\`
+GET ${baseUrl}/follow_ups/:id
+\`\`\`
+
+---
+
+#### Create a follow-up
+\`\`\`
+POST ${baseUrl}/follow_ups
+\`\`\`
+
+**Request body**
+
+| Field        | Type     | Required | Description                           |
+|--------------|----------|----------|---------------------------------------|
+| lead_id      | uuid     | Yes      | The lead this follow-up belongs to    |
+| user_id      | uuid     | Yes      | Team member responsible               |
+| scheduled_at | datetime | Yes      | When to follow up (ISO 8601 UTC)      |
+| notes        | string   |          | What to discuss or do                 |
+| is_completed | boolean  |          | Default false                         |
+
+---
+
+#### Update a follow-up
+\`\`\`
+PATCH ${baseUrl}/follow_ups/:id
+\`\`\`
+
+---
+
+#### Delete a follow-up
+\`\`\`
+DELETE ${baseUrl}/follow_ups/:id
+\`\`\`
+
+---
+
+### Activities
+
+Activities are timeline entries logged against a lead (calls, emails, meetings, notes, etc.).
+
+#### List activities
+\`\`\`
+GET ${baseUrl}/activities
+\`\`\`
+
+**Query parameters**
+
+| Parameter | Type   | Description           |
+|-----------|--------|-----------------------|
+| lead_id   | uuid   | Filter by lead        |
+| limit     | number | Default 50, max 100   |
+| offset    | number | Pagination offset     |
+
+Results are ordered by \`created_at\` descending.
+
+---
+
+#### Get an activity
+\`\`\`
+GET ${baseUrl}/activities/:id
+\`\`\`
+
+---
+
+#### Log an activity
+\`\`\`
+POST ${baseUrl}/activities
+\`\`\`
+
+**Request body**
+
+| Field       | Type   | Required | Description                                          |
+|-------------|--------|----------|------------------------------------------------------|
+| lead_id     | uuid   | Yes      | The lead this activity belongs to                    |
+| user_id     | uuid   | Yes      | Team member who performed the activity               |
+| type        | string | Yes      | call, email, meeting, note, whatsapp, or other       |
+| description | string |          | What happened                                        |
+| occurred_at | datetime|         | When it happened (ISO 8601 UTC, defaults to now)     |
+
+---
+
+#### Update an activity
+\`\`\`
+PATCH ${baseUrl}/activities/:id
+\`\`\`
+
+---
+
+#### Delete an activity
+\`\`\`
+DELETE ${baseUrl}/activities/:id
+\`\`\`
+
+---
+
+### Documents
+
+#### List documents for a lead
+\`\`\`
+GET ${baseUrl}/documents?lead_id=<uuid>
+\`\`\`
+
+\`lead_id\` is required. Results are ordered by \`uploaded_at\` descending.
+
+---
+
+#### Get a document
+\`\`\`
+GET ${baseUrl}/documents/:id
+\`\`\`
+
+---
+
+#### Record a document
+\`\`\`
+POST ${baseUrl}/documents
+\`\`\`
+
+**Request body**
+
+| Field         | Type   | Required | Description                                          |
+|---------------|--------|----------|------------------------------------------------------|
+| lead_id       | uuid   | Yes      | Lead this document belongs to                        |
+| document_type | string | Yes      | nda, pricing, quotation, or custom                   |
+| file_path     | string | Yes      | Storage path or public URL of the file               |
+| file_name     | string | Yes      | Display file name (e.g. proposal.pdf)                |
+| uploaded_by   | uuid   | Yes      | User ID of uploader                                  |
+| file_size     | number |          | File size in bytes                                   |
+| custom_name   | string |          | Custom label (used when document_type is "custom")   |
+
+---
+
+#### Delete a document
+\`\`\`
+DELETE ${baseUrl}/documents/:id
+\`\`\`
+
+---
+
+### Notifications
+
+#### List notifications for a user
+\`\`\`
+GET ${baseUrl}/notifications?user_id=<uuid>
+\`\`\`
+
+Returns notifications ordered by \`created_at\` descending.
+
+---
+
+#### Create a notification
+\`\`\`
+POST ${baseUrl}/notifications
+\`\`\`
+
+Use this to push in-app notifications to team members from your workflows.
+
+**Request body**
+
+| Field     | Type   | Required | Description                                         |
+|-----------|--------|----------|-----------------------------------------------------|
+| user_id   | uuid   | Yes      | Recipient team member                               |
+| title     | string | Yes      | Short title shown in notification bell              |
+| message   | string | Yes      | Full notification message                           |
+| type      | string |          | info (default), warning, success, task, lead, email |
+| metadata  | object |          | Any extra JSON data to attach                       |
+
+---
+
+### Reference Data
+
+#### Team members
+\`\`\`
+GET ${baseUrl}/team
+\`\`\`
+
+Returns all team members with their \`user_id\`, \`role\`, and \`full_name\`. Use these IDs to populate \`owner_id\`, \`assignee_id\`, and \`user_id\` fields in other endpoints.
+
+---
+
+#### Pipeline statuses
+\`\`\`
+GET ${baseUrl}/statuses
+\`\`\`
+
+Returns all pipeline stages. Use \`id\` values as \`status_id\` when creating or updating leads.
+
+---
+
+#### Countries
+\`\`\`
+GET ${baseUrl}/countries
+\`\`\`
+
+Returns all countries. Use \`id\` values as \`country_id\` when creating or updating leads.
+
+---
+
+#### Profiles
+\`\`\`
+GET ${baseUrl}/profiles
+\`\`\`
+
+Returns team member profiles (\`user_id\`, \`full_name\`, \`designation\`, \`phone\`).
+
+---
+
+## Common Workflow Examples
+
+### Create a lead and schedule a follow-up
+
+\`\`\`bash
+# 1. Get team members to find owner_id
+curl -H "Authorization: Bearer <key>" ${baseUrl}/team
+
+# 2. Get pipeline statuses to find status_id
+curl -H "Authorization: Bearer <key>" ${baseUrl}/statuses
+
+# 3. Create the lead
+curl -X POST ${baseUrl}/leads \\
+  -H "Authorization: Bearer <key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "company_name": "Acme Corp", "contact_name": "John Smith", "email": "john@acme.com", "status_id": "<status_uuid>", "owner_id": "<user_uuid>" }'
+
+# 4. Schedule a follow-up (use lead id from step 3)
+curl -X POST ${baseUrl}/follow_ups \\
+  -H "Authorization: Bearer <key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "lead_id": "<lead_uuid>", "user_id": "<user_uuid>", "scheduled_at": "2026-03-10T09:00:00Z", "notes": "Demo call" }'
+\`\`\`
+
+---
+
+### Move a lead to a new stage
+
+\`\`\`bash
+curl -X PATCH ${baseUrl}/leads/<lead_uuid> \\
+  -H "Authorization: Bearer <key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "status_id": "<new_status_uuid>" }'
+\`\`\`
+
+---
+
+### Bulk reassign leads
+
+\`\`\`bash
+curl -X PATCH ${baseUrl}/leads/bulk \\
+  -H "Authorization: Bearer <key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "lead_ids": ["<uuid1>", "<uuid2>"], "owner_id": "<new_owner_uuid>" }'
+\`\`\`
+
+---
+
+### Log a call activity
+
+\`\`\`bash
+curl -X POST ${baseUrl}/activities \\
+  -H "Authorization: Bearer <key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "lead_id": "<lead_uuid>", "user_id": "<user_uuid>", "type": "call", "description": "Discussed pricing and timeline", "occurred_at": "2026-03-05T11:30:00Z" }'
+\`\`\`
+
+---
+
+### Send a notification to a team member
+
+\`\`\`bash
+curl -X POST ${baseUrl}/notifications \\
+  -H "Authorization: Bearer <key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "user_id": "<user_uuid>", "title": "New RFQ received", "message": "Acme Corp sent a new request for quotation.", "type": "lead" }'
+\`\`\`
+
+---
+
+## HTTP Status Codes
+
+| Code | Meaning                                            |
+|------|----------------------------------------------------|
+| 200  | Success                                            |
+| 201  | Record created                                     |
+| 400  | Bad request — check your request body or params    |
+| 401  | Unauthorized — missing or invalid API key          |
+| 404  | Record not found                                   |
+| 405  | Method not allowed for this endpoint               |
+| 500  | Internal server error                              |
+
+---
+
+*RemoAsset Connect API — confidential and for authorised integrations only.*
+`;
+    const blob = new Blob([doc], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'remoasset-connect-api-docs.md';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: 'Documentation downloaded' });
   };
 
   const handleDeleteCountry = async () => {
@@ -1053,22 +1596,58 @@ export default function Admin() {
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
+                  <div className="pt-1">
+                    <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => window.open('/admin/api-docs', '_blank')}>
+                      <FileText className="h-3.5 w-3.5" />
+                      View full API documentation
+                      <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="rounded-xl border p-4 space-y-2">
-                  <h3 className="font-medium text-sm">Endpoints (Zapier & internal apps)</h3>
-                  <ul className="text-xs text-muted-foreground space-y-1 font-mono">
-                    <li><strong className="text-foreground">GET /leads</strong> — List (limit, offset, status_id, owner_id, search or q)</li>
-                    <li><strong className="text-foreground">POST /leads</strong> · <strong className="text-foreground">GET/PATCH/DELETE /leads/:id</strong></li>
-                    <li><strong className="text-foreground">PATCH /leads/bulk</strong> — Body: lead_ids[], status_id or owner_id or country_id</li>
-                    <li><strong className="text-foreground">GET /tasks</strong> — List (assignee_id, lead_id, is_completed) · <strong className="text-foreground">POST /tasks</strong> · <strong className="text-foreground">PATCH/DELETE /tasks/:id</strong></li>
-                    <li><strong className="text-foreground">GET /follow_ups</strong> — List (lead_id, user_id) · <strong className="text-foreground">POST /follow_ups</strong> · <strong className="text-foreground">PATCH/DELETE /follow_ups/:id</strong></li>
-                    <li><strong className="text-foreground">GET /activities</strong> — List (lead_id) · <strong className="text-foreground">POST /activities</strong> · <strong className="text-foreground">PATCH/DELETE /activities/:id</strong></li>
-                    <li><strong className="text-foreground">GET /documents?lead_id=</strong> · <strong className="text-foreground">POST /documents</strong> (lead_id, document_type, file_path, file_name, uploaded_by) · <strong className="text-foreground">GET/DELETE /documents/:id</strong></li>
-                    <li><strong className="text-foreground">GET /notifications?user_id=</strong> · <strong className="text-foreground">POST /notifications</strong> (user_id, title, message, type, metadata)</li>
-                    <li><strong className="text-foreground">GET /team</strong> — List team (user_id, role, full_name) for owner/assignee dropdowns</li>
-                    <li><strong className="text-foreground">GET /statuses</strong> · <strong className="text-foreground">GET /countries</strong> · <strong className="text-foreground">GET /profiles</strong></li>
-                  </ul>
+                <div className="rounded-xl border p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-sm">Available endpoints</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">For use in workflows, automations, and integrations</p>
+                    </div>
+                    <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={generateApiDocs}>
+                      <FileText className="h-4 w-4" />
+                      Download full docs
+                    </Button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-1.5 pr-4 font-medium text-muted-foreground w-32">Resource</th>
+                          <th className="text-left py-1.5 pr-4 font-medium text-muted-foreground">Methods</th>
+                          <th className="text-left py-1.5 font-medium text-muted-foreground">Key filters</th>
+                        </tr>
+                      </thead>
+                      <tbody className="font-mono divide-y divide-border/40">
+                        {[
+                          { resource: '/leads', methods: 'GET  POST  PATCH  DELETE  PATCH /bulk', filters: 'status_id, owner_id, search, limit, offset' },
+                          { resource: '/tasks', methods: 'GET  POST  PATCH  DELETE', filters: 'assignee_id, lead_id, is_completed' },
+                          { resource: '/follow_ups', methods: 'GET  POST  PATCH  DELETE', filters: 'lead_id, user_id' },
+                          { resource: '/activities', methods: 'GET  POST  PATCH  DELETE', filters: 'lead_id' },
+                          { resource: '/documents', methods: 'GET  POST  DELETE', filters: 'lead_id (required for list)' },
+                          { resource: '/notifications', methods: 'GET  POST', filters: 'user_id (required for list)' },
+                          { resource: '/team', methods: 'GET', filters: 'Returns user_id, role, full_name' },
+                          { resource: '/statuses', methods: 'GET', filters: 'Pipeline stages' },
+                          { resource: '/countries', methods: 'GET', filters: 'Country list' },
+                          { resource: '/profiles', methods: 'GET', filters: 'Team profiles' },
+                        ].map((row) => (
+                          <tr key={row.resource} className="hover:bg-muted/40 transition-colors">
+                            <td className="py-2 pr-4 text-primary font-semibold whitespace-nowrap">{row.resource}</td>
+                            <td className="py-2 pr-4 text-foreground whitespace-nowrap">{row.methods}</td>
+                            <td className="py-2 text-muted-foreground">{row.filters}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Download full docs for request bodies, response schemas, workflow examples, and status codes.</p>
                 </div>
               </div>
             )}

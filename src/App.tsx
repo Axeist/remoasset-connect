@@ -24,6 +24,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Pipeline from "./pages/Pipeline";
 import Vendors from "./pages/Vendors";
 import Inbox from "./pages/Inbox";
+import ApiDocs from "./pages/ApiDocs";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,7 @@ const App = () => {
               <Route path="/pipeline" element={<ProtectedRoute><Pipeline pageTitle="My Pipeline" /></ProtectedRoute>} />
               <Route path="/admin/pipeline" element={<AdminRoute><Pipeline pageTitle="Pipeline Overview" adminOnly /></AdminRoute>} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+              <Route path="/admin/api-docs" element={<AdminRoute><ApiDocs /></AdminRoute>} />
               <Route path="/admin/team-activity" element={<ProtectedRoute><TeamActivity /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
