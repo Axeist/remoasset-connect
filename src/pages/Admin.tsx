@@ -128,8 +128,9 @@ export default function Admin() {
     slack_notify_document_sent: true,
     slack_notify_daily_digest: false,
   });
-  const [slackDigestHour, setSlackDigestHour] = useState(9);
+  const [slackDigestHour, setSlackDigestHour] = useState(11);
   const [slackReminderMinutes, setSlackReminderMinutes] = useState(30);
+  const [slackEventsOpen, setSlackEventsOpen] = useState(false);
 
   useEffect(() => {
     const loadSlackSettings = async () => {
@@ -159,7 +160,7 @@ export default function Admin() {
           slack_notify_document_sent: data.slack_notify_document_sent ?? true,
           slack_notify_daily_digest: data.slack_notify_daily_digest ?? false,
         });
-        setSlackDigestHour(data.slack_digest_hour ?? 9);
+        setSlackDigestHour(data.slack_digest_hour ?? 11);
         setSlackReminderMinutes(data.slack_reminder_minutes_before ?? 30);
       }
     };
@@ -903,31 +904,38 @@ export default function Admin() {
                           </p>
                         </div>
 
-                        {/* Per-event toggles */}
+                        {/* Per-event toggles — collapsible */}
                         <div className="rounded-lg border overflow-hidden">
-                          <div className="px-3 py-2 bg-muted/40 border-b">
-                            <p className="text-xs font-medium flex items-center gap-1.5"><Bell className="h-3.5 w-3.5" />Notification events</p>
-                          </div>
-                          <div className="divide-y">
-                            {([
-                              { key: 'slack_notify_lead_created',    label: '🆕 New lead created' },
-                              { key: 'slack_notify_stage_changed',   label: '🔀 Lead stage changed' },
-                              { key: 'slack_notify_activity_logged', label: '📌 Activity logged (call, meeting, etc.)' },
-                              { key: 'slack_notify_lead_assigned',   label: '👤 Lead assigned / reassigned' },
-                              { key: 'slack_notify_task_created',    label: '✅ Task created' },
-                              { key: 'slack_notify_task_completed',  label: '🎉 Task completed' },
-                              { key: 'slack_notify_followup_created',label: '📅 Follow-up scheduled' },
-                              { key: 'slack_notify_document_sent',   label: '📄 Document uploaded (NDA, quotation, etc.)' },
-                            ] as { key: keyof typeof slackToggles; label: string }[]).map(({ key, label }) => (
-                              <div key={key} className="flex items-center justify-between px-3 py-2 hover:bg-muted/20 transition-colors">
-                                <span className="text-xs text-muted-foreground">{label}</span>
-                                <Switch
-                                  checked={slackToggles[key]}
-                                  onCheckedChange={(v) => setSlackToggles((prev) => ({ ...prev, [key]: v }))}
-                                />
-                              </div>
-                            ))}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSlackEventsOpen((o) => !o)}
+                            className="w-full flex items-center justify-between px-3 py-2 bg-muted/40 hover:bg-muted/60 transition-colors"
+                          >
+                            <p className="text-xs font-medium flex items-center gap-1.5"><Bell className="h-3.5 w-3.5" />Notification events <span className="text-muted-foreground font-normal">({Object.values(slackToggles).filter((v, i) => i < 8 && v).length}/8 active)</span></p>
+                            <ChevronRight className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', slackEventsOpen && 'rotate-90')} />
+                          </button>
+                          {slackEventsOpen && (
+                            <div className="divide-y">
+                              {([
+                                { key: 'slack_notify_lead_created',    label: '🆕 New lead created' },
+                                { key: 'slack_notify_stage_changed',   label: '🔀 Lead stage changed' },
+                                { key: 'slack_notify_activity_logged', label: '📌 Activity logged (call, meeting, etc.)' },
+                                { key: 'slack_notify_lead_assigned',   label: '👤 Lead assigned / reassigned' },
+                                { key: 'slack_notify_task_created',    label: '✅ Task created' },
+                                { key: 'slack_notify_task_completed',  label: '🎉 Task completed' },
+                                { key: 'slack_notify_followup_created',label: '📅 Follow-up scheduled' },
+                                { key: 'slack_notify_document_sent',   label: '📄 Document uploaded (NDA, quotation, etc.)' },
+                              ] as { key: keyof typeof slackToggles; label: string }[]).map(({ key, label }) => (
+                                <div key={key} className="flex items-center justify-between px-3 py-2 hover:bg-muted/20 transition-colors">
+                                  <span className="text-xs text-muted-foreground">{label}</span>
+                                  <Switch
+                                    checked={slackToggles[key]}
+                                    onCheckedChange={(v) => setSlackToggles((prev) => ({ ...prev, [key]: v }))}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         {/* Reminders config */}
@@ -966,17 +974,19 @@ export default function Admin() {
                           {slackToggles.slack_notify_daily_digest && (
                             <div className="p-3 space-y-3">
                               <div className="flex items-center gap-3">
-                                <Label className="text-xs text-muted-foreground w-44 shrink-0">Send at (UTC hour, 0–23)</Label>
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  max={23}
+                                <Label className="text-xs text-muted-foreground w-44 shrink-0">Send at (IST)</Label>
+                                <select
                                   value={slackDigestHour}
                                   onChange={(e) => setSlackDigestHour(Number(e.target.value))}
-                                  className="w-24 h-8 text-sm"
-                                />
+                                  className="flex h-8 rounded-md border border-input bg-background px-2 py-1 text-sm w-36"
+                                >
+                                  {Array.from({ length: 24 }, (_, i) => {
+                                    const label = i === 0 ? '12:00 AM' : i < 12 ? `${i}:00 AM` : i === 12 ? '12:00 PM' : `${i - 12}:00 PM`;
+                                    return <option key={i} value={i}>{label} IST</option>;
+                                  })}
+                                </select>
                               </div>
-                              <p className="text-xs text-muted-foreground">Requires deploying <code className="rounded bg-muted px-1">slack-digest</code> function on an hourly cron.</p>
+                              <p className="text-xs text-muted-foreground">Cron runs hourly — digest fires at your selected IST time ±30 min.</p>
                               <Button size="sm" variant="outline" onClick={testSlackDigest} disabled={slackDigestTesting || !slackWebhookUrl.trim()} className="gap-2 h-7 text-xs">
                                 {slackDigestTesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
                                 Send test digest now

@@ -25,12 +25,23 @@ const corsHeaders = {
 
 function formatDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
+    return new Date(iso).toLocaleDateString('en-IN', {
+      weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata',
     })
   } catch {
     return iso
   }
+}
+
+// IST is UTC+5:30. The stored digest_hour is the IST hour (0-23).
+// We convert to UTC hour for comparison: utcHour = (istHour * 60 - 330) / 60
+// Since cron fires every hour on the UTC hour, we check if current UTC hour
+// corresponds to the configured IST hour.
+function istHourToUtcHour(istHour: number): number {
+  // IST = UTC + 5:30, so UTC = IST - 5:30
+  // We floor to nearest UTC hour: e.g. 11 AM IST = 5:30 AM UTC → UTC hour 5
+  const utcMinutes = istHour * 60 - 330
+  return Math.floor(((utcMinutes % 1440) + 1440) % 1440 / 60)
 }
 
 Deno.serve(async (req) => {
@@ -73,10 +84,11 @@ Deno.serve(async (req) => {
     } catch { /* ignore */ }
 
     const currentHour = new Date().getUTCHours()
-    const digestHour = settings.slack_digest_hour ?? 9
-    if (!force && currentHour !== digestHour) {
+    const digestHour = settings.slack_digest_hour ?? 5  // default 11 AM IST = 5 AM UTC
+    const targetUtcHour = istHourToUtcHour(digestHour)
+    if (!force && currentHour !== targetUtcHour) {
       return new Response(
-        JSON.stringify({ ok: false, reason: `Not digest hour (current: ${currentHour}, configured: ${digestHour})` }),
+        JSON.stringify({ ok: false, reason: `Not digest hour (current UTC: ${currentHour}, target UTC: ${targetUtcHour} = ${digestHour}:00 IST)` }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       )
     }
@@ -152,7 +164,7 @@ Deno.serve(async (req) => {
       .map(([type, count]) => `${count} ${type}${count > 1 ? 's' : ''}`)
       .join(', ')
 
-    const dateLabel = formatDate(now.toISOString())
+    const dateLabel = new Date(now).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' })
     const blocks: object[] = []
 
     // Header
@@ -221,7 +233,7 @@ Deno.serve(async (req) => {
         lead_id: string; scheduled_at: string;
         leads: { company_name: string } | null; profiles: { full_name: string | null } | null
       }) => {
-        const time = new Date(fu.scheduled_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
+        const time = new Date(fu.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
         const companyName = fu.leads?.company_name ?? 'Unknown'
         const assignee = fu.profiles?.full_name ?? 'Unknown'
         return `• *<${appUrl}/leads/${fu.lead_id}|${companyName}>* at ${time} UTC — ${assignee}`
@@ -260,7 +272,7 @@ Deno.serve(async (req) => {
       type: 'context',
       elements: [{
         type: 'mrkdwn',
-        text: `_RemoAsset CRM Daily Digest · <${appUrl}|Open CRM>_`,
+        text: `_RemoAsset CRM Daily Digest · ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST · <${appUrl}|Open CRM>_`,
       }],
     })
 
