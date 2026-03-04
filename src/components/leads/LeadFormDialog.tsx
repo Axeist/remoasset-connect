@@ -232,6 +232,22 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
         return;
       }
       toast({ title: 'Lead created', description: 'New lead added successfully.' });
+      // Fire Slack notification (non-blocking)
+      const selectedStatus = statuses.find((s) => s.id === values.status_id);
+      const selectedCountry = countries.find((c) => c.id === values.country_id);
+      supabase.functions.invoke('slack-notify', {
+        body: {
+          event: 'lead_created',
+          payload: {
+            company_name: values.company_name,
+            contact_name: values.contact_name || null,
+            status: selectedStatus?.name || null,
+            country: selectedCountry?.name || null,
+            lead_score: 0,
+            lead_id: 'new',
+          },
+        },
+      }).catch(() => {/* silent fail */});
     }
     onOpenChange(false);
     onSuccess();

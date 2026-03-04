@@ -564,6 +564,22 @@ export function AddActivityDialog({
 
     const points = getActivityScorePoints(type, effectiveDescription);
 
+    // Fire Slack notification (non-blocking) — skip plain email/note types to reduce noise
+    if (!['email', 'note'].includes(type)) {
+      supabase.functions.invoke('slack-notify', {
+        body: {
+          event: 'activity_logged',
+          payload: {
+            company_name: leadCompanyName || 'Lead',
+            activity_type: type,
+            description: effectiveDescription,
+            logged_by: user.email || null,
+            lead_id: leadId,
+          },
+        },
+      }).catch(() => {/* silent fail */});
+    }
+
     resetForm();
     setSubmitting(false);
     onOpenChange(false);

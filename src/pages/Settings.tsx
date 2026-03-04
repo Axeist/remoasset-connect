@@ -347,7 +347,6 @@ export default function Settings() {
 
                 {/* Placeholder integrations */}
                 {[
-                  { name: 'Slack', desc: 'Notifications for new leads, tasks, and activities' },
                   { name: 'Microsoft Teams', desc: 'Collaborate on leads and share updates' },
                 ].map((int) => (
                   <div key={int.name} className="rounded-xl border p-4 flex items-center justify-between opacity-60">
@@ -358,6 +357,24 @@ export default function Settings() {
                     <Badge variant="secondary" className="text-xs shrink-0">Coming soon</Badge>
                   </div>
                 ))}
+
+                {/* Slack status card (read-only for non-admins, configured in Admin → Integrations) */}
+                <div className="rounded-xl border p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#4A154B]/10">
+                      <svg className="h-4 w-4" viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M19.712.133a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386h5.376V5.52A5.381 5.381 0 0 0 19.712.133m0 14.365H5.376A5.381 5.381 0 0 0 0 19.884a5.381 5.381 0 0 0 5.376 5.387h14.336a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386" fill="#36C5F0"/><path d="M53.76 19.884a5.381 5.381 0 0 0-5.376-5.386 5.381 5.381 0 0 0-5.376 5.386v5.387h5.376a5.381 5.381 0 0 0 5.376-5.387m-14.336 0V5.52A5.381 5.381 0 0 0 34.048.133a5.381 5.381 0 0 0-5.376 5.387v14.364a5.381 5.381 0 0 0 5.376 5.387 5.381 5.381 0 0 0 5.376-5.387" fill="#2EB67D"/><path d="M34.048 54a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386h-5.376v5.386A5.381 5.381 0 0 0 34.048 54m0-14.365h14.336a5.381 5.381 0 0 0 5.376-5.386 5.381 5.381 0 0 0-5.376-5.387H34.048a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386" fill="#ECB22E"/><path d="M0 34.249a5.381 5.381 0 0 0 5.376 5.386 5.381 5.381 0 0 0 5.376-5.386v-5.387H5.376A5.381 5.381 0 0 0 0 34.249m14.336 0v14.364A5.381 5.381 0 0 0 19.712 54a5.381 5.381 0 0 0 5.376-5.387V34.249a5.381 5.381 0 0 0-5.376-5.387 5.381 5.381 0 0 0-5.376 5.387" fill="#E01E5A"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Slack</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Notifications for new leads, tasks, and activities</p>
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-500/20 shrink-0">
+                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />Active
+                  </span>
+                </div>
               </div>
             )}
 

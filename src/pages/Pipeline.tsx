@@ -396,6 +396,19 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     }
 
     toast({ title: 'Lead moved', description: `${lead.company_name} → ${toStatusName}` });
+    // Fire Slack notification (non-blocking)
+    supabase.functions.invoke('slack-notify', {
+      body: {
+        event: 'stage_changed',
+        payload: {
+          company_name: lead.company_name,
+          from_stage: fromStatusName,
+          to_stage: toStatusName,
+          moved_by: user.email || null,
+          lead_id: leadId,
+        },
+      },
+    }).catch(() => {/* silent fail */});
     setMoveSubmitting(false);
     setPendingMove(null);
     fetchLeads();

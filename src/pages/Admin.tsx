@@ -13,6 +13,7 @@ import {
   Settings2, Ban, ShieldCheck, Puzzle, Check, Zap, Globe, Tag, Building2,
   Activity, MapPin, TrendingUp, ChevronRight, AlertTriangle, ListTodo,
   CalendarCheck, Layers, Database, RefreshCw, UserCheck, Key, Copy, Trash2,
+  Loader2, Bell,
 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
@@ -108,6 +109,67 @@ export default function Admin() {
   const [createKeyOpen, setCreateKeyOpen] = useState(false);
   const [createdKeyOnce, setCreatedKeyOnce] = useState<{ api_key: string; name: string; key_prefix: string } | null>(null);
   const [revokeKeyId, setRevokeKeyId] = useState<string | null>(null);
+
+  // Slack integration state
+  const [slackEnabled, setSlackEnabled] = useState(false);
+  const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
+  const [slackSaving, setSlackSaving] = useState(false);
+  const [slackTesting, setSlackTesting] = useState(false);
+  const [slackSettingsId, setSlackSettingsId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadSlackSettings = async () => {
+      const { data } = await supabase.from('app_settings').select('id, slack_enabled, slack_webhook_url').limit(1).single();
+      if (data) {
+        setSlackSettingsId(data.id);
+        setSlackEnabled(data.slack_enabled ?? false);
+        setSlackWebhookUrl(data.slack_webhook_url ?? '');
+      }
+    };
+    loadSlackSettings();
+  }, []);
+
+  const saveSlackSettings = async () => {
+    setSlackSaving(true);
+    try {
+      if (slackSettingsId) {
+        await supabase.from('app_settings').update({ slack_enabled: slackEnabled, slack_webhook_url: slackWebhookUrl }).eq('id', slackSettingsId);
+      } else {
+        const { data } = await supabase.from('app_settings').insert({ slack_enabled: slackEnabled, slack_webhook_url: slackWebhookUrl }).select('id').single();
+        if (data) setSlackSettingsId(data.id);
+      }
+      toast({ title: 'Slack settings saved' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Failed to save Slack settings' });
+    } finally {
+      setSlackSaving(false);
+    }
+  };
+
+  const testSlackWebhook = async () => {
+    if (!slackWebhookUrl.trim()) return;
+    setSlackTesting(true);
+    try {
+      const { error } = await supabase.functions.invoke('slack-notify', {
+        body: {
+          event: 'activity_logged',
+          payload: {
+            company_name: 'Test Lead',
+            activity_type: 'note',
+            description: '✅ Slack integration is working! Notifications from RemoAsset CRM are live.',
+            logged_by: 'Admin',
+            lead_id: 'test',
+          },
+        },
+      });
+      if (error) throw error;
+      toast({ title: 'Test message sent!', description: 'Check your Slack channel.' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Test failed', description: 'Check the webhook URL and try again.' });
+    } finally {
+      setSlackTesting(false);
+    }
+  };
 
   const fetchAuthUsers = async (): Promise<Record<string, { email?: string; banned_until?: string | null; last_sign_in_at?: string | null }>> => {
     try {
@@ -702,9 +764,90 @@ export default function Admin() {
                   </div>
                 </div>
 
-                {/* Placeholder integrations */}
+                {/* Slack integration card */}
+                <div className="rounded-xl border border-border/60 overflow-hidden">
+                  <div className="p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#4A154B]/10">
+                          <svg className="h-5 w-5" viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19.712.133a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386h5.376V5.52A5.381 5.381 0 0 0 19.712.133m0 14.365H5.376A5.381 5.381 0 0 0 0 19.884a5.381 5.381 0 0 0 5.376 5.387h14.336a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386" fill="#36C5F0"/>
+                            <path d="M53.76 19.884a5.381 5.381 0 0 0-5.376-5.386 5.381 5.381 0 0 0-5.376 5.386v5.387h5.376a5.381 5.381 0 0 0 5.376-5.387m-14.336 0V5.52A5.381 5.381 0 0 0 34.048.133a5.381 5.381 0 0 0-5.376 5.387v14.364a5.381 5.381 0 0 0 5.376 5.387 5.381 5.381 0 0 0 5.376-5.387" fill="#2EB67D"/>
+                            <path d="M34.048 54a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386h-5.376v5.386A5.381 5.381 0 0 0 34.048 54m0-14.365h14.336a5.381 5.381 0 0 0 5.376-5.386 5.381 5.381 0 0 0-5.376-5.387H34.048a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386" fill="#ECB22E"/>
+                            <path d="M0 34.249a5.381 5.381 0 0 0 5.376 5.386 5.381 5.381 0 0 0 5.376-5.386v-5.387H5.376A5.381 5.381 0 0 0 0 34.249m14.336 0v14.364A5.381 5.381 0 0 0 19.712 54a5.381 5.381 0 0 0 5.376-5.387V34.249a5.381 5.381 0 0 0-5.376-5.387 5.381 5.381 0 0 0-5.376 5.387" fill="#E01E5A"/>
+                          </svg>
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-base">Slack</h3>
+                          <p className="text-sm text-muted-foreground">Team notifications for new leads and activities</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {slackEnabled && slackWebhookUrl ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-500/20 shrink-0">
+                            <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />Connected
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground ring-1 ring-border shrink-0">
+                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />Not connected
+                          </span>
+                        )}
+                        <Switch checked={slackEnabled} onCheckedChange={setSlackEnabled} />
+                      </div>
+                    </div>
+
+                    {slackEnabled && (
+                      <div className="space-y-3 pt-2 border-t border-border/50">
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">Webhook URL</Label>
+                          <Input
+                            type="url"
+                            placeholder="https://hooks.slack.com/services/..."
+                            value={slackWebhookUrl}
+                            onChange={(e) => setSlackWebhookUrl(e.target.value)}
+                            className="font-mono text-xs"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Get this from your Slack App → Incoming Webhooks.
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg bg-muted/40 p-3 space-y-1.5">
+                          <p className="text-xs font-medium flex items-center gap-1.5"><Bell className="h-3.5 w-3.5" />Notifies on:</p>
+                          {[
+                            '🆕 New lead created',
+                            '📞 Activity logged (call, meeting, quotation, NDA, etc.)',
+                            '🔀 Lead moved to a new pipeline stage',
+                          ].map((item) => (
+                            <p key={item} className="text-xs text-muted-foreground pl-5">{item}</p>
+                          ))}
+                        </div>
+
+                        <div className="flex gap-2 pt-1">
+                          <Button size="sm" onClick={saveSlackSettings} disabled={slackSaving} className="gap-2">
+                            {slackSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                            Save
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={testSlackWebhook} disabled={slackTesting || !slackWebhookUrl.trim()} className="gap-2">
+                            {slackTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                            Send test message
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {!slackEnabled && (
+                      <div className="pt-2 border-t border-border/50">
+                        <Button size="sm" onClick={() => setSlackEnabled(true)} variant="outline" className="gap-2">
+                          <Zap className="h-3.5 w-3.5" />Configure Slack
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Other placeholder integrations */}
                 {[
-                  { name: 'Slack', desc: 'Team notifications for new leads and activities', soon: true },
                   { name: 'HubSpot', desc: 'Bi-directional CRM sync for contacts and deals', soon: true },
                   { name: 'Zapier', desc: 'Connect with 5000+ apps via automation workflows', soon: true },
                 ].map((int) => (
