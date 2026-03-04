@@ -7,14 +7,14 @@ const corsHeaders = {
 
 function getToken(req: Request, body?: Record<string, unknown>): string {
   const authHeader = req.headers.get('Authorization')
-  if (authHeader?.startsWith('Bearer ')) return authHeader.replace('Bearer ', '')
+  if (authHeader?.startsWith('Bearer ')) return authHeader.replace('Bearer ', '').trim()
   const fromHeader = req.headers.get('X-Auth-Token')
-  if (fromHeader) return fromHeader
+  if (fromHeader) return fromHeader.trim()
   const url = new URL(req.url)
   const fromQuery = url.searchParams.get('access_token')
-  if (fromQuery) return fromQuery
+  if (fromQuery) return fromQuery.trim()
   const fromBody = body && typeof body.__auth_token === 'string' ? body.__auth_token : ''
-  return fromBody
+  return fromBody.trim()
 }
 
 Deno.serve(async (req) => {

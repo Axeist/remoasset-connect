@@ -106,7 +106,7 @@ export function useTaskAndFollowUpNotificationPoller() {
                   user_id: user.id,
                   title: 'Follow-up due',
                   message: f.notes ? `Follow-up "${f.notes}" is due ${when}.` : `A follow-up is due ${when}.`,
-                  type: 'follow_up',
+                  type: 'info',
                 });
               }
             })()
