@@ -48,17 +48,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const isOAuth = session.user.app_metadata?.provider !== 'email';
           if (isOAuth && !email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
             await supabase.auth.signOut();
-            // Surface the error via a custom event so the Auth page can show a toast
             window.dispatchEvent(new CustomEvent('auth:domain-blocked', { detail: { email } }));
+            setLoading(false);
             return;
           }
         }
 
         setSession(session);
         setUser(session?.user ?? null);
-
         captureProviderToken(session, setGoogleAccessToken);
-        
+
         if (session?.user) {
           setTimeout(() => {
             fetchUserRole(session.user.id);
@@ -66,13 +65,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setRole(null);
         }
+        // Always mark loading done once we have an auth state
+        setLoading(false);
       }
     );
 
+    // Initial session check — also handles page load after OAuth redirect
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-
+      // onAuthStateChange will fire for this session too, so just handle tokens/loading here
       captureProviderToken(session, setGoogleAccessToken);
 
       if (!session?.provider_token) {
@@ -81,10 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setGoogleAccessToken(storedGoogleToken);
         }
       }
-      
-      if (session?.user) {
-        fetchUserRole(session.user.id);
-      }
+      // Only set loading false here if onAuthStateChange hasn't already
       setLoading(false);
     });
 

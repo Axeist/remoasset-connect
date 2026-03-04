@@ -99,7 +99,7 @@ export default function Auth() {
 
   useEffect(() => {
     if (!user) return;
-    if (justLoggedInRef.current || showSuccessSplash) return;
+    if (showSuccessSplash) return; // email login handles its own redirect via SplashScreen
     navigate('/dashboard');
   }, [user, navigate, showSuccessSplash]);
 
@@ -109,7 +109,7 @@ export default function Auth() {
       provider: 'google',
       options: {
         scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify',
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: `${window.location.origin}/auth`,
         queryParams: { access_type: 'offline', prompt: 'consent' },
       },
     });
