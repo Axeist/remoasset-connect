@@ -183,14 +183,36 @@ function getHeader(headers: GmailHeader[] | undefined, name: string): string {
 }
 
 /**
+ * Strip leading MIME header block (e.g. "Content-Type: text/html; ...\n\n") and
+ * return displayable content. If content is HTML, strip tags so we show plain text.
+ */
+function stripSinglePartHeadersAndNormalize(raw: string): string {
+  if (!raw || !raw.trim()) return raw;
+  const normalized = raw.replace(/\r\n/g, '\n').trim();
+  if (/^Content-Type:\s*/im.test(normalized)) {
+    const blank = normalized.indexOf('\n\n');
+    if (blank !== -1) {
+      const content = normalized.slice(blank + 2).trim();
+      const contentType = normalized.slice(0, blank).match(/Content-Type:\s*([^;\s\n]+)/i)?.[1]?.toLowerCase();
+      if (contentType === 'text/html') return stripHtml(content);
+      if (contentType === 'text/plain') return content;
+      return content;
+    }
+  }
+  if (isHtml(normalized)) return stripHtml(normalized);
+  return normalized;
+}
+
+/**
  * When Gmail returns the full raw MIME in payload.body.data (e.g. for multipart
  * messages we sent), parse it and return only the displayable content so we
  * don't show headers/boundaries to the user.
  */
 function parseRawMimeBody(raw: string): string {
-  if (!raw || !/Content-Type:\s*multipart\//i.test(raw)) return raw;
+  if (!raw || !raw.trim()) return raw;
+  if (!/Content-Type:\s*multipart\//i.test(raw)) return stripSinglePartHeadersAndNormalize(raw);
   const boundaryMatch = raw.match(/boundary\s*=\s*["']?([^"'\s;]+)["']?/i);
-  if (!boundaryMatch) return raw;
+  if (!boundaryMatch) return stripSinglePartHeadersAndNormalize(raw);
   const boundary = boundaryMatch[1].trim();
   const normalized = raw.replace(/\r\n/g, '\n');
   const parts = normalized.split(new RegExp(`\\n--${escapeRegex(boundary)}(?:--)?\\n?`));
@@ -213,7 +235,7 @@ function parseRawMimeBody(raw: string): string {
   }
   if (textPlain) return textPlain;
   if (textHtml) return stripHtml(textHtml);
-  return raw;
+  return stripSinglePartHeadersAndNormalize(raw);
 }
 
 function escapeRegex(s: string): string {
