@@ -15,6 +15,7 @@ CREATE POLICY "Admins can manage app settings"
   USING (public.has_role(auth.uid(), 'admin'));
 
 -- Seed a single row (upsert-safe)
+-- Set your Slack webhook URL via Admin → Integrations → Slack in the app
 INSERT INTO public.app_settings (slack_enabled, slack_webhook_url)
-VALUES (true, 'https://hooks.slack.com/services/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')
+VALUES (false, null)
 ON CONFLICT DO NOTHING;
