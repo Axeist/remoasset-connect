@@ -133,7 +133,17 @@ export default function Admin() {
 
   useEffect(() => {
     const loadSlackSettings = async () => {
-      const { data } = await supabase.from('app_settings').select('id, slack_enabled, slack_webhook_url, slack_notify_lead_created, slack_notify_stage_changed, slack_notify_activity_logged, slack_notify_task_created, slack_notify_task_completed, slack_notify_followup_created, slack_notify_lead_assigned, slack_notify_document_sent, slack_notify_daily_digest, slack_digest_hour, slack_reminder_minutes_before').limit(1).single();
+      const { data: { session } } = await supabase.auth.getSession();
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+      const res = await fetch(`${baseUrl}/rest/v1/app_settings?select=id,slack_enabled,slack_webhook_url,slack_notify_lead_created,slack_notify_stage_changed,slack_notify_activity_logged,slack_notify_task_created,slack_notify_task_completed,slack_notify_followup_created,slack_notify_lead_assigned,slack_notify_document_sent,slack_notify_daily_digest,slack_digest_hour,slack_reminder_minutes_before&limit=1`, {
+        headers: {
+          'apikey': anonKey,
+          'Authorization': `Bearer ${session?.access_token ?? anonKey}`,
+        },
+      });
+      const rows = await res.json().catch(() => []);
+      const data = rows?.[0];
       if (data) {
         setSlackSettingsId(data.id);
         setSlackEnabled(data.slack_enabled ?? false);
@@ -161,20 +171,52 @@ export default function Admin() {
     const updates = {
       slack_enabled: slackEnabled,
       slack_webhook_url: slackWebhookUrl,
-      ...slackToggles,
+      slack_notify_lead_created: slackToggles.slack_notify_lead_created,
+      slack_notify_stage_changed: slackToggles.slack_notify_stage_changed,
+      slack_notify_activity_logged: slackToggles.slack_notify_activity_logged,
+      slack_notify_task_created: slackToggles.slack_notify_task_created,
+      slack_notify_task_completed: slackToggles.slack_notify_task_completed,
+      slack_notify_followup_created: slackToggles.slack_notify_followup_created,
+      slack_notify_lead_assigned: slackToggles.slack_notify_lead_assigned,
+      slack_notify_document_sent: slackToggles.slack_notify_document_sent,
+      slack_notify_daily_digest: slackToggles.slack_notify_daily_digest,
       slack_digest_hour: slackDigestHour,
       slack_reminder_minutes_before: slackReminderMinutes,
     };
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
       if (slackSettingsId) {
-        await supabase.from('app_settings').update(updates).eq('id', slackSettingsId);
+        const res = await fetch(`${baseUrl}/rest/v1/app_settings?id=eq.${slackSettingsId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': anonKey,
+            'Authorization': `Bearer ${session?.access_token ?? anonKey}`,
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify(updates),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
       } else {
-        const { data } = await supabase.from('app_settings').insert(updates).select('id').single();
-        if (data) setSlackSettingsId(data.id);
+        const res = await fetch(`${baseUrl}/rest/v1/app_settings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': anonKey,
+            'Authorization': `Bearer ${session?.access_token ?? anonKey}`,
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify(updates),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const rows = await res.json();
+        if (rows?.[0]?.id) setSlackSettingsId(rows[0].id);
       }
       toast({ title: 'Slack settings saved' });
-    } catch {
-      toast({ variant: 'destructive', title: 'Failed to save Slack settings' });
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Failed to save Slack settings', description: (e as Error)?.message });
     } finally {
       setSlackSaving(false);
     }
