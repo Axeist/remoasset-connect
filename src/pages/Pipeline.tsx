@@ -61,6 +61,7 @@ const ACTIVITY_COLUMNS = [
   { id: 'whatsapp', label: 'WhatsApp', color: '#25d366', icon: MessageCircle },
   { id: 'linkedin', label: 'LinkedIn', color: '#0ea5e9', icon: Linkedin },
   { id: 'nda', label: 'NDA', color: '#30282B', icon: ShieldCheck },
+  { id: 'quotation', label: 'Quotation', color: '#d97706', icon: FileText },
 ];
 
 // ------- Filter types -------

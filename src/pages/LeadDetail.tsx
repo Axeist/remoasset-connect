@@ -42,6 +42,7 @@ const activityTypeConfig = {
   whatsapp: { icon: MessageCircle, label: 'WhatsApp', color: 'bg-green-500/10 text-green-600', score: 5 },
   linkedin: { icon: Linkedin, label: 'LinkedIn', color: 'bg-sky-500/10 text-sky-600', score: 4 },
   nda: { icon: ShieldCheck, label: 'NDA', color: 'bg-primary/10 text-primary', score: 8 },
+  quotation: { icon: FileText, label: 'Quotation', color: 'bg-amber-500/10 text-amber-600', score: 7 },
 };
 
 /** Lead score points for activity types. Notes get score from description (Task/Follow-up/Lead updated). */
@@ -747,6 +748,7 @@ const activityTypeFilterOptions = [
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'linkedin', label: 'LinkedIn' },
   { value: 'nda', label: 'NDA' },
+  { value: 'quotation', label: 'Quotation' },
   { value: 'note', label: 'Note' },
 ] as const;
 

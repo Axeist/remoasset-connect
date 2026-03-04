@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   UserCheck,
   AlertCircle,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Lead, LeadStatusOption } from '@/types/lead';
@@ -84,6 +85,7 @@ const ACTIVITY_META: Record<string, { label: string; color: string; icon: React.
   whatsapp: { label: 'WhatsApp', color: '#25d366', icon: MessageCircle },
   linkedin: { label: 'LinkedIn', color: '#6E7180', icon: Linkedin },
   nda: { label: 'NDA', color: '#30282B', icon: ShieldCheck },
+  quotation: { label: 'Quotation', color: '#d97706', icon: FileText },
 };
 
 interface PipelineWidgetsProps {

@@ -56,6 +56,7 @@ const activityTypeConfig = {
   whatsapp: { icon: MessageCircle, label: 'WhatsApp', color: 'bg-green-500/10 text-green-600' },
   linkedin: { icon: Linkedin, label: 'LinkedIn', color: 'bg-sky-500/10 text-sky-600' },
   nda: { icon: ShieldCheck, label: 'NDA', color: 'bg-primary/10 text-primary' },
+  quotation: { icon: FileText, label: 'Quotation', color: 'bg-amber-500/10 text-amber-600' },
 };
 
 interface LeadSidePanelProps {
