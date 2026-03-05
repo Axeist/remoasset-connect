@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
       ai_enabled, ai_model, ai_max_tokens, ai_temperature,
       vendor_cron_regions, vendor_cron_types,
       vendor_email_enabled, vendor_email_from_name, vendor_email_from_address,
-      vendor_email_reply_to, vendor_email_tone,
+      vendor_email_reply_to, vendor_email_tone, vendor_email_cc,
       agni_agent_user_id, vendor_default_status_id,
       vendor_dedup_enabled, vendor_dedup_window_days,
       slack_notify_vendor_discovered, slack_notify_vendor_email_sent,
@@ -196,6 +196,13 @@ Deno.serve(async (req) => {
 
   const model = settings?.ai_model || 'claude-haiku-4-5-20251001'
   const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
+
+  console.log('[vendor-agent-chat] settings loaded:', JSON.stringify({
+    ai_enabled: settings?.ai_enabled,
+    vendor_email_enabled: settings?.vendor_email_enabled,
+    vendor_email_from_address: settings?.vendor_email_from_address,
+    agni_agent_user_id: settings?.agni_agent_user_id ? 'set' : 'missing',
+  }))
 
   // Set up SSE stream
   const { readable, writable } = new TransformStream()
@@ -362,6 +369,8 @@ Deno.serve(async (req) => {
           })
 
           let emailResult: any = { success: false, skipped: true, reason: 'email disabled or no contact email' }
+
+          console.log(`[email-check] ${vendor.company_name}: email_enabled=${settings?.vendor_email_enabled}, has_email=${!!vendor.contact_email}`)
 
           if (settings?.vendor_email_enabled !== false && vendor.contact_email) {
             try {
