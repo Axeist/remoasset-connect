@@ -1,5 +1,12 @@
 project_id = "snashlomudlvooanyqwt"
 
+[auth]
+site_url = "https://connect.remoasset.in/"
+additional_redirect_urls = [
+  "https://connect.remoasset.in/reset-password",
+  "https://connect.remoasset.in/auth",
+]
+
 [auth.email.template.invite]
 subject = "You're invited to RemoAsset Connect"
 content_path = "./supabase/email-templates/invite-user.html"
