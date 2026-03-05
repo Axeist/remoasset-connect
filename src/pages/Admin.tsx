@@ -32,6 +32,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
+import { notifyDeveloperModeChange } from '@/hooks/useDeveloperMode';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface TeamMember {
@@ -121,6 +122,7 @@ export default function Admin() {
 
   // Slack integration state
   const [slackEnabled, setSlackEnabled] = useState(false);
+  const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
   const [slackSaving, setSlackSaving] = useState(false);
   const [slackTesting, setSlackTesting] = useState(false);
@@ -146,7 +148,7 @@ export default function Admin() {
       const { data: { session } } = await supabase.auth.getSession();
       const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-      const res = await fetch(`${baseUrl}/rest/v1/app_settings?select=id,slack_enabled,slack_webhook_url,slack_notify_lead_created,slack_notify_stage_changed,slack_notify_activity_logged,slack_notify_task_created,slack_notify_task_completed,slack_notify_followup_created,slack_notify_lead_assigned,slack_notify_document_sent,slack_notify_daily_digest,slack_digest_hour,slack_reminder_minutes_before&limit=1`, {
+      const res = await fetch(`${baseUrl}/rest/v1/app_settings?select=id,slack_enabled,slack_webhook_url,slack_notify_lead_created,slack_notify_stage_changed,slack_notify_activity_logged,slack_notify_task_created,slack_notify_task_completed,slack_notify_followup_created,slack_notify_lead_assigned,slack_notify_document_sent,slack_notify_daily_digest,slack_digest_hour,slack_reminder_minutes_before,developer_mode_enabled&limit=1`, {
         headers: {
           'apikey': anonKey,
           'Authorization': `Bearer ${session?.access_token ?? anonKey}`,
@@ -171,6 +173,9 @@ export default function Admin() {
         });
         setSlackDigestHour(data.slack_digest_hour ?? 11);
         setSlackReminderMinutes(data.slack_reminder_minutes_before ?? 30);
+        const devMode = data.developer_mode_enabled ?? false;
+        setDeveloperModeEnabled(devMode);
+        notifyDeveloperModeChange(devMode);
       }
     };
     loadSlackSettings();
@@ -1859,12 +1864,46 @@ curl -X POST ${baseUrl}/notifications \\
                       <p className="text-xs text-muted-foreground">Inspect your session, check Edge Function health, and jump to dev tools.</p>
                     </div>
                     <div className="ml-auto flex gap-2 flex-wrap">
-                      <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => navigate('/admin/api-tester')}>
-                        <Terminal className="h-3.5 w-3.5" />API Tester
+                      <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => navigate('/developer')}>
+                        <Terminal className="h-3.5 w-3.5" />Open Developer page
                       </Button>
-                      <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => navigate('/admin/api-docs')}>
-                        <FileText className="h-3.5 w-3.5" />API Docs
-                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Developer mode toggle */}
+                  <div className="rounded-xl border border-border/60 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Zap className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-semibold">Enable Developer mode</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground pl-6">Shows the <strong>Developer</strong> page in the sidebar — API keys, live API tester, documentation, and debug tools.</p>
+                      </div>
+                      <Switch
+                        checked={developerModeEnabled}
+                        onCheckedChange={async (checked) => {
+                          setDeveloperModeEnabled(checked);
+                          notifyDeveloperModeChange(checked);
+                          const { data: { session } } = await supabase.auth.getSession();
+                          const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
+                          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+                          // fetch settings id first if needed
+                          const settingsRes = await fetch(`${baseUrl}/rest/v1/app_settings?select=id&limit=1`, {
+                            headers: { 'apikey': anonKey, 'Authorization': `Bearer ${session?.access_token ?? anonKey}` },
+                          });
+                          const rows = await settingsRes.json().catch(() => []);
+                          const id = rows?.[0]?.id;
+                          if (id) {
+                            await fetch(`${baseUrl}/rest/v1/app_settings?id=eq.${id}`, {
+                              method: 'PATCH',
+                              headers: { 'apikey': anonKey, 'Authorization': `Bearer ${session?.access_token ?? anonKey}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+                              body: JSON.stringify({ developer_mode_enabled: checked }),
+                            });
+                          }
+                          toast({ title: checked ? 'Developer mode enabled' : 'Developer mode disabled', description: checked ? 'Developer page is now visible in the sidebar.' : 'Developer page has been hidden.' });
+                        }}
+                      />
                     </div>
                   </div>
 

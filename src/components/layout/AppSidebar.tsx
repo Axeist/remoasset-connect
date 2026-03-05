@@ -20,6 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrentUserProfile } from '@/hooks/useCurrentUserProfile';
+import { useDeveloperMode } from '@/hooks/useDeveloperMode';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -41,7 +42,6 @@ const navItems = [
   { title: 'Help', url: '/help', icon: HelpCircle, roles: ['admin', 'employee'] },
   { title: 'Settings', url: '/settings', icon: Settings, roles: ['employee'] },
   { title: 'Admin Panel', url: '/admin', icon: Shield, roles: ['admin'] },
-  { title: 'API Tester', url: '/admin/api-tester', icon: Terminal, roles: ['admin'] },
 ];
 
 interface SidebarNavProps {
@@ -54,7 +54,13 @@ function SidebarNav({ collapsed = false, onNavigate, onNavClick }: SidebarNavPro
   const location = useLocation();
   const { role, signOut, user } = useAuth();
   const { fullName, designation, avatarUrl } = useCurrentUserProfile();
-  const filteredNav = navItems.filter((item) => item.roles.includes(role || 'employee'));
+  const developerModeEnabled = useDeveloperMode();
+  const filteredNav = [
+    ...navItems.filter((item) => item.roles.includes(role || 'employee')),
+    ...(developerModeEnabled && role === 'admin'
+      ? [{ title: 'Developer', url: '/developer', icon: Terminal, roles: ['admin'] as string[] }]
+      : []),
+  ];
   const isAdmin = role === 'admin';
   const initials = (fullName || user?.email || 'U').slice(0, 2).toUpperCase();
 

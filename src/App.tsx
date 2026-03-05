@@ -3,7 +3,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminRoute } from "@/components/AdminRoute";
@@ -26,11 +27,20 @@ import Vendors from "./pages/Vendors";
 import Inbox from "./pages/Inbox";
 import ApiDocs from "./pages/ApiDocs";
 import ApiTester from "./pages/ApiTester";
+import Developer from "./pages/Developer";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const WELCOME_SPLASH_DURATION = 3200;
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    document.querySelector('main.page-bg')?.scrollTo({ top: 0, behavior: 'instant' });
+  }, [pathname]);
+  return null;
+}
 
 const App = () => {
   const [showWelcomeSplash, setShowWelcomeSplash] = useState(true);
@@ -49,6 +59,7 @@ const App = () => {
         )}
         <BrowserRouter>
           <AuthProvider>
+            <ScrollToTop />
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/auth" element={<Auth />} />
@@ -63,6 +74,7 @@ const App = () => {
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
               <Route path="/admin/api-docs" element={<AdminRoute><ApiDocs /></AdminRoute>} />
               <Route path="/admin/api-tester" element={<AdminRoute><ApiTester /></AdminRoute>} />
+              <Route path="/developer" element={<AdminRoute><Developer /></AdminRoute>} />
               <Route path="/admin/team-activity" element={<ProtectedRoute><TeamActivity /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
