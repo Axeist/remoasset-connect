@@ -15,6 +15,7 @@ import {
   Kanban,
   Globe2,
   Inbox,
+  Terminal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,6 +41,7 @@ const navItems = [
   { title: 'Help', url: '/help', icon: HelpCircle, roles: ['admin', 'employee'] },
   { title: 'Settings', url: '/settings', icon: Settings, roles: ['employee'] },
   { title: 'Admin Panel', url: '/admin', icon: Shield, roles: ['admin'] },
+  { title: 'API Tester', url: '/admin/api-tester', icon: Terminal, roles: ['admin'] },
 ];
 
 interface SidebarNavProps {

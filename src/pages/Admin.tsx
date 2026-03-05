@@ -13,7 +13,7 @@ import {
   Settings2, Ban, ShieldCheck, Puzzle, Check, Zap, Globe, Tag, Building2,
   Activity, MapPin, TrendingUp, ChevronRight, AlertTriangle, ListTodo,
   CalendarCheck, Layers, Database, RefreshCw, UserCheck, Key, Copy, Trash2,
-  Loader2, Bell, FileText, UserPlus, MailCheck,
+  Loader2, Bell, FileText, UserPlus, MailCheck, Terminal, CheckCircle2, XCircle, Clock,
 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
@@ -57,7 +57,7 @@ interface Country {
   code: string;
 }
 
-type Tab = 'profile' | 'users' | 'configuration' | 'integrations' | 'api' | 'analytics';
+type Tab = 'profile' | 'users' | 'configuration' | 'integrations' | 'api' | 'analytics' | 'developer';
 
 interface ApiKeyRow {
   id: string;
@@ -74,6 +74,7 @@ const NAV_ITEMS: { id: Tab; icon: React.ElementType; label: string; desc: string
   { id: 'integrations', icon: Puzzle, label: 'Integrations', desc: 'Connected services' },
   { id: 'api', icon: Key, label: 'API', desc: 'Keys & integration' },
   { id: 'analytics', icon: BarChart3, label: 'Analytics', desc: 'Reports & insights' },
+  { id: 'developer', icon: Terminal, label: 'Developer', desc: 'Debug tools & health checks' },
 ];
 
 export default function Admin() {
@@ -111,6 +112,12 @@ export default function Admin() {
   const [createdKeyOnce, setCreatedKeyOnce] = useState<{ api_key: string; name: string; key_prefix: string } | null>(null);
   const [revokeKeyId, setRevokeKeyId] = useState<string | null>(null);
   const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
+
+  // Developer tab state
+  const [devSession, setDevSession] = useState<Record<string, unknown> | null>(null);
+  const [devSessionLoading, setDevSessionLoading] = useState(false);
+  const [devFnResults, setDevFnResults] = useState<Record<string, { status: 'idle' | 'loading' | 'ok' | 'error'; ms?: number; body?: string }>>({});
+  const [devEnvOpen, setDevEnvOpen] = useState(false);
 
   // Slack integration state
   const [slackEnabled, setSlackEnabled] = useState(false);
@@ -1783,6 +1790,201 @@ curl -X POST ${baseUrl}/notifications \\
                 </div>
               </div>
             )}
+
+            {/* ── Developer tab ── */}
+            {activeTab === 'developer' && (() => {
+              const EDGE_FUNCTIONS = [
+                { id: 'api', label: 'api', desc: 'REST API handler' },
+                { id: 'api-keys', label: 'api-keys', desc: 'Key management' },
+                { id: 'invite-user', label: 'invite-user', desc: 'User invitations' },
+                { id: 'manage-user', label: 'manage-user', desc: 'User management' },
+                { id: 'slack-notify', label: 'slack-notify', desc: 'Slack notifications' },
+                { id: 'slack-digest', label: 'slack-digest', desc: 'Slack digest' },
+                { id: 'slack-reminders', label: 'slack-reminders', desc: 'Slack reminders' },
+                { id: 'google-calendar', label: 'google-calendar', desc: 'Calendar integration' },
+              ];
+
+              const pingFunction = async (fnId: string) => {
+                setDevFnResults((p) => ({ ...p, [fnId]: { status: 'loading' } }));
+                const start = Date.now();
+                try {
+                  const fnUrl = `${import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')}/functions/v1/${fnId}`;
+                  const res = await fetch(fnUrl, { method: 'OPTIONS' });
+                  const ms = Date.now() - start;
+                  setDevFnResults((p) => ({ ...p, [fnId]: { status: res.ok || res.status === 204 || res.status === 405 ? 'ok' : 'error', ms, body: `HTTP ${res.status}` } }));
+                } catch (e) {
+                  setDevFnResults((p) => ({ ...p, [fnId]: { status: 'error', ms: Date.now() - start, body: (e as Error).message } }));
+                }
+              };
+
+              const pingAll = () => EDGE_FUNCTIONS.forEach((f) => pingFunction(f.id));
+
+              const loadSession = async () => {
+                setDevSessionLoading(true);
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                  setDevSession({
+                    user_id: session.user.id,
+                    email: session.user.email,
+                    role: session.user.user_metadata?.role ?? '—',
+                    expires_at: new Date((session.expires_at ?? 0) * 1000).toLocaleString(),
+                    token_preview: session.access_token.slice(0, 24) + '…',
+                  });
+                }
+                setDevSessionLoading(false);
+              };
+
+              const fnState = (id: string) => devFnResults[id] ?? { status: 'idle' };
+
+              return (
+                <div className="space-y-6">
+                  {/* header */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 shrink-0">
+                      <Terminal className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-semibold">Developer mode</h2>
+                      <p className="text-xs text-muted-foreground">Inspect your session, check Edge Function health, and jump to dev tools.</p>
+                    </div>
+                    <div className="ml-auto flex gap-2 flex-wrap">
+                      <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => navigate('/admin/api-tester')}>
+                        <Terminal className="h-3.5 w-3.5" />API Tester
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => navigate('/admin/api-docs')}>
+                        <FileText className="h-3.5 w-3.5" />API Docs
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* session card */}
+                  <div className="rounded-xl border border-border/60 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-b border-border/60">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-semibold">Current session</span>
+                      </div>
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={loadSession} disabled={devSessionLoading}>
+                        {devSessionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                        Load
+                      </Button>
+                    </div>
+                    {devSession ? (
+                      <div className="divide-y divide-border/40">
+                        {Object.entries(devSession).map(([k, v]) => (
+                          <div key={k} className="flex items-center px-4 py-2.5 gap-4">
+                            <span className="text-xs font-mono text-muted-foreground w-28 shrink-0">{k}</span>
+                            <span className="text-xs font-mono text-foreground break-all">{String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-8">Click Load to inspect the active session.</p>
+                    )}
+                  </div>
+
+                  {/* env vars card */}
+                  <div className="rounded-xl border border-border/60 overflow-hidden">
+                    <button
+                      onClick={() => setDevEnvOpen((p) => !p)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 border-b border-border/60 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Database className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-semibold">Environment variables</span>
+                      </div>
+                      <ChevronRight className={cn('h-4 w-4 text-muted-foreground transition-transform', devEnvOpen && 'rotate-90')} />
+                    </button>
+                    {devEnvOpen && (
+                      <div className="divide-y divide-border/40">
+                        {[
+                          { key: 'VITE_SUPABASE_URL', val: import.meta.env.VITE_SUPABASE_URL ?? '—' },
+                          { key: 'VITE_SUPABASE_PROJECT_ID', val: import.meta.env.VITE_SUPABASE_PROJECT_ID ?? '—' },
+                          { key: 'VITE_SUPABASE_ANON_KEY', val: `${(import.meta.env.VITE_SUPABASE_ANON_KEY ?? '').slice(0, 20)}…` },
+                          { key: 'MODE', val: import.meta.env.MODE },
+                          { key: 'DEV', val: String(import.meta.env.DEV) },
+                          { key: 'PROD', val: String(import.meta.env.PROD) },
+                        ].map(({ key, val }) => (
+                          <div key={key} className="flex items-center px-4 py-2.5 gap-4 hover:bg-muted/20 transition-colors">
+                            <span className="text-xs font-mono text-primary w-52 shrink-0">{key}</span>
+                            <span className="text-xs font-mono text-foreground break-all">{val}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* edge function health */}
+                  <div className="rounded-xl border border-border/60 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-b border-border/60">
+                      <div className="flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-semibold">Edge Function health</span>
+                      </div>
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={pingAll}>
+                        <RefreshCw className="h-3 w-3" />Ping all
+                      </Button>
+                    </div>
+                    <div className="divide-y divide-border/40">
+                      {EDGE_FUNCTIONS.map((fn) => {
+                        const s = fnState(fn.id);
+                        return (
+                          <div key={fn.id} className="flex items-center px-4 py-3 gap-3 hover:bg-muted/20 transition-colors">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-mono font-medium">{fn.label}</p>
+                              <p className="text-xs text-muted-foreground">{fn.desc}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {s.status === 'idle' && <span className="text-xs text-muted-foreground">—</span>}
+                              {s.status === 'loading' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                              {s.status === 'ok' && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-xs font-semibold">
+                                  <CheckCircle2 className="h-3 w-3" />Online{s.ms !== undefined && ` · ${s.ms}ms`}
+                                </span>
+                              )}
+                              {s.status === 'error' && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 text-xs font-semibold">
+                                  <XCircle className="h-3 w-3" />{s.body ?? 'Error'}{s.ms !== undefined && ` · ${s.ms}ms`}
+                                </span>
+                              )}
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={() => pingFunction(fn.id)}>
+                                <RefreshCw className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* quick links */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {[
+                      { label: 'API Tester', desc: 'Fire live API calls', icon: Terminal, action: () => navigate('/admin/api-tester') },
+                      { label: 'API Docs', desc: 'Full endpoint reference', icon: FileText, action: () => navigate('/admin/api-docs') },
+                      { label: 'Team Activity', desc: 'Recent user actions', icon: Activity, action: () => navigate('/admin/team-activity') },
+                      { label: 'Supabase Dashboard', desc: 'Direct DB & logs access', icon: Database, action: () => window.open(`https://supabase.com/dashboard/project/${import.meta.env.VITE_SUPABASE_PROJECT_ID}`, '_blank') },
+                      { label: 'Edge Fn Logs', desc: 'Function execution logs', icon: Layers, action: () => window.open(`https://supabase.com/dashboard/project/${import.meta.env.VITE_SUPABASE_PROJECT_ID}/functions`, '_blank') },
+                      { label: 'Auth Users', desc: 'Manage auth users', icon: Users, action: () => window.open(`https://supabase.com/dashboard/project/${import.meta.env.VITE_SUPABASE_PROJECT_ID}/auth/users`, '_blank') },
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        onClick={item.action}
+                        className="flex items-center gap-3 p-4 rounded-xl border border-border/60 bg-card/50 hover:bg-card hover:border-primary/30 transition-all text-left group"
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 shrink-0 group-hover:bg-primary/20 transition-colors">
+                          <item.icon className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium leading-none mb-1">{item.label}</p>
+                          <p className="text-xs text-muted-foreground truncate">{item.desc}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
           </div>
         </div>

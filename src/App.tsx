@@ -25,6 +25,7 @@ import Pipeline from "./pages/Pipeline";
 import Vendors from "./pages/Vendors";
 import Inbox from "./pages/Inbox";
 import ApiDocs from "./pages/ApiDocs";
+import ApiTester from "./pages/ApiTester";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -61,6 +62,7 @@ const App = () => {
               <Route path="/admin/pipeline" element={<AdminRoute><Pipeline pageTitle="Pipeline Overview" adminOnly /></AdminRoute>} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
               <Route path="/admin/api-docs" element={<AdminRoute><ApiDocs /></AdminRoute>} />
+              <Route path="/admin/api-tester" element={<AdminRoute><ApiTester /></AdminRoute>} />
               <Route path="/admin/team-activity" element={<ProtectedRoute><TeamActivity /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
