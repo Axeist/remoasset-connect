@@ -13,12 +13,13 @@ import {
   Settings2, Ban, ShieldCheck, Puzzle, Check, Zap, Globe, Tag, Building2,
   Activity, MapPin, TrendingUp, ChevronRight, AlertTriangle, ListTodo,
   CalendarCheck, Layers, Database, RefreshCw, UserCheck, Key, Copy, Trash2,
-  Loader2, Bell, FileText,
+  Loader2, Bell, FileText, UserPlus,
 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
 import { AddUserDialog } from '@/components/admin/AddUserDialog';
+import { InviteUserDialog } from '@/components/admin/InviteUserDialog';
 import { UserManagementDialog } from '@/components/admin/UserManagementDialog';
 import { StatusFormDialog } from '@/components/admin/StatusFormDialog';
 import { CountryFormDialog } from '@/components/admin/CountryFormDialog';
@@ -88,6 +89,7 @@ export default function Admin() {
   const [editUser, setEditUser] = useState<TeamMember | null>(null);
   const [manageUser, setManageUser] = useState<TeamMember | null>(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
+  const [inviteUserOpen, setInviteUserOpen] = useState(false);
   const [statusFormOpen, setStatusFormOpen] = useState(false);
   const [editingStatus, setEditingStatus] = useState<Status | null>(null);
   const [countryFormOpen, setCountryFormOpen] = useState(false);
@@ -1068,10 +1070,16 @@ curl -X POST ${baseUrl}/notifications \\
                     <h2 className="text-lg font-semibold">Team Members</h2>
                     <p className="text-sm text-muted-foreground">{teamMembers.length} members · {activeCount} active</p>
                   </div>
-                  <Button size="sm" className="gap-2 gradient-primary" onClick={() => setAddUserOpen(true)}>
-                    <Plus className="h-4 w-4" />
-                    Add user
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" className="gap-2 gradient-primary" onClick={() => setAddUserOpen(true)}>
+                      <Plus className="h-4 w-4" />
+                      Add user
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-2" onClick={() => setInviteUserOpen(true)}>
+                      <UserPlus className="h-4 w-4" />
+                      Invite user
+                    </Button>
+                  </div>
                 </div>
                 <div className="rounded-xl border overflow-hidden">
                   <Table>
@@ -1739,6 +1747,7 @@ curl -X POST ${baseUrl}/notifications \\
       {/* Dialogs */}
       <EditUserRoleDialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)} userRoleId={editUser?.id ?? ''} userId={editUser?.user_id ?? ''} currentRole={editUser?.role ?? 'employee'} fullName={editUser?.full_name ?? null} onSuccess={fetchData} />
       <AddUserDialog open={addUserOpen} onOpenChange={setAddUserOpen} onSuccess={fetchData} />
+      <InviteUserDialog open={inviteUserOpen} onOpenChange={setInviteUserOpen} onSuccess={fetchData} />
       {manageUser && (
         <UserManagementDialog open={!!manageUser} onOpenChange={(open) => !open && setManageUser(null)} userId={manageUser.user_id} fullName={manageUser.full_name} role={manageUser.role} isBanned={!!manageUser.banned_until && new Date(manageUser.banned_until) > new Date()} onSuccess={fetchData} />
       )}
