@@ -15,8 +15,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Copy, Loader2, Mail, CheckCircle2 } from 'lucide-react';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 interface InviteUserDialogProps {
   open: boolean;
@@ -50,32 +48,15 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
     }
     setSubmitting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) {
-        toast({ variant: 'destructive', title: 'Not signed in' });
-        setSubmitting(false);
-        return;
-      }
-
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/invite-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ email: email.trim(), role }),
+      const { data, error } = await supabase.functions.invoke('invite-user', {
+        body: { email: email.trim(), role },
       });
 
-      let data: any = {};
-      try { data = await res.json(); } catch { /* ignore parse error */ }
-
-      if (!res.ok) {
+      if (error) {
         toast({
           variant: 'destructive',
           title: 'Failed to send invite',
-          description: data.error || res.statusText || 'Unknown error',
+          description: error.message || 'Unknown error',
         });
         setSubmitting(false);
         return;
@@ -86,7 +67,7 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
         description: `An invitation email has been sent to ${email}.`,
       });
 
-      if (data.action_link) {
+      if (data?.action_link) {
         setInviteLink(data.action_link);
       }
 
