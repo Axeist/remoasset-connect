@@ -13,7 +13,7 @@ import {
   Settings2, Ban, ShieldCheck, Puzzle, Check, Zap, Globe, Tag, Building2,
   Activity, MapPin, TrendingUp, ChevronRight, AlertTriangle, ListTodo,
   CalendarCheck, Layers, Database, RefreshCw, UserCheck, Key, Copy, Trash2,
-  Loader2, Bell, FileText, UserPlus,
+  Loader2, Bell, FileText, UserPlus, MailCheck,
 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
@@ -110,6 +110,7 @@ export default function Admin() {
   const [createKeyOpen, setCreateKeyOpen] = useState(false);
   const [createdKeyOnce, setCreatedKeyOnce] = useState<{ api_key: string; name: string; key_prefix: string } | null>(null);
   const [revokeKeyId, setRevokeKeyId] = useState<string | null>(null);
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
 
   // Slack integration state
   const [slackEnabled, setSlackEnabled] = useState(false);
@@ -274,6 +275,26 @@ export default function Admin() {
         {} as Record<string, { email?: string; banned_until?: string | null; last_sign_in_at?: string | null }>
       );
     } catch { return {}; }
+  };
+
+  const resendInvite = async (member: TeamMember) => {
+    if (!member.email) return;
+    setResendingInviteId(member.user_id);
+    try {
+      const { data, error } = await supabase.functions.invoke('invite-user', {
+        body: { email: member.email, role: member.role },
+      });
+      if (error) {
+        let description = error.message || 'Unknown error';
+        try { const body = await (error as any).context?.json?.(); if (body?.error) description = body.error; } catch { /* ignore */ }
+        toast({ variant: 'destructive', title: 'Failed to resend invite', description });
+      } else {
+        toast({ title: 'Invite resent', description: `A new invite was sent to ${member.email}.` });
+      }
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: err instanceof Error ? err.message : 'Failed to resend' });
+    }
+    setResendingInviteId(null);
   };
 
   const fetchData = async () => {
@@ -1094,6 +1115,7 @@ curl -X POST ${baseUrl}/notifications \\
                     <TableBody>
                       {teamMembers.map((member) => {
                         const isBanned = !!member.banned_until && new Date(member.banned_until) > new Date();
+                        const isPending = !member.last_sign_in_at;
                         const initials = (member.full_name || member.email || 'U').slice(0, 2).toUpperCase();
                         return (
                           <TableRow key={member.id} className={isBanned ? 'opacity-50' : ''}>
@@ -1103,7 +1125,14 @@ curl -X POST ${baseUrl}/notifications \\
                                   {initials}
                                 </div>
                                 <div>
-                                  <p className="font-medium text-sm">{member.full_name || 'Unknown'}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium text-sm">{member.full_name || 'Unknown'}</p>
+                                    {isPending && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20">
+                                        Pending
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-xs text-muted-foreground">{member.email || '—'}</p>
                                 </div>
                               </div>
@@ -1124,6 +1153,20 @@ curl -X POST ${baseUrl}/notifications \\
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
+                                {isPending && member.email && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => resendInvite(member)}
+                                    disabled={resendingInviteId === member.user_id}
+                                    title="Resend invite"
+                                    className="text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                                  >
+                                    {resendingInviteId === member.user_id
+                                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                                      : <MailCheck className="h-4 w-4" />}
+                                  </Button>
+                                )}
                                 <Button variant="ghost" size="icon" onClick={() => setEditUser(member)} title="Edit role">
                                   <Edit2 className="h-4 w-4" />
                                 </Button>
