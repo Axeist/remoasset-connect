@@ -221,8 +221,14 @@ export default function VendorAgent() {
     emailsSentAllTime: number;
     leadsCreatedAllTime: number;
     costPerLead: number;
+    allRows: any[];
   } | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
+
+  // Usage filters
+  const [usageDateRange, setUsageDateRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+  const [usageFnFilter, setUsageFnFilter] = useState<'all' | 'vendor-discovery' | 'vendor-outreach-email' | 'vendor-agent-chat'>('all');
+  const [usageTriggerFilter, setUsageTriggerFilter] = useState<'all' | 'cron' | 'chat'>('all');
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -232,12 +238,13 @@ export default function VendorAgent() {
     setUsageLoading(true);
     try {
       const [usageRes, logRes, logEmailRes] = await Promise.all([
-        supabase.from('ai_token_usage').select('fn_name, input_tokens, output_tokens, input_cost_usd, output_cost_usd, total_cost_usd, created_at'),
+        supabase.from('ai_token_usage').select('fn_name, input_tokens, output_tokens, input_cost_usd, output_cost_usd, total_cost_usd, triggered_by, region, vendor_type, created_at'),
         supabase.from('vendor_discovery_log').select('id', { count: 'exact', head: true }),
         supabase.from('vendor_discovery_log').select('id', { count: 'exact', head: true }).eq('email_sent', true),
       ]);
 
-      const rows = usageRes.data || [];
+      const allRows = usageRes.data || [];
+      const rows = allRows; // unfiltered for totals
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -287,10 +294,69 @@ export default function VendorAgent() {
         emailsSentAllTime,
         leadsCreatedAllTime,
         costPerLead,
+        allRows,
       });
     } finally {
       setUsageLoading(false);
     }
+  }
+
+  // Compute filtered stats from allRows + current filters
+  function getFilteredStats() {
+    if (!usageStats) return null;
+    const now = new Date();
+    const cutoff = usageDateRange === '7d' ? new Date(now.getTime() - 7 * 86400000)
+      : usageDateRange === '30d' ? new Date(now.getTime() - 30 * 86400000)
+      : usageDateRange === '90d' ? new Date(now.getTime() - 90 * 86400000)
+      : null;
+
+    const filtered = usageStats.allRows.filter((r) => {
+      if (cutoff && new Date(r.created_at) < cutoff) return false;
+      if (usageFnFilter !== 'all' && r.fn_name !== usageFnFilter) return false;
+      if (usageTriggerFilter !== 'all' && r.triggered_by !== usageTriggerFilter) return false;
+      return true;
+    });
+
+    const totalCost = filtered.reduce((s, r) => s + Number(r.total_cost_usd || 0), 0);
+    const totalTokens = filtered.reduce((s, r) => s + (r.input_tokens || 0) + (r.output_tokens || 0), 0);
+    const totalCalls = filtered.length;
+
+    const fnMap: Record<string, { total_cost_usd: number; api_calls: number; total_tokens: number }> = {};
+    filtered.forEach((r) => {
+      if (!fnMap[r.fn_name]) fnMap[r.fn_name] = { total_cost_usd: 0, api_calls: 0, total_tokens: 0 };
+      fnMap[r.fn_name].total_cost_usd += Number(r.total_cost_usd || 0);
+      fnMap[r.fn_name].api_calls += 1;
+      fnMap[r.fn_name].total_tokens += (r.input_tokens || 0) + (r.output_tokens || 0);
+    });
+    const costByFn = Object.entries(fnMap).map(([fn_name, v]) => ({ fn_name, ...v }))
+      .sort((a, b) => b.total_cost_usd - a.total_cost_usd);
+
+    const dayMap: Record<string, { total_cost_usd: number; total_tokens: number; api_calls: number; triggered_by_cron: number; triggered_by_chat: number }> = {};
+    filtered.forEach((r) => {
+      const day = new Date(r.created_at).toISOString().slice(0, 10);
+      if (!dayMap[day]) dayMap[day] = { total_cost_usd: 0, total_tokens: 0, api_calls: 0, triggered_by_cron: 0, triggered_by_chat: 0 };
+      dayMap[day].total_cost_usd += Number(r.total_cost_usd || 0);
+      dayMap[day].total_tokens += (r.input_tokens || 0) + (r.output_tokens || 0);
+      dayMap[day].api_calls += 1;
+      if (r.triggered_by === 'cron') dayMap[day].triggered_by_cron += 1;
+      if (r.triggered_by === 'chat') dayMap[day].triggered_by_chat += 1;
+    });
+    const dailyBreakdown = Object.entries(dayMap)
+      .map(([day, v]) => ({ day, ...v }))
+      .sort((a, b) => b.day.localeCompare(a.day));
+
+    // Region breakdown
+    const regionMap: Record<string, number> = {};
+    filtered.forEach((r) => {
+      if (r.region) {
+        regionMap[r.region] = (regionMap[r.region] || 0) + Number(r.total_cost_usd || 0);
+      }
+    });
+    const costByRegion = Object.entries(regionMap)
+      .map(([region, cost]) => ({ region, cost }))
+      .sort((a, b) => b.cost - a.cost);
+
+    return { totalCost, totalTokens, totalCalls, costByFn, dailyBreakdown, costByRegion };
   }
 
   // ── Session helpers ──────────────────────────────────────
@@ -775,6 +841,7 @@ export default function VendorAgent() {
           {/* Usage & Cost Tab */}
           <TabsContent value="usage" className="mt-4">
             <div className="space-y-4">
+              {/* Header + refresh */}
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold">AI Usage & Cost Tracking</h2>
                 <Button variant="outline" size="sm" onClick={loadUsageStats} disabled={usageLoading}>
@@ -783,173 +850,277 @@ export default function VendorAgent() {
                 </Button>
               </div>
 
-              {usageLoading && !usageStats && (
-                <div className="flex items-center justify-center py-12">
+              {/* ── Filters ── */}
+              {usageStats && (
+                <div className="flex flex-wrap gap-2 p-3 bg-muted/40 rounded-lg border">
+                  {/* Date range */}
+                  <div className="flex items-center gap-1">
+                    {(['7d', '30d', '90d', 'all'] as const).map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => setUsageDateRange(v)}
+                        className={cn(
+                          'px-2.5 py-1 text-xs rounded-md border transition-colors',
+                          usageDateRange === v
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-muted-foreground border-border hover:border-foreground/30'
+                        )}
+                      >
+                        {v === '7d' ? 'Last 7 days' : v === '30d' ? 'Last 30 days' : v === '90d' ? 'Last 90 days' : 'All time'}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="w-px bg-border self-stretch mx-1" />
+
+                  {/* Function filter */}
+                  <div className="flex items-center gap-1">
+                    {([
+                      { v: 'all', label: 'All functions' },
+                      { v: 'vendor-discovery', label: 'Discovery' },
+                      { v: 'vendor-outreach-email', label: 'Email Drafting' },
+                      { v: 'vendor-agent-chat', label: 'Chat' },
+                    ] as const).map(({ v, label }) => (
+                      <button
+                        key={v}
+                        onClick={() => setUsageFnFilter(v)}
+                        className={cn(
+                          'px-2.5 py-1 text-xs rounded-md border transition-colors',
+                          usageFnFilter === v
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-muted-foreground border-border hover:border-foreground/30'
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="w-px bg-border self-stretch mx-1" />
+
+                  {/* Triggered by */}
+                  <div className="flex items-center gap-1">
+                    {([
+                      { v: 'all', label: 'All triggers' },
+                      { v: 'cron', label: 'Cron' },
+                      { v: 'chat', label: 'Chat' },
+                    ] as const).map(({ v, label }) => (
+                      <button
+                        key={v}
+                        onClick={() => setUsageTriggerFilter(v)}
+                        className={cn(
+                          'px-2.5 py-1 text-xs rounded-md border transition-colors',
+                          usageTriggerFilter === v
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-muted-foreground border-border hover:border-foreground/30'
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {usageLoading && (
+                <div className="flex justify-center py-12">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               )}
 
-              {usageStats && (
-                <>
-                  {/* KPI Cards */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Card>
-                      <CardContent className="pt-5">
-                        <div className="flex items-center gap-2 mb-1">
-                          <DollarSign className="h-4 w-4 text-green-600" />
-                          <span className="text-xs text-muted-foreground">This Month</span>
-                        </div>
-                        <div className="text-2xl font-bold">${usageStats.totalCostThisMonth.toFixed(4)}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Claude API spend</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-5">
-                        <div className="flex items-center gap-2 mb-1">
-                          <TrendingUp className="h-4 w-4 text-blue-600" />
-                          <span className="text-xs text-muted-foreground">All Time</span>
-                        </div>
-                        <div className="text-2xl font-bold">${usageStats.totalCostAllTime.toFixed(4)}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Total API cost</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-5">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Zap className="h-4 w-4 text-yellow-600" />
-                          <span className="text-xs text-muted-foreground">Tokens Used</span>
-                        </div>
-                        <div className="text-2xl font-bold">{(usageStats.totalTokensAllTime / 1000).toFixed(1)}K</div>
-                        <p className="text-xs text-muted-foreground mt-1">{usageStats.totalApiCalls} API calls</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-5">
-                        <div className="flex items-center gap-2 mb-1">
-                          <DollarSign className="h-4 w-4 text-purple-600" />
-                          <span className="text-xs text-muted-foreground">Cost per Lead</span>
-                        </div>
-                        <div className="text-2xl font-bold">${usageStats.costPerLead.toFixed(4)}</div>
-                        <p className="text-xs text-muted-foreground mt-1">avg across all leads</p>
-                      </CardContent>
-                    </Card>
-                  </div>
+              {usageStats && (() => {
+                const f = getFilteredStats()!;
+                return (
+                  <>
+                    {/* KPI row — filtered */}
+                    <div className="grid grid-cols-4 gap-3">
+                      <Card>
+                        <CardContent className="pt-5">
+                          <div className="flex items-center gap-2 mb-1">
+                            <DollarSign className="h-4 w-4 text-green-600" />
+                            <span className="text-xs text-muted-foreground">Cost (filtered)</span>
+                          </div>
+                          <div className="text-2xl font-bold">${f.totalCost.toFixed(4)}</div>
+                          <p className="text-xs text-muted-foreground mt-1">Claude API spend</p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-5">
+                          <div className="flex items-center gap-2 mb-1">
+                            <TrendingUp className="h-4 w-4 text-blue-600" />
+                            <span className="text-xs text-muted-foreground">All Time Total</span>
+                          </div>
+                          <div className="text-2xl font-bold">${usageStats.totalCostAllTime.toFixed(4)}</div>
+                          <p className="text-xs text-muted-foreground mt-1">Total API cost</p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-5">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Zap className="h-4 w-4 text-yellow-600" />
+                            <span className="text-xs text-muted-foreground">Tokens Used</span>
+                          </div>
+                          <div className="text-2xl font-bold">{(f.totalTokens / 1000).toFixed(1)}K</div>
+                          <p className="text-xs text-muted-foreground mt-1">{f.totalCalls} API calls</p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-5">
+                          <div className="flex items-center gap-2 mb-1">
+                            <DollarSign className="h-4 w-4 text-purple-600" />
+                            <span className="text-xs text-muted-foreground">Cost per Lead</span>
+                          </div>
+                          <div className="text-2xl font-bold">${usageStats.costPerLead.toFixed(4)}</div>
+                          <p className="text-xs text-muted-foreground mt-1">avg across all leads</p>
+                        </CardContent>
+                      </Card>
+                    </div>
 
-                  {/* Discovery Stats */}
-                  <div className="grid grid-cols-2 gap-4">
+                    {/* Middle row */}
+                    <div className="grid grid-cols-3 gap-4">
+                      {/* Vendor Pipeline */}
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Vendor Pipeline</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Total leads created</span>
+                            <span className="font-semibold">{usageStats.leadsCreatedAllTime}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Outreach emails sent</span>
+                            <span className="font-semibold">{usageStats.emailsSentAllTime}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Email coverage</span>
+                            <span className="font-semibold">
+                              {usageStats.leadsCreatedAllTime > 0
+                                ? `${Math.round((usageStats.emailsSentAllTime / usageStats.leadsCreatedAllTime) * 100)}%`
+                                : '—'}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Cost by Function */}
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Cost by Function</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          {f.costByFn.length === 0 && (
+                            <p className="text-sm text-muted-foreground">No data for this filter</p>
+                          )}
+                          {f.costByFn.map((fn) => {
+                            const label = fn.fn_name === 'vendor-discovery' ? 'Discovery'
+                              : fn.fn_name === 'vendor-outreach-email' ? 'Email Drafting'
+                              : fn.fn_name === 'vendor-agent-chat' ? 'Chat'
+                              : fn.fn_name;
+                            const pct = f.totalCost > 0 ? (fn.total_cost_usd / f.totalCost) * 100 : 0;
+                            return (
+                              <div key={fn.fn_name}>
+                                <div className="flex items-center justify-between text-xs mb-1">
+                                  <span className="text-muted-foreground">{label}</span>
+                                  <span className="font-medium">${fn.total_cost_usd.toFixed(4)}</span>
+                                </div>
+                                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                                  <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </CardContent>
+                      </Card>
+
+                      {/* Cost by Region */}
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Cost by Region</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          {f.costByRegion.length === 0 && (
+                            <p className="text-sm text-muted-foreground">No region data yet</p>
+                          )}
+                          {f.costByRegion.map((r) => {
+                            const pct = f.totalCost > 0 ? (r.cost / f.totalCost) * 100 : 0;
+                            return (
+                              <div key={r.region}>
+                                <div className="flex items-center justify-between text-xs mb-1">
+                                  <span className="text-muted-foreground">{r.region}</span>
+                                  <span className="font-medium">${r.cost.toFixed(4)}</span>
+                                </div>
+                                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                                  <div className="h-full bg-orange-500 rounded-full" style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Daily Breakdown */}
                     <Card>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-sm">Vendor Pipeline</CardTitle>
+                        <CardTitle className="text-sm">Daily Breakdown</CardTitle>
+                        <CardDescription>
+                          {usageDateRange === '7d' ? 'Last 7 days' : usageDateRange === '30d' ? 'Last 30 days' : usageDateRange === '90d' ? 'Last 90 days' : 'All time'} · API cost and token usage per day
+                        </CardDescription>
                       </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Total leads created</span>
-                          <span className="font-semibold">{usageStats.leadsCreatedAllTime}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Outreach emails sent</span>
-                          <span className="font-semibold">{usageStats.emailsSentAllTime}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Email coverage</span>
-                          <span className="font-semibold">
-                            {usageStats.leadsCreatedAllTime > 0
-                              ? `${Math.round((usageStats.emailsSentAllTime / usageStats.leadsCreatedAllTime) * 100)}%`
-                              : '—'}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm">Cost by Function</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {usageStats.costByFn.length === 0 && (
-                          <p className="text-sm text-muted-foreground">No data yet</p>
-                        )}
-                        {usageStats.costByFn.map((fn) => {
-                          const label = fn.fn_name === 'vendor-discovery' ? 'Discovery'
-                            : fn.fn_name === 'vendor-outreach-email' ? 'Email Drafting'
-                            : fn.fn_name === 'vendor-agent-chat' ? 'Chat'
-                            : fn.fn_name;
-                          const pct = usageStats.totalCostAllTime > 0
-                            ? (fn.total_cost_usd / usageStats.totalCostAllTime) * 100
-                            : 0;
-                          return (
-                            <div key={fn.fn_name}>
-                              <div className="flex items-center justify-between text-xs mb-1">
-                                <span className="text-muted-foreground">{label}</span>
-                                <span className="font-medium">${fn.total_cost_usd.toFixed(4)}</span>
-                              </div>
-                              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-primary rounded-full"
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Daily Breakdown */}
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">Daily Breakdown (last 14 days)</CardTitle>
-                      <CardDescription>API cost and token usage per day</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {usageStats.dailyBreakdown.length === 0 ? (
-                        <p className="text-sm text-muted-foreground py-4 text-center">No usage data yet. Run a discovery to start tracking.</p>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b">
-                                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Date</th>
-                                <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Tokens</th>
-                                <th className="text-right py-2 pr-4 font-medium text-muted-foreground">API Calls</th>
-                                <th className="text-right py-2 font-medium text-muted-foreground">Cost (USD)</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {usageStats.dailyBreakdown.map((d) => (
-                                <tr key={d.day} className="border-b last:border-0 hover:bg-muted/30">
-                                  <td className="py-2 pr-4 font-mono text-xs">{d.day}</td>
-                                  <td className="py-2 pr-4 text-right">{(d.total_tokens / 1000).toFixed(1)}K</td>
-                                  <td className="py-2 pr-4 text-right">{d.api_calls}</td>
-                                  <td className="py-2 text-right font-medium">${d.total_cost_usd.toFixed(5)}</td>
+                      <CardContent>
+                        {f.dailyBreakdown.length === 0 ? (
+                          <p className="text-sm text-muted-foreground py-4 text-center">No usage data for this filter. Run a discovery to start tracking.</p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b">
+                                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Date</th>
+                                  <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Tokens</th>
+                                  <th className="text-right py-2 pr-4 font-medium text-muted-foreground">API Calls</th>
+                                  <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Cron</th>
+                                  <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Chat</th>
+                                  <th className="text-right py-2 font-medium text-muted-foreground">Cost (USD)</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                              </thead>
+                              <tbody>
+                                {f.dailyBreakdown.map((d) => (
+                                  <tr key={d.day} className="border-b last:border-0 hover:bg-muted/30">
+                                    <td className="py-2 pr-4 font-mono text-xs">{d.day}</td>
+                                    <td className="py-2 pr-4 text-right">{(d.total_tokens / 1000).toFixed(1)}K</td>
+                                    <td className="py-2 pr-4 text-right">{d.api_calls}</td>
+                                    <td className="py-2 pr-4 text-right text-muted-foreground">{d.triggered_by_cron || 0}</td>
+                                    <td className="py-2 pr-4 text-right text-muted-foreground">{d.triggered_by_chat || 0}</td>
+                                    <td className="py-2 text-right font-medium">${d.total_cost_usd.toFixed(5)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
 
-                  {/* Haiku model note */}
-                  <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
-                    <CardContent className="pt-4 pb-4">
-                      <div className="flex items-start gap-3">
-                        <Zap className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium text-blue-900 dark:text-blue-300">Cost-efficiency note</p>
-                          <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                            Using <strong>claude-haiku-4-5-20251001</strong> — the most cost-efficient Claude model.
-                            At $0.80/M input + $4.00/M output tokens, typical daily cron (60 vendors) costs ~$0.15–0.20/day.
-                            Haiku matches Sonnet accuracy for structured data extraction and email drafting tasks.
-                          </p>
+                    {/* Haiku model note */}
+                    <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+                      <CardContent className="pt-4 pb-4">
+                        <div className="flex items-start gap-3">
+                          <Zap className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium text-blue-900 dark:text-blue-300">Cost-efficiency note</p>
+                            <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                              Using <strong>claude-haiku-4-5-20251001</strong> — the most cost-efficient Claude model.
+                              At $0.80/M input + $4.00/M output tokens, typical daily cron (60 vendors) costs ~$0.15–0.20/day.
+                              Haiku matches Sonnet accuracy for structured data extraction and email drafting tasks.
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </>
-              )}
+                      </CardContent>
+                    </Card>
+                  </>
+                );
+              })()}
 
               {!usageStats && !usageLoading && (
                 <div className="text-center py-12 text-muted-foreground">
@@ -959,7 +1130,6 @@ export default function VendorAgent() {
               )}
             </div>
           </TabsContent>
-
           {/* Settings Tab */}
           <TabsContent value="settings" className="mt-4">
             <AIAgentSettings onRunNow={handleRunNow} runNowLoading={runNowLoading} />
