@@ -1808,10 +1808,21 @@ curl -X POST ${baseUrl}/notifications \\
                 setDevFnResults((p) => ({ ...p, [fnId]: { status: 'loading' } }));
                 const start = Date.now();
                 try {
+                  const { data: { session } } = await supabase.auth.getSession();
                   const fnUrl = `${import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')}/functions/v1/${fnId}`;
-                  const res = await fetch(fnUrl, { method: 'OPTIONS' });
+                  const res = await fetch(fnUrl, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                    },
+                    body: JSON.stringify({ __ping: true }),
+                  });
                   const ms = Date.now() - start;
-                  setDevFnResults((p) => ({ ...p, [fnId]: { status: res.ok || res.status === 204 || res.status === 405 ? 'ok' : 'error', ms, body: `HTTP ${res.status}` } }));
+                  // Any HTTP response (even 400/401/403) means the function is deployed and reachable
+                  // Only a network error or 5xx means it's truly down
+                  const reachable = res.status < 500;
+                  setDevFnResults((p) => ({ ...p, [fnId]: { status: reachable ? 'ok' : 'error', ms, body: `HTTP ${res.status}` } }));
                 } catch (e) {
                   setDevFnResults((p) => ({ ...p, [fnId]: { status: 'error', ms: Date.now() - start, body: (e as Error).message } }));
                 }
