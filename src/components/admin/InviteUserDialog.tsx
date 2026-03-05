@@ -72,11 +72,8 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
         description: `An invitation email has been sent to ${email}.`,
       });
 
-      if (data?.action_link) {
-        setInviteLink(data.action_link);
-      }
-
       onSuccess();
+      handleClose(false);
     } catch (err) {
       toast({
         variant: 'destructive',

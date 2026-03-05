@@ -64,29 +64,43 @@ Deno.serve(async (req) => {
     }
 
     const assignedRole = role === 'admin' ? 'admin' : 'employee'
+    const trimmedEmail = email.trim()
 
-    // Generate a Supabase invite link for the user.
-    // We store the desired role in user_metadata so it can be applied
-    // when the user accepts the invite and signs up.
-    const { data: linkData, error: linkError } = await supabaseClient.auth.admin.generateLink({
-      type: 'invite',
-      email: email.trim(),
-      options: {
-        data: { pending_role: assignedRole },
-      },
-    })
+    // Check if user already exists (pending invite resend case)
+    const { data: { users: existingUsers } } = await supabaseClient.auth.admin.listUsers({ perPage: 1000 })
+    const existingUser = existingUsers?.find((u) => u.email === trimmedEmail)
 
-    if (linkError) {
-      console.error('generateLink error:', JSON.stringify(linkError))
+    // If a pending user exists (never signed in), delete them first so we can re-invite
+    if (existingUser && !existingUser.last_sign_in_at) {
+      await supabaseClient.from('user_roles').delete().eq('user_id', existingUser.id)
+      await supabaseClient.from('profiles').delete().eq('user_id', existingUser.id)
+      await supabaseClient.auth.admin.deleteUser(existingUser.id)
+    } else if (existingUser && existingUser.last_sign_in_at) {
+      // User already accepted — don't re-invite
       return new Response(
-        JSON.stringify({ error: linkError.message }),
+        JSON.stringify({ error: 'This user has already accepted their invite and is active.' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
 
-    // Pre-create the user_roles row so the role is ready when the user
-    // completes sign-up via the invite link.
-    const newUserId = linkData.user?.id
+    // inviteUserByEmail sends the actual email via configured SMTP (Resend)
+    const { data: inviteData, error: inviteError } = await supabaseClient.auth.admin.inviteUserByEmail(
+      trimmedEmail,
+      {
+        data: { pending_role: assignedRole },
+        redirectTo: 'https://connect.remoasset.in/auth',
+      }
+    )
+
+    if (inviteError) {
+      console.error('inviteUserByEmail error:', JSON.stringify(inviteError))
+      return new Response(
+        JSON.stringify({ error: inviteError.message }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    const newUserId = inviteData.user?.id
     if (newUserId) {
       await supabaseClient
         .from('user_roles')
@@ -100,10 +114,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Invite sent to ${email}`,
-        // action_link is the actual invite URL – returned so callers can
-        // display / copy it as a fallback if the email isn't received.
-        action_link: linkData.properties?.action_link ?? null,
+        message: `Invite sent to ${trimmedEmail}`,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
