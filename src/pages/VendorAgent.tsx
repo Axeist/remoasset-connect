@@ -202,7 +202,6 @@ export default function VendorAgent() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [savingSession, setSavingSession] = useState(false);
-  const { user } = useAuth();
 
   // Token usage stats
   const [usageStats, setUsageStats] = useState<{
