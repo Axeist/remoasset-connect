@@ -629,41 +629,43 @@ export default function VendorAgent() {
 
   return (
     <AppLayout>
-      <div className="max-w-5xl mx-auto space-y-4">
+      <div className="max-w-5xl mx-auto space-y-3 sm:space-y-4">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Sparkles className="h-5 w-5 text-primary" />
+          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">Vendor Discovery Agent</h1>
-            <p className="text-sm text-muted-foreground">AI-powered vendor sourcing — find, outreach, and track globally</p>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold truncate">Vendor Discovery Agent</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">AI-powered vendor sourcing — find, outreach, and track globally</p>
           </div>
         </div>
 
         <Tabs defaultValue="chat">
-          <TabsList>
-            <TabsTrigger value="chat" className="gap-2">
-              <Bot className="h-4 w-4" />
+          <TabsList className="w-full sm:w-auto">
+            <TabsTrigger value="chat" className="gap-1.5 flex-1 sm:flex-none text-xs sm:text-sm">
+              <Bot className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Chat
             </TabsTrigger>
-            <TabsTrigger value="usage" className="gap-2" onClick={loadUsageStats}>
-              <BarChart3 className="h-4 w-4" />
-              Usage & Cost
+            <TabsTrigger value="usage" className="gap-1.5 flex-1 sm:flex-none text-xs sm:text-sm" onClick={loadUsageStats}>
+              <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Usage & Cost</span>
+              <span className="sm:hidden">Usage</span>
             </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2">
-              <Settings2 className="h-4 w-4" />
-              Automation Settings
+            <TabsTrigger value="settings" className="gap-1.5 flex-1 sm:flex-none text-xs sm:text-sm">
+              <Settings2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Automation Settings</span>
+              <span className="sm:hidden">Settings</span>
             </TabsTrigger>
           </TabsList>
 
           {/* Chat Tab */}
           <TabsContent value="chat" className="mt-4">
-            <div className="flex gap-3 h-[calc(100vh-260px)] min-h-[500px]">
+            <div className="flex gap-3 h-[calc(100vh-220px)] sm:h-[calc(100vh-260px)] min-h-[420px] sm:min-h-[500px] relative">
 
-              {/* History Sidebar */}
+              {/* History Sidebar — absolute overlay on mobile, inline on sm+ */}
               {historyOpen && (
-                <div className="w-64 flex-shrink-0 border rounded-xl bg-background flex flex-col overflow-hidden">
+                <div className="absolute sm:relative inset-0 sm:inset-auto z-20 sm:z-auto w-full sm:w-64 sm:flex-shrink-0 border rounded-xl bg-background flex flex-col overflow-hidden shadow-xl sm:shadow-none">
                   <div className="flex items-center justify-between px-3 py-2.5 border-b">
                     <span className="text-sm font-semibold flex items-center gap-1.5">
                       <History className="h-4 w-4" /> History
@@ -852,7 +854,7 @@ export default function VendorAgent() {
 
               {/* ── Filters ── */}
               {usageStats && (
-                <div className="flex flex-wrap gap-2 p-3 bg-muted/40 rounded-lg border">
+                <div className="flex flex-wrap sm:flex-nowrap gap-2 p-3 bg-muted/40 rounded-lg border overflow-x-auto">
                   {/* Date range */}
                   <div className="flex items-center gap-1">
                     {(['7d', '30d', '90d', 'all'] as const).map((v) => (
@@ -933,7 +935,7 @@ export default function VendorAgent() {
                 return (
                   <>
                     {/* KPI row — filtered */}
-                    <div className="grid grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                       <Card>
                         <CardContent className="pt-5">
                           <div className="flex items-center gap-2 mb-1">
@@ -977,7 +979,7 @@ export default function VendorAgent() {
                     </div>
 
                     {/* Middle row */}
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {/* Vendor Pipeline */}
                       <Card>
                         <CardHeader className="pb-2">

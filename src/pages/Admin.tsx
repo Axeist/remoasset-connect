@@ -1033,9 +1033,9 @@ curl -X POST ${baseUrl}/notifications \\
     <AppLayout>
       <div className="space-y-5 animate-fade-in">
         {/* Page header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h1 className="text-2xl font-display font-bold text-foreground">Admin Panel</h1>
+            <h1 className="text-xl sm:text-2xl font-display font-bold text-foreground">Admin Panel</h1>
             <p className="text-muted-foreground mt-0.5 text-sm">Manage users, system configuration, and analytics</p>
           </div>
         </div>
@@ -1062,16 +1062,16 @@ curl -X POST ${baseUrl}/notifications \\
         </div>
 
         {/* Landscape layout: side nav + content */}
-        <div className="flex rounded-xl border bg-card overflow-hidden min-h-[600px]">
-          {/* Side nav */}
-          <div className="w-52 border-r bg-muted/20 shrink-0 flex flex-col py-3 px-2 gap-0.5">
+        <div className="flex flex-col sm:flex-row rounded-xl border bg-card overflow-hidden min-h-[600px]">
+          {/* Side nav — horizontal scrollable strip on mobile, vertical sidebar on sm+ */}
+          <div className="sm:w-52 border-b sm:border-b-0 sm:border-r bg-muted/20 shrink-0 flex sm:flex-col py-2 sm:py-3 px-2 gap-0.5 overflow-x-auto sm:overflow-x-visible">
             {NAV_ITEMS.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setActiveTab(item.id)}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors group',
+                  'flex items-center gap-2 sm:gap-3 px-3 py-2 sm:py-2.5 rounded-lg text-left transition-colors group shrink-0 sm:shrink',
                   activeTab === item.id
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -1079,15 +1079,15 @@ curl -X POST ${baseUrl}/notifications \\
               >
                 <item.icon className={cn('h-4 w-4 shrink-0', activeTab === item.id ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
                 <div className="min-w-0">
-                  <p className={cn('text-sm font-medium leading-none', activeTab === item.id ? 'text-primary' : '')}>{item.label}</p>
-                  <p className="text-[11px] text-muted-foreground/70 mt-0.5 leading-none truncate">{item.desc}</p>
+                  <p className={cn('text-sm font-medium leading-none whitespace-nowrap', activeTab === item.id ? 'text-primary' : '')}>{item.label}</p>
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5 leading-none truncate hidden sm:block">{item.desc}</p>
                 </div>
               </button>
             ))}
           </div>
 
           {/* Content area */}
-          <div className="flex-1 overflow-auto p-6">
+          <div className="flex-1 overflow-auto p-4 sm:p-6">
 
             {/* ── PROFILE ── */}
             {activeTab === 'profile' && (

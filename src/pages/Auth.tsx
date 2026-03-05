@@ -256,7 +256,7 @@ export default function Auth() {
         </div>
 
         {/* ── Right: form ── */}
-        <div className="flex-1 flex items-center justify-center p-6 sm:p-10 auth-right-pane relative overflow-hidden">
+        <div className="flex-1 flex items-start sm:items-center justify-center p-4 sm:p-6 lg:p-10 auth-right-pane relative overflow-hidden overflow-y-auto">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_20%_40%,hsl(var(--primary)/0.12),transparent_50%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_80%_at_90%_60%,hsl(var(--accent)/0.08),transparent_50%)]" />
           <div className="auth-form-dots absolute inset-0 pointer-events-none" aria-hidden />
@@ -273,12 +273,12 @@ export default function Auth() {
           </Button>
 
           <div className="w-full max-w-[420px] relative z-10">
-            <div className="auth-form-card rounded-2xl border border-border/60 bg-card/95 dark:bg-card/90 backdrop-blur-xl shadow-2xl shadow-black/5 dark:shadow-black/40 p-8 sm:p-10 animate-fade-in-up">
+            <div className="auth-form-card rounded-2xl border border-border/60 bg-card/95 dark:bg-card/90 backdrop-blur-xl shadow-2xl shadow-black/5 dark:shadow-black/40 p-6 sm:p-8 lg:p-10 animate-fade-in-up">
 
               {/* mobile logo */}
               <div className="lg:hidden mb-6 flex justify-center">
-                <div className="rounded-xl bg-sidebar/90 px-5 py-2.5 inline-flex items-center justify-center border border-white/10">
-                  <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain" />
+                <div className="rounded-xl bg-sidebar/90 px-4 py-2 inline-flex items-center justify-center border border-white/10">
+                  <img src="/logo.png" alt="RemoAsset Connect" className="h-8 w-auto max-w-[140px] object-contain" />
                 </div>
               </div>
 

@@ -456,10 +456,10 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
       <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
         {/* Header */}
         <div className="shrink-0 px-1 pb-4 space-y-3">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-2xl font-display font-bold text-foreground flex items-center gap-2">
-                <Kanban className="h-6 w-6 text-primary shrink-0" />
+              <h1 className="text-xl sm:text-2xl font-display font-bold text-foreground flex items-center gap-2">
+                <Kanban className="h-5 w-5 sm:h-6 sm:w-6 text-primary shrink-0" />
                 {pageTitle}
               </h1>
               <p className="text-muted-foreground text-sm mt-0.5">
@@ -469,7 +469,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 flex-wrap">
               {/* View toggle */}
               <div className="flex items-center rounded-lg border bg-muted/50 p-0.5">
                 <button
@@ -498,8 +498,8 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
                 </button>
               </div>
 
-              {/* Search */}
-              <div className="relative w-56">
+              {/* Search — hidden on xs, shown sm+ */}
+              <div className="relative hidden sm:block w-48 lg:w-56">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search leads..."
@@ -522,7 +522,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
                 onClick={() => setShowFilters((v) => !v)}
               >
                 <SlidersHorizontal className="h-4 w-4" />
-                Filters
+                <span className="hidden sm:inline">Filters</span>
                 {activeFilterCount > 0 && (
                   <Badge className="h-5 w-5 p-0 justify-center text-[10px] bg-accent text-white">{activeFilterCount}</Badge>
                 )}
@@ -539,6 +539,16 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
           {/* Filter row */}
           {showFilters && (
             <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5 animate-in slide-in-from-top-2 duration-200 bg-card border rounded-lg p-3">
+              {/* Mobile-only search */}
+              <div className="relative col-span-2 sm:hidden">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search leads..."
+                  value={filters.search}
+                  onChange={(e) => update({ search: e.target.value })}
+                  className="pl-9 h-9 text-sm"
+                />
+              </div>
               {role === 'admin' && (
                 <Select value={filters.owner || 'all'} onValueChange={(v) => update({ owner: v === 'all' ? '' : v })}>
                   <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="All Owners" /></SelectTrigger>
