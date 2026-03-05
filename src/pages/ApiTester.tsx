@@ -275,14 +275,11 @@ export default function ApiTester() {
               placeholder="ra_••••••••••••••••••••••••••••••••"
               className="flex-1 font-mono text-sm h-9"
             />
-            <Button variant="outline" size="sm" className="shrink-0 gap-1.5 text-xs" onClick={fillFromSession}>
-              <Zap className="h-3.5 w-3.5" />Use session token
-            </Button>
           </div>
           {!apiKey && (
             <p className="mt-2 text-xs text-muted-foreground flex items-center gap-1.5">
               <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
-              Create API keys in Admin Panel → API tab. Or click "Use session token" to test with your current login.
+              Requires a <code className="font-mono bg-muted px-1 rounded">ra_...</code> API key — <strong>not</strong> a session token. Create one in Admin → API tab.
             </p>
           )}
         </Card>
