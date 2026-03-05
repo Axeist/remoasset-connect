@@ -212,7 +212,6 @@ Deno.serve(async (req) => {
       if (!settings?.ai_enabled) {
         await send({ type: 'error', message: 'AI is disabled in settings. Enable it in Agent Settings.' })
         await send({ type: 'done' })
-        await writer.close()
         return
       }
 
@@ -243,7 +242,6 @@ Deno.serve(async (req) => {
 
         await send({ type: 'text', content: statusText })
         await send({ type: 'done' })
-        await writer.close()
         return
       }
 
@@ -264,7 +262,6 @@ Deno.serve(async (req) => {
         )
         await send({ type: 'text', content: answer })
         await send({ type: 'done' })
-        await writer.close()
         return
       }
 
@@ -274,7 +271,6 @@ Deno.serve(async (req) => {
           content: `I can help you find vendors! Try saying something like:\n\n• *"Find 10 refurbished laptop vendors in Southeast Asia"*\n• *"Search for 5 warehouse partners in Germany"*\n• *"Find rental IT equipment companies in the US"*`,
         })
         await send({ type: 'done' })
-        await writer.close()
         return
       }
 
@@ -304,7 +300,6 @@ Deno.serve(async (req) => {
       } catch (err) {
         await send({ type: 'error', message: `Discovery failed: ${String(err)}` })
         await send({ type: 'done' })
-        await writer.close()
         return
       }
 
@@ -316,7 +311,6 @@ Deno.serve(async (req) => {
           content: `No vendors found for ${region}. Try a different region or vendor type.`,
         })
         await send({ type: 'done' })
-        await writer.close()
         return
       }
 
@@ -350,46 +344,57 @@ Deno.serve(async (req) => {
       let emailsSent = 0
       let skipped = 0
 
-      for (let i = 0; i < vendors.length; i++) {
-        const vendor = { ...vendors[i], region }
+      // Process vendors in small parallel batches (3 at a time) to stay within
+      // the 60s Edge Function wall-clock limit while respecting Resend rate limits.
+      const BATCH_SIZE = 3
 
-        await send({
-          type: 'progress',
-          step: `Processing ${vendor.company_name} (${i + 1}/${vendors.length})...`,
-          icon: '⚙️',
-        })
+      for (let batchStart = 0; batchStart < vendors.length; batchStart += BATCH_SIZE) {
+        const batch = vendors.slice(batchStart, batchStart + BATCH_SIZE)
 
-        let emailResult: any = { success: false, skipped: true }
+        await Promise.all(batch.map(async (v, batchIdx) => {
+          const globalIdx = batchStart + batchIdx
+          const vendor = { ...v, region }
 
-        if (settings?.vendor_email_enabled && vendor.contact_email) {
-          try {
-            emailResult = await callFunction('vendor-outreach-email', { vendor, settings: emailSettings })
-            await new Promise((r) => setTimeout(r, 600))
-          } catch (err) {
-            emailResult = { success: false, error: String(err) }
-          }
-        }
-
-        try {
-          const leadResult = await callFunction('create-vendor-lead', {
-            vendor,
-            email_result: emailResult,
-            settings: leadSettings,
-            token_usage_discovery: discoveryResult.token_usage || null,
-            token_usage_email: emailResult?.token_usage || null,
+          await send({
+            type: 'progress',
+            step: `Processing ${vendor.company_name} (${globalIdx + 1}/${vendors.length})...`,
+            icon: '⚙️',
           })
 
-          if (leadResult.skipped) {
-            skipped++
-          } else {
-            leadsCreated++
-            if (emailResult?.success) emailsSent++
-          }
-        } catch (err) {
-          console.error(`Lead creation failed for ${vendor.company_name}:`, err)
-        }
+          let emailResult: any = { success: false, skipped: true }
 
-        await new Promise((r) => setTimeout(r, 200))
+          if (settings?.vendor_email_enabled && vendor.contact_email) {
+            try {
+              emailResult = await callFunction('vendor-outreach-email', { vendor, settings: emailSettings })
+            } catch (err) {
+              emailResult = { success: false, error: String(err) }
+            }
+          }
+
+          try {
+            const leadResult = await callFunction('create-vendor-lead', {
+              vendor,
+              email_result: emailResult,
+              settings: leadSettings,
+              token_usage_discovery: discoveryResult.token_usage || null,
+              token_usage_email: emailResult?.token_usage || null,
+            })
+
+            if (leadResult.skipped) {
+              skipped++
+            } else {
+              leadsCreated++
+              if (emailResult?.success) emailsSent++
+            }
+          } catch (err) {
+            console.error(`Lead creation failed for ${vendor.company_name}:`, err)
+          }
+        }))
+
+        // Small gap between batches to respect Resend rate limits
+        if (batchStart + BATCH_SIZE < vendors.length) {
+          await new Promise((r) => setTimeout(r, 400))
+        }
       }
 
       await send({ type: 'progress', step: 'All done!', icon: '🎉' })
@@ -404,10 +409,10 @@ Deno.serve(async (req) => {
       await send({ type: 'done' })
     } catch (err) {
       console.error('vendor-agent-chat error:', err)
-      await send({ type: 'error', message: String(err) })
-      await send({ type: 'done' })
+      try { await send({ type: 'error', message: String(err) }) } catch { /* stream may be closed */ }
+      try { await send({ type: 'done' }) } catch { /* stream may be closed */ }
     } finally {
-      await writer.close()
+      try { await writer.close() } catch { /* already closed */ }
     }
   })()
 
