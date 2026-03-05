@@ -361,14 +361,18 @@ Deno.serve(async (req) => {
             icon: '⚙️',
           })
 
-          let emailResult: any = { success: false, skipped: true }
+          let emailResult: any = { success: false, skipped: true, reason: 'email disabled or no contact email' }
 
-          if (settings?.vendor_email_enabled && vendor.contact_email) {
+          if (settings?.vendor_email_enabled !== false && vendor.contact_email) {
             try {
               emailResult = await callFunction('vendor-outreach-email', { vendor, settings: emailSettings })
             } catch (err) {
               emailResult = { success: false, error: String(err) }
             }
+          } else if (!vendor.contact_email) {
+            emailResult = { success: false, skipped: true, reason: 'no contact email' }
+          } else if (settings?.vendor_email_enabled === false) {
+            emailResult = { success: false, skipped: true, reason: 'email sending disabled in settings' }
           }
 
           try {
@@ -398,6 +402,10 @@ Deno.serve(async (req) => {
       }
 
       await send({ type: 'progress', step: 'All done!', icon: '🎉' })
+
+      const emailDisabled = settings?.vendor_email_enabled === false
+      const noEmailCount = vendors.filter((v: any) => !v.contact_email).length
+
       await send({
         type: 'result',
         leads_created: leadsCreated,
@@ -405,6 +413,11 @@ Deno.serve(async (req) => {
         skipped,
         region,
         vendor_types: vendorTypes,
+        email_note: emailDisabled
+          ? 'Email sending is disabled in Automation Settings'
+          : noEmailCount > 0
+          ? `${noEmailCount} vendor(s) had no contact email — email skipped for those`
+          : undefined,
       })
       await send({ type: 'done' })
     } catch (err) {

@@ -43,6 +43,7 @@ interface DiscoveryResult {
   skipped: number;
   region?: string;
   vendor_types?: string[];
+  email_note?: string;
 }
 
 interface ChatSession {
@@ -106,6 +107,12 @@ function ResultCard({ result, onViewLeads }: { result: DiscoveryResult; onViewLe
             <Badge key={t} variant="outline" className="text-xs">{t.replace('_', ' ')}</Badge>
           ))}
         </div>
+        {result.email_note && (
+          <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded px-2 py-1.5 mb-3">
+            <XCircle className="h-3.5 w-3.5 flex-shrink-0" />
+            {result.email_note}
+          </div>
+        )}
         <Button size="sm" variant="outline" onClick={onViewLeads} className="w-full">
           <ExternalLink className="h-3.5 w-3.5 mr-2" />
           View Leads
