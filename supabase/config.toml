@@ -1,5 +1,17 @@
 project_id = "snashlomudlvooanyqwt"
 
+[auth.email.template.invite]
+subject = "You're invited to RemoAsset Connect"
+content_path = "./supabase/email-templates/invite-user.html"
+
+[auth.email.template.confirmation]
+subject = "Confirm your RemoAsset Connect email"
+content_path = "./supabase/email-templates/confirm-signup.html"
+
+[auth.email.template.recovery]
+subject = "Reset your RemoAsset Connect password"
+content_path = "./supabase/email-templates/reset-password.html"
+
 [functions.slack-notify]
 verify_jwt = false
 

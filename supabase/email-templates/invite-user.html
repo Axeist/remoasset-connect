@@ -1,108 +1,200 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>You've been invited</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>You're invited to RemoAsset Connect</title>
+  <!--[if mso]>
+  <noscript>
+    <xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml>
+  </noscript>
+  <![endif]-->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    a { text-decoration: none; }
+    img { border: 0; display: block; }
+    @media only screen and (max-width: 600px) {
+      .email-wrapper { padding: 20px 12px !important; }
+      .card-inner { padding: 32px 24px !important; }
+      .features-row { display: block !important; }
+      .feature-cell { display: block !important; width: 100% !important; padding: 8px 0 !important; }
+      .cta-btn { padding: 15px 28px !important; font-size: 15px !important; }
+    }
+  </style>
 </head>
-<body style="margin:0;padding:0;background-color:#f8f9fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f9fb;padding:48px 20px;">
+<body style="margin:0;padding:0;background-color:#F0F0F5;font-family:'Manrope',system-ui,sans-serif;">
+
+  <!-- Email wrapper -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-wrapper" style="background-color:#F0F0F5;padding:48px 20px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:540px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
 
-          <!-- Logo bar -->
+          <!-- ── HEADER LOGO ── -->
           <tr>
-            <td style="padding:0 0 24px;text-align:center;">
-              <span style="font-size:20px;font-weight:800;color:#1e293b;letter-spacing:-0.5px;">Remo<span style="color:#ea580c;">Asset</span></span>
-            </td>
-          </tr>
-
-          <!-- Main card -->
-          <tr>
-            <td>
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
-
-                <!-- Orange accent bar -->
+            <td style="padding:0 0 28px;text-align:center;">
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
                 <tr>
-                  <td style="height:4px;background:linear-gradient(90deg,#ea580c 0%,#f97316 50%,#fb923c 100%);font-size:0;line-height:0;">&nbsp;</td>
-                </tr>
-
-                <!-- Body -->
-                <tr>
-                  <td style="padding:40px 40px 16px;text-align:center;">
-                    <div style="margin:0 auto 20px;">
-                      <span style="display:inline-block;width:52px;height:52px;background:#fff7ed;border:1px solid #fed7aa;border-radius:50%;text-align:center;line-height:52px;font-size:24px;">&#128075;</span>
-                    </div>
-                    <h1 style="margin:0 0 6px;color:#0f172a;font-size:22px;font-weight:700;letter-spacing:-0.3px;">You&apos;ve been invited</h1>
-                    <p style="margin:0 0 28px;color:#64748b;font-size:15px;line-height:1.65;max-width:380px;display:inline-block;">
-                      Your team has added you to RemoAsset &mdash; the platform for managing vendor leads, activities, and deals. Accept to get started.
-                    </p>
-
-                    <!-- CTA Button -->
-                    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
-                      <tr>
-                        <td style="border-radius:8px;background:#ea580c;">
-                          <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:13px 36px;border-radius:8px;">
-                            Accept invitation &rarr;
-                          </a>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-
-                <!-- Divider -->
-                <tr>
-                  <td style="padding:28px 40px 0;">
-                    <hr style="border:none;border-top:1px solid #f1f5f9;margin:0;" />
-                  </td>
-                </tr>
-
-                <!-- What to expect -->
-                <tr>
-                  <td style="padding:24px 40px 32px;">
-                    <p style="margin:0 0 14px;color:#334155;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Getting started is easy</p>
-                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td style="padding:8px 0;vertical-align:top;width:28px;">
-                          <span style="display:inline-block;width:22px;height:22px;background:#fff7ed;border:1px solid #fdba74;border-radius:50%;text-align:center;line-height:22px;font-size:11px;font-weight:700;color:#ea580c;">1</span>
-                        </td>
-                        <td style="padding:8px 0 8px 10px;color:#475569;font-size:13px;line-height:1.55;">
-                          Click the button above to accept your invite
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:8px 0;vertical-align:top;width:28px;">
-                          <span style="display:inline-block;width:22px;height:22px;background:#fff7ed;border:1px solid #fdba74;border-radius:50%;text-align:center;line-height:22px;font-size:11px;font-weight:700;color:#ea580c;">2</span>
-                        </td>
-                        <td style="padding:8px 0 8px 10px;color:#475569;font-size:13px;line-height:1.55;">
-                          Sign in with the credentials provided by your admin
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:8px 0;vertical-align:top;width:28px;">
-                          <span style="display:inline-block;width:22px;height:22px;background:#fff7ed;border:1px solid #fdba74;border-radius:50%;text-align:center;line-height:22px;font-size:11px;font-weight:700;color:#ea580c;">3</span>
-                        </td>
-                        <td style="padding:8px 0 8px 10px;color:#475569;font-size:13px;line-height:1.55;">
-                          Start tracking leads and logging activities right away
-                        </td>
-                      </tr>
-                    </table>
+                  <td style="background-color:#30282B;border-radius:12px;padding:12px 24px;">
+                    <span style="font-family:'Outfit','Manrope',system-ui,sans-serif;font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#ffffff;">
+                      Remo<span style="color:#EA6E35;">Asset</span>
+                      <span style="font-size:13px;font-weight:500;color:#9DA2B3;margin-left:6px;letter-spacing:0;">Connect</span>
+                    </span>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
 
-          <!-- Footer text -->
+          <!-- ── MAIN CARD ── -->
           <tr>
-            <td style="padding:24px 8px 0;text-align:center;">
-              <p style="margin:0 0 6px;color:#94a3b8;font-size:12px;line-height:1.5;">
-                If you weren&apos;t expecting this invitation, you can safely ignore this email.
+            <td>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(48,40,43,0.10),0 1px 4px rgba(48,40,43,0.06);">
+
+                <!-- Gradient top bar -->
+                <tr>
+                  <td style="height:5px;background:linear-gradient(90deg,#EA6E35 0%,#F09A72 60%,#FBBC9A 100%);font-size:0;line-height:0;">&nbsp;</td>
+                </tr>
+
+                <!-- Hero section with dark background -->
+                <tr>
+                  <td style="background:linear-gradient(145deg,#30282B 0%,#3d3336 50%,#2a2227 100%);padding:44px 44px 36px;" class="card-inner">
+
+                    <!-- Icon -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+                      <tr>
+                        <td style="width:64px;height:64px;background:linear-gradient(135deg,#EA6E35 0%,#F09A72 100%);border-radius:16px;text-align:center;vertical-align:middle;">
+                          <span style="font-size:28px;line-height:64px;display:block;">&#9993;</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Headline -->
+                    <h1 style="margin:0 0 12px;font-family:'Outfit','Manrope',system-ui,sans-serif;font-size:28px;font-weight:800;letter-spacing:-0.5px;color:#ffffff;text-align:center;line-height:1.2;">
+                      You've been invited
+                    </h1>
+                    <p style="margin:0;font-size:15px;line-height:1.7;color:#BCBFCC;text-align:center;max-width:380px;display:block;margin:0 auto;">
+                      You've been added to <strong style="color:#F09A72;">RemoAsset Connect</strong> — the platform your team uses to manage vendor leads, track deals, and log activities.
+                    </p>
+
+                  </td>
+                </tr>
+
+                <!-- CTA Section -->
+                <tr>
+                  <td style="padding:36px 44px 32px;text-align:center;" class="card-inner">
+
+                    <!-- CTA Button -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
+                      <tr>
+                        <td style="border-radius:10px;background:linear-gradient(135deg,#EA6E35 0%,#F09A72 100%);box-shadow:0 4px 16px rgba(234,110,53,0.35);">
+                          <a href="{{ .ConfirmationURL }}" target="_blank" class="cta-btn" style="display:inline-block;color:#ffffff;font-family:'Outfit','Manrope',system-ui,sans-serif;font-size:15px;font-weight:700;letter-spacing:0.1px;padding:16px 40px;border-radius:10px;white-space:nowrap;">
+                            Accept invitation &rarr;
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="margin:0;font-size:12px;color:#9DA2B3;line-height:1.5;">
+                      This invitation link expires in <strong style="color:#6E7180;">24 hours</strong>. If you weren't expecting this, you can safely ignore it.
+                    </p>
+
+                  </td>
+                </tr>
+
+                <!-- Divider -->
+                <tr>
+                  <td style="padding:0 44px;">
+                    <div style="height:1px;background:linear-gradient(90deg,transparent,#EDEFF7 20%,#EDEFF7 80%,transparent);font-size:0;">&nbsp;</div>
+                  </td>
+                </tr>
+
+                <!-- Features / What to expect -->
+                <tr>
+                  <td style="padding:32px 44px 40px;" class="card-inner">
+                    <p style="margin:0 0 20px;font-family:'Outfit','Manrope',system-ui,sans-serif;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#9DA2B3;text-align:center;">
+                      What you can do on Connect
+                    </p>
+
+                    <!-- Feature rows -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="features-row">
+                      <tr>
+
+                        <!-- Feature 1 -->
+                        <td width="33%" style="padding:0 6px;vertical-align:top;text-align:center;" class="feature-cell">
+                          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;width:100%;">
+                            <tr>
+                              <td style="padding:16px 12px;background:#FAFBFF;border:1px solid #EDEFF7;border-radius:12px;text-align:center;">
+                                <div style="width:36px;height:36px;background:linear-gradient(135deg,#EA6E35 0%,#F09A72 100%);border-radius:10px;margin:0 auto 10px;text-align:center;line-height:36px;font-size:16px;">&#128202;</div>
+                                <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#40424D;">Lead Pipeline</p>
+                                <p style="margin:0;font-size:11px;color:#9DA2B3;line-height:1.4;">Track & manage vendor leads</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+
+                        <!-- Feature 2 -->
+                        <td width="33%" style="padding:0 6px;vertical-align:top;text-align:center;" class="feature-cell">
+                          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;width:100%;">
+                            <tr>
+                              <td style="padding:16px 12px;background:#FAFBFF;border:1px solid #EDEFF7;border-radius:12px;text-align:center;">
+                                <div style="width:36px;height:36px;background:linear-gradient(135deg,#3B9B6D 0%,#4BAF7D 100%);border-radius:10px;margin:0 auto 10px;text-align:center;line-height:36px;font-size:16px;">&#9989;</div>
+                                <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#40424D;">Activities</p>
+                                <p style="margin:0;font-size:11px;color:#9DA2B3;line-height:1.4;">Log calls, tasks & follow-ups</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+
+                        <!-- Feature 3 -->
+                        <td width="33%" style="padding:0 6px;vertical-align:top;text-align:center;" class="feature-cell">
+                          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;width:100%;">
+                            <tr>
+                              <td style="padding:16px 12px;background:#FAFBFF;border:1px solid #EDEFF7;border-radius:12px;text-align:center;">
+                                <div style="width:36px;height:36px;background:linear-gradient(135deg,#6366F1 0%,#818CF8 100%);border-radius:10px;margin:0 auto 10px;text-align:center;line-height:36px;font-size:16px;">&#128200;</div>
+                                <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#40424D;">Analytics</p>
+                                <p style="margin:0;font-size:11px;color:#9DA2B3;line-height:1.4;">Team performance & reports</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+
+                <!-- Fallback link section -->
+                <tr>
+                  <td style="padding:0 44px 36px;" class="card-inner">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="background:#FAFBFF;border:1px solid #EDEFF7;border-radius:10px;padding:14px 16px;">
+                          <p style="margin:0 0 6px;font-size:11px;font-weight:600;color:#6E7180;text-transform:uppercase;letter-spacing:0.5px;">Can't click the button? Copy this link</p>
+                          <p style="margin:0;font-size:11px;color:#9DA2B3;word-break:break-all;line-height:1.5;font-family:monospace;">{{ .ConfirmationURL }}</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <!-- ── FOOTER ── -->
+          <tr>
+            <td style="padding:28px 8px 8px;text-align:center;">
+              <p style="margin:0 0 8px;font-size:12px;color:#9DA2B3;line-height:1.6;">
+                This email was sent by <strong style="color:#6E7180;">RemoAsset Connect</strong> because you were added as a team member.<br />
+                If you weren't expecting this, no action is needed — just ignore this email.
               </p>
-              <p style="margin:12px 0 0;color:#cbd5e1;font-size:11px;">
-                RemoAsset &middot; Vendor Resource Management
+              <p style="margin:16px 0 0;font-size:11px;color:#BCBFCC;letter-spacing:0.3px;">
+                &copy; 2026 RemoAsset &middot; Vendor Resource Management
               </p>
             </td>
           </tr>
@@ -111,5 +203,6 @@
       </td>
     </tr>
   </table>
+
 </body>
 </html>

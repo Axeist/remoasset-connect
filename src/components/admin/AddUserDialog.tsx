@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 interface AddUserDialogProps {
   open: boolean;
@@ -54,6 +55,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: AddUserDialogPr
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({

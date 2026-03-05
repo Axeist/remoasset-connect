@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Copy, Loader2, Mail, CheckCircle2 } from 'lucide-react';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 interface InviteUserDialogProps {
   open: boolean;
@@ -61,6 +62,7 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ email: email.trim(), role }),
