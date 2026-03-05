@@ -20,6 +20,10 @@ content_path = "./supabase/email-templates/confirm-signup.html"
 subject = "Reset your RemoAsset Connect password"
 content_path = "./supabase/email-templates/reset-password.html"
 
+[auth.email.template.email_change]
+subject = "Your RemoAsset Connect password has been changed"
+content_path = "./supabase/email-templates/password-change.html"
+
 [functions.slack-notify]
 verify_jwt = false
 
