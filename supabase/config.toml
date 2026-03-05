@@ -4,6 +4,7 @@ project_id = "snashlomudlvooanyqwt"
 site_url = "https://connect.remoasset.in/"
 additional_redirect_urls = [
   "https://connect.remoasset.in/reset-password",
+  "https://connect.remoasset.in/reset-password?invite=true",
   "https://connect.remoasset.in/auth",
 ]
 

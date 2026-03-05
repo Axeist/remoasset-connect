@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
       trimmedEmail,
       {
         data: { pending_role: assignedRole },
-        redirectTo: 'https://connect.remoasset.in/auth',
+        redirectTo: 'https://connect.remoasset.in/reset-password?invite=true',
       }
     )
 
