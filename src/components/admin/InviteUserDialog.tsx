@@ -53,10 +53,15 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
       });
 
       if (error) {
+        let description = error.message || 'Unknown error';
+        try {
+          const body = await (error as any).context?.json?.();
+          if (body?.error) description = body.error;
+        } catch { /* ignore */ }
         toast({
           variant: 'destructive',
           title: 'Failed to send invite',
-          description: error.message || 'Unknown error',
+          description,
         });
         setSubmitting(false);
         return;
