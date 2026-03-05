@@ -621,7 +621,7 @@ export default function LeadDetail() {
           </TabsContent>
 
           <TabsContent value="documents" className="mt-6">
-            <LeadDocumentsTab leadId={id!} isAdmin={isAdmin} canEdit={canEdit} />
+            <LeadDocumentsTab leadId={id!} isAdmin={isAdmin} canEdit={canEdit} leadCompanyName={lead.company_name} />
           </TabsContent>
 
           <TabsContent value="notes" className="mt-6">
@@ -1363,7 +1363,7 @@ const DOCUMENT_TYPE_OPTIONS = [
   { value: 'custom', label: 'Custom' },
 ] as const;
 
-function LeadDocumentsTab({ leadId, isAdmin, canEdit }: { leadId: string; isAdmin?: boolean; canEdit?: boolean }) {
+function LeadDocumentsTab({ leadId, isAdmin, canEdit, leadCompanyName }: { leadId: string; isAdmin?: boolean; canEdit?: boolean; leadCompanyName?: string }) {
   const { toast } = useToast();
   const [documents, setDocuments] = useState<LeadDocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1568,7 +1568,7 @@ function LeadDocumentsTab({ leadId, isAdmin, canEdit }: { leadId: string; isAdmi
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
         leadId={leadId}
-        leadCompanyName={lead?.company_name}
+        leadCompanyName={leadCompanyName}
         onSuccess={fetchDocuments}
       />
 
