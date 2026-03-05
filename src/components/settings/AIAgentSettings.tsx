@@ -53,7 +53,7 @@ interface AIAgentSettingsData {
 
 const DEFAULT_SETTINGS: AIAgentSettingsData = {
   ai_enabled: true,
-  ai_model: 'claude-3-5-haiku-20241022',
+  ai_model: 'claude-haiku-4-5-20251001',
   ai_max_tokens: 4096,
   ai_temperature: 0.7,
   vendor_cron_enabled: false,
@@ -91,7 +91,7 @@ const DEFAULT_SETTINGS: AIAgentSettingsData = {
 };
 
 const AI_MODELS = [
-  { value: 'claude-3-5-haiku-20241022', label: 'Haiku 3.5 — Fast & economical (~$7/mo)' },
+  { value: 'claude-haiku-4-5-20251001', label: 'Haiku 3.5 — Fast & economical (~$7/mo)' },
   { value: 'claude-3-5-sonnet-20241022', label: 'Sonnet 3.5 — Balanced quality (~$40/mo)' },
   { value: 'claude-3-opus-20240229', label: 'Opus 3 — Most capable (~$200/mo)' },
 ];

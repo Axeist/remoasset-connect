@@ -9,11 +9,17 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import {
   Send, Bot, User, Loader2, ExternalLink, CheckCircle2,
-  XCircle, Sparkles, Settings2, Play, RefreshCw, DollarSign, Zap, BarChart3, TrendingUp, Mail,
+  XCircle, Sparkles, Settings2, Play, RefreshCw, DollarSign, Zap, BarChart3,
+  TrendingUp, Plus, Trash2, History, ChevronLeft, Clock,
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -37,6 +43,16 @@ interface DiscoveryResult {
   skipped: number;
   region?: string;
   vendor_types?: string[];
+}
+
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  leads_created: number;
+  emails_sent: number;
+  last_message_at: string;
+  created_at: string;
 }
 
 const SUGGESTED_PROMPTS = [
@@ -161,7 +177,7 @@ function UserMessage({ message }: { message: ChatMessage }) {
 }
 
 export default function VendorAgent() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const isAdmin = role === 'admin';
@@ -179,6 +195,14 @@ export default function VendorAgent() {
   const [runNowLoading, setRunNowLoading] = useState(false);
   const [conversation, setConversation] = useState<Array<{ role: string; content: string }>>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Session management
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [savingSession, setSavingSession] = useState(false);
+  const { user } = useAuth();
 
   // Token usage stats
   const [usageStats, setUsageStats] = useState<{
@@ -261,6 +285,110 @@ export default function VendorAgent() {
     } finally {
       setUsageLoading(false);
     }
+  }
+
+  // ── Session helpers ──────────────────────────────────────
+
+  const WELCOME_MSG: ChatMessage = {
+    id: '0',
+    role: 'assistant',
+    content: "Hi! I'm the **RemoAsset Vendor Discovery Agent**. I can find potential vendor partners across the globe — refurbished device suppliers, new hardware distributors, rental companies, and warehouse partners.\n\nTell me what you're looking for, or pick a suggestion below.",
+    timestamp: new Date(),
+  };
+
+  function serializeMessages(msgs: ChatMessage[]) {
+    return msgs.map((m) => ({
+      ...m,
+      timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp,
+    }));
+  }
+
+  function deserializeMessages(msgs: any[]): ChatMessage[] {
+    return msgs.map((m) => ({ ...m, timestamp: new Date(m.timestamp) }));
+  }
+
+  async function saveCurrentSession(finalMessages: ChatMessage[], sessionIdOverride?: string) {
+    if (!user || finalMessages.filter((m) => m.role === 'user').length === 0) return;
+    setSavingSession(true);
+    const sid = sessionIdOverride ?? currentSessionId;
+    const firstUserMsg = finalMessages.find((m) => m.role === 'user')?.content || 'Session';
+    const title = firstUserMsg.length > 60 ? firstUserMsg.slice(0, 57) + '...' : firstUserMsg;
+    const totalLeads = finalMessages.reduce((s, m) => s + (m.result?.leads_created ?? 0), 0);
+    const totalEmails = finalMessages.reduce((s, m) => s + (m.result?.emails_sent ?? 0), 0);
+
+    if (sid) {
+      await supabase.from('agent_chat_sessions').update({
+        messages: serializeMessages(finalMessages),
+        last_message_at: new Date().toISOString(),
+        leads_created: totalLeads,
+        emails_sent: totalEmails,
+      }).eq('id', sid);
+    } else {
+      const { data } = await supabase.from('agent_chat_sessions').insert({
+        user_id: user.id,
+        title,
+        messages: serializeMessages(finalMessages),
+        leads_created: totalLeads,
+        emails_sent: totalEmails,
+        last_message_at: new Date().toISOString(),
+      }).select('id').single();
+      if (data?.id) setCurrentSessionId(data.id);
+    }
+    setSavingSession(false);
+  }
+
+  async function loadSessions() {
+    setSessionsLoading(true);
+    const { data } = await supabase
+      .from('agent_chat_sessions')
+      .select('id, title, leads_created, emails_sent, last_message_at, created_at, messages')
+      .order('last_message_at', { ascending: false })
+      .limit(50);
+    setSessions((data || []) as ChatSession[]);
+    setSessionsLoading(false);
+  }
+
+  async function openSession(session: ChatSession) {
+    const msgs = deserializeMessages(session.messages as any[]);
+    setMessages(msgs);
+    setConversation(
+      msgs
+        .filter((m) => m.role === 'user' || (m.role === 'assistant' && m.content))
+        .map((m) => ({ role: m.role, content: m.content }))
+    );
+    setCurrentSessionId(session.id);
+    setHistoryOpen(false);
+  }
+
+  async function deleteSession(id: string) {
+    await supabase.from('agent_chat_sessions').delete().eq('id', id);
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    if (currentSessionId === id) startNewSession();
+  }
+
+  function startNewSession() {
+    setMessages([WELCOME_MSG]);
+    setConversation([]);
+    setCurrentSessionId(null);
+    setInput('');
+  }
+
+  async function clearCurrentSession() {
+    if (currentSessionId) {
+      await supabase.from('agent_chat_sessions').delete().eq('id', currentSessionId);
+    }
+    startNewSession();
+    toast({ title: 'Chat cleared', description: 'Started a new session.' });
+  }
+
+  function formatSessionDate(iso: string) {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+    if (diffDays === 0) return 'Today ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
 
   async function sendMessage(text: string) {
@@ -357,6 +485,17 @@ export default function VendorAgent() {
       }
 
       setConversation((prev) => [...prev, { role: 'assistant', content: assistantText }]);
+
+      // Auto-save session to Supabase after each complete exchange
+      setMessages((prev) => {
+        const updated = prev.map((m) =>
+          m.id === assistantMsgId
+            ? { ...m, content: assistantText, progress: [], result }
+            : m
+        );
+        saveCurrentSession(updated, currentSessionId ?? undefined);
+        return updated;
+      });
     } catch (err) {
       setMessages((prev) =>
         prev.map((m) =>
@@ -448,7 +587,124 @@ export default function VendorAgent() {
 
           {/* Chat Tab */}
           <TabsContent value="chat" className="mt-4">
-            <div className="flex flex-col h-[calc(100vh-260px)] min-h-[500px] border rounded-xl bg-background overflow-hidden">
+            <div className="flex gap-3 h-[calc(100vh-260px)] min-h-[500px]">
+
+              {/* History Sidebar */}
+              {historyOpen && (
+                <div className="w-64 flex-shrink-0 border rounded-xl bg-background flex flex-col overflow-hidden">
+                  <div className="flex items-center justify-between px-3 py-2.5 border-b">
+                    <span className="text-sm font-semibold flex items-center gap-1.5">
+                      <History className="h-4 w-4" /> History
+                    </span>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setHistoryOpen(false)}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                    {sessionsLoading && (
+                      <div className="flex justify-center pt-4">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
+                    {!sessionsLoading && sessions.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center pt-4 px-2">No saved sessions yet. Start chatting!</p>
+                    )}
+                    {sessions.map((s) => (
+                      <div
+                        key={s.id}
+                        className={cn(
+                          'group relative rounded-lg px-2.5 py-2 cursor-pointer hover:bg-muted transition-colors',
+                          currentSessionId === s.id && 'bg-muted'
+                        )}
+                        onClick={() => openSession(s)}
+                      >
+                        <p className="text-xs font-medium truncate pr-5">{s.title}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{formatSessionDate(s.last_message_at)}</span>
+                        </div>
+                        {(s.leads_created > 0 || s.emails_sent > 0) && (
+                          <div className="flex gap-1 mt-1">
+                            {s.leads_created > 0 && <Badge variant="secondary" className="text-xs px-1 py-0">{s.leads_created} leads</Badge>}
+                            {s.emails_sent > 0 && <Badge variant="outline" className="text-xs px-1 py-0">{s.emails_sent} emails</Badge>}
+                          </div>
+                        )}
+                        <button
+                          className="absolute top-2 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:text-destructive"
+                          onClick={(e) => { e.stopPropagation(); deleteSession(s.id); }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-2 border-t">
+                    <Button variant="outline" size="sm" className="w-full gap-1.5" onClick={() => { startNewSession(); setHistoryOpen(false); }}>
+                      <Plus className="h-3.5 w-3.5" />
+                      New Session
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Main chat panel */}
+              <div className="flex-1 flex flex-col border rounded-xl bg-background overflow-hidden min-w-0">
+
+                {/* Chat toolbar */}
+                <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={() => { setHistoryOpen((o) => !o); if (!historyOpen) loadSessions(); }}
+                    >
+                      <History className="h-3.5 w-3.5" />
+                      {historyOpen ? 'Hide History' : 'History'}
+                    </Button>
+                    {currentSessionId && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        {savingSession
+                          ? <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>
+                          : <><CheckCircle2 className="h-3 w-3 text-green-500" /> Saved</>
+                        }
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={() => { startNewSession(); }}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      New
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-destructive">
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Clear
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Clear this chat?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will delete the current session and all its messages. This cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={clearCurrentSession} className="bg-destructive hover:bg-destructive/90">
+                            Clear Chat
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -506,7 +762,8 @@ export default function VendorAgent() {
                   Vendors are AI-discovered via Google Search. Verify credentials before closing deals.
                 </p>
               </div>
-            </div>
+              </div>{/* end main chat panel */}
+            </div>{/* end outer flex */}
           </TabsContent>
 
           {/* Usage & Cost Tab */}
@@ -677,7 +934,7 @@ export default function VendorAgent() {
                         <div>
                           <p className="text-sm font-medium text-blue-900 dark:text-blue-300">Cost-efficiency note</p>
                           <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                            Using <strong>claude-3-5-haiku-20241022</strong> — the most cost-efficient Claude model.
+                            Using <strong>claude-haiku-4-5-20251001</strong> — the most cost-efficient Claude model.
                             At $0.80/M input + $4.00/M output tokens, typical daily cron (60 vendors) costs ~$0.15–0.20/day.
                             Haiku matches Sonnet accuracy for structured data extraction and email drafting tasks.
                           </p>

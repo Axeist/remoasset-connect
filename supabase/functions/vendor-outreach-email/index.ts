@@ -26,13 +26,13 @@ const corsHeaders = {
 
 // Cost per million tokens (USD)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  'claude-3-5-haiku-20241022':  { input: 0.80,  output: 4.00  },
+  'claude-haiku-4-5-20251001':  { input: 0.80,  output: 4.00  },
   'claude-3-5-sonnet-20241022': { input: 3.00,  output: 15.00 },
   'claude-3-opus-20240229':     { input: 15.00, output: 75.00 },
 }
 
 function calculateCost(model: string, inputTokens: number, outputTokens: number) {
-  const pricing = MODEL_PRICING[model] ?? MODEL_PRICING['claude-3-5-haiku-20241022']
+  const pricing = MODEL_PRICING[model] ?? MODEL_PRICING['claude-haiku-4-5-20251001']
   return {
     input_cost_usd:  (inputTokens  / 1_000_000) * pricing.input,
     output_cost_usd: (outputTokens / 1_000_000) * pricing.output,
@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
       reply_to,
       cc = 'ranjith@remoasset.com',
       tone = 'professional',
-      ai_model = 'claude-3-5-haiku-20241022',
+      ai_model = 'claude-haiku-4-5-20251001',
       ai_max_tokens = 2048,
       ai_temperature = 0.7,
     } = settings ?? {}

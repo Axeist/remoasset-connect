@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
     .limit(1)
     .single()
 
-  const model = settings?.ai_model || 'claude-3-5-haiku-20241022'
+  const model = settings?.ai_model || 'claude-haiku-4-5-20251001'
   const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
 
   // Set up SSE stream

@@ -7,7 +7,7 @@
 ALTER TABLE public.app_settings
   -- Claude AI settings
   ADD COLUMN IF NOT EXISTS ai_enabled                      BOOLEAN         NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS ai_model                        TEXT            NOT NULL DEFAULT 'claude-3-5-haiku-20241022',
+  ADD COLUMN IF NOT EXISTS ai_model                        TEXT            NOT NULL DEFAULT 'claude-haiku-4-5-20251001',
   ADD COLUMN IF NOT EXISTS ai_max_tokens                   INTEGER         NOT NULL DEFAULT 4096,
   ADD COLUMN IF NOT EXISTS ai_temperature                  NUMERIC(3,2)    NOT NULL DEFAULT 0.70,
 

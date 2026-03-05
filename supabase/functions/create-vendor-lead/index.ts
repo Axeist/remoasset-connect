@@ -255,7 +255,7 @@ Deno.serve(async (req) => {
     if (token_usage_discovery?.input_tokens) {
       usageRows.push({
         fn_name:         'vendor-discovery',
-        model:           token_usage_discovery.model || settings?.ai_model || 'claude-3-5-haiku-20241022',
+        model:           token_usage_discovery.model || settings?.ai_model || 'claude-haiku-4-5-20251001',
         input_tokens:    token_usage_discovery.input_tokens,
         output_tokens:   token_usage_discovery.output_tokens,
         input_cost_usd:  token_usage_discovery.input_cost_usd  || 0,
@@ -269,7 +269,7 @@ Deno.serve(async (req) => {
     if (token_usage_email?.input_tokens && email_result?.success) {
       usageRows.push({
         fn_name:         'vendor-outreach-email',
-        model:           token_usage_email.model || settings?.ai_model || 'claude-3-5-haiku-20241022',
+        model:           token_usage_email.model || settings?.ai_model || 'claude-haiku-4-5-20251001',
         input_tokens:    token_usage_email.input_tokens,
         output_tokens:   token_usage_email.output_tokens,
         input_cost_usd:  token_usage_email.input_cost_usd  || 0,
