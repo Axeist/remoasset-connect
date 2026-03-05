@@ -13,8 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Loader2, Mail, CheckCircle2 } from 'lucide-react';
-
+import { Loader2, Mail } from 'lucide-react';
 
 interface InviteUserDialogProps {
   open: boolean;
@@ -24,18 +23,16 @@ interface InviteUserDialogProps {
 
 export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDialogProps) {
   const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<'admin' | 'employee'>('employee');
   const [submitting, setSubmitting] = useState(false);
-  const [inviteLink, setInviteLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
   const handleClose = (open: boolean) => {
     if (!open) {
       setEmail('');
+      setFullName('');
       setRole('employee');
-      setInviteLink(null);
-      setCopied(false);
     }
     onOpenChange(open);
   };
@@ -48,8 +45,8 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
     }
     setSubmitting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('invite-user', {
-        body: { email: email.trim(), role },
+      const { error } = await supabase.functions.invoke('invite-user', {
+        body: { email: email.trim(), role, full_name: fullName.trim() || null },
       });
 
       if (error) {
@@ -58,20 +55,13 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
           const body = await (error as any).context?.json?.();
           if (body?.error) description = body.error;
         } catch { /* ignore */ }
-        toast({
-          variant: 'destructive',
-          title: 'Failed to send invite',
-          description,
-        });
+        toast({ variant: 'destructive', title: 'Failed to send invite', description });
         setSubmitting(false);
         return;
       }
 
-      toast({
-        title: 'Invite sent!',
-        description: `An invitation email has been sent to ${email}.`,
-      });
-
+      const label = fullName.trim() ? `${fullName.trim()} (${email.trim()})` : email.trim();
+      toast({ title: 'Invite sent!', description: `An invitation email has been sent to ${label}.` });
       onSuccess();
       handleClose(false);
     } catch (err) {
@@ -82,13 +72,6 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
       });
     }
     setSubmitting(false);
-  };
-
-  const copyLink = async () => {
-    if (!inviteLink) return;
-    await navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -104,116 +87,63 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
           </DialogDescription>
         </DialogHeader>
 
-        {!inviteLink ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="invite-email">Email address *</Label>
-              <Input
-                id="invite-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="colleague@example.com"
-                required
-                autoFocus
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as 'admin' | 'employee')}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="employee">
-                    <div className="flex flex-col items-start">
-                      <span>Employee</span>
-                      <span className="text-xs text-muted-foreground">Can view and manage leads</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="admin">
-                    <div className="flex flex-col items-start">
-                      <span>Admin</span>
-                      <span className="text-xs text-muted-foreground">Full access including admin panel</span>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => handleClose(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" className="gradient-primary gap-2" disabled={submitting}>
-                {submitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Mail className="h-4 w-4" />
-                )}
-                Send invite
-              </Button>
-            </DialogFooter>
-          </form>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-start gap-3 rounded-lg bg-green-500/10 border border-green-500/20 p-3">
-              <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-green-600 dark:text-green-400">Invite sent successfully</p>
-                <p className="text-muted-foreground mt-0.5">
-                  An email was sent to <strong>{email}</strong> with a role of <strong className="capitalize">{role}</strong>.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Invite link (share as backup)</Label>
-              <div className="flex gap-2">
-                <Input
-                  readOnly
-                  value={inviteLink}
-                  className="text-xs font-mono text-muted-foreground"
-                />
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  onClick={copyLink}
-                  className="shrink-0"
-                  title="Copy link"
-                >
-                  {copied ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Share this link if the email isn't received. It expires after 24 hours.
-              </p>
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setInviteLink(null);
-                  setEmail('');
-                  setRole('employee');
-                }}
-              >
-                Send another
-              </Button>
-              <Button type="button" className="gradient-primary" onClick={() => handleClose(false)}>
-                Done
-              </Button>
-            </DialogFooter>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="invite-name">Full name</Label>
+            <Input
+              id="invite-name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Jane Doe"
+              autoFocus
+            />
           </div>
-        )}
+
+          <div className="space-y-2">
+            <Label htmlFor="invite-email">Email address *</Label>
+            <Input
+              id="invite-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="colleague@example.com"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Role</Label>
+            <Select value={role} onValueChange={(v) => setRole(v as 'admin' | 'employee')}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="employee">
+                  <div className="flex flex-col items-start">
+                    <span>Employee</span>
+                    <span className="text-xs text-muted-foreground">Can view and manage leads</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="admin">
+                  <div className="flex flex-col items-start">
+                    <span>Admin</span>
+                    <span className="text-xs text-muted-foreground">Full access including admin panel</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => handleClose(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" className="gradient-primary gap-2" disabled={submitting}>
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+              Send invite
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

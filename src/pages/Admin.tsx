@@ -289,7 +289,8 @@ export default function Admin() {
         try { const body = await (error as any).context?.json?.(); if (body?.error) description = body.error; } catch { /* ignore */ }
         toast({ variant: 'destructive', title: 'Failed to resend invite', description });
       } else {
-        toast({ title: 'Invite resent', description: `A new invite was sent to ${member.email}.` });
+        const label = member.full_name ? `${member.full_name} (${member.email})` : member.email;
+        toast({ title: 'Invite resent', description: `A new invite was sent to ${label}.` });
       }
     } catch (err) {
       toast({ variant: 'destructive', title: 'Error', description: err instanceof Error ? err.message : 'Failed to resend' });

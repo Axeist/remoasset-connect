@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { email, role } = await req.json()
+    const { email, role, full_name } = await req.json()
 
     if (!email || !email.includes('@')) {
       return new Response(
@@ -65,6 +65,7 @@ Deno.serve(async (req) => {
 
     const assignedRole = role === 'admin' ? 'admin' : 'employee'
     const trimmedEmail = email.trim()
+    const trimmedName: string | null = typeof full_name === 'string' && full_name.trim() ? full_name.trim() : null
 
     // Check if user already exists (pending invite resend case)
     const { data: { users: existingUsers } } = await supabaseClient.auth.admin.listUsers({ perPage: 1000 })
@@ -108,7 +109,7 @@ Deno.serve(async (req) => {
 
       await supabaseClient
         .from('profiles')
-        .upsert({ user_id: newUserId, full_name: null }, { onConflict: 'user_id' })
+        .upsert({ user_id: newUserId, full_name: trimmedName }, { onConflict: 'user_id' })
     }
 
     return new Response(
