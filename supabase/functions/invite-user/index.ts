@@ -77,6 +77,7 @@ Deno.serve(async (req) => {
     })
 
     if (linkError) {
+      console.error('generateLink error:', JSON.stringify(linkError))
       return new Response(
         JSON.stringify({ error: linkError.message }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
