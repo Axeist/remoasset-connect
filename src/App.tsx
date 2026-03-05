@@ -24,6 +24,7 @@ import TeamActivity from "./pages/TeamActivity";
 import ResetPassword from "./pages/ResetPassword";
 import Pipeline from "./pages/Pipeline";
 import Vendors from "./pages/Vendors";
+import VendorAgent from "./pages/VendorAgent";
 import Inbox from "./pages/Inbox";
 import ApiDocs from "./pages/ApiDocs";
 import ApiTester from "./pages/ApiTester";
@@ -67,6 +68,7 @@ const App = () => {
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
               <Route path="/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />
+              <Route path="/vendor-agent" element={<AdminRoute><VendorAgent /></AdminRoute>} />
               <Route path="/leads/:id" element={<ProtectedRoute><LeadDetail /></ProtectedRoute>} />
               <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
               <Route path="/pipeline" element={<ProtectedRoute><Pipeline pageTitle="My Pipeline" /></ProtectedRoute>} />

@@ -1,0 +1,61 @@
+name: Vendor Discovery Daily Cron
+
+on:
+  # Runs daily at 9:00 AM UTC
+  schedule:
+    - cron: '0 9 * * *'
+  # Also allows manual trigger from GitHub Actions UI
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (skip actual lead creation)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  run-vendor-discovery:
+    name: Trigger Vendor Discovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger vendor-discovery-cron edge function
+        id: trigger
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/vendor-discovery-cron" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            --max-time 300 \
+            -d '{}')
+
+          HTTP_BODY=$(echo "$RESPONSE" | head -n -1)
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n 1)
+
+          echo "HTTP Status: $HTTP_STATUS"
+          echo "Response: $HTTP_BODY"
+
+          echo "http_status=$HTTP_STATUS" >> $GITHUB_OUTPUT
+          echo "response=$HTTP_BODY" >> $GITHUB_OUTPUT
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "❌ Vendor discovery cron failed with status $HTTP_STATUS"
+            exit 1
+          fi
+
+      - name: Report results
+        if: always()
+        run: |
+          STATUS="${{ steps.trigger.outputs.http_status }}"
+          RESPONSE='${{ steps.trigger.outputs.response }}'
+
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Vendor discovery cron completed successfully"
+            echo "Response: $RESPONSE"
+          else
+            echo "❌ Vendor discovery cron failed"
+            echo "Status: $STATUS"
+            echo "Response: $RESPONSE"
+          fi

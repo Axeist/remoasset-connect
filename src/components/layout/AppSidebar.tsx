@@ -16,6 +16,7 @@ import {
   Globe2,
   Inbox,
   Terminal,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,6 +33,7 @@ const navItems = [
   { title: 'Inbox', url: '/inbox', icon: Inbox, roles: ['admin', 'employee'] },
   { title: 'Leads', url: '/leads', icon: Users, roles: ['admin', 'employee'] },
   { title: 'Vendors', url: '/vendors', icon: Globe2, roles: ['admin', 'employee'] },
+  { title: 'Vendor Agent', url: '/vendor-agent', icon: Sparkles, roles: ['admin'] },
   { title: 'My Pipeline', url: '/pipeline', icon: Kanban, roles: ['employee'] },
   { title: 'Pipeline Overview', url: '/admin/pipeline', icon: Kanban, roles: ['admin'] },
   { title: 'My Tasks', url: '/tasks', icon: CheckSquare, roles: ['admin', 'employee'] },
