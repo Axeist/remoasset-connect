@@ -3,6 +3,9 @@
  *
  * Uses Serper.dev (Google Search) to find real vendor companies,
  * then passes results to Claude (Haiku) to extract structured data.
+ * Only vendors with a confirmed contact email are returned.
+ * For any vendor missing an email, a second targeted contact-page
+ * search is performed before discarding them.
  *
  * Input:
  *   region: string           — e.g. "APAC", "US", "EU"
@@ -28,14 +31,18 @@ export interface VendorResult {
   company_name: string
   website: string | null
   contact_name: string | null
-  contact_email: string | null
+  contact_email: string        // mandatory — never null in output
   phone: string | null
   country: string
   vendor_type: 'refurbished' | 'new_device' | 'rental' | 'warehouse'
   description: string
   certifications: string[]
   specialties: string[]
-  confidence_score: number  // 1–10
+  linkedin_url: string | null
+  address: string | null
+  employee_count: string | null
+  founded_year: string | null
+  confidence_score: number     // 1–10
   source_url: string | null
 }
 
@@ -70,7 +77,7 @@ const VENDOR_TYPE_QUERIES: Record<string, string[]> = {
   ],
 }
 
-async function searchSerper(query: string, country: string): Promise<any[]> {
+async function searchSerper(query: string, country: string, num = 5): Promise<any[]> {
   const apiKey = Deno.env.get('SERPER_API_KEY')
   if (!apiKey) throw new Error('SERPER_API_KEY not configured')
 
@@ -82,7 +89,7 @@ async function searchSerper(query: string, country: string): Promise<any[]> {
     },
     body: JSON.stringify({
       q: `${query} ${country}`,
-      num: 5,
+      num,
       gl: 'us',
       hl: 'en',
     }),
@@ -141,7 +148,7 @@ Your task is to extract real, legitimate B2B vendor companies from search result
 - B2B-focused businesses (not consumer retail)
 - Companies that could partner with RemoAsset for device sourcing${extraContext ? '\n\nAdditional context: ' + extraContext : ''}`
 
-  const userPrompt = `Based on these search results, extract up to ${targetCount} real vendor companies. Only include companies you are highly confident are legitimate B2B vendors.
+  const userPrompt = `Based on these search results, extract up to ${targetCount} real vendor companies.
 
 SEARCH RESULTS:
 ${searchSummary}
@@ -150,22 +157,29 @@ Return a JSON array of vendor objects. Each object must have exactly these field
 {
   "company_name": "string (official company name)",
   "website": "string or null (full URL with https://)",
-  "contact_name": "string or null (if found in results)",
-  "contact_email": "string or null (if found in results, otherwise null - do NOT make up emails)",
+  "contact_name": "string or null (decision maker name if found — Sales Director, Procurement Manager, etc.)",
+  "contact_email": "string or null — extract from snippets/URLs if visible. Common patterns: info@, sales@, procurement@, contact@, hello@ plus the domain. If you can confidently infer the domain email format from the website, use it. NEVER fabricate a random email — only use emails actually visible in results or reliably inferable from the company domain.",
   "phone": "string or null (if found in results)",
   "country": "string (country name)",
   "vendor_type": "${vendorType}",
-  "description": "string (1-2 sentences: what they do and why good fit for RemoAsset)",
+  "description": "string (2-3 sentences: what they do, their scale, and why they are a good fit for RemoAsset)",
   "certifications": ["array of known certs like R2, ISO 9001, e-Stewards, ITAD, etc. Only if mentioned in results"],
   "specialties": ["array: device types/brands they specialize in"],
+  "linkedin_url": "string or null (LinkedIn company page URL if found)",
+  "address": "string or null (city/country or full address if found)",
+  "employee_count": "string or null (e.g. '50-200', '500+' if mentioned)",
+  "founded_year": "string or null (if mentioned)",
   "confidence_score": number (1-10, how confident you are this is a real, relevant B2B vendor),
   "source_url": "string (the search result URL where this company was found)"
 }
 
 CRITICAL RULES:
-- NEVER fabricate contact emails or phone numbers. Set them to null if not found in results.
+- contact_email is the MOST important field. Make every effort to find or infer it.
+  * Check snippet text for any email address
+  * If website is known (e.g. acme.com), common B2B contact emails are: sales@acme.com, info@acme.com, procurement@acme.com
+  * Only use domain-inferred emails for companies you are CONFIDENT are real businesses
 - Only include companies with confidence_score >= 6
-- Do not include consumer retailers (Amazon, Best Buy, etc.)
+- Do not include consumer retailers (Amazon, Best Buy, Flipkart retail, etc.)
 - Return ONLY the JSON array, no other text.`
 
   const message = await anthropic.messages.create({
@@ -177,11 +191,11 @@ CRITICAL RULES:
   })
 
   const content = message.content[0]
-  if (content.type !== 'text') return []
+  if (content.type !== 'text') return { vendors: [], token_usage: zeroUsage(model) }
 
   const text = content.text.trim()
   const jsonMatch = text.match(/\[[\s\S]*\]/)
-  if (!jsonMatch) return []
+  if (!jsonMatch) return { vendors: [], token_usage: zeroUsage(model) }
 
   try {
     const vendors: VendorResult[] = JSON.parse(jsonMatch[0])
@@ -196,8 +210,94 @@ CRITICAL RULES:
       },
     }
   } catch {
-    return { vendors: [], token_usage: { model, input_tokens: 0, output_tokens: 0, input_cost_usd: 0, output_cost_usd: 0, total_cost_usd: 0 } }
+    return { vendors: [], token_usage: zeroUsage(model) }
   }
+}
+
+/**
+ * Second-pass: for vendors still missing an email, search their company
+ * name + "contact email" and run a targeted Claude extraction.
+ */
+async function enrichEmailsWithClaude(
+  vendors: VendorResult[],
+  model: string,
+  maxTokens: number,
+): Promise<{ vendors: VendorResult[]; extra_token_usage: any }> {
+  const needsEmail = vendors.filter((v) => !v.contact_email)
+  if (needsEmail.length === 0) return { vendors, extra_token_usage: zeroUsage(model) }
+
+  const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
+  const enriched = [...vendors]
+  const totalUsage = zeroUsage(model)
+
+  for (const vendor of needsEmail) {
+    // Search for contact page
+    let contactResults: any[] = []
+    try {
+      contactResults = await searchSerper(
+        `"${vendor.company_name}" contact email B2B sales`,
+        vendor.country,
+        3,
+      )
+      await new Promise((r) => setTimeout(r, 550))
+    } catch {
+      continue
+    }
+
+    if (contactResults.length === 0) continue
+
+    const snippet = contactResults
+      .map((r: any) => `${r.title} | ${r.snippet || ''} | ${r.link}`)
+      .join('\n')
+
+    const message = await anthropic.messages.create({
+      model,
+      max_tokens: 256,
+      temperature: 0,
+      messages: [{
+        role: 'user',
+        content: `Extract the business contact email for "${vendor.company_name}" (website: ${vendor.website || 'unknown'}) from these search snippets.
+
+${snippet}
+
+Rules:
+- Return ONLY a JSON object: {"email": "found@email.com"} or {"email": null}
+- If you see a real email address in the text, return it
+- If the website domain is clear and it's a known business, you may infer sales@ or info@ prefix
+- NEVER fabricate emails for unknown companies
+- Return null if you cannot find or reliably infer an email`,
+      }],
+    })
+
+    const cost = calculateCost(model, message.usage.input_tokens, message.usage.output_tokens)
+    totalUsage.input_tokens    += message.usage.input_tokens
+    totalUsage.output_tokens   += message.usage.output_tokens
+    totalUsage.input_cost_usd  += cost.input_cost_usd
+    totalUsage.output_cost_usd += cost.output_cost_usd
+    totalUsage.total_cost_usd  += cost.total_cost_usd
+
+    try {
+      const txt = message.content[0].type === 'text' ? message.content[0].text : ''
+      const m = txt.match(/\{[\s\S]*\}/)
+      if (m) {
+        const parsed = JSON.parse(m[0])
+        if (parsed.email && isValidEmail(parsed.email)) {
+          const idx = enriched.findIndex((v) => v.company_name === vendor.company_name)
+          if (idx !== -1) enriched[idx] = { ...enriched[idx], contact_email: parsed.email }
+        }
+      }
+    } catch { /* skip */ }
+  }
+
+  return { vendors: enriched, extra_token_usage: totalUsage }
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function zeroUsage(model: string) {
+  return { model, input_tokens: 0, output_tokens: 0, input_cost_usd: 0, output_cost_usd: 0, total_cost_usd: 0 }
 }
 
 Deno.serve(async (req) => {
@@ -227,7 +327,7 @@ Deno.serve(async (req) => {
     const allVendors: VendorResult[] = []
     const searchQueriesUsed: string[] = []
     const countPerType = Math.ceil(count / vendor_types.length)
-    const totalTokenUsage = { input_tokens: 0, output_tokens: 0, input_cost_usd: 0, output_cost_usd: 0, total_cost_usd: 0, model: ai_model, api_calls: 0 }
+    const totalTokenUsage = { ...zeroUsage(ai_model), api_calls: 0 }
 
     for (const vendorType of vendor_types) {
       const queries = VENDOR_TYPE_QUERIES[vendorType] || [`${vendorType} supplier B2B enterprise`]
@@ -246,7 +346,7 @@ Deno.serve(async (req) => {
           } catch (err) {
             console.error(`Search failed for "${fullQuery}":`, err)
           }
-          // Respect Serper rate limit (2 req/sec)
+          // Respect Serper rate limit
           await new Promise((r) => setTimeout(r, 550))
         }
       }
@@ -280,8 +380,31 @@ Deno.serve(async (req) => {
       return true
     })
 
+    // Second pass: enrich any vendors still missing email via targeted search
+    const { vendors: enrichedVendors, extra_token_usage } = await enrichEmailsWithClaude(
+      deduped,
+      ai_model,
+      512,
+    )
+    totalTokenUsage.input_tokens    += extra_token_usage.input_tokens
+    totalTokenUsage.output_tokens   += extra_token_usage.output_tokens
+    totalTokenUsage.input_cost_usd  += extra_token_usage.input_cost_usd
+    totalTokenUsage.output_cost_usd += extra_token_usage.output_cost_usd
+    totalTokenUsage.total_cost_usd  += extra_token_usage.total_cost_usd
+
+    // Final filter: only include vendors with a valid email
+    const withEmail = enrichedVendors.filter((v) => v.contact_email && isValidEmail(v.contact_email))
+    const withoutEmail = enrichedVendors.filter((v) => !v.contact_email || !isValidEmail(v.contact_email))
+
+    console.log(`vendor-discovery: ${withEmail.length} vendors with email, ${withoutEmail.length} discarded (no email found)`)
+
     return new Response(
-      JSON.stringify({ vendors: deduped, search_queries_used: searchQueriesUsed, token_usage: totalTokenUsage }),
+      JSON.stringify({
+        vendors: withEmail,
+        discarded_no_email: withoutEmail.length,
+        search_queries_used: searchQueriesUsed,
+        token_usage: totalTokenUsage,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
   } catch (err) {

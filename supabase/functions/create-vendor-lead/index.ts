@@ -50,11 +50,11 @@ async function isDuplicate(
   companyName: string,
   email: string | null,
   windowDays: number,
-): Promise<boolean> {
+): Promise<{ isDup: boolean; reason: string }> {
   const windowStart = new Date()
   windowStart.setDate(windowStart.getDate() - windowDays)
 
-  // Check by company name
+  // 1. Check discovery log by company name (within dedup window)
   const { data: nameMatch } = await supabase
     .from('vendor_discovery_log')
     .select('id')
@@ -62,9 +62,11 @@ async function isDuplicate(
     .gte('created_at', windowStart.toISOString())
     .limit(1)
 
-  if (nameMatch && nameMatch.length > 0) return true
+  if (nameMatch && nameMatch.length > 0) {
+    return { isDup: true, reason: `company name "${companyName}" seen within ${windowDays} days` }
+  }
 
-  // Check by email
+  // 2. Check discovery log by email (within dedup window)
   if (email) {
     const { data: emailMatch } = await supabase
       .from('vendor_discovery_log')
@@ -73,19 +75,36 @@ async function isDuplicate(
       .gte('created_at', windowStart.toISOString())
       .limit(1)
 
-    if (emailMatch && emailMatch.length > 0) return true
+    if (emailMatch && emailMatch.length > 0) {
+      return { isDup: true, reason: `email "${email}" seen within ${windowDays} days` }
+    }
   }
 
-  // Also check existing leads table
-  const { data: leadMatch } = await supabase
+  // 3. Check existing leads by company name (all time)
+  const { data: leadNameMatch } = await supabase
     .from('leads')
     .select('id')
     .ilike('company_name', companyName)
     .limit(1)
 
-  if (leadMatch && leadMatch.length > 0) return true
+  if (leadNameMatch && leadNameMatch.length > 0) {
+    return { isDup: true, reason: `lead with company name "${companyName}" already exists` }
+  }
 
-  return false
+  // 4. Check existing leads by email (all time)
+  if (email) {
+    const { data: leadEmailMatch } = await supabase
+      .from('leads')
+      .select('id')
+      .ilike('email', email)
+      .limit(1)
+
+    if (leadEmailMatch && leadEmailMatch.length > 0) {
+      return { isDup: true, reason: `lead with email "${email}" already exists` }
+    }
+  }
+
+  return { isDup: false, reason: '' }
 }
 
 async function fireSlackNotify(supabaseUrl: string, serviceRoleKey: string, event: string, payload: any) {
@@ -118,6 +137,24 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Email is mandatory — skip if missing
+    if (!vendor.contact_email) {
+      console.warn(`Skipping ${vendor.company_name}: no contact email`)
+      await supabase.from('vendor_discovery_log').insert({
+        company_name: vendor.company_name,
+        website: vendor.website,
+        email: null,
+        region: vendor.region || null,
+        vendor_type: vendor.vendor_type,
+        skipped_dedup: false,
+        email_sent: false,
+      }).catch(() => {})
+      return new Response(
+        JSON.stringify({ skipped: true, skip_reason: 'no contact email — lead not created' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
+    }
+
     const {
       agni_agent_user_id,
       default_status_id,
@@ -133,14 +170,14 @@ Deno.serve(async (req) => {
 
     // Deduplication check
     if (dedup_enabled) {
-      const dup = await isDuplicate(
+      const { isDup, reason } = await isDuplicate(
         supabase,
         vendor.company_name,
         vendor.contact_email,
         dedup_window_days,
       )
-      if (dup) {
-        // Log as skipped
+      if (isDup) {
+        console.log(`Dedup skip: ${vendor.company_name} — ${reason}`)
         await supabase.from('vendor_discovery_log').insert({
           company_name: vendor.company_name,
           website: vendor.website,
@@ -151,7 +188,7 @@ Deno.serve(async (req) => {
           email_sent: false,
         })
         return new Response(
-          JSON.stringify({ skipped: true, skip_reason: 'duplicate within dedup window' }),
+          JSON.stringify({ skipped: true, skip_reason: reason }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )
       }
@@ -178,7 +215,7 @@ Deno.serve(async (req) => {
       .insert({
         company_name: vendor.company_name,
         website: vendor.website || null,
-        email: vendor.contact_email || null,
+        email: vendor.contact_email,
         phone: vendor.phone || null,
         contact_name: vendor.contact_name || null,
         country_id: countryId,
@@ -186,10 +223,14 @@ Deno.serve(async (req) => {
         owner_id: agni_agent_user_id || null,
         vendor_types: [vendor.vendor_type],
         notes: [
-          `AI-discovered vendor via RemoAsset Vendor Agent.`,
+          `🤖 AI-discovered vendor via RemoAsset Vendor Agent.`,
           vendor.description ? `Description: ${vendor.description}` : '',
           vendor.certifications?.length ? `Certifications: ${vendor.certifications.join(', ')}` : '',
           vendor.specialties?.length ? `Specialties: ${vendor.specialties.join(', ')}` : '',
+          vendor.address ? `Address: ${vendor.address}` : '',
+          vendor.employee_count ? `Employees: ${vendor.employee_count}` : '',
+          vendor.founded_year ? `Founded: ${vendor.founded_year}` : '',
+          vendor.linkedin_url ? `LinkedIn: ${vendor.linkedin_url}` : '',
           vendor.source_url ? `Source: ${vendor.source_url}` : '',
         ].filter(Boolean).join('\n'),
         lead_score: 0,
@@ -221,6 +262,9 @@ Deno.serve(async (req) => {
     }
     if (vendor.website) {
       attachments.push({ type: 'url', url: vendor.website, name: 'Company Website' })
+    }
+    if (vendor.linkedin_url) {
+      attachments.push({ type: 'url', url: vendor.linkedin_url, name: 'LinkedIn' })
     }
 
     // Log activity
