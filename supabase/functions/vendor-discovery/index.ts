@@ -159,7 +159,7 @@ Return a JSON array of vendor objects. Each object must have exactly these field
   "website": "string or null (full URL with https://)",
   "contact_name": "string or null (decision maker name if found — Sales Director, Procurement Manager, etc.)",
   "contact_email": "string or null — extract from snippets/URLs if visible. Common patterns: info@, sales@, procurement@, contact@, hello@ plus the domain. If you can confidently infer the domain email format from the website, use it. NEVER fabricate a random email — only use emails actually visible in results or reliably inferable from the company domain.",
-  "phone": "string or null (if found in results)",
+  "phone": "string or null — try to extract at least one business phone or mobile number when visible (main line, sales, support). Include country code if shown. Do NOT fabricate numbers.",
   "country": "string (country name)",
   "vendor_type": "${vendorType}",
   "description": "string (2-3 sentences: what they do, their scale, and why they are a good fit for RemoAsset)",
@@ -178,6 +178,7 @@ CRITICAL RULES:
   * Check snippet text for any email address
   * If website is known (e.g. acme.com), common B2B contact emails are: sales@acme.com, info@acme.com, procurement@acme.com
   * Only use domain-inferred emails for companies you are CONFIDENT are real businesses
+- phone: Try to extract at least one phone/mobile when present in snippets (e.g. "Call us", "Tel:", "Contact:", main number, sales number). Prefer numbers that look like business lines. Never invent digits.
 - Only include companies with confidence_score >= 6
 - Do not include consumer retailers (Amazon, Best Buy, Flipkart retail, etc.)
 - Return ONLY the JSON array, no other text.`
@@ -292,6 +293,72 @@ Rules:
   return { vendors: enriched, extra_token_usage: totalUsage }
 }
 
+/**
+ * Optional pass: for vendors that have email but no phone, search for contact phone.
+ */
+async function enrichPhonesWithClaude(
+  vendors: VendorResult[],
+  model: string,
+  maxTokens: number,
+): Promise<{ vendors: VendorResult[]; extra_token_usage: any }> {
+  const needsPhone = vendors.filter((v) => v.contact_email && !v.phone)
+  if (needsPhone.length === 0) return { vendors, extra_token_usage: zeroUsage(model) }
+
+  const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
+  const enriched = [...vendors]
+  const totalUsage = zeroUsage(model)
+
+  for (const vendor of needsPhone) {
+    let contactResults: any[] = []
+    try {
+      contactResults = await searchSerper(
+        `"${vendor.company_name}" contact phone number ${vendor.country}`,
+        vendor.country,
+        3,
+      )
+      await new Promise((r) => setTimeout(r, 550))
+    } catch {
+      continue
+    }
+    if (contactResults.length === 0) continue
+
+    const snippet = contactResults
+      .map((r: any) => `${r.title} | ${r.snippet || ''} | ${r.link}`)
+      .join('\n')
+
+    const message = await anthropic.messages.create({
+      model,
+      max_tokens: 180,
+      temperature: 0,
+      messages: [{
+        role: 'user',
+        content: `Extract one business phone or mobile number for "${vendor.company_name}" from these snippets.\n\n${snippet}\n\nReturn ONLY JSON: {"phone": "+1 234 567 8900"} or {"phone": null}. Use digits only or E.164; never fabricate.`,
+      }],
+    })
+
+    const cost = calculateCost(model, message.usage.input_tokens, message.usage.output_tokens)
+    totalUsage.input_tokens += message.usage.input_tokens
+    totalUsage.output_tokens += message.usage.output_tokens
+    totalUsage.input_cost_usd += cost.input_cost_usd
+    totalUsage.output_cost_usd += cost.output_cost_usd
+    totalUsage.total_cost_usd += cost.total_cost_usd
+
+    try {
+      const txt = message.content[0].type === 'text' ? message.content[0].text : ''
+      const m = txt.match(/\{[\s\S]*\}/)
+      if (m) {
+        const parsed = JSON.parse(m[0])
+        if (parsed.phone && /[\d+\s\-()]{7,}/.test(String(parsed.phone))) {
+          const idx = enriched.findIndex((v) => v.company_name === vendor.company_name)
+          if (idx !== -1) enriched[idx] = { ...enriched[idx], phone: String(parsed.phone).trim() }
+        }
+      }
+    } catch { /* skip */ }
+  }
+
+  return { vendors: enriched, extra_token_usage: totalUsage }
+}
+
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
@@ -392,9 +459,21 @@ Deno.serve(async (req) => {
     totalTokenUsage.output_cost_usd += extra_token_usage.output_cost_usd
     totalTokenUsage.total_cost_usd  += extra_token_usage.total_cost_usd
 
+    // Third pass: try to get at least one phone for vendors that have email but no phone
+    const { vendors: withPhones, extra_token_usage: phoneUsage } = await enrichPhonesWithClaude(
+      enrichedVendors,
+      ai_model,
+      256,
+    )
+    totalTokenUsage.input_tokens    += phoneUsage.input_tokens
+    totalTokenUsage.output_tokens   += phoneUsage.output_tokens
+    totalTokenUsage.input_cost_usd  += phoneUsage.input_cost_usd
+    totalTokenUsage.output_cost_usd += phoneUsage.output_cost_usd
+    totalTokenUsage.total_cost_usd  += phoneUsage.total_cost_usd
+
     // Final filter: only include vendors with a valid email
-    const withEmail = enrichedVendors.filter((v) => v.contact_email && isValidEmail(v.contact_email))
-    const withoutEmail = enrichedVendors.filter((v) => !v.contact_email || !isValidEmail(v.contact_email))
+    const withEmail = withPhones.filter((v) => v.contact_email && isValidEmail(v.contact_email))
+    const withoutEmail = withPhones.filter((v) => !v.contact_email || !isValidEmail(v.contact_email))
 
     console.log(`vendor-discovery: ${withEmail.length} vendors with email, ${withoutEmail.length} discarded (no email found)`)
 

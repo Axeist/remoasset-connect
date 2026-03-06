@@ -323,7 +323,7 @@ Deno.serve(async (req) => {
 
       await send({
         type: 'progress',
-        step: `Found ${vendors.length} vendors. Creating leads and sending outreach...`,
+        step: `Found ${vendors.length} vendors. Drafting outreach emails for your approval...`,
         icon: '✅',
       })
 
@@ -338,95 +338,66 @@ Deno.serve(async (req) => {
         ai_temperature: settings?.ai_temperature || 0.7,
       }
 
-      const leadSettings = {
-        agni_agent_user_id: settings?.agni_agent_user_id,
-        default_status_id: settings?.vendor_default_status_id,
-        dedup_enabled: settings?.vendor_dedup_enabled ?? true,
-        dedup_window_days: settings?.vendor_dedup_window_days ?? 90,
-        slack_notify_vendor_discovered: settings?.slack_notify_vendor_discovered ?? true,
-        slack_notify_vendor_email_sent: settings?.slack_notify_vendor_email_sent ?? true,
-      }
+      const vendorsWithEmail = vendors.filter((v: any) => v.contact_email)
+      let draftCount = 0
 
-      let leadsCreated = 0
-      let emailsSent = 0
-      let skipped = 0
-
-      // Process vendors in small parallel batches (3 at a time) to stay within
-      // the 60s Edge Function wall-clock limit while respecting Resend rate limits.
-      const BATCH_SIZE = 3
-
-      for (let batchStart = 0; batchStart < vendors.length; batchStart += BATCH_SIZE) {
-        const batch = vendors.slice(batchStart, batchStart + BATCH_SIZE)
-
-        await Promise.all(batch.map(async (v, batchIdx) => {
-          const globalIdx = batchStart + batchIdx
-          const vendor = { ...v, region }
-
-          await send({
-            type: 'progress',
-            step: `Processing ${vendor.company_name} (${globalIdx + 1}/${vendors.length})...`,
-            icon: '⚙️',
+      for (let i = 0; i < vendorsWithEmail.length; i++) {
+        const vendor = { ...vendorsWithEmail[i], region }
+        await send({
+          type: 'progress',
+          step: `Drafting email for ${vendor.company_name} (${i + 1}/${vendorsWithEmail.length})...`,
+          icon: '✉️',
+        })
+        try {
+          const draftResult = await callFunction('vendor-outreach-email', {
+            vendor,
+            settings: emailSettings,
+            draft_only: true,
           })
-
-          let emailResult: any = { success: false, skipped: true, reason: 'email disabled or no contact email' }
-
-          console.log(`[email-check] ${vendor.company_name}: email_enabled=${settings?.vendor_email_enabled}, has_email=${!!vendor.contact_email}`)
-
-          if (settings?.vendor_email_enabled !== false && vendor.contact_email) {
-            try {
-              emailResult = await callFunction('vendor-outreach-email', { vendor, settings: emailSettings })
-            } catch (err) {
-              emailResult = { success: false, error: String(err) }
-            }
-          } else if (!vendor.contact_email) {
-            emailResult = { success: false, skipped: true, reason: 'no contact email' }
-          } else if (settings?.vendor_email_enabled === false) {
-            emailResult = { success: false, skipped: true, reason: 'email sending disabled in settings' }
-          }
-
-          try {
-            const leadResult = await callFunction('create-vendor-lead', {
-              vendor,
-              email_result: emailResult,
-              settings: leadSettings,
-              token_usage_discovery: discoveryResult.token_usage || null,
-              token_usage_email: emailResult?.token_usage || null,
+          if (draftResult.draft_only && draftResult.subject) {
+            await send({
+              type: 'draft',
+              index: draftCount,
+              vendor: {
+                company_name: vendor.company_name,
+                contact_email: vendor.contact_email,
+                contact_name: vendor.contact_name,
+                phone: vendor.phone,
+                country: vendor.country,
+                vendor_type: vendor.vendor_type,
+                description: vendor.description,
+                website: vendor.website,
+                region: vendor.region,
+                certifications: vendor.certifications,
+                specialties: vendor.specialties,
+                linkedin_url: vendor.linkedin_url,
+                address: vendor.address,
+              },
+              subject: draftResult.subject,
+              body_preview: draftResult.body_preview,
+              body_html: draftResult.body_html,
+              body_text: draftResult.body_text,
             })
-
-            if (leadResult.skipped) {
-              skipped++
-            } else {
-              leadsCreated++
-              if (emailResult?.success) emailsSent++
-            }
-          } catch (err) {
-            console.error(`Lead creation failed for ${vendor.company_name}:`, err)
+            draftCount++
           }
-        }))
-
-        // Small gap between batches to respect Resend rate limits
-        if (batchStart + BATCH_SIZE < vendors.length) {
-          await new Promise((r) => setTimeout(r, 400))
+        } catch (err) {
+          console.error(`Draft failed for ${vendor.company_name}:`, err)
+          await send({ type: 'text', content: `Could not draft email for ${vendor.company_name}: ${String(err)}` })
         }
+        await new Promise((r) => setTimeout(r, 300))
       }
 
-      await send({ type: 'progress', step: 'All done!', icon: '🎉' })
-
-      const emailDisabled = settings?.vendor_email_enabled === false
-      const noEmailCount = vendors.filter((v: any) => !v.contact_email).length
-
+      await send({ type: 'progress', step: 'Drafts ready for review', icon: '🎉' })
+      await send({ type: 'drafts_ready', count: draftCount, total_vendors: vendorsWithEmail.length })
       await send({
         type: 'result',
-        leads_created: leadsCreated,
-        emails_sent: emailsSent,
-        skipped,
+        leads_created: 0,
+        emails_sent: 0,
+        skipped: 0,
         region,
         vendor_types: vendorTypes,
-        email_note: emailDisabled
-          ? 'Email sending is disabled in Automation Settings'
-          : noEmailCount > 0
-          ? `${noEmailCount} vendor(s) had no contact email — email skipped for those`
-          : undefined,
+        drafts_count: draftCount,
+        email_note: `Review the ${draftCount} draft(s) below. Approve or edit before sending. Leads are created only after you approve.`,
       })
       await send({ type: 'done' })
     } catch (err) {

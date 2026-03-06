@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.vendor-agent-chat]
 verify_jwt = false
+
+[functions.approve-outreach-and-create-lead]
+verify_jwt = false

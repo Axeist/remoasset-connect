@@ -55,6 +55,12 @@ const VENDOR_TYPE_FOCUS: Record<string, string> = {
   warehouse:   'IT equipment warehousing and storage services. Mention interest in capacity, security standards, and fulfillment capabilities.',
 }
 
+// Context for email: what we do and what a discovery call covers (so the email can invite a call)
+const REMOASSET_PITCH_CONTEXT = `
+DISCOVERY CALL CONTEXT (use when inviting them to a call):
+RemoAsset is US-based. We run a device lifecycle management platform for companies with globally distributed teams (remote-first, EORs). We help clients procure, deploy, manage, recover, and store IT devices across countries and are building a vendor network. On a discovery call we typically cover: US entity & procurement fit, payment terms (we often do pay-and-carry), tax/VAT for international buyers, shipping and delivery timelines, bulk orders and warehousing, device recovery/QC, and flexible billing/invoicing. Invite them to a short call to discuss how we could work together and to understand their services.
+`.trim()
+
 async function draftEmailWithClaude(vendor: any, tone: string, model: string, maxTokens: number, temperature: number) {
   const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
 
@@ -65,6 +71,8 @@ async function draftEmailWithClaude(vendor: any, tone: string, model: string, ma
 
 ABOUT REMOASSET:
 RemoAsset is an all-in-one remote IT asset lifecycle management platform. We help 200+ companies across 35+ countries manage their entire device lifecycle — from procurement to provisioning, tracking, and recovery for distributed workforces. We are SOC 2 certified and HIPAA compliant.
+
+${REMOASSET_PITCH_CONTEXT}
 
 VENDOR DETAILS:
 - Company: ${vendor.company_name}
@@ -89,7 +97,7 @@ REQUIREMENTS:
   * Certifications and quality standards
   * Minimum order quantities or pricing structure
   * Geographic coverage / lead times
-- Closing: Invite them to a brief call or email reply
+- Closing: Invite them to a brief call or email reply (you can mention we often do a short discovery call to discuss fit, their services, and next steps — see context above).
 - Sign-off: "The RemoAsset Procurement Team"
 
 Return ONLY valid JSON:
@@ -170,19 +178,12 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { vendor, settings } = await req.json()
+    const { vendor, settings, draft_only, prepared_draft } = await req.json()
 
     if (!vendor?.company_name) {
       return new Response(
         JSON.stringify({ error: 'vendor object is required' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      )
-    }
-
-    if (!vendor.contact_email) {
-      return new Response(
-        JSON.stringify({ success: false, skipped: true, reason: 'No contact email available' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       )
     }
 
@@ -197,15 +198,65 @@ Deno.serve(async (req) => {
       ai_temperature = 0.7,
     } = settings ?? {}
 
-    // Build CC list — always include the configured CC address(es)
     const ccList: string[] = typeof cc === 'string'
       ? cc.split(',').map((e: string) => e.trim()).filter(Boolean)
       : Array.isArray(cc) ? cc : []
+
+    // Send a pre-approved draft (no Claude) — used when user approves in chat
+    if (prepared_draft?.subject && prepared_draft?.body_html && prepared_draft?.body_text) {
+      if (!vendor.contact_email) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'No contact email' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
+      const { message_id } = await sendViaResend(
+        vendor.contact_email,
+        prepared_draft.subject,
+        prepared_draft.body_html,
+        prepared_draft.body_text,
+        from_name,
+        from_address,
+        reply_to,
+        ccList,
+      )
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message_id,
+          subject: prepared_draft.subject,
+          body_preview: prepared_draft.body_text.slice(0, 200) + (prepared_draft.body_text.length > 200 ? '...' : ''),
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
+    }
+
+    if (!vendor.contact_email) {
+      return new Response(
+        JSON.stringify({ success: false, skipped: true, reason: 'No contact email available' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
+    }
 
     // Draft with Claude
     const { subject, body_html, body_text, token_usage } = await draftEmailWithClaude(
       vendor, tone, ai_model, ai_max_tokens, ai_temperature,
     )
+
+    // Draft only — return without sending (for approval flow in chat)
+    if (draft_only) {
+      return new Response(
+        JSON.stringify({
+          draft_only: true,
+          subject,
+          body_html,
+          body_text,
+          body_preview: body_text.slice(0, 200) + (body_text.length > 200 ? '...' : ''),
+          token_usage,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
+    }
 
     // Send via Resend
     const { message_id } = await sendViaResend(
