@@ -113,6 +113,7 @@ export function AIAgentSettings({ onRunNow, runNowLoading }: AIAgentSettingsProp
   const [settings, setSettings] = useState<AIAgentSettingsData>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [settingsId, setSettingsId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<{ user_id: string; full_name: string | null }[]>([]);
   const [statuses, setStatuses] = useState<{ id: string; name: string }[]>([]);
 
@@ -133,6 +134,7 @@ export function AIAgentSettings({ onRunNow, runNowLoading }: AIAgentSettingsProp
     if (error) {
       toast({ title: 'Failed to load settings', variant: 'destructive' });
     } else if (data) {
+      setSettingsId(data.id);
       setSettings((prev) => ({
         ...prev,
         ai_enabled: data.ai_enabled ?? prev.ai_enabled,
@@ -183,7 +185,8 @@ export function AIAgentSettings({ onRunNow, runNowLoading }: AIAgentSettingsProp
 
   async function save() {
     setSaving(true);
-    const { error } = await supabase.from('app_settings').update({
+
+    const payload = {
       ai_enabled: settings.ai_enabled,
       ai_model: settings.ai_model,
       ai_max_tokens: settings.ai_max_tokens,
@@ -207,7 +210,22 @@ export function AIAgentSettings({ onRunNow, runNowLoading }: AIAgentSettingsProp
       slack_notify_vendor_discovered: settings.slack_notify_vendor_discovered,
       slack_notify_vendor_email_sent: settings.slack_notify_vendor_email_sent,
       slack_notify_cron_summary: settings.slack_notify_cron_summary,
-    });
+    };
+
+    let error;
+    if (settingsId) {
+      // Update existing row by primary key
+      ({ error } = await supabase.from('app_settings').update(payload).eq('id', settingsId));
+    } else {
+      // No row yet — insert one
+      const { data: inserted, error: insertError } = await supabase
+        .from('app_settings')
+        .insert(payload)
+        .select('id')
+        .single();
+      error = insertError;
+      if (inserted?.id) setSettingsId(inserted.id);
+    }
 
     if (error) {
       toast({ title: 'Failed to save settings', description: error.message, variant: 'destructive' });
