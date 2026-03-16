@@ -52,13 +52,36 @@ const VENDOR_TYPE_FOCUS: Record<string, string> = {
   refurbished: 'certified refurbished IT devices (laptops, MacBooks, tablets, workstations). Mention interest in R2/ISO certification, grading standards (Grade A/B), and bulk pricing.',
   new_device:  'new IT hardware for enterprise procurement. Mention interest in authorized distributor status, bulk pricing tiers, and warranty terms.',
   rental:      'IT device rental and leasing for corporate clients. Mention interest in fleet management, rental duration options, and pricing per device per month.',
-  warehouse:   'IT equipment warehousing and storage services. Mention interest in capacity, security standards, and fulfillment capabilities.',
+  warehouse:   'IT asset warehousing, QC, shipping operations, and device lifecycle services. RemoAsset is looking for warehouse partners who can: (1) receive and securely store IT assets (primarily laptops) on behalf of our clients, (2) perform quality checks (QC) and servicing/repair if needed, (3) handle inbound/outbound shipping and logistics operations, (4) support device retirement and redeployment — retire end-of-life laptops, clean/refurbish them, and make them ready for redeployment to new employees. RemoAsset handles procurement and delivery of new laptops with device vendors; the warehouse partner's role is to retire, store, QC, and redeploy. The goal of outreach is to get them on a discovery call to discuss storage pricing, QC fees, quantity requirements, tax implications, and logistics capabilities.',
 }
 
 // Context for email: what we do and what a discovery call covers (so the email can invite a call)
 const REMOASSET_PITCH_CONTEXT = `
-DISCOVERY CALL CONTEXT (use when inviting them to a call):
-RemoAsset is US-based. We run a device lifecycle management platform for companies with globally distributed teams (remote-first, EORs). We help clients procure, deploy, manage, recover, and store IT devices across countries and are building a vendor network. On a discovery call we typically cover: US entity & procurement fit, payment terms (we often do pay-and-carry), tax/VAT for international buyers, shipping and delivery timelines, bulk orders and warehousing, device recovery/QC, and flexible billing/invoicing. Invite them to a short call to discuss how we could work together and to understand their services.
+ABOUT REMOASSET:
+RemoAsset is an all-in-one remote IT asset lifecycle management platform. We help 200+ companies across 35+ countries manage their entire device lifecycle — from procurement, provisioning, and tracking to recovery, QC, and storage — for distributed and remote workforces.
+
+WAREHOUSE PARTNER DISCOVERY CALL CONTEXT (use for warehouse vendor emails):
+We are actively building a global network of warehouse partners to support our clients' IT asset lifecycle needs. Here is what we are looking for from a warehouse partner:
+- Secure storage of IT assets (primarily laptops) on behalf of our clients in their country/region
+- Inbound/outbound shipping operations and coordination
+- Quality checks (QC) and basic servicing/repair of laptops when needed (optional but preferred)
+- Device retirement and redeployment support — when a laptop is retired from one employee, the warehouse partner would receive it, QC it, and make it ready for deployment to the next employee
+- RemoAsset takes care of procurement and delivery of new laptops with our device vendor partners
+
+On a discovery call we cover:
+- Storage capacity and pricing (per unit or per pallet/sq ft)
+- QC and servicing capabilities and cost
+- Shipping operations and carrier partnerships
+- Volume expectations and quantity requirements
+- Tax implications and customs for cross-border shipments
+- Billing/invoicing and payment terms
+- Timeline and onboarding process
+
+GENERAL DISCOVERY CALL CONTEXT (for non-warehouse vendors):
+We run a device lifecycle management platform for companies with globally distributed teams. On a discovery call we cover: US entity & procurement fit, payment terms, tax/VAT for international buyers, shipping and delivery timelines, bulk orders and warehousing, device recovery/QC, and flexible billing/invoicing.
+
+CALENDLY BOOKING LINK: https://calendly.com/ranjith-remoasset/30min
+Always include this link when inviting them to book a call. Phrase it naturally, e.g. "book a 30-min call via: https://calendly.com/ranjith-remoasset/30min"
 `.trim()
 
 async function draftEmailWithClaude(vendor: any, tone: string, model: string, maxTokens: number, temperature: number) {
@@ -66,39 +89,44 @@ async function draftEmailWithClaude(vendor: any, tone: string, model: string, ma
 
   const toneInstruction = TONE_INSTRUCTIONS[tone] ?? TONE_INSTRUCTIONS.professional
   const vendorFocus     = VENDOR_TYPE_FOCUS[vendor.vendor_type] ?? 'IT devices and services'
+  const isWarehouse     = vendor.vendor_type === 'warehouse'
 
-  const prompt = `Draft an outreach email from RemoAsset to a potential vendor partner.
-
-ABOUT REMOASSET:
-RemoAsset is an all-in-one remote IT asset lifecycle management platform. We help 200+ companies across 35+ countries manage their entire device lifecycle — from procurement to provisioning, tracking, and recovery for distributed workforces. We are SOC 2 certified and HIPAA compliant.
+  const prompt = `Draft an outreach email from RemoAsset to a potential ${isWarehouse ? 'warehouse' : 'vendor'} partner.
 
 ${REMOASSET_PITCH_CONTEXT}
 
 VENDOR DETAILS:
 - Company: ${vendor.company_name}
 - Country: ${vendor.country}
-- Contact Name: ${vendor.contact_name || 'Procurement Team'}
+- Contact Name: ${vendor.contact_name || (isWarehouse ? 'Warehouse Operations Team' : 'Procurement Team')}
 - Vendor Type: ${vendor.vendor_type}
 - Description: ${vendor.description}
 - Certifications: ${vendor.certifications?.length ? vendor.certifications.join(', ') : 'Unknown'}
-- Specialties: ${vendor.specialties?.length ? vendor.specialties.join(', ') : 'IT devices'}
+- Specialties: ${vendor.specialties?.length ? vendor.specialties.join(', ') : 'IT assets'}
 - Website: ${vendor.website ?? 'N/A'}
+- Region: ${vendor.region ?? vendor.country}
 
 INQUIRY FOCUS: ${vendorFocus}
 TONE: ${toneInstruction}
 
 REQUIREMENTS:
-- Subject line: Concise, professional, specific to their vendor type
+- Subject line: Must be specific and dynamic — reference the company name or country. ${isWarehouse
+  ? 'Examples: "Warehouse Partnership Opportunity in [Country] — RemoAsset", "IT Asset Storage & Redeployment Partnership — [Company Name]", "Exploring Warehouse Collaboration for IT Lifecycle Management in [Country]"'
+  : 'Examples: "IT Device Partnership Opportunity — RemoAsset", "Sourcing Partnership for [Vendor Type] Devices — [Country]"'}
 - Greeting: Use contact name if available, otherwise "Hi [Company Name] Team"
-- Opening: Brief intro to RemoAsset (1 sentence)
-- Body: Explain why we're reaching out to THEM specifically. Reference their specialties/certs if known.
-- Key questions to ask (pick 2-3):
-  * Inventory/capacity availability
-  * Certifications and quality standards
-  * Minimum order quantities or pricing structure
-  * Geographic coverage / lead times
-- Closing: Invite them to a brief call or email reply (you can mention we often do a short discovery call to discuss fit, their services, and next steps — see context above).
-- Sign-off: "The RemoAsset Procurement Team"
+- Opening: 1-sentence intro to RemoAsset — what we do and the scale we operate at
+- Body: Explain why we're specifically reaching out to THEM (reference their specialties, location, or certifications if known). ${isWarehouse
+  ? `Clearly state the 4 things we need from a warehouse partner:
+  1. Secure storage of IT assets (laptops) on behalf of our clients
+  2. Inbound/outbound shipping operations
+  3. QC and servicing/repair of laptops (optional but valued)
+  4. Device retirement and redeployment — receive end-of-life devices, QC them, make ready for next deployment
+  Make clear that RemoAsset handles procurement and new device delivery — the warehouse partner focuses on retirement, storage, QC, and redeployment.`
+  : 'Pick 2–3 key questions relevant to their vendor type (capacity, certifications, pricing, geographic coverage, MOQ, lead times).'}
+- Closing: ${isWarehouse
+  ? 'Invite them to a discovery call to discuss storage pricing, QC fees, volume expectations, tax implications, and how we could work together. Include the Calendly booking link: https://calendly.com/ranjith-remoasset/30min'
+  : 'Invite them to a brief call to explore fit. Include the Calendly booking link: https://calendly.com/ranjith-remoasset/30min'}
+- Sign-off: "Ranjithkumar Shanmugavel\\nHead of Operations, Remoasset Corp.\\nEmail: ranjith@remoasset.com\\nPhone: +91 8667637565"
 
 Return ONLY valid JSON:
 {

@@ -71,9 +71,11 @@ const VENDOR_TYPE_QUERIES: Record<string, string[]> = {
     'computer rental fleet management enterprise',
   ],
   warehouse: [
-    'IT asset warehouse storage logistics provider',
-    'IT equipment warehousing fulfillment B2B',
-    'tech hardware storage distribution center enterprise',
+    'IT asset warehousing storage QC logistics partner B2B',
+    'IT equipment 3PL third-party logistics asset management enterprise',
+    'laptop storage refurbishment redeployment ITAD services provider',
+    'IT asset retirement recovery redeploy warehouse services company',
+    'device lifecycle warehouse partner IT hardware QC shipping operations',
   ],
 }
 
@@ -144,7 +146,12 @@ async function extractVendorsWithClaude(
   const systemPrompt = `You are a vendor research specialist for RemoAsset, a global IT asset lifecycle management platform operating in 35+ countries. RemoAsset helps companies manage device procurement, provisioning, tracking, and recovery for remote workforces.
 
 Your task is to extract real, legitimate B2B vendor companies from search results. Focus on:
-- Companies that supply ${vendorType === 'refurbished' ? 'certified refurbished IT devices (laptops, phones, tablets, servers)' : vendorType === 'new_device' ? 'new IT hardware devices for enterprise/B2B procurement' : vendorType === 'rental' ? 'IT device rental and leasing for businesses' : 'IT equipment warehousing, storage, and logistics'}
+- Companies that supply ${
+  vendorType === 'refurbished' ? 'certified refurbished IT devices (laptops, phones, tablets, servers)' :
+  vendorType === 'new_device'  ? 'new IT hardware devices for enterprise/B2B procurement' :
+  vendorType === 'rental'      ? 'IT device rental and leasing for businesses' :
+  /* warehouse */ 'IT asset warehousing, storage, QC, shipping operations, and device lifecycle services — specifically companies that can: (1) receive and store IT assets like laptops, (2) perform quality checks and servicing, (3) handle shipping and logistics operations, (4) support device retirement, refurbishment, and redeployment'
+}
 - B2B-focused businesses (not consumer retail)
 - Companies that could partner with RemoAsset for device sourcing${extraContext ? '\n\nAdditional context: ' + extraContext : ''}`
 
@@ -181,6 +188,7 @@ CRITICAL RULES:
 - phone: Try to extract at least one phone/mobile when present in snippets (e.g. "Call us", "Tel:", "Contact:", main number, sales number). Prefer numbers that look like business lines. Never invent digits.
 - Only include companies with confidence_score >= 6
 - Do not include consumer retailers (Amazon, Best Buy, Flipkart retail, etc.)
+${vendorType === 'warehouse' ? `- For WAREHOUSE type: ONLY include companies that actually offer physical storage/warehousing, QC, shipping/logistics, or device lifecycle services for IT assets. Exclude pure software companies, pure IT resellers with no logistics capability, or generic logistics companies with no IT asset expertise.` : ''}
 - Return ONLY the JSON array, no other text.`
 
   const message = await anthropic.messages.create({

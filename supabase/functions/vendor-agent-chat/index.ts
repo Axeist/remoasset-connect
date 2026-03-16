@@ -116,7 +116,7 @@ Rules for vendor_type detection:
 - "refurbished", "used", "second-hand", "certified pre-owned" → "refurbished"
 - "new", "new device", "brand new", "fresh" → "new_device"
 - "rental", "lease", "hire", "rent" → "rental"
-- "warehouse", "storage", "logistics", "fulfillment" → "warehouse"
+- "warehouse", "storage", "store", "logistics", "fulfillment", "3PL", "QC", "quality check", "shipping operations", "retire", "retirement", "redeploy", "redeployment", "ITAD" → "warehouse"
 - If no type mentioned, default to ["refurbished", "new_device"]`
 
   const response = await anthropic.messages.create({
@@ -275,7 +275,7 @@ Deno.serve(async (req) => {
       if (intent.action !== 'discover') {
         await send({
           type: 'text',
-          content: `I can help you find vendors! Try saying something like:\n\n• *"Find 10 refurbished laptop vendors in Southeast Asia"*\n• *"Search for 5 warehouse partners in Germany"*\n• *"Find rental IT equipment companies in the US"*`,
+          content: `I can help you find vendors! Try saying something like:\n\n• *"Find 10 refurbished laptop vendors in Southeast Asia"*\n• *"Search for 5 warehouse partners in Germany"*\n• *"Find IT asset storage and logistics partners in the UAE"*\n• *"Find rental IT equipment companies in the US"*\n• *"Find 8 warehouse partners for laptop storage and QC in Australia"*`,
         })
         await send({ type: 'done' })
         return
@@ -286,11 +286,15 @@ Deno.serve(async (req) => {
       const vendorTypes = intent.vendor_types || ['refurbished', 'new_device']
       const count = Math.min(intent.count || 10, 30)
 
+      const isWarehouse = vendorTypes.includes('warehouse') && vendorTypes.length === 1
+
       await send({
         type: 'text',
-        content: `Searching for **${count} ${vendorTypes.join(' & ')} vendors** in **${region}**...`,
+        content: isWarehouse
+          ? `Searching for **${count} warehouse partners** in **${region}** — looking for companies that can store IT assets, handle QC & servicing, manage shipping operations, and support device retirement & redeployment...`
+          : `Searching for **${count} ${vendorTypes.join(' & ')} vendors** in **${region}**...`,
       })
-      await send({ type: 'progress', step: `Searching Google for vendors in ${region}...`, icon: '🔍' })
+      await send({ type: 'progress', step: `Searching for ${isWarehouse ? 'warehouse & logistics partners' : 'vendors'} in ${region}...`, icon: '🔍' })
 
       // Discover vendors
       let discoveryResult: any
