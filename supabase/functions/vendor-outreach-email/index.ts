@@ -110,23 +110,25 @@ INQUIRY FOCUS: ${vendorFocus}
 TONE: ${toneInstruction}
 
 REQUIREMENTS:
-- Subject line: Must be specific and dynamic — reference the company name or country. ${isWarehouse
-  ? 'Examples: "Warehouse Partnership Opportunity in [Country] — RemoAsset", "IT Asset Storage & Redeployment Partnership — [Company Name]", "Exploring Warehouse Collaboration for IT Lifecycle Management in [Country]"'
-  : 'Examples: "IT Device Partnership Opportunity — RemoAsset", "Sourcing Partnership for [Vendor Type] Devices — [Country]"'}
+- Subject line: Short, specific — reference the company name or country. ${isWarehouse
+  ? 'Examples: "Warehouse Partnership — RemoAsset × [Company]", "IT Asset Storage Partnership in [Country]", "Laptop Lifecycle Warehousing — Let\'s Connect"'
+  : 'Examples: "IT Device Partnership — RemoAsset", "Sourcing Partnership — [Country]"'}
 - Greeting: Use contact name if available, otherwise "Hi [Company Name] Team"
-- Opening: 1-sentence intro to RemoAsset — what we do and the scale we operate at
-- Body: Explain why we're specifically reaching out to THEM (reference their specialties, location, or certifications if known). ${isWarehouse
-  ? `Clearly state the 4 things we need from a warehouse partner:
-  1. Secure storage of IT assets (laptops) on behalf of our clients
-  2. Inbound/outbound shipping operations
-  3. QC and servicing/repair of laptops (optional but valued)
-  4. Device retirement and redeployment — receive end-of-life devices, QC them, make ready for next deployment
-  Make clear that RemoAsset handles procurement and new device delivery — the warehouse partner focuses on retirement, storage, QC, and redeployment.`
-  : 'Pick 2–3 key questions relevant to their vendor type (capacity, certifications, pricing, geographic coverage, MOQ, lead times).'}
-- Closing: ${isWarehouse
-  ? 'Invite them to a discovery call to discuss storage pricing, QC fees, volume expectations, tax implications, and how we could work together. Include the Calendly booking link: https://calendly.com/ranjith-remoasset/30min'
-  : 'Invite them to a brief call to explore fit. Include the Calendly booking link: https://calendly.com/ranjith-remoasset/30min'}
-- Sign-off: "Ranjithkumar Shanmugavel\\nHead of Operations, Remoasset Corp.\\nEmail: ranjith@remoasset.com\\nPhone: +91 8667637565"
+- Length: SHORT. Maximum 4 short paragraphs. No bullet lists in the email body. Conversational, not corporate.
+- Paragraph 1 (2 sentences max): Who RemoAsset is — one line. Why we're reaching out to THIS company specifically.
+- Paragraph 2 (3 sentences max): ${isWarehouse
+  ? 'What we need from a warehouse partner — briefly: store IT assets (laptops), handle QC and servicing, manage shipping, and support device retirement/redeployment. Mention RemoAsset handles procurement; the partner handles storage, QC, and redeployment.'
+  : 'What we are looking for from them — relevant to their type. Keep it to 2–3 sentences.'}
+- Paragraph 3 (1–2 sentences): ${isWarehouse
+  ? 'Invite them to a 30-min call to discuss storage pricing, QC services, volume, and tax/logistics details. Include the Calendly link naturally: https://calendly.com/ranjith-remoasset/30min'
+  : 'Invite them to a quick call. Include the Calendly link: https://calendly.com/ranjith-remoasset/30min'}
+- Sign-off: End with exactly this block:
+  "Warm regards,
+
+  Ranjithkumar Shanmugavel
+  Head of Operations, Remoasset Corp.
+  ranjith@remoasset.com
+  +91 8667637565"
 
 Return ONLY valid JSON:
 {
