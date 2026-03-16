@@ -10,20 +10,27 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { REGIONS } from '@/components/leads/LeadsFilters';
 
 interface CountryFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  country: { id: string; name: string; code: string } | null;
+  country: { id: string; name: string; code: string; region?: string | null } | null;
   onSuccess: () => void;
+}
+
+function toTitleCase(s: string): string {
+  return s.trim().replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
 export function CountryFormDialog({ open, onOpenChange, country, onSuccess }: CountryFormDialogProps) {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+  const [region, setRegion] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -31,9 +38,11 @@ export function CountryFormDialog({ open, onOpenChange, country, onSuccess }: Co
     if (country) {
       setName(country.name);
       setCode(country.code);
+      setRegion((country as { region?: string | null }).region ?? '');
     } else {
       setName('');
       setCode('');
+      setRegion('');
     }
   }, [country, open]);
 
@@ -42,11 +51,16 @@ export function CountryFormDialog({ open, onOpenChange, country, onSuccess }: Co
       toast({ variant: 'destructive', title: 'Name and code required' });
       return;
     }
+    const nameTitleCase = toTitleCase(name);
     setSubmitting(true);
     if (country) {
       const { error } = await supabase
         .from('countries')
-        .update({ name: name.trim(), code: code.trim().toUpperCase() })
+        .update({
+          name: nameTitleCase,
+          code: code.trim().toUpperCase(),
+          region: region || null,
+        })
         .eq('id', country.id);
       if (error) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
@@ -57,7 +71,11 @@ export function CountryFormDialog({ open, onOpenChange, country, onSuccess }: Co
     } else {
       const { error } = await supabase
         .from('countries')
-        .insert({ name: name.trim(), code: code.trim().toUpperCase() });
+        .insert({
+          name: nameTitleCase,
+          code: code.trim().toUpperCase(),
+          region: region || null,
+        });
       if (error) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
         setSubmitting(false);
@@ -91,6 +109,20 @@ export function CountryFormDialog({ open, onOpenChange, country, onSuccess }: Co
               maxLength={2}
               className="uppercase"
             />
+          </div>
+          <div className="space-y-2">
+            <Label>Region</Label>
+            <Select value={region || 'none'} onValueChange={(v) => setRegion(v === 'none' ? '' : v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select region" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No region</SelectItem>
+                {REGIONS.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>

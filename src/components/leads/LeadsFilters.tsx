@@ -24,9 +24,20 @@ import {
   startOfYear,
 } from 'date-fns';
 
+/** Region codes for filtering (ANZ, MENA, LATAM, EU, NA, APAC) */
+export const REGIONS = [
+  { value: 'ANZ', label: 'ANZ' },
+  { value: 'APAC', label: 'APAC' },
+  { value: 'EU', label: 'EU' },
+  { value: 'LATAM', label: 'LATAM' },
+  { value: 'MENA', label: 'MENA' },
+  { value: 'NA', label: 'NA' },
+] as const;
+
 export interface LeadsFiltersState {
   search: string;
   status: string;
+  region: string;
   country: string;
   owner: string;
   scoreMin: number;
@@ -46,6 +57,7 @@ export interface LeadsFiltersState {
 const EMPTY_FILTERS: LeadsFiltersState = {
   search: '',
   status: '',
+  region: '',
   country: '',
   owner: '',
   scoreMin: 0,
@@ -114,23 +126,29 @@ function getPresetRange(preset: string): { from: string; to: string } {
 
 export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFiltersProps) {
   const [statuses, setStatuses] = useState<{ id: string; name: string; color: string }[]>([]);
-  const [countries, setCountries] = useState<{ id: string; name: string }[]>([]);
+  const [countries, setCountries] = useState<{ id: string; name: string; region: string | null }[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     (async () => {
       const [statusRes, countryRes] = await Promise.all([
         supabase.from('lead_statuses').select('id, name, color').order('sort_order'),
-        supabase.from('countries').select('id, name').order('name'),
+        supabase.from('countries').select('id, name, region').order('name'),
       ]);
       if (statusRes.data) setStatuses(statusRes.data);
       if (countryRes.data) setCountries(countryRes.data);
     })();
   }, []);
 
+  const countriesByRegion = useMemo(() => {
+    if (!filters.region) return countries;
+    return countries.filter((c) => c.region === filters.region);
+  }, [countries, filters.region]);
+
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (filters.status) count++;
+    if (filters.region) count++;
     if (filters.country) count++;
     if (filters.owner) count++;
     if (filters.vendorType) count++;
@@ -240,6 +258,21 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
           </Select>
 
           <Select
+            value={filters.region || 'all'}
+            onValueChange={(v) => update({ region: v === 'all' ? '' : v, country: '' })}
+          >
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="All Regions" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Regions</SelectItem>
+              {REGIONS.map((r) => (
+                <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
             value={filters.country || 'all'}
             onValueChange={(v) => update({ country: v === 'all' ? '' : v })}
           >
@@ -248,7 +281,7 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Countries</SelectItem>
-              {countries.map((c) => (
+              {countriesByRegion.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
               ))}
             </SelectContent>
@@ -407,6 +440,12 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
                   <FilterChip
                     label={`Status: ${statuses.find((s) => s.id === filters.status)?.name ?? 'Unknown'}`}
                     onRemove={() => update({ status: '' })}
+                  />
+                )}
+                {filters.region && (
+                  <FilterChip
+                    label={`Region: ${filters.region}`}
+                    onRemove={() => update({ region: '' })}
                   />
                 )}
                 {filters.country && (

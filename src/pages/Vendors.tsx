@@ -19,6 +19,7 @@ import {
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
+import { REGIONS } from '@/components/leads/LeadsFilters';
 
 const geoUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
@@ -86,6 +87,7 @@ export default function Vendors() {
   const [documents, setDocuments] = useState<VendorDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [regionFilter, setRegionFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
   const [vendorTypeFilter, setVendorTypeFilter] = useState('');
   const [ndaFilter, setNdaFilter] = useState('');
@@ -94,7 +96,7 @@ export default function Vendors() {
   const [docFilter, setDocFilter] = useState('');
   const [expandedCountries, setExpandedCountries] = useState<Record<string, boolean>>({});
 
-  const [countries, setCountries] = useState<{ id: string; name: string; code: string }[]>([]);
+  const [countries, setCountries] = useState<{ id: string; name: string; code: string; region: string | null }[]>([]);
   const [statuses, setStatuses] = useState<{ id: string; name: string; color: string }[]>([]);
   const [owners, setOwners] = useState<{ id: string; full_name: string | null }[]>([]);
 
@@ -103,7 +105,7 @@ export default function Vendors() {
   useEffect(() => {
     (async () => {
       const [cRes, sRes] = await Promise.all([
-        supabase.from('countries').select('id, name, code').order('name'),
+        supabase.from('countries').select('id, name, code, region').order('name'),
         supabase.from('lead_statuses').select('id, name, color, sort_order').order('sort_order'),
       ]);
       if (cRes.data) setCountries(cRes.data);
@@ -178,6 +180,12 @@ export default function Vendors() {
     return [...set].sort();
   }, [vendors]);
 
+  const codeToRegion = useMemo(() => {
+    const map: Record<string, string | null> = {};
+    countries.forEach((c) => { map[c.code] = c.region ?? null; });
+    return map;
+  }, [countries]);
+
   const filteredVendors = useMemo(() => {
     return vendors.filter((v) => {
       if (search) {
@@ -187,6 +195,7 @@ export default function Vendors() {
           .some((f) => f!.toLowerCase().includes(q));
         if (!match) return false;
       }
+      if (regionFilter && (v.country?.code == null || codeToRegion[v.country.code] !== regionFilter)) return false;
       if (countryFilter && v.country?.code !== countryFilter) return false;
       if (ownerFilter) {
         if (ownerFilter === '__unassigned__') { if (v.owner_id) return false; }
@@ -211,7 +220,7 @@ export default function Vendors() {
       }
       return true;
     });
-  }, [vendors, search, countryFilter, ownerFilter, vendorTypeFilter, warehouseFilter, ndaFilter, docFilter, docsByLead]);
+  }, [vendors, search, regionFilter, countryFilter, ownerFilter, vendorTypeFilter, warehouseFilter, ndaFilter, docFilter, docsByLead, codeToRegion]);
 
   const countryStats = useMemo((): CountryStats[] => {
     const map: Record<string, { name: string; count: number }> = {};
@@ -277,10 +286,11 @@ export default function Vendors() {
     window.open(data.signedUrl, '_blank', 'noopener');
   };
 
-  const activeFilterCount = [search, countryFilter, vendorTypeFilter, ndaFilter, ownerFilter, warehouseFilter, docFilter].filter(Boolean).length;
+  const activeFilterCount = [search, regionFilter, countryFilter, vendorTypeFilter, ndaFilter, ownerFilter, warehouseFilter, docFilter].filter(Boolean).length;
 
   const clearFilters = () => {
     setSearch('');
+    setRegionFilter('');
     setCountryFilter('');
     setVendorTypeFilter('');
     setNdaFilter('');
@@ -507,6 +517,17 @@ export default function Vendors() {
                   className="pl-9 h-10"
                 />
               </div>
+              <Select value={regionFilter || '__all__'} onValueChange={(v) => { setRegionFilter(v === '__all__' ? '' : v); setCountryFilter(''); }}>
+                <SelectTrigger className="w-[140px] h-10">
+                  <SelectValue placeholder="All Regions" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Regions</SelectItem>
+                  {REGIONS.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={countryFilter || '__all__'} onValueChange={(v) => setCountryFilter(v === '__all__' ? '' : v)}>
                 <SelectTrigger className="w-[180px] h-10">
                   <SelectValue placeholder="All Countries" />

@@ -44,6 +44,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths, startOfYear } from 'date-fns';
 import type { Lead, LeadStatusOption, CountryOption } from '@/types/lead';
+import { REGIONS } from '@/components/leads/LeadsFilters';
 import { KanbanColumn } from '@/components/pipeline/KanbanColumn';
 import { KanbanCard, StaticKanbanCard } from '@/components/pipeline/KanbanCard';
 import { StaticKanbanColumn } from '@/components/pipeline/StaticKanbanColumn';
@@ -102,9 +103,10 @@ interface Filters {
   dateTo: string;
   scoreMin: number;
   scoreMax: number;
+  region: string;
 }
 
-const EMPTY_FILTERS: Filters = { search: '', owner: '', country: '', datePreset: '', dateFrom: '', dateTo: '', scoreMin: 0, scoreMax: 100 };
+const EMPTY_FILTERS: Filters = { search: '', owner: '', region: '', country: '', datePreset: '', dateFrom: '', dateTo: '', scoreMin: 0, scoreMax: 100 };
 
 type ViewMode = 'status' | 'activity';
 
@@ -142,7 +144,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
   const [owners, setOwners] = useState<{ id: string; full_name: string | null }[]>([]);
-  const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [countries, setCountries] = useState<(CountryOption & { region?: string | null })[]>([]);
   const [refReady, setRefReady] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -163,11 +165,11 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     const fetchRef = async () => {
       const [statusRes, countryRes, ownerRes] = await Promise.all([
         supabase.from('lead_statuses').select('id, name, color, sort_order').order('sort_order'),
-        supabase.from('countries').select('id, name, code').order('name'),
+        supabase.from('countries').select('id, name, code, region').order('name'),
         supabase.from('profiles').select('user_id, full_name'),
       ]);
       if (statusRes.data) setStatuses(statusRes.data);
-      if (countryRes.data) setCountries(countryRes.data);
+      if (countryRes.data) setCountries(countryRes.data as (CountryOption & { region?: string | null })[]);
       if (ownerRes.data) setOwners(ownerRes.data.map((p) => ({ id: p.user_id, full_name: p.full_name })));
       setRefReady(true);
     };
@@ -192,6 +194,15 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     if (filters.owner) {
       if (filters.owner === 'unassigned') query = query.is('owner_id', null);
       else query = query.eq('owner_id', filters.owner);
+    }
+    if (filters.region) {
+      const { data: regionCountries } = await supabase.from('countries').select('id').eq('region', filters.region);
+      const regionCountryIds = (regionCountries ?? []).map((r) => r.id);
+      if (regionCountryIds.length > 0) {
+        query = query.in('country_id', regionCountryIds);
+      } else {
+        query = query.eq('country_id', '00000000-0000-0000-0000-000000000000');
+      }
     }
     if (filters.country) query = query.eq('country_id', filters.country);
     if (filters.scoreMin > 0) query = query.gte('lead_score', filters.scoreMin);
@@ -433,9 +444,15 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
 
   const update = (partial: Partial<Filters>) => setFilters((f) => ({ ...f, ...partial }));
 
+  const countriesByRegion = useMemo(() => {
+    if (!filters.region) return countries;
+    return countries.filter((c) => c.region === filters.region);
+  }, [countries, filters.region]);
+
   const activeFilterCount = useMemo(() => {
     let c = 0;
     if (filters.owner) c++;
+    if (filters.region) c++;
     if (filters.country) c++;
     if (filters.datePreset || filters.dateFrom) c++;
     if (filters.scoreMin > 0 || filters.scoreMax < 100) c++;
@@ -559,11 +576,18 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
                   </SelectContent>
                 </Select>
               )}
+              <Select value={filters.region || 'all'} onValueChange={(v) => update({ region: v === 'all' ? '' : v, country: '' })}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="All Regions" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Regions</SelectItem>
+                  {REGIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <Select value={filters.country || 'all'} onValueChange={(v) => update({ country: v === 'all' ? '' : v })}>
                 <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="All Countries" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Countries</SelectItem>
-                  {countries.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  {countriesByRegion.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={filters.datePreset || 'all'} onValueChange={(v) => v === 'all' ? update({ datePreset: '', dateFrom: '', dateTo: '' }) : handleDatePreset(v)}>

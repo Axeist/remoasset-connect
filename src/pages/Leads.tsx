@@ -60,6 +60,7 @@ export default function Leads() {
   const [filters, setFilters] = useState<LeadsFiltersState>({
     search: searchParams.get('search') ?? '',
     status: '',
+    region: '',
     country: '',
     owner: defaultOwner,
     scoreMin: 0,
@@ -179,6 +180,15 @@ export default function Leads() {
       query = query.or(`company_name.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
     }
     if (filters.status) query = query.eq('status_id', filters.status);
+    if (filters.region) {
+      const { data: regionCountries } = await supabase.from('countries').select('id').eq('region', filters.region);
+      const regionCountryIds = (regionCountries ?? []).map((r) => r.id);
+      if (regionCountryIds.length > 0) {
+        query = query.in('country_id', regionCountryIds);
+      } else {
+        query = query.eq('country_id', '00000000-0000-0000-0000-000000000000');
+      }
+    }
     if (filters.country) query = query.eq('country_id', filters.country);
     if (filters.owner === 'unassigned') query = query.is('owner_id', null);
     else if (filters.owner) query = query.eq('owner_id', filters.owner);
