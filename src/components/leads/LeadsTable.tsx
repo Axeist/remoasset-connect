@@ -8,13 +8,11 @@ import {
   Pagination,
   PaginationContent,
   PaginationItem,
-  PaginationNext,
-  PaginationPrevious,
 } from '@/components/ui/pagination';
 import { Button } from '@/components/ui/button';
 import type { Lead } from '@/types/lead';
 import { safeFormat } from '@/lib/date';
-import { ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type SortField = 'company_name' | 'created_at' | 'lead_score' | 'contact_name';
@@ -134,6 +132,7 @@ export function LeadsTable({
               <TableHead>Country</TableHead>
               <TableHead>Last Activity</TableHead>
               <SortHeader field="created_at">Created</SortHeader>
+              <TableHead className="w-8" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -205,6 +204,18 @@ export function LeadsTable({
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
                   {safeFormat(lead.created_at, 'MMM d, yyyy')}
+                </TableCell>
+                <TableCell className="w-8 p-1" onClick={(e) => e.stopPropagation()}>
+                  <a
+                    href={`/leads/${lead.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    tabIndex={-1}
+                    title="Open in new tab"
+                    className="inline-flex items-center justify-center h-7 w-7 rounded text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
                 </TableCell>
               </TableRow>
             ))}

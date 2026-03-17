@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
+import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -13,6 +14,7 @@ import { safeFormat } from '@/lib/date';
 import {
   X,
   Maximize2,
+  Pencil,
   Phone,
   Mail,
   Calendar,
@@ -78,6 +80,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
   const [loadingLead, setLoadingLead] = useState(true);
   const [loadingActivities, setLoadingActivities] = useState(true);
   const [addActivityOpen, setAddActivityOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const googleSyncDoneRef = useRef<string | null>(null);
@@ -208,12 +211,23 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {canEdit && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setEditOpen(true)}
+              title="Edit lead"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={() => navigate(`/leads/${lead.id}`)}
-            title="Open full page"
+            onClick={() => window.open(`/leads/${lead.id}`, '_blank')}
+            title="Open in new tab"
           >
             <Maximize2 className="h-4 w-4" />
           </Button>
@@ -537,6 +551,16 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
         leadCompanyName={displayLead.company_name}
         leadPhone={displayLead.phone}
         leadStatusName={displayLead.status?.name ?? null}
+      />
+      <LeadFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        lead={fullLead ?? lead}
+        onSuccess={() => {
+          fetchFullLead();
+          onLeadUpdated();
+          setEditOpen(false);
+        }}
       />
     </div>
   );
