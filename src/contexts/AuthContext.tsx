@@ -54,6 +54,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        // On TOKEN_REFRESHED, just update tokens — don't clear state
+        if (event === 'TOKEN_REFRESHED') {
+          captureProviderToken(session, setGoogleAccessToken);
+          setSession(session);
+          return;
+        }
+
+        // SIGNED_OUT fired by Supabase can happen when a provider token (Google)
+        // expires mid-session even though the Supabase session itself is still valid.
+        // Only treat it as a real logout if there's no active session recoverable.
+        if (event === 'SIGNED_OUT') {
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession) {
+            // Session still alive — this was a provider token event, not a real logout
+            captureProviderToken(currentSession, setGoogleAccessToken);
+            setSession(currentSession);
+            setUser(currentSession.user);
+            return;
+          }
+          // Genuine sign-out
+          setSession(null);
+          setUser(null);
+          setRole(null);
+          setGoogleAccessToken(null);
+          setLoading(false);
+          return;
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
         captureProviderToken(session, setGoogleAccessToken);

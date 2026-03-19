@@ -152,7 +152,7 @@ export type Database = {
           company_name: string
           contact_designation: string | null
           contact_name: string | null
-          country_id: string | null
+          country_ids: string[]
           created_at: string
           email: string | null
           id: string
@@ -168,7 +168,7 @@ export type Database = {
           company_name: string
           contact_designation?: string | null
           contact_name?: string | null
-          country_id?: string | null
+          country_ids?: string[]
           created_at?: string
           email?: string | null
           id?: string
@@ -184,7 +184,7 @@ export type Database = {
           company_name?: string
           contact_designation?: string | null
           contact_name?: string | null
-          country_id?: string | null
+          country_ids?: string[]
           created_at?: string
           email?: string | null
           id?: string
@@ -197,13 +197,6 @@ export type Database = {
           website?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "leads_country_id_fkey"
-            columns: ["country_id"]
-            isOneToOne: false
-            referencedRelation: "countries"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "leads_status_id_fkey"
             columns: ["status_id"]

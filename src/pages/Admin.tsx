@@ -349,11 +349,16 @@ export default function Admin() {
     });
     const byStatus = Object.entries(statusCounts).map(([name, { count, color }]) => ({ name, value: count, color }));
 
-    const { data: leadsWithCountry } = await supabase.from('leads').select('country_id, countries(code)');
+    const { data: leadsWithCountry } = await supabase.from('leads').select('country_ids');
+    const allCids = [...new Set((leadsWithCountry ?? []).flatMap((l: { country_ids: string[] }) => l.country_ids ?? []))];
+    const { data: codeRows } = allCids.length > 0 ? await supabase.from('countries').select('id, code').in('id', allCids) : { data: [] };
+    const cidCodeMap = (codeRows ?? []).reduce((acc: Record<string, string>, c: { id: string; code: string }) => { acc[c.id] = c.code; return acc; }, {});
     const countryCounts: Record<string, number> = {};
-    (leadsWithCountry ?? []).forEach((l: { countries: { code: string } | null }) => {
-      const code = l.countries?.code ?? 'Other';
-      countryCounts[code] = (countryCounts[code] ?? 0) + 1;
+    (leadsWithCountry ?? []).forEach((l: { country_ids: string[] }) => {
+      (l.country_ids ?? []).forEach((cid: string) => {
+        const code = cidCodeMap[cid] ?? 'Other';
+        countryCounts[code] = (countryCounts[code] ?? 0) + 1;
+      });
     });
     const byCountry = Object.entries(countryCounts).map(([name, leads]) => ({ name, leads }));
 
@@ -544,7 +549,7 @@ POST ${baseUrl}/leads
 | phone         | string |          | Contact phone number                 |
 | status_id     | uuid   |          | Pipeline stage (from /statuses)      |
 | owner_id      | uuid   |          | Assigned team member (from /team)    |
-| country_id    | uuid   |          | Country (from /countries)            |
+| country_ids   | uuid[] |          | Countries array (from /countries)            |
 | deal_value    | number |          | Estimated deal value                 |
 | notes         | string |          | Free-form notes                      |
 
@@ -584,9 +589,9 @@ Update multiple leads at once.
 | lead_ids   | uuid[] | Yes      | Array of lead IDs to update                |
 | status_id  | uuid   |          | Set pipeline stage for all leads           |
 | owner_id   | uuid   |          | Reassign all leads to this team member     |
-| country_id | uuid   |          | Set country for all leads                  |
+| country_ids | uuid[] |          | Set countries for all leads                  |
 
-At least one of \`status_id\`, \`owner_id\`, or \`country_id\` is required.
+At least one of \`status_id\`, \`owner_id\`, or \`country_ids\` is required.
 
 **Response**
 \`\`\`json
@@ -872,7 +877,7 @@ Returns all pipeline stages. Use \`id\` values as \`status_id\` when creating or
 GET ${baseUrl}/countries
 \`\`\`
 
-Returns all countries. Use \`id\` values as \`country_id\` when creating or updating leads.
+Returns all countries. Use \`id\` values as \`country_ids\` array when creating or updating leads.
 
 ---
 

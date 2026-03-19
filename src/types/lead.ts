@@ -27,8 +27,8 @@ export interface Lead {
   contact_name: string | null;
   contact_designation: string | null;
   additional_contacts?: LeadContact[] | null;
-  country_id: string | null;
-  country?: { name: string; code: string } | null;
+  country_ids: string[];
+  countries?: { name: string; code: string }[] | null;
   status_id: string | null;
   status?: { name: string; color: string } | null;
   lead_score: number | null;

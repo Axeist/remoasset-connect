@@ -131,7 +131,7 @@ export function useDashboardData() {
           .lte('due_date', todayEnd);
         if (!isAdmin) (tasksQuery as any).eq('assignee_id', user.id);
 
-        const countryQuery = supabase.from('leads').select('country_id, countries(code)');
+        const countryQuery = supabase.from('leads').select('country_ids');
         if (!isAdmin) (countryQuery as any).eq('owner_id', user.id);
 
         const [leadsRes, statusesRes, tasksRes, followUpsRes, countryRes] = await Promise.all([
@@ -178,28 +178,43 @@ export function useDashboardData() {
         setStatusData(Object.entries(statusCounts).map(([name, { count, color }]) => ({ name, value: count, color })));
 
         const countryCounts: Record<string, number> = {};
-        type CountryRow = { countries: { code: string } | null };
-        ((countryRes as { data?: CountryRow[] }).data ?? []).forEach((l: CountryRow) => {
-          const code = l.countries?.code ?? 'Other';
-          countryCounts[code] = (countryCounts[code] ?? 0) + 1;
+        type CountryRow = { country_ids: string[] };
+        const countryRowsData = ((countryRes as { data?: CountryRow[] }).data ?? []);
+        const allCountryIds = [...new Set(countryRowsData.flatMap((l: CountryRow) => l.country_ids ?? []))];
+        let countryCodeMap: Record<string, string> = {};
+        if (allCountryIds.length > 0) {
+          const { data: cRows } = await supabase.from('countries').select('id, code').in('id', allCountryIds);
+          countryCodeMap = (cRows ?? []).reduce((acc: Record<string, string>, c: { id: string; code: string }) => { acc[c.id] = c.code; return acc; }, {});
+        }
+        countryRowsData.forEach((l: CountryRow) => {
+          (l.country_ids ?? []).forEach((cid: string) => {
+            const code = countryCodeMap[cid] ?? 'Other';
+            countryCounts[code] = (countryCounts[code] ?? 0) + 1;
+          });
         });
         setCountryData(Object.entries(countryCounts).map(([name, leads]) => ({ name, leads })));
 
         // Fetch world demographics data with status breakdown
         const worldDemoQuery = supabase
           .from('leads')
-          .select('country_id, status_id, countries(code, name), lead_statuses(name, color)');
+          .select('country_ids, status_id, lead_statuses(name, color)');
         if (!isAdmin) (worldDemoQuery as any).eq('owner_id', user.id);
         
         const worldDemoRes = await worldDemoQuery;
         type WorldDemoRow = {
-          country_id: string | null;
+          country_ids: string[];
           status_id: string | null;
-          countries: { code: string; name: string } | null;
           lead_statuses: { name: string; color: string } | null;
         };
         
         const demoData = (worldDemoRes.data as WorldDemoRow[]) ?? [];
+        // Collect all country IDs from world demo data
+        const demoCids = [...new Set(demoData.flatMap((r) => r.country_ids ?? []))];
+        let demoCountryMap: Record<string, { code: string; name: string }> = {};
+        if (demoCids.length > 0) {
+          const { data: cRows } = await supabase.from('countries').select('id, code, name').in('id', demoCids);
+          demoCountryMap = (cRows ?? []).reduce((acc: Record<string, { code: string; name: string }>, c: { id: string; code: string; name: string }) => { acc[c.id] = { code: c.code, name: c.name }; return acc; }, {});
+        }
         const worldMap: Record<string, {
           countryCode: string;
           countryName: string;
@@ -208,28 +223,26 @@ export function useDashboardData() {
         }> = {};
         
         demoData.forEach((row) => {
-          if (!row.countries) return;
-          const code = row.countries.code;
-          const name = row.countries.name;
+          (row.country_ids ?? []).forEach((cid: string) => {
+            const country = demoCountryMap[cid];
+            if (!country) return;
+            const code = country.code;
+            const name = country.name;
           
-          if (!worldMap[code]) {
-            worldMap[code] = {
-              countryCode: code,
-              countryName: name,
-              totalLeads: 0,
-              statuses: {},
-            };
-          }
+            if (!worldMap[code]) {
+              worldMap[code] = { countryCode: code, countryName: name, totalLeads: 0, statuses: {} };
+            }
           
-          worldMap[code].totalLeads++;
+            worldMap[code].totalLeads++;
           
-          const statusName = row.lead_statuses?.name ?? 'Unassigned';
-          const statusColor = row.lead_statuses?.color ?? '#6B7280';
+            const statusName = row.lead_statuses?.name ?? 'Unassigned';
+            const statusColor = row.lead_statuses?.color ?? '#6B7280';
           
-          if (!worldMap[code].statuses[statusName]) {
-            worldMap[code].statuses[statusName] = { name: statusName, count: 0, color: statusColor };
-          }
-          worldMap[code].statuses[statusName].count++;
+            if (!worldMap[code].statuses[statusName]) {
+              worldMap[code].statuses[statusName] = { name: statusName, count: 0, color: statusColor };
+            }
+            worldMap[code].statuses[statusName].count++;
+          });
         });
         
         const worldDemoArray = Object.values(worldMap).map(country => ({

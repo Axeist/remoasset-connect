@@ -165,11 +165,11 @@ export default function Leads() {
         lead_score,
         vendor_types,
         warehouse_available,
+        country_ids,
         created_at,
         updated_at,
         owner_id,
-        status:lead_statuses(name, color),
-        country:countries(name, code)
+        status:lead_statuses(name, color)
       `,
         { count: 'exact' }
       )
@@ -184,12 +184,12 @@ export default function Leads() {
       const { data: regionCountries } = await supabase.from('countries').select('id').eq('region', filters.region);
       const regionCountryIds = (regionCountries ?? []).map((r) => r.id);
       if (regionCountryIds.length > 0) {
-        query = query.in('country_id', regionCountryIds);
+        query = (query as any).overlaps('country_ids', regionCountryIds);
       } else {
-        query = query.eq('country_id', '00000000-0000-0000-0000-000000000000');
+        query = query.eq('id', '00000000-0000-0000-0000-000000000000');
       }
     }
-    if (filters.country) query = query.eq('country_id', filters.country);
+    if (filters.country) query = (query as any).contains('country_ids', [filters.country]);
     if (filters.owner === 'unassigned') query = query.is('owner_id', null);
     else if (filters.owner) query = query.eq('owner_id', filters.owner);
     if (filters.vendorType) query = query.contains('vendor_types', [filters.vendorType]);
@@ -258,9 +258,18 @@ export default function Leads() {
       );
     }
 
+    // Resolve countries from country_ids arrays
+    const allCountryIds = [...new Set(data.flatMap((l) => (l as any).country_ids ?? []))] as string[];
+    let countryMap: Record<string, { name: string; code: string }> = {};
+    if (allCountryIds.length > 0) {
+      const { data: countryRows } = await supabase.from('countries').select('id, name, code').in('id', allCountryIds);
+      countryMap = (countryRows ?? []).reduce((acc, c) => { acc[c.id] = { name: c.name, code: c.code }; return acc; }, {} as Record<string, { name: string; code: string }>);
+    }
+
     const leadsWithOwner = data.map((l) => ({
       ...l,
       owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null,
+      countries: ((l as any).country_ids ?? []).map((id: string) => countryMap[id]).filter(Boolean),
     }));
     setLeads(leadsWithOwner);
     const usesClientSideExclusion = filters.ndaStatus === 'no_nda' || filters.linkedinOutreach === 'no_linkedin';
@@ -291,7 +300,7 @@ export default function Leads() {
       l.phone ?? '',
       l.status?.name ?? '',
       l.lead_score ?? '',
-      l.country?.name ?? '',
+      (l.countries ?? []).map((c) => c.name).join('; ') || '',
       safeFormat(l.created_at, 'PP', '-'),
     ]);
     const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');

@@ -48,8 +48,8 @@ interface VendorLead {
   vendor_types: string[] | null;
   warehouse_available?: boolean;
   additional_contacts?: VendorContact[] | null;
-  country_id: string | null;
-  country?: { name: string; code: string } | null;
+  country_ids: string[];
+  countries?: { name: string; code: string }[] | null;
   status?: { name: string; color: string } | null;
   owner?: { full_name: string | null } | null;
   owner_id: string | null;
@@ -130,9 +130,8 @@ export default function Vendors() {
       .from('leads')
       .select(`
         id, company_name, contact_name, email, phone, website, lead_score,
-        vendor_types, warehouse_available, additional_contacts, country_id, owner_id, created_at,
-        status:lead_statuses(name, color),
-        country:countries(name, code)
+        vendor_types, warehouse_available, additional_contacts, country_ids, owner_id, created_at,
+        status:lead_statuses(name, color)
       `)
       .order('company_name');
 
@@ -149,7 +148,20 @@ export default function Vendors() {
       const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', ownerIds);
       ownerMap = (profiles ?? []).reduce((acc, p) => { acc[p.user_id] = { full_name: p.full_name }; return acc; }, {} as Record<string, { full_name: string | null }>);
     }
-    const enriched = rawLeads.map((l) => ({ ...l, owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null }));
+
+    // Resolve countries from country_ids arrays
+    const allCountryIds = [...new Set(rawLeads.flatMap((l) => l.country_ids ?? []))] as string[];
+    let vendorCountryMap: Record<string, { name: string; code: string }> = {};
+    if (allCountryIds.length > 0) {
+      const { data: cRows } = await supabase.from('countries').select('id, name, code').in('id', allCountryIds);
+      vendorCountryMap = (cRows ?? []).reduce((acc: Record<string, { name: string; code: string }>, c: { id: string; name: string; code: string }) => { acc[c.id] = { name: c.name, code: c.code }; return acc; }, {});
+    }
+
+    const enriched = rawLeads.map((l) => ({
+      ...l,
+      owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null,
+      countries: (l.country_ids ?? []).map((id: string) => vendorCountryMap[id]).filter(Boolean),
+    }));
 
     const { data: docs } = await supabase
       .from('lead_documents')
@@ -195,8 +207,8 @@ export default function Vendors() {
           .some((f) => f!.toLowerCase().includes(q));
         if (!match) return false;
       }
-      if (regionFilter && (v.country?.code == null || codeToRegion[v.country.code] !== regionFilter)) return false;
-      if (countryFilter && v.country?.code !== countryFilter) return false;
+      if (regionFilter && !(v.countries ?? []).some((c) => codeToRegion[c.code] === regionFilter)) return false;
+      if (countryFilter && !(v.countries ?? []).some((c) => c.code === countryFilter)) return false;
       if (ownerFilter) {
         if (ownerFilter === '__unassigned__') { if (v.owner_id) return false; }
         else if (v.owner_id !== ownerFilter) return false;
@@ -225,12 +237,12 @@ export default function Vendors() {
   const countryStats = useMemo((): CountryStats[] => {
     const map: Record<string, { name: string; count: number }> = {};
     filteredVendors.forEach((v) => {
-      if (v.country && v.country.code) {
-        const code = v.country.code.toUpperCase();
+      (v.countries ?? []).forEach((c) => {
+        const code = c.code.toUpperCase();
         if (!code) return;
-        if (!map[code]) map[code] = { name: v.country.name, count: 0 };
+        if (!map[code]) map[code] = { name: c.name, count: 0 };
         map[code].count++;
-      }
+      });
     });
     return Object.entries(map)
       .filter(([, d]) => d.count > 0)
@@ -308,8 +320,9 @@ export default function Vendors() {
     const map: Record<string, VendorLead[]> = {};
     const nameMap: Record<string, string> = {};
     filteredVendors.forEach((v) => {
-      const code = v.country?.code?.toUpperCase() ?? '__none__';
-      const name = v.country?.name ?? 'Unknown';
+      const firstCountry = (v.countries ?? [])[0];
+      const code = firstCountry?.code?.toUpperCase() ?? '__none__';
+      const name = firstCountry?.name ?? 'Unknown';
       if (!map[code]) { map[code] = []; nameMap[code] = name; }
       map[code].push(v);
     });

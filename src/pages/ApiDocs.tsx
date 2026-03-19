@@ -364,7 +364,7 @@ curl "${BASE_URL}/leads?limit=25&offset=25" -H "Authorization: Bearer <key>"`} /
                     { name: 'phone', type: 'string', description: 'Contact phone number' },
                     { name: 'status_id', type: 'uuid', description: 'Pipeline stage — get IDs from GET /statuses' },
                     { name: 'owner_id', type: 'uuid', description: 'Assigned team member — get IDs from GET /team' },
-                    { name: 'country_id', type: 'uuid', description: 'Country — get IDs from GET /countries' },
+                    { name: 'country_ids', type: 'uuid[]', description: 'Countries array — get IDs from GET /countries' },
                     { name: 'deal_value', type: 'number', description: 'Estimated deal value' },
                     { name: 'notes', type: 'string', description: 'Free-form notes' },
                   ]}
@@ -385,12 +385,12 @@ curl "${BASE_URL}/leads?limit=25&offset=25" -H "Authorization: Bearer <key>"`} /
                   responseExample={`{ "success": true }`}
                 />
                 <EndpointRow method="PATCH" path="/leads/bulk" title="Bulk update leads"
-                  description="Update multiple leads at once. At least one of status_id, owner_id, or country_id is required alongside lead_ids."
+                  description="Update multiple leads at once. At least one of status_id, owner_id, or country_ids is required alongside lead_ids."
                   bodyParams={[
                     { name: 'lead_ids', type: 'uuid[]', required: true, description: 'Array of lead IDs to update' },
                     { name: 'status_id', type: 'uuid', description: 'Set pipeline stage for all listed leads' },
                     { name: 'owner_id', type: 'uuid', description: 'Reassign all listed leads to this team member' },
-                    { name: 'country_id', type: 'uuid', description: 'Set country for all listed leads' },
+                    { name: 'country_ids', type: 'uuid[]', description: 'Set countries for all listed leads' },
                   ]}
                   responseExample={`{ "updated": 5, "leads": [ { ...lead } ] }`}
                 />
@@ -586,7 +586,7 @@ curl "${BASE_URL}/leads?limit=25&offset=25" -H "Authorization: Bearer <key>"`} /
                   responseExample={`[ { "id": "uuid", "name": "Prospect", "color": "#6366f1", "sort_order": 1 }, ... ]`}
                 />
                 <EndpointRow method="GET" path="/countries" title="List countries"
-                  description="Returns all countries ordered by name. Use id values as country_id."
+                  description="Returns all countries ordered by name. Use id values in country_ids array when creating leads."
                 />
                 <EndpointRow method="GET" path="/profiles" title="List profiles"
                   description="Returns team member profiles — user_id, full_name, designation, phone."

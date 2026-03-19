@@ -218,7 +218,7 @@ Deno.serve(async (req) => {
         email: vendor.contact_email,
         phone: vendor.phone || null,
         contact_name: vendor.contact_name || null,
-        country_id: countryId,
+        country_ids: countryId ? [countryId] : [],
         status_id: statusId,
         owner_id: agni_agent_user_id || null,
         vendor_types: [vendor.vendor_type],

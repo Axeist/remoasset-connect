@@ -190,12 +190,16 @@ export function LeadsTable({
                   {lead.owner?.full_name ?? '-'}
                 </TableCell>
                 <TableCell>
-                  {lead.country ? (
-                    <span className="flex items-center gap-2">
-                      <span className="text-xs font-medium px-2 py-0.5 bg-muted rounded">
-                        {lead.country.code}
-                      </span>
-                      {lead.country.name}
+                  {lead.countries && lead.countries.length > 0 ? (
+                    <span className="flex items-center gap-1 flex-wrap">
+                      {lead.countries.slice(0, 3).map((c) => (
+                        <span key={c.code} className="text-xs font-medium px-2 py-0.5 bg-muted rounded">
+                          {c.code}
+                        </span>
+                      ))}
+                      {lead.countries.length > 3 && (
+                        <span className="text-xs text-muted-foreground">+{lead.countries.length - 3}</span>
+                      )}
                     </span>
                   ) : '-'}
                 </TableCell>

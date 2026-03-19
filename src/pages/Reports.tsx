@@ -161,7 +161,7 @@ export default function Reports() {
     (async () => {
       try {
         // Batch 1: Fetch basic data in parallel
-        const leadsQuery = supabase.from('leads').select('id, status_id, country_id, owner_id, lead_score, created_at');
+        const leadsQuery = supabase.from('leads').select('id, status_id, country_ids, owner_id, lead_score, created_at');
         if (!isAdmin) {
           leadsQuery.eq('owner_id', user.id);
         }
@@ -189,9 +189,16 @@ export default function Reports() {
         // Process country data
         const countryMap = (countryRows.data ?? []).reduce((acc, c) => { acc[c.id] = c.code; return acc; }, {} as Record<string, string>);
         const countryCounts: Record<string, number> = {};
-        leadList.forEach((l: { country_id: string | null }) => {
-          const code = l.country_id ? (countryMap[l.country_id] ?? 'Other') : 'Other';
-          countryCounts[code] = (countryCounts[code] ?? 0) + 1;
+        leadList.forEach((l: { country_ids?: string[] | null }) => {
+          const ids = l.country_ids ?? [];
+          if (ids.length === 0) {
+            countryCounts['Other'] = (countryCounts['Other'] ?? 0) + 1;
+          } else {
+            ids.forEach((cid: string) => {
+              const code = countryMap[cid] ?? 'Other';
+              countryCounts[code] = (countryCounts[code] ?? 0) + 1;
+            });
+          }
         });
         setByCountry(Object.entries(countryCounts).map(([name, leads]) => ({ name, leads })));
 

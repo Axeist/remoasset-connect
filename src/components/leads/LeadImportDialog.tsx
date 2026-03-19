@@ -30,7 +30,7 @@ interface ParsedRow {
   phone: string | null;
   contact_name: string | null;
   contact_designation: string | null;
-  country_id: string | null;
+  country_ids: string[];
   status_id: string | null;
   lead_score: number;
   notes: string | null;
@@ -177,7 +177,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
           phone: get('phone') || null,
           contact_name: get('contact_name') || null,
           contact_designation: get('contact_designation') || null,
-          country_id: countryId,
+          country_ids: countryId ? [countryId] : [],
           status_id: statusId,
           lead_score: parseScore(get('lead_score')),
           notes,
@@ -208,7 +208,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
       phone: r.phone,
       contact_name: r.contact_name,
       contact_designation: r.contact_designation,
-      country_id: r.country_id,
+      country_ids: r.country_ids,
       status_id: r.status_id,
       lead_score: r.lead_score,
       notes: r.notes,
@@ -300,7 +300,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                   {rows.slice(0, 30).map((r, i) => (
                     <tr key={i} className={r.error ? 'bg-destructive/10' : ''}>
                       <td className="p-2">{r.company_name}</td>
-                      <td className="p-2">{countries.find((c) => c.id === r.country_id)?.name ?? (r.country_id ? '?' : '—')}</td>
+                      <td className="p-2">{r.country_ids.length > 0 ? r.country_ids.map((cid) => countries.find((c) => c.id === cid)?.name ?? '?').join(', ') : '—'}</td>
                       <td className="p-2">{statuses.find((s) => s.id === r.status_id)?.name ?? '—'}</td>
                       <td className="p-2">{ownerOptions.find((o) => o.id === r.owner_id)?.full_name ?? (r.owner_id ? '?' : '—')}</td>
                       <td className="p-2">{r.email ?? '—'}</td>

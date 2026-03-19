@@ -181,7 +181,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     setLoading(true);
     let query = supabase
       .from('leads')
-      .select('id, company_name, contact_name, email, phone, lead_score, status_id, owner_id, country_id, created_at, updated_at, website, contact_designation, notes, status:lead_statuses(name, color), country:countries(name, code)')
+      .select('id, company_name, contact_name, email, phone, lead_score, status_id, owner_id, country_ids, created_at, updated_at, website, contact_designation, notes, status:lead_statuses(name, color)')
       .order('lead_score', { ascending: false });
 
     if (role === 'employee' && user) {
@@ -199,12 +199,12 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
       const { data: regionCountries } = await supabase.from('countries').select('id').eq('region', filters.region);
       const regionCountryIds = (regionCountries ?? []).map((r) => r.id);
       if (regionCountryIds.length > 0) {
-        query = query.in('country_id', regionCountryIds);
+        query = (query as any).overlaps('country_ids', regionCountryIds);
       } else {
-        query = query.eq('country_id', '00000000-0000-0000-0000-000000000000');
+        query = query.eq('id', '00000000-0000-0000-0000-000000000000');
       }
     }
-    if (filters.country) query = query.eq('country_id', filters.country);
+    if (filters.country) query = (query as any).contains('country_ids', [filters.country]);
     if (filters.scoreMin > 0) query = query.gte('lead_score', filters.scoreMin);
     if (filters.scoreMax < 100) query = query.lte('lead_score', filters.scoreMax);
 
@@ -226,7 +226,20 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
 
     // Reuse already-loaded owners instead of fetching profiles again
     const ownerMap = owners.reduce((acc, o) => { acc[o.id] = { full_name: o.full_name }; return acc; }, {} as Record<string, { full_name: string | null }>);
-    const enrichedLeads = rawLeads.map((l) => ({ ...l, owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null }));
+
+    // Resolve countries from country_ids arrays
+    const allCountryIds = [...new Set(rawLeads.flatMap((l) => (l as any).country_ids ?? []))] as string[];
+    let pipelineCountryMap: Record<string, { name: string; code: string }> = {};
+    if (allCountryIds.length > 0) {
+      const { data: cRows } = await supabase.from('countries').select('id, name, code').in('id', allCountryIds);
+      pipelineCountryMap = (cRows ?? []).reduce((acc: Record<string, { name: string; code: string }>, c: { id: string; name: string; code: string }) => { acc[c.id] = { name: c.name, code: c.code }; return acc; }, {});
+    }
+
+    const enrichedLeads = rawLeads.map((l) => ({
+      ...l,
+      owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null,
+      countries: ((l as any).country_ids ?? []).map((id: string) => pipelineCountryMap[id]).filter(Boolean),
+    }));
     setLeads(enrichedLeads);
 
     const leadIds = enrichedLeads.map((l) => l.id);

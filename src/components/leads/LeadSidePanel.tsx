@@ -98,11 +98,18 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
   const fetchFullLead = async () => {
     const { data, error } = await supabase
       .from('leads')
-      .select(`*, status:lead_statuses(name, color), country:countries(name, code)`)
+      .select(`*, status:lead_statuses(name, color)`)
       .eq('id', lead.id)
       .single();
     if (error || !data) return;
-    setFullLead(data as unknown as Lead);
+    // Fetch countries separately from country_ids array
+    const countryIds: string[] = Array.isArray((data as any).country_ids) ? (data as any).country_ids : [];
+    let countriesData: { name: string; code: string }[] = [];
+    if (countryIds.length > 0) {
+      const { data: cData } = await supabase.from('countries').select('name, code').in('id', countryIds);
+      if (cData) countriesData = cData;
+    }
+    setFullLead({ ...data, countries: countriesData } as unknown as Lead);
     setLoadingLead(false);
   };
 
@@ -307,8 +314,11 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                 {(displayLead as any).website && (
                   <InfoRow label="Website" value={(displayLead as any).website} href={(displayLead as any).website} external />
                 )}
-                {displayLead.country && (
-                  <InfoRow label="Country" value={`${displayLead.country.name} (${displayLead.country.code})`} />
+                {displayLead.countries && displayLead.countries.length > 0 && (
+                  <InfoRow
+                    label={displayLead.countries.length === 1 ? 'Country' : 'Countries'}
+                    value={displayLead.countries.map((c) => `${c.name} (${c.code})`).join(', ')}
+                  />
                 )}
                 {(displayLead as any).contact_designation && (
                   <InfoRow label="Designation" value={(displayLead as any).contact_designation} />

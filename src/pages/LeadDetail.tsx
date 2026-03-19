@@ -152,8 +152,7 @@ export default function LeadDetail() {
       .from('leads')
       .select(`
         *,
-        status:lead_statuses(name, color),
-        country:countries(name, code)
+        status:lead_statuses(name, color)
       `)
       .eq('id', id)
       .single();
@@ -163,7 +162,14 @@ export default function LeadDetail() {
       navigate('/leads');
       return;
     }
-    setLead(data as unknown as Lead);
+    // Fetch countries separately from country_ids array
+    const countryIds: string[] = Array.isArray((data as any).country_ids) ? (data as any).country_ids : [];
+    let countriesData: { name: string; code: string }[] = [];
+    if (countryIds.length > 0) {
+      const { data: cData } = await supabase.from('countries').select('name, code').in('id', countryIds);
+      if (cData) countriesData = cData;
+    }
+    setLead({ ...data, countries: countriesData } as unknown as Lead);
   };
 
   const fetchActivities = async () => {
@@ -380,9 +386,11 @@ export default function LeadDetail() {
                   </div>
                 )}
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Country</p>
+                  <p className="text-sm text-muted-foreground">{lead.countries && lead.countries.length > 1 ? 'Countries' : 'Country'}</p>
                   <p className="font-medium">
-                    {lead.country ? `${lead.country.name} (${lead.country.code})` : '-'}
+                    {lead.countries && lead.countries.length > 0
+                      ? lead.countries.map((c) => `${c.name} (${c.code})`).join(', ')
+                      : '-'}
                   </p>
                 </div>
                 {((lead as any).vendor_types?.length > 0 || (lead as any).vendor_type) && (

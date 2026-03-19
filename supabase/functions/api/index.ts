@@ -78,9 +78,9 @@ Deno.serve(async (req) => {
             const updates: Record<string, unknown> = {}
             if (body.status_id !== undefined) updates.status_id = body.status_id
             if (body.owner_id !== undefined) updates.owner_id = body.owner_id
-            if (body.country_id !== undefined) updates.country_id = body.country_id
+            if (body.country_ids !== undefined) updates.country_ids = body.country_ids
             if (!Array.isArray(leadIds) || leadIds.length === 0 || Object.keys(updates).length === 0)
-              return err('Body must include lead_ids (array) and at least one of status_id, owner_id, country_id', 400)
+              return err('Body must include lead_ids (array) and at least one of status_id, owner_id, country_ids', 400)
             const { data, error } = await supabaseAdmin.from('leads').update(updates).in('id', leadIds).select()
             if (error) return err(error.message, 400)
             return json({ updated: data?.length ?? 0, leads: data ?? [] })
@@ -367,7 +367,7 @@ Deno.serve(async (req) => {
             base_url: baseUrl,
             auth: 'Authorization: Bearer <your_api_key>',
             endpoints: {
-              leads: { list: 'GET /leads', create: 'POST /leads', get: 'GET /leads/:id', update: 'PATCH /leads/:id', delete: 'DELETE /leads/:id', bulk_update: 'PATCH /leads/bulk (body: lead_ids, status_id|owner_id|country_id)', search: 'GET /leads?search= or q=' },
+              leads: { list: 'GET /leads', create: 'POST /leads', get: 'GET /leads/:id', update: 'PATCH /leads/:id', delete: 'DELETE /leads/:id', bulk_update: 'PATCH /leads/bulk (body: lead_ids, status_id|owner_id|country_ids)', search: 'GET /leads?search= or q=' },
               tasks: { list: 'GET /tasks', create: 'POST /tasks', get: 'GET /tasks/:id', update: 'PATCH /tasks/:id', delete: 'DELETE /tasks/:id' },
               follow_ups: { list: 'GET /follow_ups', create: 'POST /follow_ups', get: 'GET /follow_ups/:id', update: 'PATCH /follow_ups/:id', delete: 'DELETE /follow_ups/:id' },
               activities: { list: 'GET /activities', create: 'POST /activities', get: 'GET /activities/:id', update: 'PATCH /activities/:id', delete: 'DELETE /activities/:id' },

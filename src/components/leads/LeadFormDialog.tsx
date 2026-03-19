@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -27,7 +27,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead, LeadStatusOption, CountryOption, LeadContact } from '@/types/lead';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Trash2, UserPlus } from 'lucide-react';
+import { Loader2, Plus, Trash2, UserPlus, ChevronDown, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const WON_PATTERNS = ['won', 'closed won', 'closed-won'];
@@ -39,7 +39,7 @@ const leadFormSchema = z.object({
   phone: z.string().optional(),
   contact_name: z.string().optional(),
   contact_designation: z.string().optional(),
-  country_id: z.string().min(1, 'Country is required').uuid('Invalid country'),
+  country_ids: z.array(z.string().uuid()).min(1, 'Select at least one country'),
   status_id: z.string().min(1, 'Status is required').uuid('Invalid status'),
   vendor_types: z.array(z.enum(['new_device', 'refurbished', 'rental', 'warehouse'])).min(1, 'Select at least one vendor type'),
   warehouse_available: z.boolean().default(false),
@@ -74,7 +74,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
       phone: '',
       contact_name: '',
       contact_designation: '',
-      country_id: '',
+      country_ids: [],
       status_id: '',
       vendor_types: [],
       warehouse_available: false,
@@ -89,7 +89,11 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
   const [statuses, setStatuses] = useState<LeadStatusOption[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [additionalContacts, setAdditionalContacts] = useState<LeadContact[]>([]);
+  const [countrySearch, setCountrySearch] = useState('');
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+  const countryDropdownRef = useRef<HTMLDivElement>(null);
   const warehouseAvailable = form.watch('warehouse_available');
+  const selectedCountryIds = form.watch('country_ids') ?? [];
 
   useEffect(() => {
     if (!open) return;
@@ -112,7 +116,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
         phone: lead.phone ?? '',
         contact_name: lead.contact_name ?? '',
         contact_designation: lead.contact_designation ?? '',
-        country_id: lead.country_id ?? '',
+        country_ids: Array.isArray(lead.country_ids) ? lead.country_ids : [],
         status_id: lead.status_id ?? '',
         vendor_types: Array.isArray((lead as any).vendor_types)
           ? (lead as any).vendor_types
@@ -137,7 +141,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
         phone: '',
         contact_name: '',
         contact_designation: '',
-        country_id: countries[0]?.id ?? '',
+        country_ids: [],
         status_id: statuses[0]?.id ?? '',
         vendor_types: [],
         warehouse_available: false,
@@ -158,6 +162,22 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
   const removeContact = (idx: number) => {
     setAdditionalContacts((prev) => prev.filter((_, i) => i !== idx));
   };
+
+  const toggleCountry = (id: string) => {
+    const current = form.getValues('country_ids') ?? [];
+    const next = current.includes(id) ? current.filter((c) => c !== id) : [...current, id];
+    form.setValue('country_ids', next, { shouldValidate: true });
+  };
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (countryDropdownRef.current && !countryDropdownRef.current.contains(e.target as Node)) {
+        setCountryDropdownOpen(false);
+      }
+    };
+    if (countryDropdownOpen) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [countryDropdownOpen]);
 
   const onSubmit = async (values: LeadFormValues) => {
     const selectedStatus = statuses.find((s) => s.id === values.status_id);
@@ -182,7 +202,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
       phone: values.phone || null,
       contact_name: values.contact_name || null,
       contact_designation: values.contact_designation || null,
-      country_id: values.country_id,
+      country_ids: values.country_ids,
       status_id: values.status_id,
       vendor_types: values.vendor_types,
       warehouse_available: values.warehouse_available,
@@ -234,7 +254,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
       toast({ title: 'Lead created', description: 'New lead added successfully.' });
       // Fire Slack notification (non-blocking)
       const selectedStatus = statuses.find((s) => s.id === values.status_id);
-      const selectedCountry = countries.find((c) => c.id === values.country_id);
+      const firstCountry = countries.find((c) => c.id === values.country_ids[0]);
       supabase.functions.invoke('slack-notify', {
         body: {
           event: 'lead_created',
@@ -242,7 +262,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
             company_name: values.company_name,
             contact_name: values.contact_name || null,
             status: selectedStatus?.name || null,
-            country: selectedCountry?.name || null,
+            country: firstCountry?.name || null,
             lead_score: 0,
             lead_id: newLead?.id ?? '',
           },
@@ -394,25 +414,89 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Country *</Label>
-              <Select
-                value={form.watch('country_id') || 'all'}
-                onValueChange={(v) => form.setValue('country_id', v === 'all' ? '' : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select country" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">No country</SelectItem>
-                  {countries.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {form.formState.errors.country_id && (
-                <p className="text-sm text-destructive">{form.formState.errors.country_id.message}</p>
+              <Label>Countries *</Label>
+              <div ref={countryDropdownRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setCountryDropdownOpen((v) => !v)}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <span className="truncate text-left">
+                    {selectedCountryIds.length === 0
+                      ? 'Select countries…'
+                      : selectedCountryIds.length === 1
+                        ? countries.find((c) => c.id === selectedCountryIds[0])?.name ?? '1 country'
+                        : `${selectedCountryIds.length} countries selected`}
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50 ml-2" />
+                </button>
+                {countryDropdownOpen && (
+                  <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+                    <div className="p-2 border-b">
+                      <Input
+                        autoFocus
+                        placeholder="Search countries…"
+                        value={countrySearch}
+                        onChange={(e) => setCountrySearch(e.target.value)}
+                        className="h-8 text-sm"
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto p-1">
+                      {countries
+                        .filter((c) =>
+                          c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
+                          c.code.toLowerCase().includes(countrySearch.toLowerCase())
+                        )
+                        .map((c) => {
+                          const checked = selectedCountryIds.includes(c.id);
+                          return (
+                            <label
+                              key={c.id}
+                              className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={() => toggleCountry(c.id)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <span className="text-xs font-mono text-muted-foreground w-8 shrink-0">{c.code}</span>
+                              {c.name}
+                            </label>
+                          );
+                        })}
+                      {countries.filter((c) =>
+                        c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
+                        c.code.toLowerCase().includes(countrySearch.toLowerCase())
+                      ).length === 0 && (
+                        <p className="px-2 py-3 text-sm text-center text-muted-foreground">No countries found</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {selectedCountryIds.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {selectedCountryIds.map((id) => {
+                    const c = countries.find((x) => x.id === id);
+                    if (!c) return null;
+                    return (
+                      <Badge key={id} variant="secondary" className="gap-1 text-xs pr-1">
+                        {c.code}
+                        <button
+                          type="button"
+                          onClick={() => toggleCountry(id)}
+                          className="ml-0.5 rounded hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+              {form.formState.errors.country_ids && (
+                <p className="text-sm text-destructive">{form.formState.errors.country_ids.message}</p>
               )}
             </div>
             <div className="space-y-2">
