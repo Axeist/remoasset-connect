@@ -583,42 +583,42 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
               )}
             </div>
           </div>
-            <div className="space-y-2">
-              <Label>Vendor Type *</Label>
-              <p className="text-xs text-muted-foreground">Select all that apply</p>
-              <div className="flex flex-wrap gap-4 pt-1">
-                {[
-                  { value: 'new_device' as const, label: 'New Device' },
-                  { value: 'refurbished' as const, label: 'Refurbished' },
-                  { value: 'rental' as const, label: 'Rental' },
-                  { value: 'warehouse' as const, label: 'Warehouse' },
-                ].map(({ value, label }) => {
-                  const types = form.watch('vendor_types') ?? [];
-                  const checked = types.includes(value);
-                  return (
-                    <label
-                      key={value}
-                      className="flex items-center gap-2 cursor-pointer text-sm font-medium"
-                    >
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={(c) => {
-                          const next = c ? [...types, value] : types.filter((t) => t !== value);
-                          form.setValue('vendor_types', next);
-                          if (next.length === 1 && next[0] === 'warehouse') {
-                            form.setValue('warehouse_available', true);
-                          }
-                        }}
-                      />
-                      {label}
-                    </label>
-                  );
-                })}
-              </div>
-              {form.formState.errors.vendor_types && (
-                <p className="text-sm text-destructive">{form.formState.errors.vendor_types.message}</p>
-              )}
+
+          <div className="space-y-2">
+            <Label>Vendor Type *</Label>
+            <p className="text-xs text-muted-foreground">Select all that apply</p>
+            <div className="flex flex-wrap gap-4 pt-1">
+              {[
+                { value: 'new_device' as const, label: 'New Device' },
+                { value: 'refurbished' as const, label: 'Refurbished' },
+                { value: 'rental' as const, label: 'Rental' },
+                { value: 'warehouse' as const, label: 'Warehouse' },
+              ].map(({ value, label }) => {
+                const types = form.watch('vendor_types') ?? [];
+                const checked = types.includes(value);
+                return (
+                  <label
+                    key={value}
+                    className="flex items-center gap-2 cursor-pointer text-sm font-medium"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(c) => {
+                        const next = c ? [...types, value] : types.filter((t) => t !== value);
+                        form.setValue('vendor_types', next);
+                        if (next.length === 1 && next[0] === 'warehouse') {
+                          form.setValue('warehouse_available', true);
+                        }
+                      }}
+                    />
+                    {label}
+                  </label>
+                );
+              })}
             </div>
+            {form.formState.errors.vendor_types && (
+              <p className="text-sm text-destructive">{form.formState.errors.vendor_types.message}</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Status *</Label>
