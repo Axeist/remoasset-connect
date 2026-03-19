@@ -668,6 +668,11 @@ export default function Vendors() {
                     </div>
                     <h3 className="text-sm font-bold text-foreground">{group.country}</h3>
                     <Badge variant="secondary" className="text-xs">{group.vendors.length} vendor{group.vendors.length !== 1 ? 's' : ''}</Badge>
+                    {group.vendors.some((v) => v.hq_country?.code?.toUpperCase() === group.code) && (
+                      <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold bg-primary/15 text-primary border border-primary/25">
+                        🏢 HQ of {group.vendors.filter((v) => v.hq_country?.code?.toUpperCase() === group.code).length}
+                      </span>
+                    )}
                   </div>
                   <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', isExpanded && 'rotate-180')} />
                 </button>
@@ -693,17 +698,25 @@ export default function Vendors() {
                         const ndaDocs = docs.filter((d) => d.document_type === 'nda');
                         const pricingDocs = docs.filter((d) => d.document_type === 'pricing' || d.document_type === 'quotation');
                         const otherDocs = docs.filter((d) => d.document_type !== 'nda' && d.document_type !== 'pricing' && d.document_type !== 'quotation');
+                        const isHq = v.hq_country?.code?.toUpperCase() === group.code;
 
                         return (
                           <tr key={v.id} className="group/row hover:bg-muted/30 transition-colors">
                             {/* Company + website */}
                             <td className="px-4 py-3 max-w-[220px]">
-                              <button
-                                onClick={() => navigate(`/leads/${v.id}`)}
-                                className="text-left font-semibold text-foreground hover:text-primary transition-colors truncate block max-w-full"
-                              >
-                                {v.company_name}
-                              </button>
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <button
+                                  onClick={() => navigate(`/leads/${v.id}`)}
+                                  className="text-left font-semibold text-foreground hover:text-primary transition-colors truncate"
+                                >
+                                  {v.company_name}
+                                </button>
+                                {isHq && (
+                                  <span className="shrink-0 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold bg-primary/15 text-primary border border-primary/25">
+                                    🏢 HQ
+                                  </span>
+                                )}
+                              </div>
                               {v.website && (
                                 <a
                                   href={v.website.startsWith('http') ? v.website : `https://${v.website}`}
