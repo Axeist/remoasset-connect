@@ -226,7 +226,7 @@ export default function Vendors() {
       }
       if (docFilter) {
         const docs = docsByLead[v.id] ?? [];
-        if (docFilter === 'has_pricing' && !docs.some((d) => d.document_type === 'pricing')) return false;
+        if (docFilter === 'has_pricing' && !docs.some((d) => d.document_type === 'pricing' || d.document_type === 'quotation')) return false;
         if (docFilter === 'has_docs' && docs.length === 0) return false;
         if (docFilter === 'no_docs' && docs.length > 0) return false;
       }
@@ -312,7 +312,7 @@ export default function Vendors() {
   };
 
   const withNda = filteredVendors.filter((v) => (docsByLead[v.id] ?? []).some((d) => d.document_type === 'nda'));
-  const withPricing = filteredVendors.filter((v) => (docsByLead[v.id] ?? []).some((d) => d.document_type === 'pricing'));
+  const withPricing = filteredVendors.filter((v) => (docsByLead[v.id] ?? []).some((d) => d.document_type === 'pricing' || d.document_type === 'quotation'));
   const withWarehouse = filteredVendors.filter((v) => v.warehouse_available);
 
   const vendorsByCountry = useMemo(() => {
@@ -687,8 +687,8 @@ export default function Vendors() {
                       {group.vendors.map((v) => {
                         const docs = docsByLead[v.id] ?? [];
                         const ndaDocs = docs.filter((d) => d.document_type === 'nda');
-                        const pricingDocs = docs.filter((d) => d.document_type === 'pricing');
-                        const otherDocs = docs.filter((d) => d.document_type !== 'nda' && d.document_type !== 'pricing');
+                        const pricingDocs = docs.filter((d) => d.document_type === 'pricing' || d.document_type === 'quotation');
+                        const otherDocs = docs.filter((d) => d.document_type !== 'nda' && d.document_type !== 'pricing' && d.document_type !== 'quotation');
 
                         return (
                           <tr key={v.id} className="group/row hover:bg-muted/30 transition-colors">
