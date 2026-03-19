@@ -97,7 +97,8 @@ async function callGoogleAPI<T>(
     }
     if (res.status === 401) {
       clearStoredToken();
-      throw new Error('Google session expired. Please reconnect in Admin → Integrations.');
+      window.dispatchEvent(new CustomEvent('google:token-expired'));
+      throw new Error('Google session expired. Please reconnect via the banner at the top.');
     }
   }
 

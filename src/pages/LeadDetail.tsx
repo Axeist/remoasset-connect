@@ -9,7 +9,7 @@ import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 import { AddFollowUpDialog } from '@/components/leads/AddFollowUpDialog';
 import { UploadDocumentDialog } from '@/components/leads/UploadDocumentDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
-import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin, Pencil, Check, X, Video, ChevronDown, Clock, Users } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin, Pencil, Check, X, Video, ChevronDown, Clock, Users, Sparkles } from 'lucide-react';
 import { MeetingActivityCard, hasMeetingData, extractMeetingMeta } from '@/components/leads/MeetingActivityCard';
 import { LeadEmailTab } from '@/components/leads/LeadEmailTab';
 import { supabase } from '@/integrations/supabase/client';
@@ -113,10 +113,30 @@ export default function LeadDetail() {
     transitionMode: TransitionMode;
   } | null>(null);
   const [stageSubmitting, setStageSubmitting] = useState(false);
+  const [enriching, setEnriching] = useState(false);
 
   const isAdmin = role === 'admin';
   const isOwner = lead?.owner_id === user?.id;
   const canEdit = isAdmin || isOwner;
+
+  const handleEnrichLead = async () => {
+    if (!lead || !canEdit) return;
+    setEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('enrich-lead', {
+        body: { lead_id: lead.id, company_name: lead.company_name, website: lead.website },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      // Reload the lead to show any enriched fields
+      await fetchLead();
+      toast({ title: 'Lead enriched', description: data?.message ?? 'Lead data has been updated.' });
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Enrichment failed', description: (e as Error)?.message ?? 'Could not enrich lead.' });
+    } finally {
+      setEnriching(false);
+    }
+  };
 
   useEffect(() => {
     // Fetch statuses for all users
@@ -314,9 +334,15 @@ export default function LeadDetail() {
           </div>
           <div className="flex gap-2">
             {canEdit && (
-              <Button variant="outline" onClick={() => setEditOpen(true)}>
-                Edit Lead
-              </Button>
+              <>
+                <Button variant="outline" size="sm" onClick={handleEnrichLead} disabled={enriching} className="gap-1.5">
+                  {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {enriching ? 'Enriching…' : 'Enrich'}
+                </Button>
+                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                  Edit Lead
+                </Button>
+              </>
             )}
             {isAdmin && (
               <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteDialogOpen(true)}>

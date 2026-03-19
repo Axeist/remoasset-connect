@@ -10,6 +10,7 @@ interface AuthContextType {
   role: AppRole | null;
   loading: boolean;
   googleAccessToken: string | null;
+  allowedEmailDomain: string;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; user?: User | null }>;
   signOut: () => Promise<void>;
@@ -36,17 +37,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
+  const [allowedEmailDomain, setAllowedEmailDomain] = useState('remoasset.com');
+
+  // Load the allowed domain from app_settings (falls back to hardcoded default)
+  useEffect(() => {
+    supabase
+      .from('app_settings')
+      .select('allowed_email_domain')
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data?.allowed_email_domain) {
+          setAllowedEmailDomain(data.allowed_email_domain);
+        }
+      });
+  }, []);
 
   useEffect(() => {
-    const ALLOWED_DOMAIN = 'remoasset.com';
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // Block any Google (or other OAuth) sign-in from non-remoasset.com accounts
+        // Block any Google (or other OAuth) sign-in from non-allowed-domain accounts
         if (session?.user) {
           const email = session.user.email ?? '';
           const isOAuth = session.user.app_metadata?.provider !== 'email';
-          if (isOAuth && !email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
+          if (isOAuth && !email.toLowerCase().endsWith(`@${allowedEmailDomain}`)) {
             await supabase.auth.signOut();
             window.dispatchEvent(new CustomEvent('auth:domain-blocked', { detail: { email } }));
             setLoading(false);
@@ -129,9 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const allowedDomain = 'remoasset.com';
-    if (!email.toLowerCase().endsWith(`@${allowedDomain}`)) {
-      return { error: new Error('Sign up is only allowed with a @remoasset.com email address.') };
+    if (!email.toLowerCase().endsWith(`@${allowedEmailDomain}`)) {
+      return { error: new Error(`Sign up is only allowed with a @${allowedEmailDomain} email address.`) };
     }
     const redirectUrl = `${window.location.origin}/auth?verified=true`;
 
@@ -186,7 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, loading, googleAccessToken, signUp, signIn, signOut, connectGoogleCalendar, disconnectGoogleCalendar }}>
+    <AuthContext.Provider value={{ user, session, role, loading, googleAccessToken, allowedEmailDomain, signUp, signIn, signOut, connectGoogleCalendar, disconnectGoogleCalendar }}>
       {children}
     </AuthContext.Provider>
   );

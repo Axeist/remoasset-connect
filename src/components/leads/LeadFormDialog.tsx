@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -27,7 +27,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead, LeadStatusOption, CountryOption, LeadContact } from '@/types/lead';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Trash2, UserPlus, ChevronDown, X } from 'lucide-react';
+import { Loader2, Plus, Trash2, UserPlus, ChevronDown, X, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const WON_PATTERNS = ['won', 'closed won', 'closed-won'];
@@ -100,6 +100,41 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
   const warehouseAvailable = form.watch('warehouse_available');
   const selectedCountryIds = form.watch('country_ids') ?? [];
   const selectedHqId = form.watch('hq_country_id') ?? '';
+
+  // Duplicate detection — only runs when creating a new lead
+  const [similarLeads, setSimilarLeads] = useState<{ id: string; company_name: string; website: string | null }[]>([]);
+  const dupCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const checkForDuplicates = useCallback(async (companyName: string, website: string) => {
+    if (lead) return; // skip for edit mode
+    const trimmedName = companyName.trim();
+    const trimmedSite = website.trim();
+    if (!trimmedName && !trimmedSite) { setSimilarLeads([]); return; }
+
+    const conditions: string[] = [];
+    if (trimmedName.length >= 3) conditions.push(`company_name.ilike.%${trimmedName}%`);
+    if (trimmedSite.length >= 5) conditions.push(`website.ilike.%${trimmedSite}%`);
+    if (conditions.length === 0) { setSimilarLeads([]); return; }
+
+    const { data } = await supabase
+      .from('leads')
+      .select('id, company_name, website')
+      .or(conditions.join(','))
+      .limit(5);
+    setSimilarLeads((data ?? []) as { id: string; company_name: string; website: string | null }[]);
+  }, [lead]);
+
+  const companyName = form.watch('company_name');
+  const website = form.watch('website');
+
+  useEffect(() => {
+    if (lead) return;
+    if (dupCheckTimer.current) clearTimeout(dupCheckTimer.current);
+    dupCheckTimer.current = setTimeout(() => {
+      checkForDuplicates(companyName ?? '', website ?? '');
+    }, 500);
+    return () => { if (dupCheckTimer.current) clearTimeout(dupCheckTimer.current); };
+  }, [companyName, website, checkForDuplicates, lead]);
 
   useEffect(() => {
     if (!open) return;
@@ -334,9 +369,28 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
             </div>
           </div>
 
+          {!isEditing && similarLeads.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/40">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Similar leads found</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {similarLeads.map((l) => (
+                      <li key={l.id} className="text-xs text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                        <span className="font-medium truncate">{l.company_name}</span>
+                        {l.website && <span className="text-amber-600 dark:text-amber-400 truncate">— {l.website}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">You may be creating a duplicate. Review before saving.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Primary Contact */}
-          <div className="space-y-3 rounded-lg border p-4">
-            <div className="flex items-center gap-2">
+          <div className="space-y-3 rounded-lg border p-4">            <div className="flex items-center gap-2">
               <Label className="text-sm font-semibold">Primary Contact</Label>
               <Badge variant="secondary" className="text-[10px]">Used for communication</Badge>
             </div>

@@ -14,6 +14,7 @@ import {
   Activity, MapPin, TrendingUp, ChevronRight, AlertTriangle, ListTodo,
   CalendarCheck, Layers, Database, RefreshCw, UserCheck, Key, Copy, Trash2,
   Loader2, Bell, FileText, UserPlus, MailCheck, Terminal, CheckCircle2, XCircle, Clock,
+  Shield,
 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
@@ -66,6 +67,7 @@ interface ApiKeyRow {
   key_prefix: string;
   created_at: string;
   last_used_at: string | null;
+  expires_at: string | null;
 }
 
 const NAV_ITEMS: { id: Tab; icon: React.ElementType; label: string; desc: string }[] = [
@@ -109,6 +111,7 @@ export default function Admin() {
   const [apiKeys, setApiKeys] = useState<ApiKeyRow[]>([]);
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyExpiry, setNewKeyExpiry] = useState('');
   const [createKeyOpen, setCreateKeyOpen] = useState(false);
   const [createdKeyOnce, setCreatedKeyOnce] = useState<{ api_key: string; name: string; key_prefix: string } | null>(null);
   const [revokeKeyId, setRevokeKeyId] = useState<string | null>(null);
@@ -119,6 +122,8 @@ export default function Admin() {
   const [devSessionLoading, setDevSessionLoading] = useState(false);
   const [devFnResults, setDevFnResults] = useState<Record<string, { status: 'idle' | 'loading' | 'ok' | 'error'; ms?: number; body?: string }>>({});
   const [devEnvOpen, setDevEnvOpen] = useState(false);
+  const [cronJobs, setCronJobs] = useState<{ id: string; status: string; started_at: string; completed_at: string | null; total_created: number; total_skipped: number; total_emailed: number; error_message: string | null; triggered_by: string }[]>([]);
+  const [cronJobsLoading, setCronJobsLoading] = useState(false);
 
   // Slack integration state
   const [slackEnabled, setSlackEnabled] = useState(false);
@@ -404,7 +409,7 @@ export default function Admin() {
     setApiKeyLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('api-keys', {
-        body: { name },
+        body: { name, expires_at: newKeyExpiry || null },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -1580,6 +1585,66 @@ curl -X POST ${baseUrl}/notifications \\
                   </div>
                 </div>
 
+                {/* Allowed email domain */}
+                {(() => {
+                  const [domainValue, setDomainValue] = useState('');
+                  const [domainSaving, setDomainSaving] = useState(false);
+                  const [domainLoaded, setDomainLoaded] = useState(false);
+
+                  useEffect(() => {
+                    if (!domainLoaded) {
+                      supabase.from('app_settings').select('allowed_email_domain, id').limit(1).single()
+                        .then(({ data }) => {
+                          if (data?.allowed_email_domain) setDomainValue(data.allowed_email_domain);
+                          setDomainLoaded(true);
+                        });
+                    }
+                  }, [domainLoaded]);
+
+                  const saveDomain = async () => {
+                    const trimmed = domainValue.trim().replace(/^@/, '');
+                    if (!trimmed) return;
+                    setDomainSaving(true);
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
+                      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+                      if (slackSettingsId) {
+                        await fetch(`${baseUrl}/rest/v1/app_settings?id=eq.${slackSettingsId}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json', 'apikey': anonKey, 'Authorization': `Bearer ${session?.access_token ?? anonKey}`, 'Prefer': 'return=minimal' },
+                          body: JSON.stringify({ allowed_email_domain: trimmed }),
+                        });
+                      }
+                      toast({ title: 'Domain restriction updated', description: `Only @${trimmed} accounts can sign in via Google.` });
+                    } catch { toast({ variant: 'destructive', title: 'Failed to save domain' }); }
+                    finally { setDomainSaving(false); }
+                  };
+
+                  return (
+                    <div className="rounded-xl border border-border/60 p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-semibold">Allowed sign-in domain</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Only users with emails from this domain can sign in via Google OAuth. Password sign-in is not affected.</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">@</span>
+                        <Input
+                          value={domainValue}
+                          onChange={(e) => setDomainValue(e.target.value)}
+                          placeholder="remoasset.com"
+                          className="max-w-xs h-9 text-sm"
+                        />
+                        <Button size="sm" onClick={saveDomain} disabled={domainSaving || !domainValue.trim()} className="gap-2">
+                          {domainSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                          Save
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Other placeholder integrations */}
                 {[
                   { name: 'HubSpot', desc: 'Bi-directional CRM sync for contacts and deals', soon: true },
@@ -1629,23 +1694,38 @@ curl -X POST ${baseUrl}/notifications \\
                           <TableHead>Key prefix</TableHead>
                           <TableHead>Created</TableHead>
                           <TableHead>Last used</TableHead>
+                          <TableHead>Expires</TableHead>
                           <TableHead className="w-20" />
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {apiKeys.map((k) => (
-                          <TableRow key={k.id}>
+                        {apiKeys.map((k) => {
+                          const isExpired = k.expires_at && new Date(k.expires_at) < new Date();
+                          return (
+                          <TableRow key={k.id} className={isExpired ? 'opacity-60' : ''}>
                             <TableCell className="font-medium">{k.name}</TableCell>
                             <TableCell className="font-mono text-xs text-muted-foreground">{k.key_prefix}</TableCell>
                             <TableCell className="text-muted-foreground text-sm">{new Date(k.created_at).toLocaleDateString()}</TableCell>
                             <TableCell className="text-muted-foreground text-sm">{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : '—'}</TableCell>
+                            <TableCell className="text-sm">
+                              {k.expires_at ? (
+                                isExpired ? (
+                                  <span className="text-destructive font-medium">Expired {new Date(k.expires_at).toLocaleDateString()}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">{new Date(k.expires_at).toLocaleDateString()}</span>
+                                )
+                              ) : (
+                                <span className="text-muted-foreground">Never</span>
+                              )}
+                            </TableCell>
                             <TableCell>
                               <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setRevokeKeyId(k.id)} title="Revoke key">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </TableCell>
                           </TableRow>
-                        ))}
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   )}
@@ -1855,7 +1935,16 @@ curl -X POST ${baseUrl}/notifications \\
                 setDevSessionLoading(false);
               };
 
-              const fnState = (id: string) => devFnResults[id] ?? { status: 'idle' };
+              const loadCronJobs = async () => {
+                setCronJobsLoading(true);
+                const { data } = await supabase
+                  .from('vendor_discovery_jobs')
+                  .select('id, status, started_at, completed_at, total_created, total_skipped, total_emailed, error_message, triggered_by')
+                  .order('started_at', { ascending: false })
+                  .limit(10);
+                setCronJobs((data ?? []) as typeof cronJobs);
+                setCronJobsLoading(false);
+              };
 
               return (
                 <div className="space-y-6">
@@ -2012,6 +2101,61 @@ curl -X POST ${baseUrl}/notifications \\
                     </div>
                   </div>
 
+                  {/* cron job health */}
+                  <div className="rounded-xl border border-border/60 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-b border-border/60">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-semibold">Vendor discovery cron</span>
+                        <span className="text-xs text-muted-foreground">Last 10 runs</span>
+                      </div>
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={loadCronJobs} disabled={cronJobsLoading}>
+                        {cronJobsLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                        Load
+                      </Button>
+                    </div>
+                    {cronJobs.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">{cronJobsLoading ? 'Loading…' : 'Click Load to see cron job history.'}</p>
+                    ) : (
+                      <div className="divide-y divide-border/40">
+                        {cronJobs.map((job) => (
+                          <div key={job.id} className="flex items-start px-4 py-3 gap-3 hover:bg-muted/20 transition-colors">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {job.status === 'completed' && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-xs font-semibold">
+                                    <CheckCircle2 className="h-3 w-3" />Completed
+                                  </span>
+                                )}
+                                {job.status === 'failed' && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 text-xs font-semibold">
+                                    <XCircle className="h-3 w-3" />Failed
+                                  </span>
+                                )}
+                                {job.status === 'running' && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-2 py-0.5 text-xs font-semibold">
+                                    <Loader2 className="h-3 w-3 animate-spin" />Running
+                                  </span>
+                                )}
+                                <span className="text-xs text-muted-foreground">{new Date(job.started_at).toLocaleString()}</span>
+                                <span className="text-xs text-muted-foreground">· via {job.triggered_by}</span>
+                              </div>
+                              {job.status === 'completed' && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {job.total_created ?? 0} created · {job.total_emailed ?? 0} emailed · {job.total_skipped ?? 0} skipped (dedup)
+                                  {job.completed_at && ` · took ${Math.round((new Date(job.completed_at).getTime() - new Date(job.started_at).getTime()) / 1000)}s`}
+                                </p>
+                              )}
+                              {job.error_message && (
+                                <p className="text-xs text-destructive mt-1 truncate">{job.error_message}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   {/* quick links */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {[
@@ -2100,9 +2244,22 @@ curl -X POST ${baseUrl}/notifications \\
             </div>
           ) : (
             <>
-              <div className="space-y-2 py-2">
-                <Label htmlFor="api-key-name">Key name</Label>
-                <Input id="api-key-name" placeholder="e.g. Production app" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} />
+              <div className="space-y-3 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor="api-key-name">Key name *</Label>
+                  <Input id="api-key-name" placeholder="e.g. Production app" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="api-key-expiry">Expiry date <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                  <Input
+                    id="api-key-expiry"
+                    type="date"
+                    value={newKeyExpiry}
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setNewKeyExpiry(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">Leave blank for a key that never expires.</p>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setCreateKeyOpen(false)}>Cancel</Button>

@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
       if (parsedBody.action === 'list') {
         const { data: keys, error } = await supabaseAdmin
           .from('api_keys')
-          .select('id, name, key_prefix, created_at, last_used_at')
+          .select('id, name, key_prefix, created_at, last_used_at, expires_at')
           .order('created_at', { ascending: false })
         if (error) {
           return new Response(
@@ -111,12 +111,15 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         )
       }
+      const expiresAt = typeof parsedBody.expires_at === 'string' && parsedBody.expires_at.trim()
+        ? new Date(parsedBody.expires_at).toISOString()
+        : null
       const { raw, prefix } = generateApiKey()
       const key_hash = await hashKey(raw)
       const { data: inserted, error } = await supabaseAdmin
         .from('api_keys')
-        .insert({ name, key_prefix: prefix, key_hash, created_by: user.id })
-        .select('id, key_prefix, created_at')
+        .insert({ name, key_prefix: prefix, key_hash, created_by: user.id, expires_at: expiresAt })
+        .select('id, key_prefix, created_at, expires_at')
         .single()
       if (error) {
         return new Response(
@@ -131,6 +134,7 @@ Deno.serve(async (req) => {
           key_prefix: inserted.key_prefix,
           api_key: raw,
           created_at: inserted.created_at,
+          expires_at: inserted.expires_at,
           message: 'Copy the api_key now; it will not be shown again.',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
@@ -140,7 +144,7 @@ Deno.serve(async (req) => {
     if (req.method === 'GET' && (path === '/' || path === '')) {
       const { data: keys, error } = await supabaseAdmin
         .from('api_keys')
-        .select('id, name, key_prefix, created_at, last_used_at')
+        .select('id, name, key_prefix, created_at, last_used_at, expires_at')
         .order('created_at', { ascending: false })
       if (error) {
         return new Response(

@@ -40,6 +40,17 @@ const NAV_ITEMS: { id: Tab; icon: React.ElementType; label: string; desc: string
 
 const NOTIF_KEY = 'remoasset_notif_prefs';
 
+const DEFAULT_NOTIF_PREFS = {
+  email_reply: true,
+  task_due: true,
+  follow_up: true,
+  new_lead: true,
+  stage_changed: true,
+  vendor_discovered: true,
+  mention: false,
+  sound: true,
+};
+
 function loadNotifPrefs() {
   try { return JSON.parse(localStorage.getItem(NOTIF_KEY) || '{}'); } catch { return {}; }
 }
@@ -70,30 +81,33 @@ export default function Settings() {
   const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>(() => {
     const saved = loadNotifPrefs();
     return {
-      email_reply: saved.email_reply ?? true,
-      task_due: saved.task_due ?? true,
-      follow_up: saved.follow_up ?? true,
-      new_lead: saved.new_lead ?? true,
-      mention: saved.mention ?? false,
-      sound: saved.sound ?? true,
+      ...DEFAULT_NOTIF_PREFS,
+      ...saved,
     };
   });
+
+  const [notifSaving, setNotifSaving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     (async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, user_id, full_name, designation, phone, avatar_url, updated_at')
+        .select('id, user_id, full_name, designation, phone, avatar_url, updated_at, notification_preferences')
         .eq('user_id', user.id)
         .maybeSingle();
       if (error) { toast({ variant: 'destructive', title: 'Error', description: 'Could not load profile' }); }
-      const row = data as ProfileRow | null;
+      const row = data as (ProfileRow & { notification_preferences?: Record<string, boolean> | null }) | null;
       if (row) {
         setFullName(row.full_name ?? '');
         setDesignation(row.designation ?? '');
         setPhone(row.phone ?? '');
         setAvatarUrl(row.avatar_url ?? '');
+        if (row.notification_preferences) {
+          const merged = { ...DEFAULT_NOTIF_PREFS, ...row.notification_preferences };
+          setNotifPrefs(merged);
+          saveNotifPrefs(merged);
+        }
       }
       setProfileLoading(false);
     })();
@@ -132,7 +146,19 @@ export default function Settings() {
     const updated = { ...notifPrefs, [key]: value };
     setNotifPrefs(updated);
     saveNotifPrefs(updated);
-    toast({ title: value ? 'Notification enabled' : 'Notification disabled', description: key.replace(/_/g, ' ') });
+  };
+
+  const saveNotifPrefsToDb = async () => {
+    if (!user) return;
+    setNotifSaving(true);
+    saveNotifPrefs(notifPrefs);
+    const { error } = await supabase.from('profiles').upsert(
+      { user_id: user.id, notification_preferences: notifPrefs },
+      { onConflict: 'user_id' }
+    );
+    setNotifSaving(false);
+    if (error) { toast({ variant: 'destructive', title: 'Error', description: error.message }); return; }
+    toast({ title: 'Notification preferences saved', description: 'Your settings are synced across all devices.' });
   };
 
   const initials = ((fullName || user?.email) ?? 'U').slice(0, 2).toUpperCase();
@@ -397,19 +423,18 @@ export default function Settings() {
               <div className="space-y-6 max-w-xl">
                 <div>
                   <h2 className="text-lg font-semibold">Notification Preferences</h2>
-                  <p className="text-sm text-muted-foreground">Choose which notifications you receive</p>
+                  <p className="text-sm text-muted-foreground">Choose which in-app notifications you receive</p>
                 </div>
 
                 <div className="rounded-xl border overflow-hidden">
                   <div className="px-4 py-3 bg-muted/30 border-b">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">In-App Alerts</p>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Leads & Pipeline</p>
                   </div>
                   {[
+                    { key: 'new_lead', icon: User, label: 'New lead assigned to me', desc: 'When a lead is assigned to you' },
+                    { key: 'stage_changed', icon: BellRing, label: 'Lead stage changes', desc: 'When a lead you own moves to a new pipeline stage' },
                     { key: 'email_reply', icon: Mail, label: 'New email from lead', desc: 'When a lead replies to an email thread' },
-                    { key: 'task_due', icon: Calendar, label: 'Task due soon', desc: 'Reminders for tasks approaching their due date' },
-                    { key: 'follow_up', icon: BellRing, label: 'Follow-up due', desc: 'When a scheduled follow-up is due' },
-                    { key: 'new_lead', icon: User, label: 'New lead assigned', desc: 'When a lead is assigned to you' },
-                    { key: 'mention', icon: MessageSquare, label: 'Mentions & comments', desc: 'When someone mentions you in an activity' },
+                    { key: 'vendor_discovered', icon: MessageSquare, label: 'Vendor discovered (AI)', desc: 'When the AI agent discovers new vendors' },
                   ].map((item) => (
                     <div key={item.key} className="flex items-center justify-between px-4 py-3.5 border-b last:border-b-0 hover:bg-muted/20 transition-colors">
                       <div className="flex items-center gap-3 min-w-0">
@@ -423,6 +448,34 @@ export default function Settings() {
                       </div>
                       <Switch
                         checked={notifPrefs[item.key] ?? true}
+                        onCheckedChange={(v) => toggleNotif(item.key, v)}
+                        className="shrink-0 ml-4"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="rounded-xl border overflow-hidden">
+                  <div className="px-4 py-3 bg-muted/30 border-b">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tasks & Follow-ups</p>
+                  </div>
+                  {[
+                    { key: 'task_due', icon: Calendar, label: 'Task due soon', desc: 'Reminders for tasks approaching their due date' },
+                    { key: 'follow_up', icon: BellRing, label: 'Follow-up due', desc: 'When a scheduled follow-up is due' },
+                    { key: 'mention', icon: MessageSquare, label: 'Mentions & comments', desc: 'When someone mentions you in an activity' },
+                  ].map((item) => (
+                    <div key={item.key} className="flex items-center justify-between px-4 py-3.5 border-b last:border-b-0 hover:bg-muted/20 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                          <item.icon className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{item.label}</p>
+                          <p className="text-xs text-muted-foreground truncate">{item.desc}</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={notifPrefs[item.key] ?? false}
                         onCheckedChange={(v) => toggleNotif(item.key, v)}
                         className="shrink-0 ml-4"
                       />
@@ -452,9 +505,15 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <p className="text-xs text-muted-foreground">
-                  Preferences are saved locally to this browser. Email notification settings are managed by your admin.
-                </p>
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <p className="text-xs text-muted-foreground">
+                    Preferences sync across all your devices.
+                  </p>
+                  <Button onClick={saveNotifPrefsToDb} disabled={notifSaving} className="gap-2">
+                    {notifSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    Save preferences
+                  </Button>
+                </div>
               </div>
             )}
 

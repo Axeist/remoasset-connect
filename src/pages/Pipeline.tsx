@@ -398,7 +398,9 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     }
 
     const stageChangeDesc = result.activityType === 'note'
-      ? `Lead moved from "${fromStatusName}" to "${toStatusName}" — ${result.comment}`
+      ? result.outcomeReason
+        ? `Lead moved from "${fromStatusName}" to "${toStatusName}" — Reason: ${result.outcomeReason}. ${result.comment}`
+        : `Lead moved from "${fromStatusName}" to "${toStatusName}" — ${result.comment}`
       : `Lead moved from "${fromStatusName}" to "${toStatusName}"`;
 
     await supabase.from('lead_activities').insert({
