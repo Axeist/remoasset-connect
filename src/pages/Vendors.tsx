@@ -320,11 +320,18 @@ export default function Vendors() {
     const map: Record<string, VendorLead[]> = {};
     const nameMap: Record<string, string> = {};
     filteredVendors.forEach((v) => {
-      const firstCountry = (v.countries ?? [])[0];
-      const code = firstCountry?.code?.toUpperCase() ?? '__none__';
-      const name = firstCountry?.name ?? 'Unknown';
-      if (!map[code]) { map[code] = []; nameMap[code] = name; }
-      map[code].push(v);
+      const vendorCountries = v.countries ?? [];
+      if (vendorCountries.length === 0) {
+        const code = '__none__';
+        if (!map[code]) { map[code] = []; nameMap[code] = 'Unknown'; }
+        map[code].push(v);
+      } else {
+        vendorCountries.forEach((c) => {
+          const code = c.code.toUpperCase();
+          if (!map[code]) { map[code] = []; nameMap[code] = c.name; }
+          if (!map[code].find((x) => x.id === v.id)) map[code].push(v);
+        });
+      }
     });
     Object.entries(map)
       .sort((a, b) => b[1].length - a[1].length)
