@@ -129,7 +129,7 @@ export function LeadsTable({
               <TableHead>Status</TableHead>
               <SortHeader field="lead_score">Score</SortHeader>
               <TableHead>Owner</TableHead>
-              <TableHead>Country</TableHead>
+              <TableHead>HQ / Served</TableHead>
               <TableHead>Last Activity</TableHead>
               <SortHeader field="created_at">Created</SortHeader>
               <TableHead className="w-8" />
@@ -190,18 +190,27 @@ export function LeadsTable({
                   {lead.owner?.full_name ?? '-'}
                 </TableCell>
                 <TableCell>
-                  {lead.countries && lead.countries.length > 0 ? (
-                    <span className="flex items-center gap-1 flex-wrap">
-                      {lead.countries.slice(0, 3).map((c) => (
-                        <span key={c.code} className="text-xs font-medium px-2 py-0.5 bg-muted rounded">
-                          {c.code}
-                        </span>
-                      ))}
-                      {lead.countries.length > 3 && (
-                        <span className="text-xs text-muted-foreground">+{lead.countries.length - 3}</span>
-                      )}
-                    </span>
-                  ) : '-'}
+                  <div className="flex flex-col gap-0.5">
+                    {(lead as any).hq_country && (
+                      <span className="flex items-center gap-1">
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-primary/10 text-primary rounded">HQ</span>
+                        <span className="text-xs font-medium px-2 py-0.5 bg-muted rounded">{(lead as any).hq_country.code}</span>
+                      </span>
+                    )}
+                    {lead.countries && lead.countries.length > 0 && (
+                      <span className="flex items-center gap-1 flex-wrap">
+                        {lead.countries.slice(0, 3).map((c) => (
+                          <span key={c.code} className="text-xs font-medium px-2 py-0.5 bg-muted rounded">
+                            {c.code}
+                          </span>
+                        ))}
+                        {lead.countries.length > 3 && (
+                          <span className="text-xs text-muted-foreground">+{lead.countries.length - 3}</span>
+                        )}
+                      </span>
+                    )}
+                    {!(lead as any).hq_country && (!lead.countries || lead.countries.length === 0) && '-'}
+                  </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
                   {safeFormat(lead.updated_at, 'MMM d, yyyy')}

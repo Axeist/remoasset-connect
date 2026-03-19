@@ -181,7 +181,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     setLoading(true);
     let query = supabase
       .from('leads')
-      .select('id, company_name, contact_name, email, phone, lead_score, status_id, owner_id, country_ids, created_at, updated_at, website, contact_designation, notes, status:lead_statuses(name, color)')
+      .select('id, company_name, contact_name, email, phone, lead_score, status_id, owner_id, hq_country_id, country_ids, created_at, updated_at, website, contact_designation, notes, status:lead_statuses(name, color)')
       .order('lead_score', { ascending: false });
 
     if (role === 'employee' && user) {
@@ -227,8 +227,9 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     // Reuse already-loaded owners instead of fetching profiles again
     const ownerMap = owners.reduce((acc, o) => { acc[o.id] = { full_name: o.full_name }; return acc; }, {} as Record<string, { full_name: string | null }>);
 
-    // Resolve countries from country_ids arrays
-    const allCountryIds = [...new Set(rawLeads.flatMap((l) => (l as any).country_ids ?? []))] as string[];
+    // Resolve countries from hq_country_id and country_ids arrays
+    const hqIds = rawLeads.map((l) => (l as any).hq_country_id).filter(Boolean) as string[];
+    const allCountryIds = [...new Set([...hqIds, ...rawLeads.flatMap((l) => (l as any).country_ids ?? [])])] as string[];
     let pipelineCountryMap: Record<string, { name: string; code: string }> = {};
     if (allCountryIds.length > 0) {
       const { data: cRows } = await supabase.from('countries').select('id, name, code').in('id', allCountryIds);
@@ -238,6 +239,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     const enrichedLeads = rawLeads.map((l) => ({
       ...l,
       owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null,
+      hq_country: (l as any).hq_country_id ? pipelineCountryMap[(l as any).hq_country_id] ?? null : null,
       countries: ((l as any).country_ids ?? []).map((id: string) => pipelineCountryMap[id]).filter(Boolean),
     }));
     setLeads(enrichedLeads);

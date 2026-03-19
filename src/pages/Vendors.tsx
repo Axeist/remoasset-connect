@@ -48,6 +48,8 @@ interface VendorLead {
   vendor_types: string[] | null;
   warehouse_available?: boolean;
   additional_contacts?: VendorContact[] | null;
+  hq_country_id: string | null;
+  hq_country?: { name: string; code: string } | null;
   country_ids: string[];
   countries?: { name: string; code: string }[] | null;
   status?: { name: string; color: string } | null;
@@ -130,7 +132,7 @@ export default function Vendors() {
       .from('leads')
       .select(`
         id, company_name, contact_name, email, phone, website, lead_score,
-        vendor_types, warehouse_available, additional_contacts, country_ids, owner_id, created_at,
+        vendor_types, warehouse_available, additional_contacts, hq_country_id, country_ids, owner_id, created_at,
         status:lead_statuses(name, color)
       `)
       .order('company_name');
@@ -149,8 +151,9 @@ export default function Vendors() {
       ownerMap = (profiles ?? []).reduce((acc, p) => { acc[p.user_id] = { full_name: p.full_name }; return acc; }, {} as Record<string, { full_name: string | null }>);
     }
 
-    // Resolve countries from country_ids arrays
-    const allCountryIds = [...new Set(rawLeads.flatMap((l) => l.country_ids ?? []))] as string[];
+    // Resolve countries from hq_country_id and country_ids arrays
+    const hqIds = rawLeads.map((l) => l.hq_country_id).filter(Boolean) as string[];
+    const allCountryIds = [...new Set([...hqIds, ...rawLeads.flatMap((l) => l.country_ids ?? [])])] as string[];
     let vendorCountryMap: Record<string, { name: string; code: string }> = {};
     if (allCountryIds.length > 0) {
       const { data: cRows } = await supabase.from('countries').select('id, name, code').in('id', allCountryIds);
@@ -160,6 +163,7 @@ export default function Vendors() {
     const enriched = rawLeads.map((l) => ({
       ...l,
       owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null,
+      hq_country: l.hq_country_id ? vendorCountryMap[l.hq_country_id] ?? null : null,
       countries: (l.country_ids ?? []).map((id: string) => vendorCountryMap[id]).filter(Boolean),
     }));
 

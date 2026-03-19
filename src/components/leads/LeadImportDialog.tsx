@@ -30,6 +30,7 @@ interface ParsedRow {
   phone: string | null;
   contact_name: string | null;
   contact_designation: string | null;
+  hq_country_id: string | null;
   country_ids: string[];
   status_id: string | null;
   lead_score: number;
@@ -167,6 +168,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
         else if (emailVal && emailVal.includes('?')) error = 'Invalid email (placeholder)';
 
         const countryId = resolveCountry(get('country'));
+        const hqCountryId = resolveCountry(get('hq_country')) ?? countryId;
         const statusId = resolveStatus(get('status')) ?? firstStatusId;
         const ownerId = resolveOwner(get('lead_owner'));
 
@@ -177,6 +179,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
           phone: get('phone') || null,
           contact_name: get('contact_name') || null,
           contact_designation: get('contact_designation') || null,
+          hq_country_id: hqCountryId,
           country_ids: countryId ? [countryId] : [],
           status_id: statusId,
           lead_score: parseScore(get('lead_score')),
@@ -208,6 +211,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
       phone: r.phone,
       contact_name: r.contact_name,
       contact_designation: r.contact_designation,
+      hq_country_id: r.hq_country_id,
       country_ids: r.country_ids,
       status_id: r.status_id,
       lead_score: r.lead_score,

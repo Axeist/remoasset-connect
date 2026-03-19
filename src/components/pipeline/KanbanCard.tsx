@@ -50,10 +50,11 @@ function CardContent({ lead, onClick, onAddActivity, isDragOverlay, showGrip }: 
           <Star className="h-2.5 w-2.5" />
           {lead.lead_score ?? 0}
         </span>
-        {lead.countries && lead.countries.length > 0 && (
+        {((lead as any).hq_country?.code || (lead.countries && lead.countries.length > 0)) && (
           <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
-            {lead.countries.map((c) => c.code).slice(0, 3).join(', ')}
-            {lead.countries.length > 3 ? ` +${lead.countries.length - 3}` : ''}
+            {(lead as any).hq_country?.code
+              ? `🏢 ${(lead as any).hq_country.code}${lead.countries && lead.countries.length > 0 ? ` · ${lead.countries.map((c) => c.code).slice(0, 2).join(', ')}${lead.countries.length > 2 ? ` +${lead.countries.length - 2}` : ''}` : ''}`
+              : `${lead.countries!.map((c) => c.code).slice(0, 3).join(', ')}${lead.countries!.length > 3 ? ` +${lead.countries!.length - 3}` : ''}`}
           </span>
         )}
         {lead.owner?.full_name && (

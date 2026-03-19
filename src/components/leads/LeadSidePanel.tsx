@@ -102,14 +102,21 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
       .eq('id', lead.id)
       .single();
     if (error || !data) return;
-    // Fetch countries separately from country_ids array
+    // Fetch HQ country
+    const hqId: string | null = (data as any).hq_country_id ?? null;
+    let hqCountry: { name: string; code: string } | null = null;
+    if (hqId) {
+      const { data: hData } = await supabase.from('countries').select('name, code').eq('id', hqId).single();
+      if (hData) hqCountry = hData;
+    }
+    // Fetch served countries from country_ids array
     const countryIds: string[] = Array.isArray((data as any).country_ids) ? (data as any).country_ids : [];
     let countriesData: { name: string; code: string }[] = [];
     if (countryIds.length > 0) {
       const { data: cData } = await supabase.from('countries').select('name, code').in('id', countryIds);
       if (cData) countriesData = cData;
     }
-    setFullLead({ ...data, countries: countriesData } as unknown as Lead);
+    setFullLead({ ...data, hq_country: hqCountry, countries: countriesData } as unknown as Lead);
     setLoadingLead(false);
   };
 
@@ -314,9 +321,12 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                 {(displayLead as any).website && (
                   <InfoRow label="Website" value={(displayLead as any).website} href={(displayLead as any).website} external />
                 )}
+                {displayLead.hq_country && (
+                  <InfoRow label="HQ Country" value={`${displayLead.hq_country.name} (${displayLead.hq_country.code})`} />
+                )}
                 {displayLead.countries && displayLead.countries.length > 0 && (
                   <InfoRow
-                    label={displayLead.countries.length === 1 ? 'Country' : 'Countries'}
+                    label={displayLead.countries.length === 1 ? 'Country Served' : 'Countries Served'}
                     value={displayLead.countries.map((c) => `${c.name} (${c.code})`).join(', ')}
                   />
                 )}

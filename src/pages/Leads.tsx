@@ -165,6 +165,7 @@ export default function Leads() {
         lead_score,
         vendor_types,
         warehouse_available,
+        hq_country_id,
         country_ids,
         created_at,
         updated_at,
@@ -258,8 +259,9 @@ export default function Leads() {
       );
     }
 
-    // Resolve countries from country_ids arrays
-    const allCountryIds = [...new Set(data.flatMap((l) => (l as any).country_ids ?? []))] as string[];
+    // Resolve countries from hq_country_id and country_ids arrays
+    const hqIds = data.map((l) => (l as any).hq_country_id).filter(Boolean) as string[];
+    const allCountryIds = [...new Set([...hqIds, ...data.flatMap((l) => (l as any).country_ids ?? [])])] as string[];
     let countryMap: Record<string, { name: string; code: string }> = {};
     if (allCountryIds.length > 0) {
       const { data: countryRows } = await supabase.from('countries').select('id, name, code').in('id', allCountryIds);
@@ -269,6 +271,7 @@ export default function Leads() {
     const leadsWithOwner = data.map((l) => ({
       ...l,
       owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null,
+      hq_country: (l as any).hq_country_id ? countryMap[(l as any).hq_country_id] ?? null : null,
       countries: ((l as any).country_ids ?? []).map((id: string) => countryMap[id]).filter(Boolean),
     }));
     setLeads(leadsWithOwner);

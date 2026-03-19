@@ -39,7 +39,8 @@ const leadFormSchema = z.object({
   phone: z.string().optional(),
   contact_name: z.string().optional(),
   contact_designation: z.string().optional(),
-  country_ids: z.array(z.string().uuid()).min(1, 'Select at least one country'),
+  hq_country_id: z.string().uuid('Invalid country').optional().or(z.literal('')),
+  country_ids: z.array(z.string().uuid()),
   status_id: z.string().min(1, 'Status is required').uuid('Invalid status'),
   vendor_types: z.array(z.enum(['new_device', 'refurbished', 'rental', 'warehouse'])).min(1, 'Select at least one vendor type'),
   warehouse_available: z.boolean().default(false),
@@ -74,6 +75,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
       phone: '',
       contact_name: '',
       contact_designation: '',
+      hq_country_id: '',
       country_ids: [],
       status_id: '',
       vendor_types: [],
@@ -91,9 +93,13 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
   const [additionalContacts, setAdditionalContacts] = useState<LeadContact[]>([]);
   const [countrySearch, setCountrySearch] = useState('');
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+  const [hqSearch, setHqSearch] = useState('');
+  const [hqDropdownOpen, setHqDropdownOpen] = useState(false);
+  const hqDropdownRef = useRef<HTMLDivElement>(null);
   const countryDropdownRef = useRef<HTMLDivElement>(null);
   const warehouseAvailable = form.watch('warehouse_available');
   const selectedCountryIds = form.watch('country_ids') ?? [];
+  const selectedHqId = form.watch('hq_country_id') ?? '';
 
   useEffect(() => {
     if (!open) return;
@@ -116,6 +122,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
         phone: lead.phone ?? '',
         contact_name: lead.contact_name ?? '',
         contact_designation: lead.contact_designation ?? '',
+        hq_country_id: lead.hq_country_id ?? '',
         country_ids: Array.isArray(lead.country_ids) ? lead.country_ids : [],
         status_id: lead.status_id ?? '',
         vendor_types: Array.isArray((lead as any).vendor_types)
@@ -141,6 +148,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
         phone: '',
         contact_name: '',
         contact_designation: '',
+        hq_country_id: '',
         country_ids: [],
         status_id: statuses[0]?.id ?? '',
         vendor_types: [],
@@ -179,6 +187,16 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
     return () => document.removeEventListener('mousedown', handler);
   }, [countryDropdownOpen]);
 
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (hqDropdownRef.current && !hqDropdownRef.current.contains(e.target as Node)) {
+        setHqDropdownOpen(false);
+      }
+    };
+    if (hqDropdownOpen) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [hqDropdownOpen]);
+
   const onSubmit = async (values: LeadFormValues) => {
     const selectedStatus = statuses.find((s) => s.id === values.status_id);
     if (selectedStatus && WON_PATTERNS.includes(selectedStatus.name.toLowerCase())) {
@@ -202,6 +220,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
       phone: values.phone || null,
       contact_name: values.contact_name || null,
       contact_designation: values.contact_designation || null,
+      hq_country_id: values.hq_country_id || null,
       country_ids: values.country_ids,
       status_id: values.status_id,
       vendor_types: values.vendor_types,
@@ -414,16 +433,83 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Countries *</Label>
+              <Label>HQ Country</Label>
+              <div ref={hqDropdownRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setHqDropdownOpen((v) => !v)}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <span className="truncate text-left">
+                    {selectedHqId
+                      ? (countries.find((c) => c.id === selectedHqId)?.name ?? 'Select HQ country…')
+                      : 'Select HQ country…'}
+                  </span>
+                  <div className="flex items-center gap-1 ml-2 shrink-0">
+                    {selectedHqId && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); form.setValue('hq_country_id', ''); }}
+                        className="rounded hover:text-destructive"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <ChevronDown className="h-4 w-4 opacity-50" />
+                  </div>
+                </button>
+                {hqDropdownOpen && (
+                  <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+                    <div className="p-2 border-b">
+                      <Input
+                        autoFocus
+                        placeholder="Search…"
+                        value={hqSearch}
+                        onChange={(e) => setHqSearch(e.target.value)}
+                        className="h-8 text-sm"
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto p-1">
+                      {countries
+                        .filter((c) =>
+                          c.name.toLowerCase().includes(hqSearch.toLowerCase()) ||
+                          c.code.toLowerCase().includes(hqSearch.toLowerCase())
+                        )
+                        .map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => { form.setValue('hq_country_id', c.id, { shouldValidate: true }); setHqDropdownOpen(false); setHqSearch(''); }}
+                            className={`flex w-full items-center gap-2 px-2 py-1.5 rounded hover:bg-accent text-sm text-left ${selectedHqId === c.id ? 'bg-accent' : ''}`}
+                          >
+                            <span className="text-xs font-mono text-muted-foreground w-8 shrink-0">{c.code}</span>
+                            {c.name}
+                          </button>
+                        ))}
+                      {countries.filter((c) =>
+                        c.name.toLowerCase().includes(hqSearch.toLowerCase()) ||
+                        c.code.toLowerCase().includes(hqSearch.toLowerCase())
+                      ).length === 0 && (
+                        <p className="px-2 py-3 text-sm text-center text-muted-foreground">No countries found</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Countries Served</Label>
               <div ref={countryDropdownRef} className="relative">
                 <button
                   type="button"
                   onClick={() => setCountryDropdownOpen((v) => !v)}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 >
                   <span className="truncate text-left">
                     {selectedCountryIds.length === 0
-                      ? 'Select countries…'
+                      ? 'Select countries served…'
                       : selectedCountryIds.length === 1
                         ? countries.find((c) => c.id === selectedCountryIds[0])?.name ?? '1 country'
                         : `${selectedCountryIds.length} countries selected`}
@@ -495,10 +581,8 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
                   })}
                 </div>
               )}
-              {form.formState.errors.country_ids && (
-                <p className="text-sm text-destructive">{form.formState.errors.country_ids.message}</p>
-              )}
             </div>
+          </div>
             <div className="space-y-2">
               <Label>Vendor Type *</Label>
               <p className="text-xs text-muted-foreground">Select all that apply</p>

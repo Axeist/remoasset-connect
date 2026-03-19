@@ -162,14 +162,21 @@ export default function LeadDetail() {
       navigate('/leads');
       return;
     }
-    // Fetch countries separately from country_ids array
+    // Fetch HQ country
+    const hqId: string | null = (data as any).hq_country_id ?? null;
+    let hqCountry: { name: string; code: string } | null = null;
+    if (hqId) {
+      const { data: hData } = await supabase.from('countries').select('name, code').eq('id', hqId).single();
+      if (hData) hqCountry = hData;
+    }
+    // Fetch served countries separately from country_ids array
     const countryIds: string[] = Array.isArray((data as any).country_ids) ? (data as any).country_ids : [];
     let countriesData: { name: string; code: string }[] = [];
     if (countryIds.length > 0) {
       const { data: cData } = await supabase.from('countries').select('name, code').in('id', countryIds);
       if (cData) countriesData = cData;
     }
-    setLead({ ...data, countries: countriesData } as unknown as Lead);
+    setLead({ ...data, hq_country: hqCountry, countries: countriesData } as unknown as Lead);
   };
 
   const fetchActivities = async () => {
@@ -386,7 +393,13 @@ export default function LeadDetail() {
                   </div>
                 )}
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">{lead.countries && lead.countries.length > 1 ? 'Countries' : 'Country'}</p>
+                  <p className="text-sm text-muted-foreground">HQ Country</p>
+                  <p className="font-medium">
+                    {lead.hq_country ? `${lead.hq_country.name} (${lead.hq_country.code})` : '-'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">{lead.countries && lead.countries.length > 1 ? 'Countries Served' : 'Country Served'}</p>
                   <p className="font-medium">
                     {lead.countries && lead.countries.length > 0
                       ? lead.countries.map((c) => `${c.name} (${c.code})`).join(', ')
