@@ -87,7 +87,7 @@ export function useTaskAndFollowUpNotificationPoller() {
             (async () => {
               const { data, error } = await supabase
                 .from('follow_ups')
-                .select('id, scheduled_at, notes')
+                .select('id, scheduled_at, notes, lead:leads(company_name)')
                 .eq('user_id', user.id)
                 .eq('is_completed', false)
                 .gte('scheduled_at', gracePast)
@@ -95,18 +95,25 @@ export function useTaskAndFollowUpNotificationPoller() {
 
               if (error || !data) return;
 
-              for (const f of data as { id: string; scheduled_at: string; notes: string | null }[]) {
+              for (const f of data as { id: string; scheduled_at: string; notes: string | null; lead: { company_name: string } | null }[]) {
                 if (notifiedFollowUpIdsRef.current.has(f.id)) continue;
                 notifiedFollowUpIdsRef.current.add(f.id);
-                const when =
-                  new Date(f.scheduled_at) <= new Date(nowISO)
-                    ? 'now'
-                    : 'soon';
+                const isDue = new Date(f.scheduled_at) <= new Date(nowISO);
+                const leadName = f.lead?.company_name;
+                const timeLabel = isDue ? 'now' : 'soon';
+                const message = leadName
+                  ? f.notes
+                    ? `Follow-up for ${leadName} — "${f.notes}" is due ${timeLabel}.`
+                    : `Follow-up for ${leadName} is due ${timeLabel}.`
+                  : f.notes
+                    ? `Follow-up "${f.notes}" is due ${timeLabel}.`
+                    : `A follow-up is due ${timeLabel}.`;
                 await supabase.from('notifications').insert({
                   user_id: user.id,
-                  title: 'Follow-up due',
-                  message: f.notes ? `Follow-up "${f.notes}" is due ${when}.` : `A follow-up is due ${when}.`,
+                  title: isDue ? 'Follow-up due now' : 'Follow-up due soon',
+                  message,
                   type: 'info',
+                  metadata: { followUpId: f.id },
                 });
               }
             })()

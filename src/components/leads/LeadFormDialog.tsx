@@ -27,10 +27,18 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Lead, LeadStatusOption, CountryOption, LeadContact } from '@/types/lead';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Trash2, UserPlus, ChevronDown, X, AlertTriangle } from 'lucide-react';
+import { Loader2, Plus, Trash2, UserPlus, ChevronDown, X, AlertTriangle, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const WON_PATTERNS = ['won', 'closed won', 'closed-won'];
+
+const EU_COUNTRY_NAMES = new Set([
+  'Austria', 'Belgium', 'Bulgaria', 'Croatia', 'Cyprus', 'Czech Republic',
+  'Denmark', 'Estonia', 'Finland', 'France', 'Germany', 'Greece', 'Hungary',
+  'Ireland', 'Italy', 'Latvia', 'Lithuania', 'Luxembourg', 'Malta',
+  'Netherlands', 'Poland', 'Portugal', 'Romania', 'Slovakia', 'Slovenia',
+  'Spain', 'Sweden',
+]);
 
 const leadFormSchema = z.object({
   company_name: z.string().min(1, 'Company name is required'),
@@ -554,7 +562,39 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
             </div>
 
             <div className="space-y-2">
-              <Label>Countries Served</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Countries Served</Label>
+                {(() => {
+                  const euIds = countries.filter((c) => EU_COUNTRY_NAMES.has(c.name)).map((c) => c.id);
+                  const allEuSelected = euIds.length > 0 && euIds.every((id) => selectedCountryIds.includes(id));
+                  const someEuSelected = !allEuSelected && euIds.some((id) => selectedCountryIds.includes(id));
+                  return (
+                    <div className="flex items-center gap-1.5">
+                      {someEuSelected && (
+                        <span className="text-xs text-muted-foreground italic">partial EU</span>
+                      )}
+                      <button
+                        type="button"
+                        disabled={allEuSelected}
+                        onClick={() => {
+                          const current = form.getValues('country_ids') ?? [];
+                          const merged = [...new Set([...current, ...euIds])];
+                          form.setValue('country_ids', merged, { shouldValidate: true });
+                        }}
+                        title={allEuSelected ? 'All EU countries selected — deselect individually using the × badges below' : 'Select all 27 EU member states'}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition-colors ${
+                          allEuSelected
+                            ? 'bg-primary text-primary-foreground border-primary cursor-default opacity-80'
+                            : 'bg-background text-muted-foreground border-input hover:border-primary hover:text-primary'
+                        }`}
+                      >
+                        <Globe className="h-3 w-3" />
+                        {allEuSelected ? 'EU Selected ✓' : 'EU Mode'}
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
               <div ref={countryDropdownRef} className="relative">
                 <button
                   type="button"
