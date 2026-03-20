@@ -175,7 +175,7 @@ Rules:
           lead_id,
           user_id: userId,
           activity_type: 'note',
-          description: `AI enrichment: updated ${enriched.updated.join(', ')}`,
+          description: enriched.description ?? `AI enrichment: updated ${enriched.updated.join(', ')}`,
         })
       }
     }

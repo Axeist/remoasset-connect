@@ -83,6 +83,30 @@ interface LeadFollowUp {
   is_completed: boolean;
 }
 
+interface EnrichmentData {
+  linkedin_url?: string;
+  description?: string;
+  industry?: string;
+  headcount?: string;
+}
+
+function parseEnrichmentFromNotes(notes: string | null): EnrichmentData | null {
+  if (!notes) return null;
+  const blockMatch = notes.match(/\[AI Enrichment\]([\s\S]*?)(?=\n\n\[AI Enrichment\]|$)/);
+  if (!blockMatch) return null;
+  const block = blockMatch[1];
+  const result: EnrichmentData = {};
+  const linkedin = block.match(/LinkedIn:\s*(.+)/);
+  if (linkedin) result.linkedin_url = linkedin[1].trim();
+  const desc = block.match(/Description:\s*(.+)/);
+  if (desc) result.description = desc[1].trim();
+  const industry = block.match(/Industry:\s*(.+)/);
+  if (industry) result.industry = industry[1].trim();
+  const headcount = block.match(/Headcount:\s*(.+)/);
+  if (headcount) result.headcount = headcount[1].trim();
+  return Object.keys(result).length > 0 ? result : null;
+}
+
 export default function LeadDetail() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -335,7 +359,7 @@ export default function LeadDetail() {
           <div className="flex gap-2">
             {canEdit && (
               <>
-                <Button variant="outline" size="sm" onClick={handleEnrichLead} disabled={enriching} className="gap-1.5">
+                <Button variant="outline" onClick={handleEnrichLead} disabled={enriching} className="gap-1.5">
                   {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   {enriching ? 'Enriching…' : 'Enrich'}
                 </Button>
@@ -613,6 +637,52 @@ export default function LeadDetail() {
                   <p className="text-sm text-muted-foreground">Last updated</p>
                   <p className="font-medium">{safeFormat(lead.updated_at, 'PPp')}</p>
                 </div>
+                {(() => {
+                  const enrichment = parseEnrichmentFromNotes(lead.notes);
+                  if (!enrichment) return null;
+                  return (
+                    <>
+                      {enrichment.linkedin_url && (
+                        <div className="space-y-1">
+                          <p className="text-sm text-muted-foreground">LinkedIn</p>
+                          <a
+                            href={enrichment.linkedin_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-primary hover:underline flex items-center gap-1.5 break-all"
+                          >
+                            <Linkedin className="h-3.5 w-3.5 shrink-0" />
+                            {enrichment.linkedin_url}
+                          </a>
+                        </div>
+                      )}
+                      {enrichment.industry && (
+                        <div className="space-y-1">
+                          <p className="text-sm text-muted-foreground">Industry</p>
+                          <p className="font-medium">{enrichment.industry}</p>
+                        </div>
+                      )}
+                      {enrichment.headcount && (
+                        <div className="space-y-1">
+                          <p className="text-sm text-muted-foreground">Headcount</p>
+                          <p className="font-medium">{enrichment.headcount}</p>
+                        </div>
+                      )}
+                      {enrichment.description && (
+                        <div className="space-y-1 sm:col-span-2">
+                          <p className="text-sm text-muted-foreground">Description</p>
+                          <p className="font-medium">{enrichment.description}</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+                {lead.notes && (
+                  <div className="space-y-1 sm:col-span-2 border-t pt-4 mt-2">
+                    <p className="text-sm text-muted-foreground">Notes</p>
+                    <p className="text-sm whitespace-pre-wrap text-foreground">{lead.notes}</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
