@@ -80,6 +80,66 @@ const NAV_ITEMS: { id: Tab; icon: React.ElementType; label: string; desc: string
   { id: 'developer', icon: Terminal, label: 'Developer', desc: 'Debug tools & health checks' },
 ];
 
+function AllowedDomainSection({ slackSettingsId }: { slackSettingsId: string | null }) {
+  const { toast } = useToast();
+  const [domainValue, setDomainValue] = useState('');
+  const [domainSaving, setDomainSaving] = useState(false);
+  const [domainLoaded, setDomainLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!domainLoaded) {
+      supabase.from('app_settings').select('allowed_email_domain, id').limit(1).single()
+        .then(({ data }) => {
+          if (data?.allowed_email_domain) setDomainValue(data.allowed_email_domain);
+          setDomainLoaded(true);
+        });
+    }
+  }, [domainLoaded]);
+
+  const saveDomain = async () => {
+    const trimmed = domainValue.trim().replace(/^@/, '');
+    if (!trimmed) return;
+    setDomainSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+      if (slackSettingsId) {
+        await fetch(`${baseUrl}/rest/v1/app_settings?id=eq.${slackSettingsId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'apikey': anonKey, 'Authorization': `Bearer ${session?.access_token ?? anonKey}`, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ allowed_email_domain: trimmed }),
+        });
+      }
+      toast({ title: 'Domain restriction updated', description: `Only @${trimmed} accounts can sign in via Google.` });
+    } catch { toast({ variant: 'destructive', title: 'Failed to save domain' }); }
+    finally { setDomainSaving(false); }
+  };
+
+  return (
+    <div className="rounded-xl border border-border/60 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Shield className="h-4 w-4 text-primary" />
+        <span className="text-sm font-semibold">Allowed sign-in domain</span>
+      </div>
+      <p className="text-xs text-muted-foreground">Only users with emails from this domain can sign in via Google OAuth. Password sign-in is not affected.</p>
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">@</span>
+        <Input
+          value={domainValue}
+          onChange={(e) => setDomainValue(e.target.value)}
+          placeholder="remoasset.com"
+          className="max-w-xs h-9 text-sm"
+        />
+        <Button size="sm" onClick={saveDomain} disabled={domainSaving || !domainValue.trim()} className="gap-2">
+          {domainSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+          Save
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function Admin() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -1586,64 +1646,7 @@ curl -X POST ${baseUrl}/notifications \\
                 </div>
 
                 {/* Allowed email domain */}
-                {(() => {
-                  const [domainValue, setDomainValue] = useState('');
-                  const [domainSaving, setDomainSaving] = useState(false);
-                  const [domainLoaded, setDomainLoaded] = useState(false);
-
-                  useEffect(() => {
-                    if (!domainLoaded) {
-                      supabase.from('app_settings').select('allowed_email_domain, id').limit(1).single()
-                        .then(({ data }) => {
-                          if (data?.allowed_email_domain) setDomainValue(data.allowed_email_domain);
-                          setDomainLoaded(true);
-                        });
-                    }
-                  }, [domainLoaded]);
-
-                  const saveDomain = async () => {
-                    const trimmed = domainValue.trim().replace(/^@/, '');
-                    if (!trimmed) return;
-                    setDomainSaving(true);
-                    try {
-                      const { data: { session } } = await supabase.auth.getSession();
-                      const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
-                      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-                      if (slackSettingsId) {
-                        await fetch(`${baseUrl}/rest/v1/app_settings?id=eq.${slackSettingsId}`, {
-                          method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json', 'apikey': anonKey, 'Authorization': `Bearer ${session?.access_token ?? anonKey}`, 'Prefer': 'return=minimal' },
-                          body: JSON.stringify({ allowed_email_domain: trimmed }),
-                        });
-                      }
-                      toast({ title: 'Domain restriction updated', description: `Only @${trimmed} accounts can sign in via Google.` });
-                    } catch { toast({ variant: 'destructive', title: 'Failed to save domain' }); }
-                    finally { setDomainSaving(false); }
-                  };
-
-                  return (
-                    <div className="rounded-xl border border-border/60 p-4 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-semibold">Allowed sign-in domain</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Only users with emails from this domain can sign in via Google OAuth. Password sign-in is not affected.</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">@</span>
-                        <Input
-                          value={domainValue}
-                          onChange={(e) => setDomainValue(e.target.value)}
-                          placeholder="remoasset.com"
-                          className="max-w-xs h-9 text-sm"
-                        />
-                        <Button size="sm" onClick={saveDomain} disabled={domainSaving || !domainValue.trim()} className="gap-2">
-                          {domainSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                          Save
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })()}
+                <AllowedDomainSection slackSettingsId={slackSettingsId} />
 
                 {/* Other placeholder integrations */}
                 {[
