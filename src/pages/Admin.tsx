@@ -1922,6 +1922,7 @@ curl -X POST ${baseUrl}/notifications \\
               };
 
               const pingAll = () => EDGE_FUNCTIONS.forEach((f) => pingFunction(f.id));
+              const fnState = (id: string) => devFnResults[id] ?? { status: 'idle' as const };
 
               const loadSession = async () => {
                 setDevSessionLoading(true);
