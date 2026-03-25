@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -38,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [allowedEmailDomain, setAllowedEmailDomain] = useState('remoasset.com');
+  const intentionalSignOut = useRef(false);
 
   // Load the allowed domain from app_settings (falls back to hardcoded default)
   useEffect(() => {
@@ -79,6 +80,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // expires mid-session even though the Supabase session itself is still valid.
         // Only treat it as a real logout if there's no active session recoverable.
         if (event === 'SIGNED_OUT') {
+          // Skip recovery check if we triggered sign-out intentionally
+          if (intentionalSignOut.current) {
+            intentionalSignOut.current = false;
+            setSession(null);
+            setUser(null);
+            setRole(null);
+            setGoogleAccessToken(null);
+            setLoading(false);
+            return;
+          }
           const { data: { session: currentSession } } = await supabase.auth.getSession();
           if (currentSession) {
             // Session still alive — this was a provider token event, not a real logout
@@ -191,6 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    intentionalSignOut.current = true;
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
