@@ -34,6 +34,8 @@ export interface Lead {
   status_id: string | null;
   status?: { name: string; color: string } | null;
   lead_score: number | null;
+  vendor_types: string[] | null;
+  warehouse_available: boolean | null;
   owner_id: string | null;
   owner?: { full_name: string | null } | null;
   notes: string | null;

@@ -8,7 +8,15 @@ import { LeadImportDialog } from '@/components/leads/LeadImportDialog';
 import { BulkActionsDialog } from '@/components/leads/BulkActionsDialog';
 import { LeadSidePanel } from '@/components/leads/LeadSidePanel';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Upload, UserPlus, Tag, Trash2, List, Loader2 } from 'lucide-react';
+import { Plus, Download, Upload, UserPlus, Tag, Trash2, List, Loader2, ChevronDown, FileText, Filter } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { safeFormat } from '@/lib/date';
@@ -300,19 +308,19 @@ export default function Leads() {
     ];
     const rows = leadsData.map((l) => [
       l.company_name,
-      (l as any).website ?? '',
+      l.website ?? '',
       l.contact_name ?? '',
-      (l as any).contact_designation ?? '',
+      l.contact_designation ?? '',
       l.email ?? '',
       l.phone ?? '',
       l.status?.name ?? '',
       l.lead_score ?? '',
       l.hq_country?.name ?? '',
       (l.countries ?? []).map((c) => c.name).join('; ') || '',
-      ((l as any).vendor_types ?? []).join('; ') || '',
-      (l as any).warehouse_available != null ? ((l as any).warehouse_available ? 'Yes' : 'No') : '',
+      (l.vendor_types ?? []).join('; ') || '',
+      l.warehouse_available != null ? (l.warehouse_available ? 'Yes' : 'No') : '',
       l.owner?.full_name ?? '',
-      (l as any).notes ?? '',
+      l.notes ?? '',
       safeFormat(l.created_at, 'PP', '-'),
       safeFormat(l.updated_at, 'PP', '-'),
     ]);
@@ -339,12 +347,12 @@ export default function Leads() {
     toast({ title: 'Exported', description: `${toExport.length} lead(s) exported.` });
   };
 
-  const exportAllLeads = async () => {
+  const exportAllLeads = async (withFilters = true) => {
     setExportingAll(true);
     try {
       // Pre-fetch NDA lead IDs
       let ndaLeadIds: string[] | null = null;
-      if (filters.ndaStatus) {
+      if (withFilters && filters.ndaStatus) {
         if (filters.ndaStatus === 'no_nda') {
           const { data: ndaRows } = await supabase.from('lead_activities').select('lead_id').eq('activity_type', 'nda');
           ndaLeadIds = [...new Set((ndaRows ?? []).map((r) => r.lead_id))];
@@ -359,7 +367,7 @@ export default function Leads() {
 
       // Pre-fetch LinkedIn lead IDs
       let linkedinLeadIds: string[] | null = null;
-      if (filters.linkedinOutreach) {
+      if (withFilters && filters.linkedinOutreach) {
         const { data: liRows } = await supabase.from('lead_activities').select('lead_id').eq('activity_type', 'linkedin');
         linkedinLeadIds = [...new Set((liRows ?? []).map((r) => r.lead_id))];
       }
@@ -374,40 +382,42 @@ export default function Leads() {
         )
         .order(sortBy, { ascending: sortOrder === 'asc' });
 
-      if (filters.search) {
-        query = query.or(`company_name.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
-      }
-      if (filters.status) query = query.eq('status_id', filters.status);
-      if (filters.region) {
-        const { data: regionCountries } = await supabase.from('countries').select('id').eq('region', filters.region);
-        const regionCountryIds = (regionCountries ?? []).map((r) => r.id);
-        if (regionCountryIds.length > 0) {
-          query = (query as any).overlaps('country_ids', regionCountryIds);
-        } else {
-          query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+      if (withFilters) {
+        if (filters.search) {
+          query = query.or(`company_name.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
         }
-      }
-      if (filters.country) query = (query as any).contains('country_ids', [filters.country]);
-      if (filters.owner === 'unassigned') query = query.is('owner_id', null);
-      else if (filters.owner) query = query.eq('owner_id', filters.owner);
-      if (filters.vendorType) query = query.contains('vendor_types', [filters.vendorType]);
-      if (filters.warehouseAvailable === 'true') query = query.eq('warehouse_available', true);
-      else if (filters.warehouseAvailable === 'false') query = query.eq('warehouse_available', false);
-      query = query.gte('lead_score', filters.scoreMin).lte('lead_score', filters.scoreMax);
-      if (filters.createdFrom) query = query.gte('created_at', filters.createdFrom);
-      if (filters.createdTo) query = query.lte('created_at', filters.createdTo);
-      if (filters.lastActivityFrom) query = query.gte('updated_at', filters.lastActivityFrom);
-      if (filters.lastActivityTo) query = query.lte('updated_at', filters.lastActivityTo);
+        if (filters.status) query = query.eq('status_id', filters.status);
+        if (filters.region) {
+          const { data: regionCountries } = await supabase.from('countries').select('id').eq('region', filters.region);
+          const regionCountryIds = (regionCountries ?? []).map((r) => r.id);
+          if (regionCountryIds.length > 0) {
+            query = (query as any).overlaps('country_ids', regionCountryIds);
+          } else {
+            query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+          }
+        }
+        if (filters.country) query = (query as any).contains('country_ids', [filters.country]);
+        if (filters.owner === 'unassigned') query = query.is('owner_id', null);
+        else if (filters.owner) query = query.eq('owner_id', filters.owner);
+        if (filters.vendorType) query = query.contains('vendor_types', [filters.vendorType]);
+        if (filters.warehouseAvailable === 'true') query = query.eq('warehouse_available', true);
+        else if (filters.warehouseAvailable === 'false') query = query.eq('warehouse_available', false);
+        query = query.gte('lead_score', filters.scoreMin).lte('lead_score', filters.scoreMax);
+        if (filters.createdFrom) query = query.gte('created_at', filters.createdFrom);
+        if (filters.createdTo) query = query.lte('created_at', filters.createdTo);
+        if (filters.lastActivityFrom) query = query.gte('updated_at', filters.lastActivityFrom);
+        if (filters.lastActivityTo) query = query.lte('updated_at', filters.lastActivityTo);
 
-      if (ndaLeadIds !== null && filters.ndaStatus !== 'no_nda') {
-        query = ndaLeadIds.length > 0
-          ? query.in('id', ndaLeadIds)
-          : query.in('id', ['00000000-0000-0000-0000-000000000000']);
-      }
-      if (linkedinLeadIds !== null && filters.linkedinOutreach === 'has_linkedin') {
-        query = linkedinLeadIds.length > 0
-          ? query.in('id', linkedinLeadIds)
-          : query.in('id', ['00000000-0000-0000-0000-000000000000']);
+        if (ndaLeadIds !== null && filters.ndaStatus !== 'no_nda') {
+          query = ndaLeadIds.length > 0
+            ? query.in('id', ndaLeadIds)
+            : query.in('id', ['00000000-0000-0000-0000-000000000000']);
+        }
+        if (linkedinLeadIds !== null && filters.linkedinOutreach === 'has_linkedin') {
+          query = linkedinLeadIds.length > 0
+            ? query.in('id', linkedinLeadIds)
+            : query.in('id', ['00000000-0000-0000-0000-000000000000']);
+        }
       }
 
       const { data: rawData, error } = await query;
@@ -417,11 +427,11 @@ export default function Leads() {
       }
 
       let data = (rawData ?? []) as any[];
-      if (filters.ndaStatus === 'no_nda' && ndaLeadIds !== null) {
+      if (withFilters && filters.ndaStatus === 'no_nda' && ndaLeadIds !== null) {
         const excludeSet = new Set(ndaLeadIds);
         data = data.filter((l) => !excludeSet.has(l.id));
       }
-      if (filters.linkedinOutreach === 'no_linkedin' && linkedinLeadIds !== null) {
+      if (withFilters && filters.linkedinOutreach === 'no_linkedin' && linkedinLeadIds !== null) {
         const excludeSet = new Set(linkedinLeadIds);
         data = data.filter((l) => !excludeSet.has(l.id));
       }
@@ -448,7 +458,7 @@ export default function Leads() {
         countries: (l.country_ids ?? []).map((id: string) => countryMap[id]).filter(Boolean),
       })) as Lead[];
 
-      downloadCsv(enriched, `leads-export-${new Date().toISOString().slice(0, 10)}.csv`);
+      downloadCsv(enriched, `leads-${withFilters ? 'filtered-' : ''}export-${new Date().toISOString().slice(0, 10)}.csv`);
       toast({ title: 'Exported', description: `${enriched.length} lead(s) exported.` });
     } finally {
       setExportingAll(false);
@@ -486,10 +496,40 @@ export default function Leads() {
                 <Upload className="h-4 w-4" />
                 Import
               </Button>
-              <Button variant="outline" className="gap-2" onClick={() => exportAllLeads()} disabled={totalCount === 0 || exportingAll}>
-                {exportingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                {exportingAll ? 'Exporting...' : 'Export All'}
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-2" disabled={exportingAll}>
+                    {exportingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    {exportingAll ? 'Exporting...' : 'Export'}
+                    <ChevronDown className="h-3 w-3 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Export Options</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => exportCsv(false)} disabled={leads.length === 0}>
+                    <FileText className="h-4 w-4 mr-2 shrink-0" />
+                    <div>
+                      <div className="font-medium">Current page</div>
+                      <div className="text-xs text-muted-foreground">{leads.length} lead(s) visible</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportAllLeads(true)} disabled={totalCount === 0 || exportingAll}>
+                    <Filter className="h-4 w-4 mr-2 shrink-0" />
+                    <div>
+                      <div className="font-medium">All filtered results</div>
+                      <div className="text-xs text-muted-foreground">{totalCount} lead(s) matching filters</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportAllLeads(false)} disabled={exportingAll}>
+                    <Download className="h-4 w-4 mr-2 shrink-0" />
+                    <div>
+                      <div className="font-medium">All leads</div>
+                      <div className="text-xs text-muted-foreground">Ignore active filters</div>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button className="gap-2 gradient-primary" onClick={() => setFormOpen(true)}>
                 <Plus className="h-4 w-4" />
                 Add Lead
