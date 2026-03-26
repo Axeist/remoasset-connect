@@ -8,7 +8,7 @@ import { LeadImportDialog } from '@/components/leads/LeadImportDialog';
 import { BulkActionsDialog } from '@/components/leads/BulkActionsDialog';
 import { LeadSidePanel } from '@/components/leads/LeadSidePanel';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Upload, UserPlus, Tag, Trash2, List } from 'lucide-react';
+import { Plus, Download, Upload, UserPlus, Tag, Trash2, List, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { safeFormat } from '@/lib/date';
@@ -55,6 +55,7 @@ export default function Leads() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [exportingAll, setExportingAll] = useState(false);
   const [sidePanelLead, setSidePanelLead] = useState<Lead | null>(null);
   const defaultOwner = searchParams.get('owner') ?? (!isAdmin && user ? user.id : '');
   const [filters, setFilters] = useState<LeadsFiltersState>({
@@ -291,30 +292,167 @@ export default function Leads() {
     fetchLeads();
   };
 
-  const exportCsv = (selectedOnly?: boolean) => {
-    const toExport = selectedOnly && selectedIds.size > 0
-      ? leads.filter((l) => selectedIds.has(l.id))
-      : leads;
-    const headers = ['Company', 'Contact', 'Email', 'Phone', 'Status', 'Score', 'Country', 'Created'];
-    const rows = toExport.map((l) => [
+  const buildCsvRows = (leadsData: Lead[]) => {
+    const headers = [
+      'Company', 'Website', 'Contact Name', 'Contact Designation',
+      'Email', 'Phone', 'Status', 'Score', 'HQ Country', 'Served Countries',
+      'Vendor Types', 'Warehouse Available', 'Owner', 'Notes', 'Created', 'Last Updated',
+    ];
+    const rows = leadsData.map((l) => [
       l.company_name,
+      (l as any).website ?? '',
       l.contact_name ?? '',
+      (l as any).contact_designation ?? '',
       l.email ?? '',
       l.phone ?? '',
       l.status?.name ?? '',
       l.lead_score ?? '',
+      l.hq_country?.name ?? '',
       (l.countries ?? []).map((c) => c.name).join('; ') || '',
+      ((l as any).vendor_types ?? []).join('; ') || '',
+      (l as any).warehouse_available != null ? ((l as any).warehouse_available ? 'Yes' : 'No') : '',
+      l.owner?.full_name ?? '',
+      (l as any).notes ?? '',
       safeFormat(l.created_at, 'PP', '-'),
+      safeFormat(l.updated_at, 'PP', '-'),
     ]);
+    return { headers, rows };
+  };
+
+  const downloadCsv = (leadsData: Lead[], filename: string) => {
+    const { headers, rows } = buildCsvRows(leadsData);
     const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const exportCsv = (selectedOnly?: boolean) => {
+    const toExport = selectedOnly && selectedIds.size > 0
+      ? leads.filter((l) => selectedIds.has(l.id))
+      : leads;
+    downloadCsv(toExport, `leads-${new Date().toISOString().slice(0, 10)}.csv`);
     toast({ title: 'Exported', description: `${toExport.length} lead(s) exported.` });
+  };
+
+  const exportAllLeads = async () => {
+    setExportingAll(true);
+    try {
+      // Pre-fetch NDA lead IDs
+      let ndaLeadIds: string[] | null = null;
+      if (filters.ndaStatus) {
+        if (filters.ndaStatus === 'no_nda') {
+          const { data: ndaRows } = await supabase.from('lead_activities').select('lead_id').eq('activity_type', 'nda');
+          ndaLeadIds = [...new Set((ndaRows ?? []).map((r) => r.lead_id))];
+        } else {
+          let ndaQuery = supabase.from('lead_activities').select('lead_id, description').eq('activity_type', 'nda');
+          if (filters.ndaStatus === 'nda_sent') ndaQuery = ndaQuery.ilike('description', 'NDA Sent%');
+          else if (filters.ndaStatus === 'nda_received') ndaQuery = ndaQuery.ilike('description', 'NDA Received%');
+          const { data: ndaRows } = await ndaQuery;
+          ndaLeadIds = [...new Set((ndaRows ?? []).map((r) => r.lead_id))];
+        }
+      }
+
+      // Pre-fetch LinkedIn lead IDs
+      let linkedinLeadIds: string[] | null = null;
+      if (filters.linkedinOutreach) {
+        const { data: liRows } = await supabase.from('lead_activities').select('lead_id').eq('activity_type', 'linkedin');
+        linkedinLeadIds = [...new Set((liRows ?? []).map((r) => r.lead_id))];
+      }
+
+      let query = supabase
+        .from('leads')
+        .select(
+          `id, company_name, website, contact_name, contact_designation,
+          email, phone, lead_score, vendor_types, warehouse_available,
+          notes, hq_country_id, country_ids, created_at, updated_at, owner_id,
+          status:lead_statuses(name, color)`
+        )
+        .order(sortBy, { ascending: sortOrder === 'asc' });
+
+      if (filters.search) {
+        query = query.or(`company_name.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
+      }
+      if (filters.status) query = query.eq('status_id', filters.status);
+      if (filters.region) {
+        const { data: regionCountries } = await supabase.from('countries').select('id').eq('region', filters.region);
+        const regionCountryIds = (regionCountries ?? []).map((r) => r.id);
+        if (regionCountryIds.length > 0) {
+          query = (query as any).overlaps('country_ids', regionCountryIds);
+        } else {
+          query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+        }
+      }
+      if (filters.country) query = (query as any).contains('country_ids', [filters.country]);
+      if (filters.owner === 'unassigned') query = query.is('owner_id', null);
+      else if (filters.owner) query = query.eq('owner_id', filters.owner);
+      if (filters.vendorType) query = query.contains('vendor_types', [filters.vendorType]);
+      if (filters.warehouseAvailable === 'true') query = query.eq('warehouse_available', true);
+      else if (filters.warehouseAvailable === 'false') query = query.eq('warehouse_available', false);
+      query = query.gte('lead_score', filters.scoreMin).lte('lead_score', filters.scoreMax);
+      if (filters.createdFrom) query = query.gte('created_at', filters.createdFrom);
+      if (filters.createdTo) query = query.lte('created_at', filters.createdTo);
+      if (filters.lastActivityFrom) query = query.gte('updated_at', filters.lastActivityFrom);
+      if (filters.lastActivityTo) query = query.lte('updated_at', filters.lastActivityTo);
+
+      if (ndaLeadIds !== null && filters.ndaStatus !== 'no_nda') {
+        query = ndaLeadIds.length > 0
+          ? query.in('id', ndaLeadIds)
+          : query.in('id', ['00000000-0000-0000-0000-000000000000']);
+      }
+      if (linkedinLeadIds !== null && filters.linkedinOutreach === 'has_linkedin') {
+        query = linkedinLeadIds.length > 0
+          ? query.in('id', linkedinLeadIds)
+          : query.in('id', ['00000000-0000-0000-0000-000000000000']);
+      }
+
+      const { data: rawData, error } = await query;
+      if (error) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to export leads' });
+        return;
+      }
+
+      let data = (rawData ?? []) as any[];
+      if (filters.ndaStatus === 'no_nda' && ndaLeadIds !== null) {
+        const excludeSet = new Set(ndaLeadIds);
+        data = data.filter((l) => !excludeSet.has(l.id));
+      }
+      if (filters.linkedinOutreach === 'no_linkedin' && linkedinLeadIds !== null) {
+        const excludeSet = new Set(linkedinLeadIds);
+        data = data.filter((l) => !excludeSet.has(l.id));
+      }
+
+      const ownerIds = [...new Set(data.map((l) => l.owner_id).filter(Boolean))] as string[];
+      let ownerMap: Record<string, { full_name: string | null }> = {};
+      if (ownerIds.length > 0) {
+        const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', ownerIds);
+        ownerMap = (profiles ?? []).reduce((acc, p) => { acc[p.user_id] = { full_name: p.full_name }; return acc; }, {} as Record<string, { full_name: string | null }>);
+      }
+
+      const hqIds = data.map((l) => l.hq_country_id).filter(Boolean) as string[];
+      const allCountryIds = [...new Set([...hqIds, ...data.flatMap((l) => l.country_ids ?? [])])] as string[];
+      let countryMap: Record<string, { name: string; code: string }> = {};
+      if (allCountryIds.length > 0) {
+        const { data: countryRows } = await supabase.from('countries').select('id, name, code').in('id', allCountryIds);
+        countryMap = (countryRows ?? []).reduce((acc, c) => { acc[c.id] = { name: c.name, code: c.code }; return acc; }, {} as Record<string, { name: string; code: string }>);
+      }
+
+      const enriched = data.map((l) => ({
+        ...l,
+        owner: l.owner_id ? ownerMap[l.owner_id] ?? null : null,
+        hq_country: l.hq_country_id ? countryMap[l.hq_country_id] ?? null : null,
+        countries: (l.country_ids ?? []).map((id: string) => countryMap[id]).filter(Boolean),
+      })) as Lead[];
+
+      downloadCsv(enriched, `leads-export-${new Date().toISOString().slice(0, 10)}.csv`);
+      toast({ title: 'Exported', description: `${enriched.length} lead(s) exported.` });
+    } finally {
+      setExportingAll(false);
+    }
   };
 
   const handleBulkDelete = async () => {
@@ -348,9 +486,9 @@ export default function Leads() {
                 <Upload className="h-4 w-4" />
                 Import
               </Button>
-              <Button variant="outline" className="gap-2" onClick={() => exportCsv(false)} disabled={totalCount === 0}>
-                <Download className="h-4 w-4" />
-                Export
+              <Button variant="outline" className="gap-2" onClick={() => exportAllLeads()} disabled={totalCount === 0 || exportingAll}>
+                {exportingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {exportingAll ? 'Exporting...' : 'Export All'}
               </Button>
               <Button className="gap-2 gradient-primary" onClick={() => setFormOpen(true)}>
                 <Plus className="h-4 w-4" />
