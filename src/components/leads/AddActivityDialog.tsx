@@ -638,23 +638,29 @@ export function AddActivityDialog({
               <p className="text-sm text-muted-foreground">
                 To: <span className="font-medium text-foreground">{leadEmail || '—'}</span>
               </p>
-              {canDraftEmail && isGmailConnected && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 pb-1">
-                    <Checkbox
-                      id="send-via-gmail"
-                      checked={sendEmailViaGmail}
-                      onCheckedChange={(checked) => setSendEmailViaGmail(checked === true)}
-                    />
-                    <label htmlFor="send-via-gmail" className="text-sm font-medium cursor-pointer">
-                      Send via Gmail
-                    </label>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {sendEmailViaGmail
-                      ? 'Click "Add activity" below to send this email via Gmail and log it to the lead.'
-                      : 'Unchecked: the email will only be logged as an activity (not sent).'}
-                  </p>
+
+              {canDraftEmail ? (
+                <>
+                  {isGmailConnected && (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="send-via-gmail"
+                          checked={sendEmailViaGmail}
+                          onCheckedChange={(checked) => setSendEmailViaGmail(checked === true)}
+                        />
+                        <label htmlFor="send-via-gmail" className="text-sm font-medium cursor-pointer">
+                          Send via Gmail
+                        </label>
+                      </div>
+                      <p className="text-xs text-muted-foreground pl-6">
+                        {sendEmailViaGmail
+                          ? 'Click "Add activity" below to send this email via Gmail and log it to the lead.'
+                          : 'Unchecked: the email will only be logged as an activity (not sent).'}
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-1">
                     <Label className="text-xs">Subject</Label>
                     <Input
@@ -665,22 +671,23 @@ export function AddActivityDialog({
                       className="h-9 text-sm"
                     />
                   </div>
+
                   <CcBccFieldsCompact cc={emailCc} onCcChange={setEmailCc} bcc={emailBcc} onBccChange={setEmailBcc} />
-                </div>
-              )}
-              {canDraftEmail && !isGmailConnected && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => window.open(gmailComposeUrl!, '_blank')}
-                >
-                  <Mail className="h-4 w-4" />
-                  Compose email
-                </Button>
-              )}
-              {!canDraftEmail && (
+
+                  {!isGmailConnected && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => window.open(gmailComposeUrl!, '_blank')}
+                    >
+                      <Mail className="h-4 w-4" />
+                      Compose email
+                    </Button>
+                  )}
+                </>
+              ) : (
                 <p className="text-sm text-muted-foreground">
                   Add the lead&apos;s email in the lead details to send from here or open Gmail.
                 </p>
@@ -1014,18 +1021,18 @@ export function AddActivityDialog({
               ? 'Additional notes (optional)'
               : type === 'meeting'
                   ? 'Notes (optional)'
-                  : type === 'email' && isGmailConnected && leadEmail?.trim()
+                  : type === 'email'
                     ? 'Message *'
                     : 'Description *'}
             </Label>
-            {type === 'email' && isGmailConnected && leadEmail?.trim() ? (
+            {type === 'email' ? (
               <RichTextEditor
                 value={description}
                 onChange={setDescription}
                 placeholder="Write your email message..."
                 minHeight="180px"
-                signatures={signatures}
-                onManageSignatures={() => setSignaturesDialogOpen(true)}
+                signatures={isGmailConnected ? signatures : []}
+                onManageSignatures={isGmailConnected ? () => setSignaturesDialogOpen(true) : undefined}
               />
             ) : (
               <Textarea
