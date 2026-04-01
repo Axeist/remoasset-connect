@@ -24,13 +24,8 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Validate caller using a user-scoped client (correct edge function pattern)
-    const supabaseUser = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } }
-    )
-    const { data: { user }, error: userError } = await supabaseUser.auth.getUser()
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
 
     if (userError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
