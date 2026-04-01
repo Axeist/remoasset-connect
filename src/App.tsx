@@ -31,6 +31,7 @@ import ApiTester from "./pages/ApiTester";
 import Developer from "./pages/Developer";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 
 const queryClient = new QueryClient();
 
@@ -86,6 +87,7 @@ const App = () => {
               <Route path="/follow-ups" element={<ProtectedRoute><FollowUps /></ProtectedRoute>} />
               <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
               <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>

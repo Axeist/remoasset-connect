@@ -577,6 +577,13 @@ export default function Auth() {
                 </TabsContent>
               </Tabs>
 
+              {/* Legal links */}
+              <div className="mt-2 pt-4 border-t border-border/40 flex items-center justify-center gap-4 text-[11px] text-muted-foreground">
+                <a href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</a>
+                <span className="h-3 w-px bg-border/60" />
+                <a href="/terms" className="hover:text-primary transition-colors">Terms of Service</a>
+              </div>
+
             </div>
           </div>
         </div>
