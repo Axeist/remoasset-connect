@@ -540,9 +540,77 @@ export function AddActivityDialog({
       }
     }
 
-    // Auto-move lead to "Closed Won" when NDA Received with document
-    const WON_PATTERNS = ['won', 'closed won', 'closed-won'];
-    const isAlreadyWon = WON_PATTERNS.includes(leadStatusName?.toLowerCase() ?? '');
+    // ── Auto stage progression ────────────────────────────────────────────────
+    const currentStatusLower = leadStatusName?.toLowerCase() ?? '';
+    const isAlreadyWon = ['won', 'closed won', 'closed-won'].some((p) => currentStatusLower.includes(p));
+    const isAlreadyProposalOrAbove = ['proposal', 'negotiation', 'won', 'closed won', 'closed-won'].some((p) => currentStatusLower.includes(p));
+    const isAlreadyQualifiedOrAbove = ['qualified', 'proposal', 'negotiation', 'won', 'closed won', 'closed-won'].some((p) => currentStatusLower.includes(p));
+    const isAlreadyContactedOrAbove = ['contacted', 'qualified', 'proposal', 'negotiation', 'won', 'closed won', 'closed-won'].some((p) => currentStatusLower.includes(p));
+
+    let autoMovedTo: string | null = null;
+
+    // Email / Call / LinkedIn / WhatsApp logged → move to "Contacted"
+    const isContactActivity = ['email', 'call', 'linkedin', 'whatsapp'].includes(type);
+    if (isContactActivity && !isAlreadyContactedOrAbove) {
+      const { data: contactedStatuses } = await supabase
+        .from('lead_statuses')
+        .select('id, name')
+        .ilike('name', '%contacted%')
+        .limit(1);
+      const contactedStatus = contactedStatuses?.[0];
+      if (contactedStatus) {
+        await supabase.from('leads').update({ status_id: contactedStatus.id }).eq('id', leadId);
+        await supabase.from('lead_activities').insert({
+          lead_id: leadId,
+          user_id: user.id,
+          activity_type: 'note',
+          description: `Lead automatically moved to "${contactedStatus.name}" — ${type} activity logged`,
+        });
+        autoMovedTo = contactedStatus.name;
+      }
+    }
+
+    // Meeting scheduled → move to "Qualified"
+    if (isMeeting && !isAlreadyQualifiedOrAbove) {
+      const { data: qualifiedStatuses } = await supabase
+        .from('lead_statuses')
+        .select('id, name')
+        .ilike('name', '%qualified%')
+        .limit(1);
+      const qualifiedStatus = qualifiedStatuses?.[0];
+      if (qualifiedStatus) {
+        await supabase.from('leads').update({ status_id: qualifiedStatus.id }).eq('id', leadId);
+        await supabase.from('lead_activities').insert({
+          lead_id: leadId,
+          user_id: user.id,
+          activity_type: 'note',
+          description: `Lead automatically moved to "${qualifiedStatus.name}" — meeting scheduled`,
+        });
+        autoMovedTo = qualifiedStatus.name;
+      }
+    }
+
+    // NDA Sent → move to "Proposal"
+    if (isNda && ndaSubActivity === 'nda_sent' && !isAlreadyProposalOrAbove) {
+      const { data: proposalStatuses } = await supabase
+        .from('lead_statuses')
+        .select('id, name')
+        .ilike('name', '%proposal%')
+        .limit(1);
+      const proposalStatus = proposalStatuses?.[0];
+      if (proposalStatus) {
+        await supabase.from('leads').update({ status_id: proposalStatus.id }).eq('id', leadId);
+        await supabase.from('lead_activities').insert({
+          lead_id: leadId,
+          user_id: user.id,
+          activity_type: 'note',
+          description: `Lead automatically moved to "${proposalStatus.name}" — NDA sent`,
+        });
+        autoMovedTo = proposalStatus.name;
+      }
+    }
+
+    // NDA Received (with signed document) → move to "Closed Won"
     if (isNda && ndaSubActivity === 'nda_received' && ndaFile && !isAlreadyWon) {
       const { data: wonStatuses } = await supabase
         .from('lead_statuses')
@@ -559,6 +627,7 @@ export function AddActivityDialog({
           activity_type: 'note',
           description: `Lead automatically moved to "${wonStatus.name}" — signed NDA received`,
         });
+        autoMovedTo = wonStatus.name;
       }
     }
 
@@ -588,14 +657,18 @@ export function AddActivityDialog({
     toast({
       title: ndaAutoWon
         ? 'NDA Received — Lead marked as Closed Won!'
-        : isEmailViaGmail
-          ? 'Email sent & activity logged'
-          : 'Activity added',
+        : autoMovedTo
+          ? 'Activity added — lead stage updated'
+          : isEmailViaGmail
+            ? 'Email sent & activity logged'
+            : 'Activity added',
       description: ndaAutoWon
         ? 'Lead status changed to Closed Won automatically.'
-        : isEmailViaGmail
-          ? `Sent to ${leadEmail}`
-          : (points > 0 ? `Lead score +${points}` : undefined),
+        : autoMovedTo
+          ? `Lead moved to "${autoMovedTo}" automatically.`
+          : isEmailViaGmail
+            ? `Sent to ${leadEmail}`
+            : (points > 0 ? `Lead score +${points}` : undefined),
     });
     onSuccess();
   };
