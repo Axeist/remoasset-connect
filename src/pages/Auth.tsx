@@ -506,7 +506,7 @@ export default function Auth() {
                         <Input
                           id="signup-email"
                           type="email"
-                          placeholder={`you@${ALLOWED_SIGNUP_DOMAIN}`}
+                          placeholder={`you@${allowedEmailDomains[0] ?? 'yourcompany.com'}`}
                           value={signupForm.email}
                           onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
                           className="pl-10 h-11 rounded-xl border-border/70 bg-background/80 hover:bg-background focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:border-primary/30 transition-all duration-200"
