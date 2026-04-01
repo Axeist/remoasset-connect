@@ -465,7 +465,6 @@ export default function Settings() {
                     </span>
                   )}
                 </div>
-              </div>
 
                 {/* Admin: Allowed sign-in domains */}
                 {role === 'admin' && (
