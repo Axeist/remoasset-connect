@@ -147,20 +147,26 @@ export default function Settings() {
   const removeDomain = (d: string) => setAllowedDomains((prev) => prev.filter((x) => x !== d));
 
   const saveDomains = async () => {
-    if (allowedDomains.length === 0 || !settingsRowId) return;
+    if (allowedDomains.length === 0) return;
     setDomainSaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-      await fetch(`${baseUrl}/rest/v1/app_settings?id=eq.${settingsRowId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'apikey': anonKey, 'Authorization': `Bearer ${session?.access_token ?? anonKey}`, 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ allowed_email_domain: allowedDomains.join(',') }),
-      });
+      const value = allowedDomains.join(',');
+      let error;
+      if (settingsRowId) {
+        ({ error } = await supabase
+          .from('app_settings')
+          .update({ allowed_email_domain: value })
+          .eq('id', settingsRowId));
+      } else {
+        // No row loaded yet — upsert the single settings row
+        ({ error } = await supabase
+          .from('app_settings')
+          .upsert({ allowed_email_domain: value }));
+      }
+      if (error) throw error;
       toast({ title: 'Allowed domains updated', description: `Sign-in restricted to: ${allowedDomains.map((d) => `@${d}`).join(', ')}` });
-    } catch {
-      toast({ variant: 'destructive', title: 'Failed to save domains' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Failed to save domains', description: (err as Error)?.message });
     } finally {
       setDomainSaving(false);
     }

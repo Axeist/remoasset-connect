@@ -114,19 +114,24 @@ function AllowedDomainSection({ slackSettingsId }: { slackSettingsId: string | n
     setDomainSaving(true);
     try {
       const value = domains.join(',');
-      const { data: { session } } = await supabase.auth.getSession();
-      const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+      let error;
       if (slackSettingsId) {
-        await fetch(`${baseUrl}/rest/v1/app_settings?id=eq.${slackSettingsId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'apikey': anonKey, 'Authorization': `Bearer ${session?.access_token ?? anonKey}`, 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ allowed_email_domain: value }),
-        });
+        ({ error } = await supabase
+          .from('app_settings')
+          .update({ allowed_email_domain: value })
+          .eq('id', slackSettingsId));
+      } else {
+        ({ error } = await supabase
+          .from('app_settings')
+          .upsert({ allowed_email_domain: value }));
       }
+      if (error) throw error;
       toast({ title: 'Allowed domains updated', description: `Sign-in restricted to: ${domains.map((d) => `@${d}`).join(', ')}` });
-    } catch { toast({ variant: 'destructive', title: 'Failed to save domains' }); }
-    finally { setDomainSaving(false); }
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Failed to save domains', description: (err as Error)?.message });
+    } finally {
+      setDomainSaving(false);
+    }
   };
 
   return (
