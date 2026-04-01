@@ -14,7 +14,7 @@ import {
   Activity, MapPin, TrendingUp, ChevronRight, AlertTriangle, ListTodo,
   CalendarCheck, Layers, Database, RefreshCw, UserCheck, Key, Copy, Trash2,
   Loader2, Bell, FileText, UserPlus, MailCheck, Terminal, CheckCircle2, XCircle, Clock,
-  Shield,
+  Shield, X,
 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
@@ -82,7 +82,8 @@ const NAV_ITEMS: { id: Tab; icon: React.ElementType; label: string; desc: string
 
 function AllowedDomainSection({ slackSettingsId }: { slackSettingsId: string | null }) {
   const { toast } = useToast();
-  const [domainValue, setDomainValue] = useState('');
+  const [domains, setDomains] = useState<string[]>([]);
+  const [inputValue, setInputValue] = useState('');
   const [domainSaving, setDomainSaving] = useState(false);
   const [domainLoaded, setDomainLoaded] = useState(false);
 
@@ -90,17 +91,29 @@ function AllowedDomainSection({ slackSettingsId }: { slackSettingsId: string | n
     if (!domainLoaded) {
       supabase.from('app_settings').select('allowed_email_domain, id').limit(1).single()
         .then(({ data }) => {
-          if (data?.allowed_email_domain) setDomainValue(data.allowed_email_domain);
+          if (data?.allowed_email_domain) {
+            setDomains(data.allowed_email_domain.split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean));
+          }
           setDomainLoaded(true);
         });
     }
   }, [domainLoaded]);
 
-  const saveDomain = async () => {
-    const trimmed = domainValue.trim().replace(/^@/, '');
-    if (!trimmed) return;
+  const addDomain = () => {
+    const trimmed = inputValue.trim().replace(/^@/, '').toLowerCase();
+    if (!trimmed || !trimmed.includes('.')) return;
+    if (domains.includes(trimmed)) { setInputValue(''); return; }
+    setDomains((prev) => [...prev, trimmed]);
+    setInputValue('');
+  };
+
+  const removeDomain = (d: string) => setDomains((prev) => prev.filter((x) => x !== d));
+
+  const saveDomains = async () => {
+    if (domains.length === 0) return;
     setDomainSaving(true);
     try {
+      const value = domains.join(',');
       const { data: { session } } = await supabase.auth.getSession();
       const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') ?? '';
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -108,11 +121,11 @@ function AllowedDomainSection({ slackSettingsId }: { slackSettingsId: string | n
         await fetch(`${baseUrl}/rest/v1/app_settings?id=eq.${slackSettingsId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'apikey': anonKey, 'Authorization': `Bearer ${session?.access_token ?? anonKey}`, 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ allowed_email_domain: trimmed }),
+          body: JSON.stringify({ allowed_email_domain: value }),
         });
       }
-      toast({ title: 'Domain restriction updated', description: `Only @${trimmed} accounts can sign in via Google.` });
-    } catch { toast({ variant: 'destructive', title: 'Failed to save domain' }); }
+      toast({ title: 'Allowed domains updated', description: `Sign-in restricted to: ${domains.map((d) => `@${d}`).join(', ')}` });
+    } catch { toast({ variant: 'destructive', title: 'Failed to save domains' }); }
     finally { setDomainSaving(false); }
   };
 
@@ -120,22 +133,48 @@ function AllowedDomainSection({ slackSettingsId }: { slackSettingsId: string | n
     <div className="rounded-xl border border-border/60 p-4 space-y-3">
       <div className="flex items-center gap-2">
         <Shield className="h-4 w-4 text-primary" />
-        <span className="text-sm font-semibold">Allowed sign-in domain</span>
+        <span className="text-sm font-semibold">Allowed sign-in domains</span>
       </div>
-      <p className="text-xs text-muted-foreground">Only users with emails from this domain can sign in via Google OAuth. Password sign-in is not affected.</p>
+      <p className="text-xs text-muted-foreground">Only users with emails from these domains can sign in via Google OAuth. Add multiple domains to allow access from different Google Workspaces.</p>
+
+      {/* Current domain badges */}
+      {domains.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {domains.map((d) => (
+            <span key={d} className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs font-medium text-primary">
+              @{d}
+              <button
+                type="button"
+                onClick={() => removeDomain(d)}
+                className="ml-0.5 rounded-full hover:bg-primary/20 p-0.5"
+                title={`Remove @${d}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Add domain input */}
       <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">@</span>
+        <span className="text-sm text-muted-foreground shrink-0">@</span>
         <Input
-          value={domainValue}
-          onChange={(e) => setDomainValue(e.target.value)}
-          placeholder="remoasset.com"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDomain(); } }}
+          placeholder="remoasset.us"
           className="max-w-xs h-9 text-sm"
         />
-        <Button size="sm" onClick={saveDomain} disabled={domainSaving || !domainValue.trim()} className="gap-2">
+        <Button size="sm" variant="outline" onClick={addDomain} disabled={!inputValue.trim()} className="gap-1.5 shrink-0">
+          <Plus className="h-3.5 w-3.5" />Add
+        </Button>
+        <Button size="sm" onClick={saveDomains} disabled={domainSaving || domains.length === 0} className="gap-2 shrink-0">
           {domainSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
           Save
         </Button>
       </div>
+      <p className="text-xs text-muted-foreground">Press Enter or click Add after each domain. Password sign-in is not affected.</p>
     </div>
   );
 }

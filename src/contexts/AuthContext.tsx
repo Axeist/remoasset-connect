@@ -11,6 +11,7 @@ interface AuthContextType {
   loading: boolean;
   googleAccessToken: string | null;
   allowedEmailDomain: string;
+  allowedEmailDomains: string[];
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; user?: User | null }>;
   signOut: () => Promise<void>;
@@ -38,9 +39,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [allowedEmailDomain, setAllowedEmailDomain] = useState('remoasset.com');
+  // Ref keeps the auth subscription from capturing a stale value
+  const allowedEmailDomainRef = useRef('remoasset.com');
   const intentionalSignOut = useRef(false);
 
-  // Load the allowed domain from app_settings (falls back to hardcoded default)
+  // Helper: parse comma-separated domain string into a trimmed lowercase array
+  const parseDomains = (raw: string) =>
+    raw.split(',').map((d) => d.trim().toLowerCase()).filter(Boolean);
+
+  // Load the allowed domain(s) from app_settings (falls back to hardcoded default)
   useEffect(() => {
     supabase
       .from('app_settings')
@@ -50,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(({ data }) => {
         if (data?.allowed_email_domain) {
           setAllowedEmailDomain(data.allowed_email_domain);
+          allowedEmailDomainRef.current = data.allowed_email_domain;
         }
       });
   }, []);
@@ -61,9 +69,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           const email = session.user.email ?? '';
           const isOAuth = session.user.app_metadata?.provider !== 'email';
-          if (isOAuth && !email.toLowerCase().endsWith(`@${allowedEmailDomain}`)) {
+          const allowedDomains = parseDomains(allowedEmailDomainRef.current);
+          const domainAllowed = allowedDomains.some((d) => email.toLowerCase().endsWith(`@${d}`));
+          if (isOAuth && !domainAllowed) {
             await supabase.auth.signOut();
-            window.dispatchEvent(new CustomEvent('auth:domain-blocked', { detail: { email } }));
+            window.dispatchEvent(new CustomEvent('auth:domain-blocked', { detail: { email, allowedDomains } }));
             setLoading(false);
             return;
           }
@@ -154,8 +164,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    if (!email.toLowerCase().endsWith(`@${allowedEmailDomain}`)) {
-      return { error: new Error(`Sign up is only allowed with a @${allowedEmailDomain} email address.`) };
+    const allowedDomains = parseDomains(allowedEmailDomain);
+    const domainAllowed = allowedDomains.some((d) => email.toLowerCase().endsWith(`@${d}`));
+    if (!domainAllowed) {
+      const domainList = allowedDomains.map((d) => `@${d}`).join(' or ');
+      return { error: new Error(`Sign up is only allowed with a ${domainList} email address.`) };
     }
     const redirectUrl = `${window.location.origin}/auth?verified=true`;
 
@@ -211,7 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, loading, googleAccessToken, allowedEmailDomain, signUp, signIn, signOut, connectGoogleCalendar, disconnectGoogleCalendar }}>
+    <AuthContext.Provider value={{ user, session, role, loading, googleAccessToken, allowedEmailDomain, allowedEmailDomains: parseDomains(allowedEmailDomain), signUp, signIn, signOut, connectGoogleCalendar, disconnectGoogleCalendar }}>
       {children}
     </AuthContext.Provider>
   );

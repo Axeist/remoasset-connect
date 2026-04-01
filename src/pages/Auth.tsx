@@ -13,8 +13,6 @@ import { Loader2, Mail, Lock, User, Eye, EyeOff, BarChart3, Users, Shield, Zap, 
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 
-const ALLOWED_SIGNUP_DOMAIN = 'remoasset.com';
-
 const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[\]{};':"\\|,.<>/?]).{8,}$/;
 export const PASSWORD_REQUIREMENTS = [
   'At least 8 characters',
@@ -32,10 +30,7 @@ const loginSchema = z.object({
 const signupSchema = z.object({
   email: z
     .string()
-    .email('Please enter a valid email')
-    .refine((e) => e.toLowerCase().endsWith(`@${ALLOWED_SIGNUP_DOMAIN}`), {
-      message: `Sign up is only allowed with a @${ALLOWED_SIGNUP_DOMAIN} email address.`,
-    }),
+    .email('Please enter a valid email'),
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
   password: z
     .string()
@@ -74,7 +69,7 @@ export default function Auth() {
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const justLoggedInRef = useRef(false);
 
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp, user, allowedEmailDomains } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -84,13 +79,15 @@ export default function Auth() {
     if (searchParams.get('verified') === 'true') {
       toast({ title: 'Email verified!', description: 'Your account is ready. Please sign in.' });
     }
-    // Listen for domain-blocked events from AuthContext (non-remoasset.com Google accounts)
+    // Listen for domain-blocked events from AuthContext
     const handler = (e: Event) => {
       const email = (e as CustomEvent).detail?.email ?? '';
+      const blocked = (e as CustomEvent).detail?.allowedDomains as string[] | undefined;
+      const domainList = (blocked ?? allowedEmailDomains).map((d) => `@${d}`).join(' or ');
       toast({
         variant: 'destructive',
         title: 'Access denied',
-        description: `${email || 'That account'} is not a @remoasset.com address. Only RemoAsset team members can sign in.`,
+        description: `${email || 'That account'} is not allowed. Sign in is restricted to ${domainList} accounts.`,
       });
     };
     window.addEventListener('auth:domain-blocked', handler);
