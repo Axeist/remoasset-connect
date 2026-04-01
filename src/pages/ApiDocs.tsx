@@ -16,7 +16,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 const BASE_URL = `${import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')}/functions/v1/api`;
-const LAST_UPDATED = 'March 5, 2026';
+const LAST_UPDATED = 'March 26, 2026';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -163,7 +163,377 @@ export default function ApiDocs() {
   };
 
   const downloadDocs = () => {
-    const content = `# RemoAsset Connect — API Documentation\nVersion 1.0  |  Last updated ${LAST_UPDATED}\n\nBase URL: ${BASE_URL}\n\nAuthentication: Authorization: Bearer <your_api_key>\n\nFull interactive docs: ${window.location.origin}/admin/api-docs\n`;
+    const content = `# RemoAsset Connect — API Documentation
+Version 1.0  |  Last updated ${LAST_UPDATED}
+
+Base URL: \`${BASE_URL}\`
+
+---
+
+## Authentication
+
+All requests must include your API key as a Bearer token.
+
+\`\`\`
+Authorization: Bearer ra_<your_api_key>
+\`\`\`
+
+Create and revoke keys in **Admin Panel → API for Integrations**. Keys are shown only once — store them securely.
+
+---
+
+## Pagination
+
+All list endpoints support \`limit\` (max 100, default 50) and \`offset\` query parameters.
+Responses include a \`total\` field with the full record count.
+
+| Parameter | Type   | Description |
+|-----------|--------|-------------|
+| limit     | number | Max records to return. Default 50, maximum 100. |
+| offset    | number | Number of records to skip. |
+
+---
+
+## Leads
+
+### GET /leads
+List leads. Ordered by \`updated_at\` descending.
+
+**Query parameters:**
+
+| Field     | Type   | Description |
+|-----------|--------|-------------|
+| limit     | number | Max results (default 50, max 100) |
+| offset    | number | Pagination offset |
+| status_id | uuid   | Filter by pipeline stage |
+| owner_id  | uuid   | Filter by assigned team member |
+| search / q | string | Full-text search on company name, contact name, and email |
+
+**Example response:**
+\`\`\`json
+{ "data": [ { "id": "uuid", "company_name": "Acme Corp", ... } ], "total": 42 }
+\`\`\`
+
+---
+
+### GET /leads/:id
+Returns the full lead object for the given UUID.
+
+---
+
+### POST /leads
+Creates a new lead. Returns **201** with the created lead object.
+
+**Required fields:** \`company_name\`, \`website\`, \`status_id\`, \`vendor_types\`
+
+**Request body:**
+
+| Field                | Type      | Required | Description |
+|----------------------|-----------|----------|-------------|
+| company_name         | string    | ✓        | Company or organisation name |
+| website              | string    | ✓        | Company website URL — e.g. https://acme.com |
+| status_id            | uuid      | ✓        | Pipeline stage — get IDs from GET /statuses |
+| vendor_types         | string[]  | ✓        | One or more of: new_device, refurbished, rental, warehouse |
+| contact_name         | string    |          | Primary contact person full name |
+| contact_designation  | string    |          | Primary contact job title / designation |
+| email                | string    |          | Primary contact email address |
+| phone                | string    |          | Primary contact phone number |
+| additional_contacts  | object[]  |          | Array of extra contacts — each with name, email, phone, designation |
+| owner_id             | uuid      |          | Assigned team member — get IDs from GET /team |
+| hq_country_id        | uuid      |          | Headquarters country — get IDs from GET /countries |
+| country_ids          | uuid[]    |          | Countries served (multi-select) — get IDs from GET /countries |
+| warehouse_available  | boolean   |          | Whether the lead has warehouse capacity. Defaults to false. |
+| warehouse_location   | string    |          | Warehouse location description |
+| warehouse_notes      | string    |          | Additional warehouse notes |
+| warehouse_price      | number    |          | Warehouse pricing figure |
+| warehouse_currency   | string    |          | Currency code — e.g. USD, EUR, GBP. Defaults to USD. |
+| notes                | string    |          | Internal free-form notes |
+
+**Example:**
+\`\`\`bash
+curl -X POST ${BASE_URL}/leads \\
+  -H "Authorization: Bearer <key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "company_name": "Acme Corp",
+    "website": "https://acme.com",
+    "status_id": "<uuid>",
+    "vendor_types": ["new_device", "refurbished"],
+    "owner_id": "<uuid>",
+    "hq_country_id": "<uuid>",
+    "country_ids": ["<uuid>"],
+    "contact_name": "Jane Smith",
+    "contact_designation": "Procurement Manager",
+    "email": "jane@acme.com"
+  }'
+\`\`\`
+
+---
+
+### PATCH /leads/:id
+Updates one or more fields. Send only the fields you want to change. Returns the updated lead.
+
+**Request body (all optional):**
+
+| Field                | Type      | Description |
+|----------------------|-----------|-------------|
+| company_name         | string    | Updated company name |
+| website              | string    | Updated website URL |
+| contact_name         | string    | Updated primary contact name |
+| contact_designation  | string    | Updated contact job title |
+| email                | string    | Updated contact email |
+| phone                | string    | Updated contact phone |
+| additional_contacts  | object[]  | Replace additional contacts array |
+| status_id            | uuid      | Move to a new pipeline stage |
+| owner_id             | uuid      | Reassign to a different team member |
+| hq_country_id        | uuid      | Update headquarters country |
+| country_ids          | uuid[]    | Replace countries served array |
+| vendor_types         | string[]  | Replace vendor types |
+| warehouse_available  | boolean   | Toggle warehouse availability |
+| warehouse_location   | string    | Update warehouse location |
+| warehouse_notes      | string    | Update warehouse notes |
+| warehouse_price      | number    | Update warehouse price |
+| warehouse_currency   | string    | Update warehouse currency code |
+| notes                | string    | Update internal notes |
+
+---
+
+### DELETE /leads/:id
+Permanently deletes a lead and all related records.
+
+**Response:** \`{ "success": true }\`
+
+---
+
+### PATCH /leads/bulk
+Update multiple leads at once.
+
+**Request body:**
+
+| Field      | Type   | Required | Description |
+|------------|--------|----------|-------------|
+| lead_ids   | uuid[] | ✓        | Array of lead IDs to update |
+| status_id  | uuid   |          | Set pipeline stage for all listed leads |
+| owner_id   | uuid   |          | Reassign all listed leads to this team member |
+| country_ids | uuid[] |         | Set countries served for all listed leads |
+
+**Response:** \`{ "updated": 5, "leads": [ {...} ] }\`
+
+---
+
+## Tasks
+
+### GET /tasks
+Returns tasks ordered by \`due_date\` ascending.
+
+**Query parameters:** \`assignee_id\`, \`lead_id\`, \`is_completed\` (true/false), \`limit\`, \`offset\`
+
+### GET /tasks/:id
+Returns the full task object.
+
+### POST /tasks
+
+| Field        | Type    | Required | Description |
+|--------------|---------|----------|-------------|
+| title        | string  | ✓        | Task title |
+| description  | string  |          | Detailed description |
+| lead_id      | uuid    |          | Link to a lead |
+| assignee_id  | uuid    |          | Assign to a team member |
+| due_date     | date    |          | Due date — YYYY-MM-DD format |
+| priority     | string  |          | low, medium, or high |
+| is_completed | boolean |          | Defaults to false |
+
+### PATCH /tasks/:id
+Fields: \`title\`, \`is_completed\`, \`due_date\`, \`priority\`, \`assignee_id\`
+
+### DELETE /tasks/:id
+Response: \`{ "success": true }\`
+
+---
+
+## Follow-ups
+
+### GET /follow_ups
+Ordered by \`scheduled_at\` ascending.
+
+**Query parameters:** \`lead_id\`, \`user_id\`, \`limit\`, \`offset\`
+
+### GET /follow_ups/:id
+
+### POST /follow_ups
+
+| Field        | Type     | Required | Description |
+|--------------|----------|----------|-------------|
+| lead_id      | uuid     | ✓        | The lead this follow-up belongs to |
+| user_id      | uuid     | ✓        | Responsible team member |
+| scheduled_at | datetime | ✓        | ISO 8601 UTC — e.g. 2026-04-10T09:00:00Z |
+| notes        | string   |          | What to discuss or action |
+| is_completed | boolean  |          | Defaults to false |
+
+### PATCH /follow_ups/:id
+Fields: \`scheduled_at\`, \`notes\`, \`is_completed\`
+
+### DELETE /follow_ups/:id
+
+---
+
+## Activities
+
+### GET /activities
+Ordered by \`created_at\` descending.
+
+**Query parameters:** \`lead_id\`, \`limit\`, \`offset\`
+
+### GET /activities/:id
+
+### POST /activities
+
+| Field       | Type     | Required | Description |
+|-------------|----------|----------|-------------|
+| lead_id     | uuid     | ✓        | The lead this activity is logged against |
+| user_id     | uuid     | ✓        | Team member who performed the activity |
+| type        | string   | ✓        | call, email, meeting, note, whatsapp, or other |
+| description | string   |          | What happened or was discussed |
+| occurred_at | datetime |          | ISO 8601 UTC timestamp. Defaults to now. |
+
+### PATCH /activities/:id
+Fields: \`type\`, \`description\`, \`occurred_at\`
+
+### DELETE /activities/:id
+
+---
+
+## Documents
+
+### GET /documents
+Requires \`lead_id\` query param. Ordered by \`uploaded_at\` descending.
+
+### GET /documents/:id
+
+### POST /documents
+
+| Field         | Type   | Required | Description |
+|---------------|--------|----------|-------------|
+| lead_id       | uuid   | ✓        | Lead this document belongs to |
+| document_type | string | ✓        | nda, pricing, quotation, or custom |
+| file_path     | string | ✓        | Storage path or URL of the file |
+| file_name     | string | ✓        | Display file name e.g. proposal.pdf |
+| uploaded_by   | uuid   | ✓        | User ID of the uploader |
+| file_size     | number |          | File size in bytes |
+| custom_name   | string |          | Label used when document_type is "custom" |
+
+### DELETE /documents/:id
+
+---
+
+## Notifications
+
+### GET /notifications
+Requires \`user_id\` query param. Ordered by \`created_at\` descending.
+
+### POST /notifications
+
+| Field    | Type   | Required | Description |
+|----------|--------|----------|-------------|
+| user_id  | uuid   | ✓        | Recipient team member |
+| title    | string | ✓        | Short title shown in the notification bell |
+| message  | string | ✓        | Full notification message |
+| type     | string |          | info (default), warning, success, task, lead, or email |
+| metadata | object |          | Any additional JSON data to attach |
+
+---
+
+## Reference Data
+
+### GET /statuses
+Returns all pipeline stages ordered by sort_order.
+
+\`\`\`json
+[ { "id": "uuid", "name": "Prospect", "color": "#6366f1", "sort_order": 1 }, ... ]
+\`\`\`
+
+### GET /countries
+Returns all countries ordered by name. Use \`id\` values in \`hq_country_id\` and \`country_ids\`.
+
+### GET /team
+Returns all team members. Use \`user_id\` for \`owner_id\`, \`assignee_id\`, and \`user_id\` fields.
+
+\`\`\`json
+[ { "user_id": "uuid", "role": "admin", "full_name": "Ranjith Kumar" }, ... ]
+\`\`\`
+
+### GET /profiles
+Returns team member profiles — \`user_id\`, \`full_name\`, \`designation\`, \`phone\`.
+
+---
+
+## Status Codes
+
+| Code | Status            | Meaning |
+|------|-------------------|---------|
+| 200  | OK                | Request succeeded. |
+| 201  | Created           | Record created. Response contains the new object. |
+| 400  | Bad Request       | Invalid request — missing required fields or bad values. |
+| 401  | Unauthorized      | Missing or invalid API key. |
+| 403  | Forbidden         | Valid key but insufficient permissions. |
+| 404  | Not Found         | The requested resource or ID does not exist. |
+| 405  | Method Not Allowed | HTTP method not supported on this endpoint. |
+| 500  | Server Error      | Unexpected error. Retry after a short wait. |
+
+All error responses: \`{ "error": "Description of what went wrong" }\`
+
+---
+
+## Workflow Examples
+
+### Create a lead with full details
+
+\`\`\`bash
+# 1. Get statuses
+curl -H "Authorization: Bearer <key>" ${BASE_URL}/statuses
+
+# 2. Get countries
+curl -H "Authorization: Bearer <key>" ${BASE_URL}/countries
+
+# 3. Create the lead
+curl -X POST ${BASE_URL}/leads \\
+  -H "Authorization: Bearer <key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "company_name": "Acme Corp",
+    "website": "https://acme.com",
+    "status_id": "<uuid>",
+    "vendor_types": ["new_device", "refurbished"],
+    "hq_country_id": "<uuid>",
+    "country_ids": ["<uuid>"],
+    "contact_name": "Jane Smith",
+    "email": "jane@acme.com"
+  }'
+\`\`\`
+
+### Move a lead to a new pipeline stage
+
+\`\`\`bash
+curl -X PATCH ${BASE_URL}/leads/<lead_uuid> \\
+  -H "Authorization: Bearer <key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "status_id": "<new_status_uuid>" }'
+\`\`\`
+
+### Bulk reassign leads
+
+\`\`\`bash
+curl -X PATCH ${BASE_URL}/leads/bulk \\
+  -H "Authorization: Bearer <key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "lead_ids": ["<uuid1>", "<uuid2>"], "owner_id": "<new_owner_uuid>" }'
+\`\`\`
+
+---
+
+*RemoAsset Connect API — For authorised integrations only*
+*Full interactive docs: ${typeof window !== 'undefined' ? window.location.origin : ''}/admin/api-docs*
+`;
     const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -358,26 +728,66 @@ curl "${BASE_URL}/leads?limit=25&offset=25" -H "Authorization: Bearer <key>"`} /
                 <EndpointRow method="POST" path="/leads" title="Create a lead"
                   description="Creates a new lead. Returns 201 with the created lead object."
                   bodyParams={[
-                    { name: 'company_name', type: 'string', required: true, description: 'Company name' },
-                    { name: 'contact_name', type: 'string', description: 'Primary contact person' },
-                    { name: 'email', type: 'string', description: 'Contact email' },
-                    { name: 'phone', type: 'string', description: 'Contact phone number' },
-                    { name: 'status_id', type: 'uuid', description: 'Pipeline stage — get IDs from GET /statuses' },
+                    { name: 'company_name', type: 'string', required: true, description: 'Company or organisation name' },
+                    { name: 'website', type: 'string', required: true, description: 'Company website URL — e.g. https://acme.com' },
+                    { name: 'status_id', type: 'uuid', required: true, description: 'Pipeline stage — get IDs from GET /statuses' },
+                    { name: 'vendor_types', type: 'string[]', required: true, description: 'One or more of: new_device, refurbished, rental, warehouse' },
+                    { name: 'contact_name', type: 'string', description: 'Primary contact person full name' },
+                    { name: 'contact_designation', type: 'string', description: 'Primary contact job title / designation' },
+                    { name: 'email', type: 'string', description: 'Primary contact email address' },
+                    { name: 'phone', type: 'string', description: 'Primary contact phone number' },
+                    { name: 'additional_contacts', type: 'object[]', description: 'Array of extra contacts — each with name, email, phone, designation' },
                     { name: 'owner_id', type: 'uuid', description: 'Assigned team member — get IDs from GET /team' },
-                    { name: 'country_ids', type: 'uuid[]', description: 'Countries array — get IDs from GET /countries' },
-                    { name: 'deal_value', type: 'number', description: 'Estimated deal value' },
-                    { name: 'notes', type: 'string', description: 'Free-form notes' },
+                    { name: 'hq_country_id', type: 'uuid', description: 'Headquarters country — get IDs from GET /countries' },
+                    { name: 'country_ids', type: 'uuid[]', description: 'Countries served (multi-select) — get IDs from GET /countries' },
+                    { name: 'warehouse_available', type: 'boolean', description: 'Whether the lead has warehouse capacity. Defaults to false.' },
+                    { name: 'warehouse_location', type: 'string', description: 'Warehouse location description (only used when warehouse_available is true)' },
+                    { name: 'warehouse_notes', type: 'string', description: 'Additional warehouse notes (only used when warehouse_available is true)' },
+                    { name: 'warehouse_price', type: 'number', description: 'Warehouse pricing figure (only used when warehouse_available is true)' },
+                    { name: 'warehouse_currency', type: 'string', description: 'Currency code for warehouse_price — e.g. USD, EUR, GBP. Defaults to USD.' },
+                    { name: 'notes', type: 'string', description: 'Internal free-form notes' },
                   ]}
+                  responseExample={`{
+  "id": "uuid",
+  "company_name": "Acme Corp",
+  "website": "https://acme.com",
+  "status_id": "uuid",
+  "vendor_types": ["new_device", "refurbished"],
+  "warehouse_available": false,
+  "owner_id": "uuid",
+  "hq_country_id": "uuid",
+  "country_ids": ["uuid", "uuid"],
+  "contact_name": "Jane Smith",
+  "contact_designation": "Procurement Manager",
+  "email": "jane@acme.com",
+  "phone": "+1 234 567 8900",
+  "notes": null,
+  "lead_score": 0,
+  "created_at": "2026-03-26T10:00:00Z",
+  "updated_at": "2026-03-26T10:00:00Z"
+}`}
                 />
                 <EndpointRow method="PATCH" path="/leads/:id" title="Update a lead"
                   description="Updates one or more fields. Send only the fields you want to change. Returns the updated lead."
                   bodyParams={[
-                    { name: 'company_name', type: 'string', description: 'New company name' },
-                    { name: 'contact_name', type: 'string', description: 'New contact name' },
-                    { name: 'email', type: 'string', description: 'New email' },
+                    { name: 'company_name', type: 'string', description: 'Updated company name' },
+                    { name: 'website', type: 'string', description: 'Updated website URL' },
+                    { name: 'contact_name', type: 'string', description: 'Updated primary contact name' },
+                    { name: 'contact_designation', type: 'string', description: 'Updated contact job title' },
+                    { name: 'email', type: 'string', description: 'Updated contact email' },
+                    { name: 'phone', type: 'string', description: 'Updated contact phone' },
+                    { name: 'additional_contacts', type: 'object[]', description: 'Replace additional contacts array — each with name, email, phone, designation' },
                     { name: 'status_id', type: 'uuid', description: 'Move to a new pipeline stage' },
                     { name: 'owner_id', type: 'uuid', description: 'Reassign to a different team member' },
-                    { name: 'deal_value', type: 'number', description: 'Update estimated value' },
+                    { name: 'hq_country_id', type: 'uuid', description: 'Update headquarters country' },
+                    { name: 'country_ids', type: 'uuid[]', description: 'Replace countries served array' },
+                    { name: 'vendor_types', type: 'string[]', description: 'Replace vendor types — new_device, refurbished, rental, warehouse' },
+                    { name: 'warehouse_available', type: 'boolean', description: 'Toggle warehouse availability' },
+                    { name: 'warehouse_location', type: 'string', description: 'Update warehouse location' },
+                    { name: 'warehouse_notes', type: 'string', description: 'Update warehouse notes' },
+                    { name: 'warehouse_price', type: 'number', description: 'Update warehouse price' },
+                    { name: 'warehouse_currency', type: 'string', description: 'Update warehouse currency code' },
+                    { name: 'notes', type: 'string', description: 'Update internal notes' },
                   ]}
                 />
                 <EndpointRow method="DELETE" path="/leads/:id" title="Delete a lead"
@@ -609,17 +1019,31 @@ curl -H "Authorization: Bearer <key>" ${BASE_URL}/statuses
 # Step 2 — get team member IDs
 curl -H "Authorization: Bearer <key>" ${BASE_URL}/team
 
-# Step 3 — create the lead
+# Step 3 — get country IDs
+curl -H "Authorization: Bearer <key>" ${BASE_URL}/countries
+
+# Step 4 — create the lead
 curl -X POST ${BASE_URL}/leads \\
   -H "Authorization: Bearer <key>" \\
   -H "Content-Type: application/json" \\
-  -d '{ "company_name": "Acme Corp", "status_id": "<uuid>", "owner_id": "<uuid>" }'
+  -d '{
+    "company_name": "Acme Corp",
+    "website": "https://acme.com",
+    "status_id": "<uuid>",
+    "vendor_types": ["new_device", "refurbished"],
+    "owner_id": "<uuid>",
+    "hq_country_id": "<uuid>",
+    "country_ids": ["<uuid>", "<uuid>"],
+    "contact_name": "Jane Smith",
+    "contact_designation": "Procurement Manager",
+    "email": "jane@acme.com"
+  }'
 
-# Step 4 — schedule a follow-up
+# Step 5 — schedule a follow-up
 curl -X POST ${BASE_URL}/follow_ups \\
   -H "Authorization: Bearer <key>" \\
   -H "Content-Type: application/json" \\
-  -d '{ "lead_id": "<lead_uuid>", "user_id": "<uuid>", "scheduled_at": "2026-03-10T09:00:00Z", "notes": "Demo call" }'`,
+  -d '{ "lead_id": "<lead_uuid>", "user_id": "<uuid>", "scheduled_at": "2026-04-10T09:00:00Z", "notes": "Demo call" }'`,
                   },
                   {
                     title: '2. Move a lead to a new pipeline stage',
@@ -716,11 +1140,11 @@ curl -X POST ${BASE_URL}/tasks \\
                   },
                   {
                     q: 'How do I find status_id, owner_id, or country_id values?',
-                    a: 'Call the reference endpoints: GET /statuses for pipeline stages, GET /team for team member user IDs, and GET /countries for country IDs.',
+                    a: 'Call the reference endpoints: GET /statuses for pipeline stages, GET /team for team member user IDs, and GET /countries for country IDs. Use hq_country_id for the headquarters country and country_ids (array) for all countries served.',
                   },
                   {
                     q: 'Can I create a lead without a status or owner?',
-                    a: 'Yes — only company_name is required when creating a lead. All other fields including status_id, owner_id, and country_id are optional.',
+                    a: 'Only company_name, website, status_id, and vendor_types are required when creating a lead. All other fields including owner_id, contact details, and country fields are optional.',
                   },
                   {
                     q: 'What datetime format should I use?',
@@ -728,7 +1152,7 @@ curl -X POST ${BASE_URL}/tasks \\
                   },
                   {
                     q: 'Can I update multiple leads at once?',
-                    a: 'Yes — use PATCH /leads/bulk with a lead_ids array. You can set status_id, owner_id, or country_id in one call. At least one update field is required.',
+                    a: 'Yes — use PATCH /leads/bulk with a lead_ids array. You can set status_id, owner_id, or country_ids in one call. At least one update field is required.',
                   },
                   {
                     q: 'What notification types are supported?',
