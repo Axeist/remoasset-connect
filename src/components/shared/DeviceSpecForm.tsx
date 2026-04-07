@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { Check, ChevronsUpDown, Trash2, Plus, ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
+import { Check, ChevronsUpDown, Trash2, Plus, ChevronDown, ChevronUp, HelpCircle, Search } from 'lucide-react';
 import {
   BRANDS, MODELS_BY_BRAND, ALL_PROCESSORS, PROCESSORS_BY_BRAND,
   DISPLAY_SIZES, RAM_OPTIONS, STORAGE_OPTIONS, ADDON_TYPES, OS_OPTIONS,
@@ -54,10 +54,24 @@ function ComboboxField({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const filtered = search
     ? options.filter((o) => o.toLowerCase().includes(search.toLowerCase()))
     : options;
+
+  useEffect(() => {
+    if (open) {
+      setSearch('');
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [open]);
+
+  const selectOption = (opt: string) => {
+    onChange(opt);
+    setOpen(false);
+    setSearch('');
+  };
 
   return (
     <div className="space-y-1.5">
@@ -79,48 +93,72 @@ function ComboboxField({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between font-normal h-10"
+            className={cn(
+              "w-full justify-between font-normal h-10",
+              !value && "text-muted-foreground"
+            )}
           >
-            <span className={cn(!value && 'text-muted-foreground')}>
-              {value || placeholder}
-            </span>
+            <span className="truncate">{value || placeholder}</span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-          <Command shouldFilter={false}>
-            <CommandInput
-              placeholder={`Search or type...`}
+        <PopoverContent
+          className="w-[--radix-popover-trigger-width] p-0"
+          align="start"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <div className="flex items-center border-b px-3">
+            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+            <input
+              ref={inputRef}
+              className="flex h-10 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+              placeholder="Search or type..."
               value={search}
-              onValueChange={setSearch}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && search) {
+                  if (filtered.length > 0) {
+                    selectOption(filtered[0]);
+                  } else {
+                    selectOption(search);
+                  }
+                }
+                if (e.key === 'Escape') {
+                  setOpen(false);
+                }
+              }}
             />
-            <CommandList>
-              <CommandEmpty>
-                {search ? (
-                  <button
-                    className="w-full px-2 py-1.5 text-sm text-left hover:bg-accent rounded cursor-pointer"
-                    onClick={() => { onChange(search); setOpen(false); setSearch(''); }}
-                  >
-                    Use "<span className="font-medium">{search}</span>"
-                  </button>
-                ) : (
-                  <span className="text-muted-foreground text-sm">No results</span>
-                )}
-              </CommandEmpty>
-              <CommandGroup>
+          </div>
+          <ScrollArea className="max-h-[240px]">
+            {filtered.length === 0 && search ? (
+              <button
+                className="w-full px-3 py-2 text-sm text-left hover:bg-accent rounded cursor-pointer"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => selectOption(search)}
+              >
+                Use &ldquo;<span className="font-medium">{search}</span>&rdquo;
+              </button>
+            ) : filtered.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">No options</p>
+            ) : (
+              <div className="p-1">
                 {filtered.map((opt) => (
-                  <CommandItem
+                  <button
                     key={opt}
-                    value={opt}
-                    onSelect={() => { onChange(opt); setOpen(false); setSearch(''); }}
+                    className={cn(
+                      "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+                      value === opt && "bg-accent/50"
+                    )}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => selectOption(opt)}
                   >
-                    <Check className={cn('mr-2 h-4 w-4', value === opt ? 'opacity-100' : 'opacity-0')} />
+                    <Check className={cn('mr-2 h-4 w-4 shrink-0', value === opt ? 'opacity-100' : 'opacity-0')} />
                     {opt}
-                  </CommandItem>
+                  </button>
                 ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
+              </div>
+            )}
+          </ScrollArea>
         </PopoverContent>
       </Popover>
     </div>
@@ -133,6 +171,14 @@ export function DeviceSpecForm({ values, onChange, sectionNumberStart = 1 }: Dev
 
   const update = <K extends keyof DeviceSpecValues>(key: K, val: DeviceSpecValues[K]) => {
     onChange({ ...values, [key]: val });
+  };
+
+  const handleBrandChange = (v: string) => {
+    if (v !== values.brand) {
+      onChange({ ...values, brand: v, device_model: '' });
+    } else {
+      onChange({ ...values, brand: v });
+    }
   };
 
   const modelOptions = values.brand && MODELS_BY_BRAND[values.brand]
@@ -170,7 +216,7 @@ export function DeviceSpecForm({ values, onChange, sectionNumberStart = 1 }: Dev
           <ComboboxField
             label="Brand / Manufacturer"
             value={values.brand}
-            onChange={(v) => { update('brand', v); if (v !== values.brand) update('device_model', ''); }}
+            onChange={handleBrandChange}
             options={[...BRANDS]}
             placeholder="e.g. Apple, Lenovo, Dell"
             required
@@ -282,7 +328,7 @@ export function DeviceSpecForm({ values, onChange, sectionNumberStart = 1 }: Dev
         >
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold">Add-ons</span>
-            <Badge count={values.addons.length} />
+            <AddonBadge count={values.addons.length} />
           </div>
           {addonsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
@@ -357,7 +403,7 @@ export function DeviceSpecForm({ values, onChange, sectionNumberStart = 1 }: Dev
   );
 }
 
-function Badge({ count }: { count: number }) {
+function AddonBadge({ count }: { count: number }) {
   if (count === 0) return null;
   return (
     <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">
