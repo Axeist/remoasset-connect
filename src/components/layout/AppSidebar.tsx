@@ -17,9 +17,7 @@ import {
   Inbox,
   Terminal,
   Sparkles,
-  Laptop,
   Building2,
-  Warehouse,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,9 +34,7 @@ const navItems = [
   { title: 'Inbox', url: '/inbox', icon: Inbox, roles: ['admin', 'employee'] },
   { title: 'Leads', url: '/leads', icon: Users, roles: ['admin', 'employee'] },
   { title: 'Vendors', url: '/vendors', icon: Globe2, roles: ['admin', 'employee'] },
-  { title: 'Device Pricing', url: '/device-pricing', icon: Laptop, roles: ['admin', 'employee'] },
   { title: 'Clients', url: '/clients', icon: Building2, roles: ['admin', 'employee'] },
-  { title: 'Warehouse Pricing', url: '/warehouse-pricing', icon: Warehouse, roles: ['admin', 'employee'] },
   { title: 'Vendor Agent', url: '/vendor-agent', icon: Sparkles, roles: ['admin'] },
   { title: 'My Pipeline', url: '/pipeline', icon: Kanban, roles: ['employee'] },
   { title: 'Pipeline Overview', url: '/admin/pipeline', icon: Kanban, roles: ['admin'] },
