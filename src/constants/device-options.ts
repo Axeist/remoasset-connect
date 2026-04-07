@@ -70,6 +70,7 @@ export const MODELS_BY_BRAND: Record<string, string[]> = {
 
 export const PROCESSORS_BY_BRAND: Record<string, string[]> = {
   Apple: [
+    'M5', 'M5 Pro', 'M5 Max', 'M5 Ultra',
     'M4', 'M4 Pro', 'M4 Max', 'M4 Ultra',
     'M3', 'M3 Pro', 'M3 Max', 'M3 Ultra',
     'M2', 'M2 Pro', 'M2 Max', 'M2 Ultra',
