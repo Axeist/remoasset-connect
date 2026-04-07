@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,11 +9,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
   Search, Plus, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronRight,
   DollarSign, Globe2, Building2, Laptop, X, Filter, CalendarClock,
+  Trash2, ExternalLink,
 } from 'lucide-react';
 import { AddDevicePricingDialog } from '@/components/device-pricing/AddDevicePricingDialog';
 import type { VendorDevicePricing } from '@/types/procurement';
@@ -43,6 +49,7 @@ function quoteStatus(validityDate: string | null): { label: string; variant: 'de
 }
 
 export function DevicePricingTab() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [data, setData] = useState<VendorDevicePricing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,11 +59,13 @@ export function DevicePricingTab() {
   const [filterVendor, setFilterVendor] = useState('all');
   const [filterBrand, setFilterBrand] = useState('all');
   const [filterQuoteStatus, setFilterQuoteStatus] = useState<'all' | 'valid' | 'expired'>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('brand');
+  const [sortKey, setSortKey] = useState<SortKey>('country');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<VendorDevicePricing | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<VendorDevicePricing | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [page, setPage] = useState(0);
   const pageSize = 50;
 
@@ -76,6 +85,24 @@ export function DevicePricingTab() {
   }, [toast]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase
+      .from('vendor_device_pricing' as any)
+      .delete()
+      .eq('id', deleteTarget.id);
+    setDeleting(false);
+    if (error) {
+      toast({ title: 'Delete failed', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Pricing deleted', description: `${deleteTarget.brand} ${deleteTarget.device_model} removed.` });
+      setDeleteTarget(null);
+      if (expandedId === deleteTarget.id) setExpandedId(null);
+      fetchData();
+    }
+  };
 
   const uniqueCountries = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>();
@@ -117,13 +144,19 @@ export function DevicePricingTab() {
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
+      const countryA = a.country?.name || '';
+      const countryB = b.country?.name || '';
+      const countryCmp = countryA.localeCompare(countryB);
+      if (sortKey === 'country') return sortDir === 'asc' ? countryCmp : -countryCmp;
+
+      if (countryCmp !== 0) return countryCmp;
+
       let av: string | number = '';
       let bv: string | number = '';
       switch (sortKey) {
         case 'brand': av = a.brand; bv = b.brand; break;
         case 'device_model': av = a.device_model; bv = b.device_model; break;
         case 'price_usd': av = a.price_usd; bv = b.price_usd; break;
-        case 'country': av = a.country?.name || ''; bv = b.country?.name || ''; break;
         case 'vendor': av = a.vendor?.company_name || ''; bv = b.vendor?.company_name || ''; break;
         case 'quote_validity_date': av = a.quote_validity_date || ''; bv = b.quote_validity_date || ''; break;
       }
@@ -134,6 +167,19 @@ export function DevicePricingTab() {
 
   const paginated = useMemo(() => sorted.slice(page * pageSize, (page + 1) * pageSize), [sorted, page]);
   const totalPages = Math.ceil(sorted.length / pageSize);
+
+  const countryGroups = useMemo(() => {
+    const groups: { country: string; countryId: string; startIdx: number }[] = [];
+    let lastCountry = '';
+    paginated.forEach((row, idx) => {
+      const name = row.country?.name || 'Unknown';
+      if (name !== lastCountry) {
+        groups.push({ country: name, countryId: row.country_id, startIdx: idx });
+        lastCountry = name;
+      }
+    });
+    return groups;
+  }, [paginated]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -162,6 +208,13 @@ export function DevicePricingTab() {
       vendors: new Set(filtered.map((d) => d.vendor_id)).size,
     };
   }, [filtered]);
+
+  const getCountryGroupForRow = (idx: number) => {
+    for (let i = countryGroups.length - 1; i >= 0; i--) {
+      if (idx >= countryGroups[i].startIdx) return countryGroups[i];
+    }
+    return null;
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -283,23 +336,39 @@ export function DevicePricingTab() {
                       <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort('price_usd')}>
                         <span className="flex items-center justify-end">Price (USD) <SortIcon col="price_usd" /></span>
                       </TableHead>
-                      <TableHead className="cursor-pointer select-none" onClick={() => handleSort('country')}>
-                        <span className="flex items-center">Country <SortIcon col="country" /></span>
-                      </TableHead>
                       <TableHead className="cursor-pointer select-none" onClick={() => handleSort('vendor')}>
                         <span className="flex items-center">Vendor <SortIcon col="vendor" /></span>
                       </TableHead>
                       <TableHead className="cursor-pointer select-none" onClick={() => handleSort('quote_validity_date')}>
                         <span className="flex items-center">Quote Status <SortIcon col="quote_validity_date" /></span>
                       </TableHead>
+                      <TableHead className="w-10" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginated.map((row) => {
+                    {paginated.map((row, idx) => {
                       const qs = quoteStatus(row.quote_validity_date);
                       const isExpanded = expandedId === row.id;
+                      const group = getCountryGroupForRow(idx);
+                      const isGroupStart = group?.startIdx === idx;
+
                       return (
                         <TableRowGroup key={row.id}>
+                          {isGroupStart && (
+                            <TableRow className="bg-muted/60 hover:bg-muted/60 border-t">
+                              <TableCell colSpan={8} className="py-2">
+                                <div className="flex items-center gap-2">
+                                  <Globe2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    {group.country}
+                                  </span>
+                                  <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                                    {filtered.filter((d) => (d.country?.name || 'Unknown') === group.country).length}
+                                  </Badge>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
                           <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedId(isExpanded ? null : row.id)}>
                             <TableCell className="w-8 pr-0">{isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</TableCell>
                             <TableCell className="font-medium">{highlightText(row.brand, search)}</TableCell>
@@ -312,17 +381,40 @@ export function DevicePricingTab() {
                             <TableCell className="text-right font-semibold tabular-nums">
                               ${Number(row.price_usd).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </TableCell>
-                            <TableCell>{highlightText(row.country?.name || '-', search)}</TableCell>
-                            <TableCell>{highlightText(row.vendor?.company_name || '-', search)}</TableCell>
+                            <TableCell>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); navigate(`/leads/${row.vendor_id}`); }}
+                                className="inline-flex items-center gap-1 text-sm hover:underline text-primary/90 hover:text-primary transition-colors"
+                              >
+                                {highlightText(row.vendor?.company_name || '-', search)}
+                                <ExternalLink className="h-3 w-3 opacity-60" />
+                              </button>
+                            </TableCell>
                             <TableCell>
                               <Badge variant={qs.variant} className="text-xs">{qs.label}</Badge>
                               {row.quote_validity_date && <span className="ml-1.5 text-xs text-muted-foreground">{row.quote_validity_date}</span>}
+                            </TableCell>
+                            <TableCell className="w-10">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                                onClick={(e) => { e.stopPropagation(); setDeleteTarget(row); }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                           {isExpanded && (
                             <TableRow className="bg-muted/30 hover:bg-muted/30">
                               <TableCell colSpan={8}>
-                                <ExpandedDetails row={row} search={search} onEdit={() => { setEditItem(row); setAddOpen(true); }} />
+                                <ExpandedDetails
+                                  row={row}
+                                  search={search}
+                                  onEdit={() => { setEditItem(row); setAddOpen(true); }}
+                                  onDelete={() => setDeleteTarget(row)}
+                                  onViewVendor={() => navigate(`/leads/${row.vendor_id}`)}
+                                />
                               </TableCell>
                             </TableRow>
                           )}
@@ -347,6 +439,33 @@ export function DevicePricingTab() {
       </Card>
 
       <AddDevicePricingDialog open={addOpen} onOpenChange={setAddOpen} onSuccess={fetchData} editItem={editItem} />
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete device pricing?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the pricing entry for{' '}
+              <span className="font-semibold text-foreground">{deleteTarget?.brand} {deleteTarget?.device_model}</span>
+              {deleteTarget?.vendor?.company_name && (
+                <> from <span className="font-semibold text-foreground">{deleteTarget.vendor.company_name}</span></>
+              )}
+              . This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -355,7 +474,19 @@ function TableRowGroup({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function ExpandedDetails({ row, search, onEdit }: { row: VendorDevicePricing; search: string; onEdit: () => void }) {
+function ExpandedDetails({
+  row,
+  search,
+  onEdit,
+  onDelete,
+  onViewVendor,
+}: {
+  row: VendorDevicePricing;
+  search: string;
+  onEdit: () => void;
+  onDelete: () => void;
+  onViewVendor: () => void;
+}) {
   const addons = (row.addons || []) as any[];
   return (
     <div className="px-4 py-3 space-y-3">
@@ -368,6 +499,17 @@ function ExpandedDetails({ row, search, onEdit }: { row: VendorDevicePricing; se
         {row.quote_validity_date && (
           <div><span className="text-muted-foreground text-xs">Valid Until</span><p className="font-medium flex items-center gap-1.5"><CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />{row.quote_validity_date}</p></div>
         )}
+        <div>
+          <span className="text-muted-foreground text-xs">Country</span>
+          <p className="font-medium">{row.country?.name || '-'}</p>
+        </div>
+        <div>
+          <span className="text-muted-foreground text-xs">Vendor</span>
+          <button onClick={onViewVendor} className="flex items-center gap-1 font-medium text-primary/90 hover:text-primary hover:underline transition-colors">
+            {row.vendor?.company_name || '-'}
+            <ExternalLink className="h-3 w-3 opacity-60" />
+          </button>
+        </div>
       </div>
       {addons.length > 0 && (
         <div>
@@ -378,7 +520,15 @@ function ExpandedDetails({ row, search, onEdit }: { row: VendorDevicePricing; se
         </div>
       )}
       {row.notes && <div><span className="text-xs text-muted-foreground font-medium">Notes</span><p className="text-sm mt-0.5">{row.notes}</p></div>}
-      <div className="pt-1"><Button variant="outline" size="sm" onClick={onEdit}>Edit Pricing</Button></div>
+      <div className="pt-1 flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={onEdit}>Edit Pricing</Button>
+        <Button variant="outline" size="sm" onClick={onViewVendor} className="gap-1">
+          <ExternalLink className="h-3.5 w-3.5" /> View Vendor
+        </Button>
+        <Button variant="outline" size="sm" onClick={onDelete} className="gap-1 text-destructive hover:text-destructive hover:bg-destructive/10">
+          <Trash2 className="h-3.5 w-3.5" /> Delete
+        </Button>
+      </div>
     </div>
   );
 }

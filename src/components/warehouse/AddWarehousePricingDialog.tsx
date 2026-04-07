@@ -35,11 +35,11 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
   const { user } = useAuth();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [vendors, setVendors] = useState<{ id: string; company_name: string }[]>([]);
+  const [allVendors, setAllVendors] = useState<{ id: string; company_name: string; country_ids: string[]; vendor_types: string[] | null; warehouse_available: boolean | null }[]>([]);
   const [countries, setCountries] = useState<{ id: string; name: string }[]>([]);
 
-  const [vendorId, setVendorId] = useState('');
   const [countryId, setCountryId] = useState('');
+  const [vendorId, setVendorId] = useState('');
   const [quoteDate, setQuoteDate] = useState(new Date().toISOString().slice(0, 10));
   const [quoteValidityDate, setQuoteValidityDate] = useState('');
   const [notes, setNotes] = useState('');
@@ -49,9 +49,12 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
 
   useEffect(() => {
     if (!open) return;
-    supabase.from('leads').select('id, company_name').order('company_name').then(({ data }) => {
-      if (data) setVendors(data);
-    });
+    supabase.from('leads')
+      .select('id, company_name, country_ids, vendor_types, warehouse_available')
+      .order('company_name')
+      .then(({ data }) => {
+        if (data) setAllVendors(data as any);
+      });
     supabase.from('countries').select('id, name').order('name').then(({ data }) => {
       if (data) setCountries(data);
     });
@@ -59,20 +62,37 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
 
   useEffect(() => {
     if (editItem) {
-      setVendorId(editItem.vendor_id);
       setCountryId(editItem.country_id || '');
+      setVendorId(editItem.vendor_id);
       setQuoteDate(editItem.quote_date || new Date().toISOString().slice(0, 10));
       setQuoteValidityDate(editItem.quote_validity_date || '');
       setNotes(editItem.notes || '');
       setCharges(Object.fromEntries(CHARGE_FIELDS.map((f) => [f.key, String((editItem as any)[f.key] || 0)])));
     } else {
-      setVendorId(''); setCountryId('');
+      setCountryId(''); setVendorId('');
       setQuoteDate(new Date().toISOString().slice(0, 10)); setQuoteValidityDate(''); setNotes('');
       setCharges(Object.fromEntries(CHARGE_FIELDS.map((f) => [f.key, '0'])));
     }
   }, [editItem, open]);
 
+  const warehouseVendorsForCountry = (() => {
+    let filtered = allVendors.filter((v) =>
+      (Array.isArray(v.vendor_types) && v.vendor_types.includes('warehouse')) || v.warehouse_available
+    );
+    if (countryId) {
+      filtered = filtered.filter((v) => Array.isArray(v.country_ids) && v.country_ids.includes(countryId));
+    }
+    return filtered;
+  })();
+
+  const handleCountryChange = (id: string) => {
+    setCountryId(id);
+    setVendorId('');
+  };
+
   const grandTotal = CHARGE_FIELDS.reduce((sum, f) => sum + (parseFloat(charges[f.key]) || 0), 0);
+
+  const selectedCountryName = countries.find((c) => c.id === countryId)?.name;
 
   const handleSave = async () => {
     if (!vendorId) {
@@ -114,29 +134,55 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
         </DialogHeader>
 
         <div className="space-y-6 py-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Vendor <span className="text-destructive">*</span></Label>
-              <Select value={vendorId} onValueChange={setVendorId}>
-                <SelectTrigger className="h-10"><SelectValue placeholder="Select warehouse vendor" /></SelectTrigger>
-                <SelectContent>
-                  {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+          {/* Country & Vendor */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
+              <h4 className="font-semibold text-sm">Country & Warehouse Vendor</h4>
             </div>
-            <div className="space-y-1.5">
-              <Label>Country</Label>
-              <Select value={countryId} onValueChange={setCountryId}>
-                <SelectTrigger className="h-10"><SelectValue placeholder="Select country" /></SelectTrigger>
-                <SelectContent>
-                  {countries.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Country <span className="text-destructive">*</span></Label>
+                <Select value={countryId} onValueChange={handleCountryChange}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Select country first" /></SelectTrigger>
+                  <SelectContent>
+                    {countries.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Warehouse Vendor <span className="text-destructive">*</span></Label>
+                <Select value={vendorId} onValueChange={setVendorId} disabled={!countryId}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder={countryId ? `Warehouse vendors in ${selectedCountryName}` : 'Select country first'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {warehouseVendorsForCountry.length === 0 ? (
+                      <div className="px-2 py-3 text-sm text-muted-foreground text-center">
+                        No warehouse vendors found for this country
+                      </div>
+                    ) : (
+                      warehouseVendorsForCountry.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {countryId && (
+                  <p className="text-xs text-muted-foreground">
+                    {warehouseVendorsForCountry.length} warehouse vendor{warehouseVendorsForCountry.length !== 1 ? 's' : ''} in {selectedCountryName}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
+          {/* Charges */}
           <div>
-            <h4 className="font-semibold text-sm mb-3">Service Charges (USD)</h4>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
+              <h4 className="font-semibold text-sm">Service Charges (USD)</h4>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {CHARGE_FIELDS.map((f) => (
                 <div key={f.key} className="space-y-1">
@@ -161,16 +207,24 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Quote Date</Label>
-              <Input type="date" value={quoteDate} onChange={(e) => setQuoteDate(e.target.value)} className="h-10" />
+          {/* Quote dates */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
+              <h4 className="font-semibold text-sm">Quote Details</h4>
             </div>
-            <div className="space-y-1.5">
-              <Label>Quote Validity Date</Label>
-              <Input type="date" value={quoteValidityDate} onChange={(e) => setQuoteValidityDate(e.target.value)} className="h-10" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Quote Date</Label>
+                <Input type="date" value={quoteDate} onChange={(e) => setQuoteDate(e.target.value)} className="h-10" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Quote Validity Date</Label>
+                <Input type="date" value={quoteValidityDate} onChange={(e) => setQuoteValidityDate(e.target.value)} className="h-10" />
+              </div>
             </div>
           </div>
+
           <div className="space-y-1.5">
             <Label>Notes</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Any additional notes..." />

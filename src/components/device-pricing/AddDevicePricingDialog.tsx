@@ -24,11 +24,11 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
   const { user } = useAuth();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [vendors, setVendors] = useState<{ id: string; company_name: string }[]>([]);
+  const [allVendors, setAllVendors] = useState<{ id: string; company_name: string; country_ids: string[] }[]>([]);
   const [countries, setCountries] = useState<{ id: string; name: string; code: string }[]>([]);
 
-  const [vendorId, setVendorId] = useState('');
   const [countryId, setCountryId] = useState('');
+  const [vendorId, setVendorId] = useState('');
   const [priceUsd, setPriceUsd] = useState('');
   const [quoteDate, setQuoteDate] = useState(new Date().toISOString().slice(0, 10));
   const [quoteValidityDate, setQuoteValidityDate] = useState('');
@@ -40,8 +40,8 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
 
   useEffect(() => {
     if (!open) return;
-    supabase.from('leads').select('id, company_name').order('company_name').then(({ data }) => {
-      if (data) setVendors(data);
+    supabase.from('leads').select('id, company_name, country_ids').order('company_name').then(({ data }) => {
+      if (data) setAllVendors(data as any);
     });
     supabase.from('countries').select('id, name, code').order('name').then(({ data }) => {
       if (data) setCountries(data);
@@ -50,8 +50,8 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
 
   useEffect(() => {
     if (editItem) {
-      setVendorId(editItem.vendor_id);
       setCountryId(editItem.country_id);
+      setVendorId(editItem.vendor_id);
       setPriceUsd(String(editItem.price_usd));
       setQuoteDate(editItem.quote_date);
       setQuoteValidityDate(editItem.quote_validity_date || '');
@@ -69,7 +69,7 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
   }, [editItem, open]);
 
   const resetForm = () => {
-    setVendorId(''); setCountryId(''); setPriceUsd('');
+    setCountryId(''); setVendorId(''); setPriceUsd('');
     setQuoteDate(new Date().toISOString().slice(0, 10)); setQuoteValidityDate('');
     setDeviceSpec({
       brand: '', device_model: '', processor: '', display_size: '',
@@ -77,8 +77,17 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
     });
   };
 
+  const vendorsForCountry = countryId
+    ? allVendors.filter((v) => Array.isArray(v.country_ids) && v.country_ids.includes(countryId))
+    : allVendors;
+
+  const handleCountryChange = (id: string) => {
+    setCountryId(id);
+    setVendorId('');
+  };
+
   const handleSave = async () => {
-    if (!vendorId || !countryId || !deviceSpec.brand || !deviceSpec.device_model ||
+    if (!countryId || !vendorId || !deviceSpec.brand || !deviceSpec.device_model ||
         !deviceSpec.processor || !deviceSpec.display_size || !deviceSpec.ram ||
         !deviceSpec.storage || !priceUsd) {
       toast({ title: 'Missing fields', description: 'Please fill all required fields.', variant: 'destructive' });
@@ -120,6 +129,8 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
     }
   };
 
+  const selectedCountryName = countries.find((c) => c.id === countryId)?.name;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -129,28 +140,17 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
         </DialogHeader>
 
         <div className="space-y-6 py-2">
-          {/* Vendor & Country */}
+          {/* Country & Vendor */}
           <div>
             <div className="flex items-center gap-2 mb-4">
               <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
-              <h4 className="font-semibold text-sm">Vendor & Country</h4>
+              <h4 className="font-semibold text-sm">Country & Vendor</h4>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Vendor <span className="text-destructive">*</span></Label>
-                <Select value={vendorId} onValueChange={setVendorId}>
-                  <SelectTrigger className="h-10"><SelectValue placeholder="Select vendor" /></SelectTrigger>
-                  <SelectContent>
-                    {vendors.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Country <span className="text-destructive">*</span></Label>
-                <Select value={countryId} onValueChange={setCountryId}>
-                  <SelectTrigger className="h-10"><SelectValue placeholder="Select country" /></SelectTrigger>
+                <Select value={countryId} onValueChange={handleCountryChange}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Select country first" /></SelectTrigger>
                   <SelectContent>
                     {countries.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
@@ -158,10 +158,36 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">
+                  Vendor <span className="text-destructive">*</span>
+                </Label>
+                <Select value={vendorId} onValueChange={setVendorId} disabled={!countryId}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder={countryId ? `Vendors in ${selectedCountryName}` : 'Select country first'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendorsForCountry.length === 0 ? (
+                      <div className="px-2 py-3 text-sm text-muted-foreground text-center">
+                        No vendors found for this country
+                      </div>
+                    ) : (
+                      vendorsForCountry.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {countryId && (
+                  <p className="text-xs text-muted-foreground">
+                    {vendorsForCountry.length} vendor{vendorsForCountry.length !== 1 ? 's' : ''} serve {selectedCountryName}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
-          <DeviceSpecForm values={deviceSpec} onChange={setDeviceSpec} sectionNumberStart={2} />
+          <DeviceSpecForm values={deviceSpec} onChange={setDeviceSpec} sectionNumberStart={2} addonsMode="dialog" />
 
           {/* Pricing & Quote */}
           <div>
