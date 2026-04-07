@@ -37,6 +37,7 @@ interface DeviceSpecFormProps {
   onChange: (values: DeviceSpecValues) => void;
   sectionNumberStart?: number;
   addonsMode?: 'inline' | 'dialog';
+  hideNotes?: boolean;
 }
 
 function ComboboxField({
@@ -93,18 +94,20 @@ function ComboboxField({
       </Label>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
+          <button
+            type="button"
             role="combobox"
             aria-expanded={open}
             className={cn(
-              "w-full justify-between font-normal h-10",
+              "flex h-10 w-full items-center justify-between rounded-[10px] border-[1.5px] border-input bg-background px-3 py-2 text-sm ring-offset-background",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+              "disabled:cursor-not-allowed disabled:opacity-50",
               !value && "text-muted-foreground"
             )}
           >
             <span className="truncate">{value || placeholder}</span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
+          </button>
         </PopoverTrigger>
         <PopoverContent
           className="w-[--radix-popover-trigger-width] p-0"
@@ -384,7 +387,7 @@ function AddonRow({
   );
 }
 
-export function DeviceSpecForm({ values, onChange, sectionNumberStart = 1, addonsMode = 'inline' }: DeviceSpecFormProps) {
+export function DeviceSpecForm({ values, onChange, sectionNumberStart = 1, addonsMode = 'inline', hideNotes = false }: DeviceSpecFormProps) {
   const sn = sectionNumberStart;
 
   const update = <K extends keyof DeviceSpecValues>(key: K, val: DeviceSpecValues[K]) => {
@@ -415,10 +418,7 @@ export function DeviceSpecForm({ values, onChange, sectionNumberStart = 1, addon
     <div className="space-y-6">
       {/* Section: Device Details */}
       <div>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">{sn}</span>
-          <h4 className="font-semibold text-sm">Device Details</h4>
-        </div>
+        <SectionHeader number={sn} title="Device Details" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <ComboboxField
             label="Brand / Manufacturer"
@@ -473,11 +473,7 @@ export function DeviceSpecForm({ values, onChange, sectionNumberStart = 1, addon
 
       {/* Section: Specifications */}
       <div>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">{sn + 1}</span>
-          <h4 className="font-semibold text-sm">Specifications</h4>
-          <span className="text-xs text-muted-foreground">RAM, storage & add-ons</span>
-        </div>
+        <SectionHeader number={sn + 1} title="Specifications" subtitle="RAM, storage & add-ons" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label className="text-sm font-medium">
@@ -533,16 +529,28 @@ export function DeviceSpecForm({ values, onChange, sectionNumberStart = 1, addon
         <AddonsInline addons={values.addons} onAddonsChange={handleAddonsChange} />
       )}
 
-      {/* Additional Notes */}
-      <div className="space-y-1.5">
-        <Label className="text-sm font-medium">Additional Notes</Label>
-        <Textarea
-          value={values.notes}
-          onChange={(e) => update('notes', e.target.value)}
-          placeholder="Any specific requirements, preferences, or instructions for this order..."
-          rows={3}
-        />
-      </div>
+      {/* Additional Notes (only when not hidden) */}
+      {!hideNotes && (
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium">Additional Notes</Label>
+          <Textarea
+            value={values.notes}
+            onChange={(e) => update('notes', e.target.value)}
+            placeholder="Any specific requirements, preferences, or instructions for this order..."
+            rows={3}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SectionHeader({ number, title, subtitle }: { number: number; title: string; subtitle?: string }) {
+  return (
+    <div className="flex items-center gap-2 mb-4">
+      <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">{number}</span>
+      <h4 className="font-semibold text-sm">{title}</h4>
+      {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
     </div>
   );
 }

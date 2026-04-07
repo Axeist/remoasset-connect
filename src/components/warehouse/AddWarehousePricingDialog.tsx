@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { SectionHeader } from '@/components/shared/DeviceSpecForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -134,15 +135,12 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
         </DialogHeader>
 
         <div className="space-y-6 py-2">
-          {/* Country & Vendor */}
+          {/* 1. Country & Vendor */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
-              <h4 className="font-semibold text-sm">Country & Warehouse Vendor</h4>
-            </div>
+            <SectionHeader number={1} title="Country & Warehouse Vendor" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Country <span className="text-destructive">*</span></Label>
+                <Label className="text-sm font-medium">Country <span className="text-destructive">*</span></Label>
                 <Select value={countryId} onValueChange={handleCountryChange}>
                   <SelectTrigger className="h-10"><SelectValue placeholder="Select country first" /></SelectTrigger>
                   <SelectContent>
@@ -151,7 +149,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Warehouse Vendor <span className="text-destructive">*</span></Label>
+                <Label className="text-sm font-medium">Warehouse Vendor <span className="text-destructive">*</span></Label>
                 <Select value={vendorId} onValueChange={setVendorId} disabled={!countryId}>
                   <SelectTrigger className="h-10">
                     <SelectValue placeholder={countryId ? `Warehouse vendors in ${selectedCountryName}` : 'Select country first'} />
@@ -177,12 +175,9 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
             </div>
           </div>
 
-          {/* Charges */}
+          {/* 2. Charges */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
-              <h4 className="font-semibold text-sm">Service Charges (USD)</h4>
-            </div>
+            <SectionHeader number={2} title="Service Charges (USD)" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {CHARGE_FIELDS.map((f) => (
                 <div key={f.key} className="space-y-1">
@@ -207,27 +202,25 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
             </div>
           </div>
 
-          {/* Quote dates */}
+          {/* 3. Quote Details */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
-              <h4 className="font-semibold text-sm">Quote Details</h4>
-            </div>
+            <SectionHeader number={3} title="Quote Details" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Quote Date</Label>
+                <Label className="text-sm font-medium">Quote Date</Label>
                 <Input type="date" value={quoteDate} onChange={(e) => setQuoteDate(e.target.value)} className="h-10" />
               </div>
               <div className="space-y-1.5">
-                <Label>Quote Validity Date</Label>
+                <Label className="text-sm font-medium">Quote Validity Date</Label>
                 <Input type="date" value={quoteValidityDate} onChange={(e) => setQuoteValidityDate(e.target.value)} className="h-10" />
               </div>
             </div>
           </div>
 
+          {/* Notes */}
           <div className="space-y-1.5">
-            <Label>Notes</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Any additional notes..." />
+            <Label className="text-sm font-medium">Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Any additional notes..." />
           </div>
         </div>
 

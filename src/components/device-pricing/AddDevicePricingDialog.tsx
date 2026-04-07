@@ -5,8 +5,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DeviceSpecForm, type DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
+import { DeviceSpecForm, SectionHeader, type DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -140,12 +141,9 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
         </DialogHeader>
 
         <div className="space-y-6 py-2">
-          {/* Country & Vendor */}
+          {/* 1. Country & Vendor */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
-              <h4 className="font-semibold text-sm">Country & Vendor</h4>
-            </div>
+            <SectionHeader number={1} title="Country & Vendor" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Country <span className="text-destructive">*</span></Label>
@@ -187,14 +185,12 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
             </div>
           </div>
 
-          <DeviceSpecForm values={deviceSpec} onChange={setDeviceSpec} sectionNumberStart={2} addonsMode="dialog" />
+          {/* 2-3. Device Details & Specifications (notes hidden) */}
+          <DeviceSpecForm values={deviceSpec} onChange={setDeviceSpec} sectionNumberStart={2} addonsMode="dialog" hideNotes />
 
-          {/* Pricing & Quote */}
+          {/* 4. Pricing & Quote */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
-              <h4 className="font-semibold text-sm">Pricing & Quote</h4>
-            </div>
+            <SectionHeader number={4} title="Pricing & Quote" />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Price (USD) <span className="text-destructive">*</span></Label>
@@ -220,6 +216,17 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
                 <Input type="date" value={quoteValidityDate} onChange={(e) => setQuoteValidityDate(e.target.value)} className="h-10" />
               </div>
             </div>
+          </div>
+
+          {/* 5. Additional Notes (after pricing) */}
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Additional Notes</Label>
+            <Textarea
+              value={deviceSpec.notes}
+              onChange={(e) => setDeviceSpec({ ...deviceSpec, notes: e.target.value })}
+              placeholder="Any specific requirements, preferences, or instructions..."
+              rows={3}
+            />
           </div>
         </div>
 
