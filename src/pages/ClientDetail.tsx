@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -16,7 +18,7 @@ import { cn } from '@/lib/utils';
 import {
   ArrowLeft, Plus, Globe2, Mail, Phone, User, Package,
   CheckCircle2, Truck, Clock, DollarSign, ChevronDown, ChevronRight, Edit,
-  TrendingUp, CreditCard, Tag,
+  TrendingUp, CreditCard, Tag, ClipboardList,
 } from 'lucide-react';
 import { AddRequestDialog } from '@/components/clients/AddRequestDialog';
 import { CLIENT_REQUEST_STATUSES } from '@/constants/device-options';
@@ -418,175 +420,200 @@ function ExpandedRequest({
     else toast({ title: 'Saved' });
   };
 
+  const specParts: { label: string; value: string }[] = [];
+  if (req.display_size) specParts.push({ label: 'Display', value: req.display_size });
+  if (req.gpu) specParts.push({ label: 'GPU', value: req.gpu });
+  if (req.os) specParts.push({ label: 'OS', value: req.os });
+  if (req.country) specParts.push({ label: 'Ship to', value: req.country.name });
+  if (req.expected_delivery_date) specParts.push({ label: 'ETA', value: req.expected_delivery_date });
+
   return (
-    <div className="px-4 py-3 space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-2 text-sm">
-        <div>
-          <span className="text-muted-foreground text-xs">Display</span>
-          <p className="font-medium">{req.display_size}</p>
-        </div>
-        {req.gpu && (
-          <div>
-            <span className="text-muted-foreground text-xs">GPU</span>
-            <p className="font-medium">{req.gpu}</p>
-          </div>
-        )}
-        {req.os && (
-          <div>
-            <span className="text-muted-foreground text-xs">OS</span>
-            <p className="font-medium">{req.os}</p>
-          </div>
-        )}
-        {req.country && (
-          <div>
-            <span className="text-muted-foreground text-xs">Delivery Country</span>
-            <p className="font-medium">{req.country.name}</p>
-          </div>
-        )}
-        {req.expected_delivery_date && (
-          <div>
-            <span className="text-muted-foreground text-xs">Expected Delivery</span>
-            <p className="font-medium">{req.expected_delivery_date}</p>
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <span className="text-xs text-muted-foreground font-medium">Device info (full line)</span>
-        <Input value={deviceSummary} onChange={(e) => setDeviceSummary(e.target.value)} className="text-sm" placeholder="Device summary for reports" />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <span className="text-xs text-muted-foreground">Employee name</span>
-          <Input value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} className="h-9 text-sm" />
-        </div>
-        <div className="space-y-1 sm:col-span-2">
-          <span className="text-xs text-muted-foreground">Employee address</span>
-          <Input value={employeeAddress} onChange={(e) => setEmployeeAddress(e.target.value)} className="h-9 text-sm" />
-        </div>
-        <div className="space-y-1">
-          <span className="text-xs text-muted-foreground">Employee phone</span>
-          <Input value={employeePhone} onChange={(e) => setEmployeePhone(e.target.value)} className="h-9 text-sm" />
-        </div>
-        <div className="space-y-1">
-          <span className="text-xs text-muted-foreground">Payment status</span>
-          <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'paid' | 'unpaid')}>
-            <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="paid">Paid</SelectItem>
-              <SelectItem value="unpaid">Unpaid</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <span className="text-xs text-muted-foreground">Date of payment (client)</span>
-          <Input type="date" value={clientPaymentDate} onChange={(e) => setClientPaymentDate(e.target.value)} className="h-9 text-sm" />
-        </div>
-      </div>
-
-      {addons.length > 0 && (
-        <div>
-          <span className="text-xs text-muted-foreground font-medium">Add-ons</span>
-          <div className="flex flex-wrap gap-1.5 mt-1">
-            {addons.map((a: any, i: number) => (
-              <Badge key={i} variant="outline" className="text-xs gap-1">{a.type}: {a.model} x{a.qty}</Badge>
-            ))}
-          </div>
+    <div
+      className="px-3 sm:px-4 py-2 sm:py-3"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+      role="presentation"
+    >
+      {/* One-line spec context — replaces tall grid */}
+      {specParts.length > 0 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] sm:text-xs border-b border-border/60 pb-2 mb-3 leading-snug">
+          {specParts.map((p, i) => (
+            <span key={`${p.label}-${i}`} className="inline">
+              {i > 0 && <span className="text-border mr-3 select-none" aria-hidden>|</span>}
+              <span className="text-muted-foreground">{p.label}</span>
+              <span className="text-foreground font-medium tabular-nums"> {p.value}</span>
+            </span>
+          ))}
         </div>
       )}
 
-      {req.notes && (
-        <div>
-          <span className="text-xs text-muted-foreground font-medium">Notes</span>
-          <p className="text-sm mt-0.5">{req.notes}</p>
-        </div>
-      )}
+      <Tabs defaultValue="pricing" className="w-full">
+        <TabsList className="h-9 w-full justify-start gap-0.5 overflow-x-auto bg-muted/60 p-1 rounded-md">
+          <TabsTrigger value="pricing" className="gap-1.5 text-xs sm:text-sm px-2.5 sm:px-3 shrink-0">
+            <DollarSign className="h-3.5 w-3.5" />
+            Pricing
+          </TabsTrigger>
+          <TabsTrigger value="order" className="gap-1.5 text-xs sm:text-sm px-2.5 sm:px-3 shrink-0">
+            <ClipboardList className="h-3.5 w-3.5" />
+            Order
+          </TabsTrigger>
+          <TabsTrigger value="recipient" className="gap-1.5 text-xs sm:text-sm px-2.5 sm:px-3 shrink-0">
+            <User className="h-3.5 w-3.5" />
+            Recipient
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Vendor Allocation & Pricing */}
-      <div className="border-t pt-3 space-y-3">
-        <h5 className="text-sm font-semibold">Vendor & pricing (USD)</h5>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-          <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Vendor</span>
-            <Select value={allocVendorId} onValueChange={setAllocVendorId}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Allocate vendor" /></SelectTrigger>
-              <SelectContent>
-                {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+        <TabsContent value="pricing" className="mt-3 space-y-3 outline-none">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            <div className="space-y-1 sm:col-span-2">
+              <span className="text-xs text-muted-foreground">Vendor</span>
+              <Select value={allocVendorId} onValueChange={setAllocVendorId}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Allocate vendor" /></SelectTrigger>
+                <SelectContent>
+                  {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Price quoted (USD)</span>
+              <Input type="number" step="0.01" value={quoted} onChange={(e) => setQuoted(e.target.value)} className="h-9 text-sm tabular-nums" placeholder="0.00" />
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Procurement (USD)</span>
+              <Input type="number" step="0.01" value={procurement} onChange={(e) => setProcurement(e.target.value)} className="h-9 text-sm tabular-nums" placeholder="0.00" />
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Wire cost</span>
+              <Input type="number" step="0.01" value={wireCost} onChange={(e) => setWireCost(e.target.value)} className="h-9 text-sm tabular-nums" placeholder="0.00" />
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">MRP (list USD)</span>
+              <Input type="number" step="0.01" value={mrpUsd} onChange={(e) => setMrpUsd(e.target.value)} className="h-9 text-sm tabular-nums" placeholder="Optional" />
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:col-span-2 xl:col-span-2">
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Profit ($)</span>
+                <Input
+                  readOnly
+                  className="h-9 text-sm tabular-nums bg-muted/50"
+                  value={profitLive != null ? profitLive.profitAmount.toFixed(2) : '—'}
+                />
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Profit (% on cost)</span>
+                <Input
+                  readOnly
+                  className="h-9 text-sm tabular-nums bg-muted/50"
+                  value={profitLive?.profitPctOnProcurement != null ? `${profitLive.profitPctOnProcurement.toFixed(2)}%` : '—'}
+                />
+              </div>
+            </div>
+            <div className="space-y-1 sm:col-span-2 xl:col-span-2">
+              <span className="text-xs text-muted-foreground">Shipping date</span>
+              <Input type="date" value={shippingDate} onChange={(e) => setShippingDate(e.target.value)} className="h-9 text-sm" />
+            </div>
           </div>
-          <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Price quoted</span>
-            <Input type="number" step="0.01" value={quoted} onChange={(e) => setQuoted(e.target.value)} className="h-9 text-sm" placeholder="0.00" />
-          </div>
-          <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Wire cost</span>
-            <Input type="number" step="0.01" value={wireCost} onChange={(e) => setWireCost(e.target.value)} className="h-9 text-sm" placeholder="0.00" />
-          </div>
-          <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Procurement</span>
-            <Input type="number" step="0.01" value={procurement} onChange={(e) => setProcurement(e.target.value)} className="h-9 text-sm" placeholder="0.00" />
-          </div>
-          <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">MRP (USD)</span>
-            <Input type="number" step="0.01" value={mrpUsd} onChange={(e) => setMrpUsd(e.target.value)} className="h-9 text-sm" placeholder="Optional" />
-          </div>
-          <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Profit ($)</span>
-            <Input
-              readOnly
-              className="h-9 text-sm tabular-nums bg-muted/50"
-              value={profitLive != null ? profitLive.profitAmount.toFixed(2) : '—'}
-            />
-          </div>
-          <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Profit (% on cost)</span>
-            <Input
-              readOnly
-              className="h-9 text-sm tabular-nums bg-muted/50"
-              value={profitLive?.profitPctOnProcurement != null ? `${profitLive.profitPctOnProcurement.toFixed(2)}%` : '—'}
-            />
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <span className="text-xs text-muted-foreground">Shipping date</span>
-            <Input type="date" value={shippingDate} onChange={(e) => setShippingDate(e.target.value)} className="h-9 text-sm" />
-          </div>
-        </div>
-        {(mrpQuoted || mrpProc) && (
-          <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs space-y-1">
-            <span className="font-medium text-foreground flex items-center gap-1"><Tag className="h-3 w-3" /> vs MRP</span>
-            {mrpQuoted && quotedPctOfMrp(mrpN, parseFloat(quoted)) != null && (
-              <p className="text-muted-foreground">
-                Quoted: <span className="text-foreground font-medium">{quotedPctOfMrp(mrpN, parseFloat(quoted))!.toFixed(1)}% of MRP</span>
-                {' '}({mrpQuoted.pctOffMrp.toFixed(1)}% below list)
-              </p>
-            )}
-            {mrpProc && (
-              <p className="text-muted-foreground">
-                Procurement: <span className="text-foreground font-medium">{mrpProc.pctOffMrp.toFixed(1)}% below MRP</span>
-              </p>
-            )}
-          </div>
-        )}
-        <div className="flex items-center gap-2 flex-wrap">
-          {!req.vendor_id && allocVendorId && (
-            <Button size="sm" onClick={() => onAllocateVendor(req.id, allocVendorId, procurement)}>Allocate Vendor</Button>
+          {(mrpQuoted || mrpProc) && (
+            <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs space-y-0.5">
+              <span className="font-medium text-foreground flex items-center gap-1"><Tag className="h-3 w-3" /> vs MRP</span>
+              {mrpQuoted && quotedPctOfMrp(mrpN, parseFloat(quoted)) != null && (
+                <p className="text-muted-foreground">
+                  Quoted: <span className="text-foreground font-medium">{quotedPctOfMrp(mrpN, parseFloat(quoted))!.toFixed(1)}% of MRP</span>
+                  {' '}({mrpQuoted.pctOffMrp.toFixed(1)}% below list)
+                </p>
+              )}
+              {mrpProc && (
+                <p className="text-muted-foreground">
+                  Procurement: <span className="text-foreground font-medium">{mrpProc.pctOffMrp.toFixed(1)}% below MRP</span>
+                </p>
+              )}
+            </div>
           )}
-          <Button size="sm" variant="outline" onClick={handleSaveFulfillment}>Save details</Button>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Fulfillment status:</span>
-            <Select value={req.status} onValueChange={(v) => onStatusChange(req.id, v)}>
-              <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {CLIENT_REQUEST_STATUSES.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2 pt-1 border-t border-border/50">
+            <div className="flex flex-wrap items-center gap-2">
+              {!req.vendor_id && allocVendorId && (
+                <Button size="sm" onClick={() => onAllocateVendor(req.id, allocVendorId, procurement)}>Allocate vendor</Button>
+              )}
+              <Button size="sm" onClick={handleSaveFulfillment}>Save pricing &amp; dates</Button>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:ml-auto sm:text-right">
+              <span className="text-xs text-muted-foreground shrink-0">Fulfillment</span>
+              <Select value={req.status} onValueChange={(v) => onStatusChange(req.id, v)}>
+                <SelectTrigger className="h-9 w-full sm:w-[min(100%,200px)] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CLIENT_REQUEST_STATUSES.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
-      </div>
+        </TabsContent>
+
+        <TabsContent value="order" className="mt-3 space-y-3 outline-none">
+          <div className="space-y-1.5">
+            <span className="text-xs text-muted-foreground font-medium">Device summary (reports)</span>
+            <Textarea
+              value={deviceSummary}
+              onChange={(e) => setDeviceSummary(e.target.value)}
+              className="min-h-[72px] max-h-[160px] text-sm resize-y"
+              placeholder="One line or short paragraph for quotes and invoices…"
+              rows={3}
+            />
+          </div>
+          {addons.length > 0 && (
+            <div>
+              <span className="text-xs text-muted-foreground font-medium">Add-ons</span>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {addons.map((a: any, i: number) => (
+                  <Badge key={i} variant="outline" className="text-xs gap-1">{a.type}: {a.model} ×{a.qty}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          {req.notes ? (
+            <div className="rounded-md border border-border/80 bg-muted/20 px-3 py-2">
+              <span className="text-xs text-muted-foreground font-medium">Request notes</span>
+              <p className="text-sm mt-1 whitespace-pre-wrap leading-snug">{req.notes}</p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">No notes on this request.</p>
+          )}
+          <Button size="sm" variant="outline" onClick={handleSaveFulfillment}>Save order details</Button>
+        </TabsContent>
+
+        <TabsContent value="recipient" className="mt-3 space-y-3 outline-none">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Employee name</span>
+              <Input value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Employee phone</span>
+              <Input value={employeePhone} onChange={(e) => setEmployeePhone(e.target.value)} className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <span className="text-xs text-muted-foreground">Employee address</span>
+              <Input value={employeeAddress} onChange={(e) => setEmployeeAddress(e.target.value)} className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Payment status</span>
+              <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'paid' | 'unpaid')}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="unpaid">Unpaid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Client payment date</span>
+              <Input type="date" value={clientPaymentDate} onChange={(e) => setClientPaymentDate(e.target.value)} className="h-9 text-sm" />
+            </div>
+          </div>
+          <Button size="sm" variant="outline" onClick={handleSaveFulfillment}>Save recipient &amp; billing</Button>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
