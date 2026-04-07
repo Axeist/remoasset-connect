@@ -18,8 +18,9 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Search, Plus, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronRight,
   DollarSign, Globe2, Building2, Laptop, X, Filter, CalendarClock,
-  Trash2, ExternalLink,
+  Trash2, ExternalLink, Tag, TrendingDown, Package,
 } from 'lucide-react';
+import { discountVsMrp } from '@/lib/mrp-insights';
 import { AddDevicePricingDialog } from '@/components/device-pricing/AddDevicePricingDialog';
 import type { VendorDevicePricing } from '@/types/procurement';
 
@@ -199,13 +200,31 @@ export function DevicePricingTab() {
   const hasActiveFilters = filterCountry !== 'all' || filterVendor !== 'all' || filterBrand !== 'all' || filterQuoteStatus !== 'all';
 
   const stats = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
     const prices = filtered.map((d) => d.price_usd);
     const avgPrice = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
+    const validCt = filtered.filter((d) => d.quote_validity_date && d.quote_validity_date >= today).length;
+    const expiredCt = filtered.filter((d) => d.quote_validity_date && d.quote_validity_date < today).length;
+    const lineValue = filtered.reduce((a, d) => a + Number(d.price_usd) * (d.quantity || 1), 0);
+    const withMrp = filtered.filter((d) => d.mrp_usd != null && Number(d.mrp_usd) > 0);
+    let avgPctOffMrp = 0;
+    if (withMrp.length) {
+      const sum = withMrp.reduce((acc, d) => {
+        const disc = discountVsMrp(Number(d.mrp_usd), Number(d.price_usd));
+        return acc + (disc ? disc.pctOffMrp : 0);
+      }, 0);
+      avgPctOffMrp = sum / withMrp.length;
+    }
     return {
       total: filtered.length,
       avgPrice: avgPrice.toFixed(2),
       countries: new Set(filtered.map((d) => d.country_id)).size,
       vendors: new Set(filtered.map((d) => d.vendor_id)).size,
+      validCt,
+      expiredCt,
+      lineValue,
+      mrpRows: withMrp.length,
+      avgPctOffMrp: withMrp.length ? avgPctOffMrp.toFixed(1) : null,
     };
   }, [filtered]);
 
@@ -240,20 +259,38 @@ export function DevicePricingTab() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+        <Card className="p-3 border-border/80">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Laptop className="h-3.5 w-3.5" /> Devices</div>
           <p className="text-xl font-bold">{stats.total}</p>
         </Card>
-        <Card className="p-3">
-          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><DollarSign className="h-3.5 w-3.5" /> Avg Price</div>
-          <p className="text-xl font-bold">${stats.avgPrice}</p>
+        <Card className="p-3 border-border/80">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Package className="h-3.5 w-3.5" /> Line value</div>
+          <p className="text-xl font-bold tabular-nums">${stats.lineValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Σ quote × qty</p>
         </Card>
-        <Card className="p-3">
+        <Card className="p-3 border-border/80">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><DollarSign className="h-3.5 w-3.5" /> Avg quote</div>
+          <p className="text-xl font-bold tabular-nums">${stats.avgPrice}</p>
+        </Card>
+        <Card className="p-3 border-primary/20 bg-primary/5">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Tag className="h-3.5 w-3.5" /> vs MRP</div>
+          <p className="text-xl font-bold tabular-nums">{stats.avgPctOffMrp != null ? `${stats.avgPctOffMrp}%` : '—'}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{stats.mrpRows ? `avg off list · ${stats.mrpRows} rows` : 'add MRP on lines'}</p>
+        </Card>
+        <Card className="p-3 border-green-500/20 bg-green-500/5">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">Valid quotes</div>
+          <p className="text-xl font-bold text-green-700 dark:text-green-400">{stats.validCt}</p>
+        </Card>
+        <Card className="p-3 border-destructive/20 bg-destructive/5">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">Expired</div>
+          <p className="text-xl font-bold text-destructive">{stats.expiredCt}</p>
+        </Card>
+        <Card className="p-3 border-border/80">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Globe2 className="h-3.5 w-3.5" /> Countries</div>
           <p className="text-xl font-bold">{stats.countries}</p>
         </Card>
-        <Card className="p-3">
+        <Card className="p-3 border-border/80">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Building2 className="h-3.5 w-3.5" /> Vendors</div>
           <p className="text-xl font-bold">{stats.vendors}</p>
         </Card>
@@ -334,8 +371,9 @@ export function DevicePricingTab() {
                       </TableHead>
                       <TableHead>Specs</TableHead>
                       <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort('price_usd')}>
-                        <span className="flex items-center justify-end">Price (USD) <SortIcon col="price_usd" /></span>
+                        <span className="flex items-center justify-end">Quote <SortIcon col="price_usd" /></span>
                       </TableHead>
+                      <TableHead className="text-right whitespace-nowrap text-xs">MRP</TableHead>
                       <TableHead className="cursor-pointer select-none" onClick={() => handleSort('vendor')}>
                         <span className="flex items-center">Vendor <SortIcon col="vendor" /></span>
                       </TableHead>
@@ -356,7 +394,7 @@ export function DevicePricingTab() {
                         <TableRowGroup key={row.id}>
                           {isGroupStart && (
                             <TableRow className="bg-muted/60 hover:bg-muted/60 border-t">
-                              <TableCell colSpan={8} className="py-2">
+                              <TableCell colSpan={9} className="py-2">
                                 <div className="flex items-center gap-2">
                                   <Globe2 className="h-3.5 w-3.5 text-muted-foreground" />
                                   <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -380,6 +418,23 @@ export function DevicePricingTab() {
                             </TableCell>
                             <TableCell className="text-right font-semibold tabular-nums">
                               ${Number(row.price_usd).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-xs">
+                              {row.mrp_usd != null && Number(row.mrp_usd) > 0 ? (
+                                <span>
+                                  ${Number(row.mrp_usd).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                  {(() => {
+                                    const d = discountVsMrp(Number(row.mrp_usd), Number(row.price_usd));
+                                    return d ? (
+                                      <span className="block text-[10px] text-green-600 dark:text-green-400">
+                                        −{d.pctOffMrp.toFixed(0)}%
+                                      </span>
+                                    ) : null;
+                                  })()}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
                             </TableCell>
                             <TableCell>
                               <button
@@ -407,7 +462,7 @@ export function DevicePricingTab() {
                           </TableRow>
                           {isExpanded && (
                             <TableRow className="bg-muted/30 hover:bg-muted/30">
-                              <TableCell colSpan={8}>
+                              <TableCell colSpan={9}>
                                 <ExpandedDetails
                                   row={row}
                                   search={search}
@@ -488,8 +543,18 @@ function ExpandedDetails({
   onViewVendor: () => void;
 }) {
   const addons = (row.addons || []) as any[];
+  const mrp = row.mrp_usd != null ? Number(row.mrp_usd) : null;
+  const vsMrp = mrp && mrp > 0 ? discountVsMrp(mrp, Number(row.price_usd)) : null;
   return (
     <div className="px-4 py-3 space-y-3">
+      {vsMrp && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-sm">
+          <TrendingDown className="h-4 w-4 text-primary" />
+          <span>
+            Quote is <strong>{vsMrp.pctOffMrp.toFixed(1)}%</strong> below MRP (save ${vsMrp.savingsUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })})
+          </span>
+        </div>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-2 text-sm">
         <div><span className="text-muted-foreground text-xs">Display</span><p className="font-medium">{highlightText(row.display_size, search)}</p></div>
         {row.gpu && <div><span className="text-muted-foreground text-xs">GPU</span><p className="font-medium">{highlightText(row.gpu, search)}</p></div>}
@@ -510,6 +575,12 @@ function ExpandedDetails({
             <ExternalLink className="h-3 w-3 opacity-60" />
           </button>
         </div>
+        {mrp != null && mrp > 0 && (
+          <div>
+            <span className="text-muted-foreground text-xs">MRP (USD)</span>
+            <p className="font-medium tabular-nums">${mrp.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+          </div>
+        )}
       </div>
       {addons.length > 0 && (
         <div>

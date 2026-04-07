@@ -10,7 +10,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Search, Plus, Warehouse, X, DollarSign, Globe2, Building2, Edit,
+  Search, Plus, Warehouse, X, DollarSign, Globe2, Building2, Edit, CalendarClock,
 } from 'lucide-react';
 import { AddWarehousePricingDialog } from '@/components/warehouse/AddWarehousePricingDialog';
 import type { WarehouseVendorPricing } from '@/types/procurement';
@@ -69,12 +69,26 @@ export function WarehousePricingTab() {
   }, [data, search]);
 
   const stats = useMemo(() => {
-    const avgTotal = filtered.length ? filtered.reduce((a, d) => a + Number(d.grand_total), 0) / filtered.length : 0;
+    const today = new Date().toISOString().slice(0, 10);
+    const totals = filtered.map((d) => Number(d.grand_total));
+    const avgTotal = filtered.length ? totals.reduce((a, b) => a + b, 0) / filtered.length : 0;
+    const sumPipeline = totals.reduce((a, b) => a + b, 0);
+    const minT = filtered.length ? Math.min(...totals) : 0;
+    const maxT = filtered.length ? Math.max(...totals) : 0;
+    const validCt = filtered.filter((d) => d.quote_validity_date && d.quote_validity_date >= today).length;
+    const expiredCt = filtered.filter((d) => d.quote_validity_date && d.quote_validity_date < today).length;
+    const noExpiry = filtered.filter((d) => !d.quote_validity_date).length;
     return {
       total: filtered.length,
       avgTotal: avgTotal.toFixed(2),
       vendors: new Set(filtered.map((d) => d.vendor_id)).size,
       countries: new Set(filtered.filter((d) => d.country_id).map((d) => d.country_id)).size,
+      sumPipeline,
+      minT,
+      maxT,
+      validCt,
+      expiredCt,
+      noExpiry,
     };
   }, [filtered]);
 
@@ -102,22 +116,42 @@ export function WarehousePricingTab() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+        <Card className="p-3 border-border/80">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Warehouse className="h-3.5 w-3.5" /> Entries</div>
           <p className="text-xl font-bold">{stats.total}</p>
         </Card>
-        <Card className="p-3">
-          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><DollarSign className="h-3.5 w-3.5" /> Avg Total</div>
-          <p className="text-xl font-bold">${stats.avgTotal}</p>
+        <Card className="p-3 border-primary/20 bg-primary/5">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><DollarSign className="h-3.5 w-3.5" /> Σ Grand totals</div>
+          <p className="text-xl font-bold tabular-nums">${stats.sumPipeline.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Filter-aware sum</p>
         </Card>
-        <Card className="p-3">
+        <Card className="p-3 border-border/80">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">Avg / service bundle</div>
+          <p className="text-xl font-bold tabular-nums">${stats.avgTotal}</p>
+        </Card>
+        <Card className="p-3 border-border/80">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">Range (min → max)</div>
+          <p className="text-sm font-bold tabular-nums leading-tight">
+            ${stats.minT.toFixed(0)} → ${stats.maxT.toFixed(0)}
+          </p>
+        </Card>
+        <Card className="p-3 border-green-500/20 bg-green-500/5">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><CalendarClock className="h-3.5 w-3.5" /> Valid quotes</div>
+          <p className="text-xl font-bold text-green-700 dark:text-green-400">{stats.validCt}</p>
+        </Card>
+        <Card className="p-3 border-destructive/20 bg-destructive/5">
+          <div className="text-muted-foreground text-xs font-medium mb-1">Expired</div>
+          <p className="text-xl font-bold text-destructive">{stats.expiredCt}</p>
+        </Card>
+        <Card className="p-3 border-border/80">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Building2 className="h-3.5 w-3.5" /> Vendors</div>
           <p className="text-xl font-bold">{stats.vendors}</p>
         </Card>
-        <Card className="p-3">
+        <Card className="p-3 border-border/80">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Globe2 className="h-3.5 w-3.5" /> Countries</div>
           <p className="text-xl font-bold">{stats.countries}</p>
+          {stats.noExpiry > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">{stats.noExpiry} no expiry date</p>}
         </Card>
       </div>
 

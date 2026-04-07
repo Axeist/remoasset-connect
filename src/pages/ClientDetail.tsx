@@ -16,9 +16,12 @@ import { cn } from '@/lib/utils';
 import {
   ArrowLeft, Plus, Globe2, Mail, Phone, User, Package,
   CheckCircle2, Truck, Clock, DollarSign, ChevronDown, ChevronRight, Edit,
+  TrendingUp, CreditCard, Tag,
 } from 'lucide-react';
 import { AddRequestDialog } from '@/components/clients/AddRequestDialog';
 import { CLIENT_REQUEST_STATUSES } from '@/constants/device-options';
+import { clientRequestProfit } from '@/lib/client-request-pricing';
+import { discountVsMrp, quotedPctOfMrp } from '@/lib/mrp-insights';
 import type { Client, ClientRequest } from '@/types/procurement';
 
 export default function ClientDetail() {
@@ -63,7 +66,31 @@ export default function ClientDetail() {
     const totalSpend = requests
       .filter((r) => r.client_price_usd)
       .reduce((a, r) => a + (Number(r.client_price_usd) * r.quantity), 0);
-    return { total, fulfilled, inTransit, pending, totalSpend };
+    const procurement = requests
+      .filter((r) => r.vendor_price_usd != null)
+      .reduce((a, r) => a + Number(r.vendor_price_usd) * r.quantity, 0);
+    let profit = 0;
+    requests.forEach((r) => {
+      if (r.client_price_usd != null && r.vendor_price_usd != null) {
+        const p = clientRequestProfit(Number(r.vendor_price_usd), Number(r.client_price_usd));
+        if (p) profit += p.profitAmount * r.quantity;
+      }
+    });
+    const paid = requests.filter((r) => (r.payment_status ?? 'unpaid') === 'paid').length;
+    const unpaid = requests.filter((r) => (r.payment_status ?? 'unpaid') === 'unpaid').length;
+    const marginOnQuoted = totalSpend > 0 ? (profit / totalSpend) * 100 : 0;
+    const withMrp = requests.filter((r) => r.mrp_usd != null && Number(r.mrp_usd) > 0 && r.client_price_usd != null);
+    let avgPctOfMrp = 0;
+    if (withMrp.length) {
+      avgPctOfMrp = withMrp.reduce((acc, r) => {
+        const x = quotedPctOfMrp(Number(r.mrp_usd), Number(r.client_price_usd));
+        return acc + (x ?? 0);
+      }, 0) / withMrp.length;
+    }
+    return {
+      total, fulfilled, inTransit, pending, totalSpend, procurement, profit, paid, unpaid,
+      marginOnQuoted, mrpRows: withMrp.length, avgPctOfMrp: withMrp.length ? avgPctOfMrp : null,
+    };
   }, [requests]);
 
   const handleStatusChange = async (reqId: string, newStatus: string) => {
@@ -136,26 +163,52 @@ export default function ClientDetail() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <Card className="p-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Package className="h-3.5 w-3.5" /> Total Requests</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-10 gap-3">
+          <Card className="p-3 border-border/80">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Package className="h-3.5 w-3.5" /> Requests</div>
             <p className="text-xl font-bold">{stats.total}</p>
           </Card>
-          <Card className="p-3">
+          <Card className="p-3 border-border/80">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><DollarSign className="h-3.5 w-3.5" /> Quoted Σ</div>
+            <p className="text-xl font-bold tabular-nums">${stats.totalSpend.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+          </Card>
+          <Card className="p-3 border-border/80">
+            <div className="text-muted-foreground text-xs font-medium mb-1">Procurement Σ</div>
+            <p className="text-xl font-bold tabular-nums">${stats.procurement.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+          </Card>
+          <Card className="p-3 border-primary/20 bg-primary/5">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><TrendingUp className="h-3.5 w-3.5" /> Profit Σ</div>
+            <p className="text-xl font-bold tabular-nums">${stats.profit.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{stats.totalSpend > 0 ? `${stats.marginOnQuoted.toFixed(1)}% of quoted` : ''}</p>
+          </Card>
+          <Card className="p-3 border-primary/15 bg-primary/5">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Tag className="h-3.5 w-3.5" /> vs MRP</div>
+            <p className="text-xl font-bold tabular-nums">{stats.avgPctOfMrp != null ? `${stats.avgPctOfMrp.toFixed(0)}%` : '—'}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{stats.mrpRows ? `avg quoted / MRP · ${stats.mrpRows} lines` : 'add MRP on requests'}</p>
+          </Card>
+          <Card className="p-3 border-border/80">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><CreditCard className="h-3.5 w-3.5" /> Paid</div>
+            <p className="text-xl font-bold">{stats.paid}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{stats.unpaid} unpaid</p>
+          </Card>
+          <Card className="p-3 border-green-500/20 bg-green-500/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><CheckCircle2 className="h-3.5 w-3.5" /> Fulfilled</div>
             <p className="text-xl font-bold text-green-600">{stats.fulfilled}</p>
           </Card>
-          <Card className="p-3">
+          <Card className="p-3 border-blue-500/20 bg-blue-500/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Truck className="h-3.5 w-3.5" /> In Transit</div>
             <p className="text-xl font-bold text-blue-600">{stats.inTransit}</p>
           </Card>
-          <Card className="p-3">
+          <Card className="p-3 border-amber-500/20 bg-amber-500/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Clock className="h-3.5 w-3.5" /> Pending</div>
             <p className="text-xl font-bold text-amber-600">{stats.pending}</p>
           </Card>
-          <Card className="p-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><DollarSign className="h-3.5 w-3.5" /> Total Spend</div>
-            <p className="text-xl font-bold">${stats.totalSpend.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+          <Card className="p-3 border-border/80">
+            <div className="text-muted-foreground text-xs font-medium mb-1">Avg / request</div>
+            <p className="text-xl font-bold tabular-nums">
+              {stats.total ? `$${(stats.profit / stats.total).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">profit</p>
           </Card>
         </div>
 
@@ -175,11 +228,12 @@ export default function ClientDetail() {
                     <TableRow>
                       <TableHead className="w-8" />
                       <TableHead>Device</TableHead>
-                      <TableHead>Specs</TableHead>
+                      <TableHead>Employee</TableHead>
                       <TableHead className="text-center">Qty</TableHead>
                       <TableHead>Vendor</TableHead>
-                      <TableHead className="text-right">Vendor Price</TableHead>
-                      <TableHead className="text-right">Client Price</TableHead>
+                      <TableHead>Payment</TableHead>
+                      <TableHead className="text-right">Quoted</TableHead>
+                      <TableHead className="text-right">Profit</TableHead>
                       <TableHead>Shipping</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
@@ -223,6 +277,12 @@ function RequestRows({
   onStatusChange: (id: string, status: string) => void;
   onAllocateVendor: (id: string, vendorId: string, price: string) => void;
 }) {
+  const pay = req.payment_status ?? 'unpaid';
+  const profit =
+    req.vendor_price_usd != null && req.client_price_usd != null
+      ? clientRequestProfit(Number(req.vendor_price_usd), Number(req.client_price_usd))
+      : null;
+
   return (
     <>
       <TableRow className="cursor-pointer hover:bg-muted/50" onClick={onToggle}>
@@ -230,24 +290,49 @@ function RequestRows({
           {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </TableCell>
         <TableCell>
-          <div className="font-medium">{req.brand} {req.device_model}</div>
+          <div className="font-medium leading-tight">{req.brand} {req.device_model}</div>
+          {req.device_summary && (
+            <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{req.device_summary}</p>
+          )}
         </TableCell>
         <TableCell>
-          <span className="text-xs text-muted-foreground">
-            {req.processor} | {req.ram} | {req.storage}
-          </span>
+          {req.employee_name ? (
+            <>
+              <span className="text-xs font-medium block">{req.employee_name}</span>
+              {req.employee_address && (
+                <div className="text-[10px] text-muted-foreground line-clamp-2 max-w-[180px]">{req.employee_address}</div>
+              )}
+            </>
+          ) : req.employee_address ? (
+            <span className="text-xs text-muted-foreground line-clamp-2 max-w-[180px]">{req.employee_address}</span>
+          ) : (
+            <span className="text-muted-foreground text-xs">—</span>
+          )}
         </TableCell>
         <TableCell className="text-center">{req.quantity}</TableCell>
-        <TableCell>{req.vendor?.company_name || <span className="text-muted-foreground text-xs">Not allocated</span>}</TableCell>
-        <TableCell className="text-right tabular-nums">
-          {req.vendor_price_usd != null
-            ? `$${Number(req.vendor_price_usd).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
-            : '-'}
+        <TableCell>{req.vendor?.company_name || <span className="text-muted-foreground text-xs">—</span>}</TableCell>
+        <TableCell>
+          <Badge variant={pay === 'paid' ? 'default' : 'secondary'} className="text-[10px] capitalize">
+            {pay}
+          </Badge>
+          {req.client_payment_date && <div className="text-[10px] text-muted-foreground mt-0.5">{req.client_payment_date}</div>}
         </TableCell>
-        <TableCell className="text-right tabular-nums">
+        <TableCell className="text-right tabular-nums text-sm">
           {req.client_price_usd != null
             ? `$${Number(req.client_price_usd).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
             : '-'}
+        </TableCell>
+        <TableCell className="text-right tabular-nums text-sm">
+          {profit !== null ? (
+            <span>
+              ${profit.profitAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {profit.profitPctOnProcurement != null && (
+                <span className="block text-[10px] text-muted-foreground">{profit.profitPctOnProcurement.toFixed(2)}%</span>
+              )}
+            </span>
+          ) : (
+            '-'
+          )}
         </TableCell>
         <TableCell className="text-sm">{req.shipping_date || '-'}</TableCell>
         <TableCell>
@@ -258,7 +343,7 @@ function RequestRows({
       </TableRow>
       {isExpanded && (
         <TableRow className="bg-muted/30 hover:bg-muted/30">
-          <TableCell colSpan={9}>
+          <TableCell colSpan={10}>
             <ExpandedRequest
               req={req}
               onStatusChange={onStatusChange}
@@ -280,10 +365,32 @@ function ExpandedRequest({
 }) {
   const [vendors, setVendors] = useState<{ id: string; company_name: string }[]>([]);
   const [allocVendorId, setAllocVendorId] = useState(req.vendor_id || '');
-  const [allocPrice, setAllocPrice] = useState(req.vendor_price_usd != null ? String(req.vendor_price_usd) : '');
-  const [clientPrice, setClientPrice] = useState(req.client_price_usd != null ? String(req.client_price_usd) : '');
+  const [procurement, setProcurement] = useState(req.vendor_price_usd != null ? String(req.vendor_price_usd) : '');
+  const [quoted, setQuoted] = useState(req.client_price_usd != null ? String(req.client_price_usd) : '');
+  const [wireCost, setWireCost] = useState(req.wire_cost_usd != null ? String(req.wire_cost_usd) : '');
+  const [mrpUsd, setMrpUsd] = useState(req.mrp_usd != null ? String(req.mrp_usd) : '');
+  const [deviceSummary, setDeviceSummary] = useState(req.device_summary || '');
+  const [employeeName, setEmployeeName] = useState(req.employee_name || '');
+  const [employeeAddress, setEmployeeAddress] = useState(req.employee_address || '');
+  const [employeePhone, setEmployeePhone] = useState(req.employee_phone || '');
+  const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid'>(req.payment_status ?? 'unpaid');
+  const [clientPaymentDate, setClientPaymentDate] = useState(req.client_payment_date || '');
   const [shippingDate, setShippingDate] = useState(req.shipping_date || '');
   const { toast } = useToast();
+
+  const profitLive =
+    procurement !== '' && quoted !== ''
+      ? clientRequestProfit(parseFloat(procurement), parseFloat(quoted))
+      : null;
+
+  const mrpN = parseFloat(mrpUsd);
+  const mrpOk = !Number.isNaN(mrpN) && mrpN > 0;
+  const mrpQuoted = mrpOk && quoted !== '' && !Number.isNaN(parseFloat(quoted))
+    ? discountVsMrp(mrpN, parseFloat(quoted))
+    : null;
+  const mrpProc = mrpOk && procurement !== '' && !Number.isNaN(parseFloat(procurement))
+    ? discountVsMrp(mrpN, parseFloat(procurement))
+    : null;
 
   useEffect(() => {
     supabase.from('leads').select('id, company_name').order('company_name').then(({ data }) => {
@@ -293,14 +400,22 @@ function ExpandedRequest({
 
   const addons = (req.addons || []) as any[];
 
-  const handleUpdatePricing = async () => {
+  const handleSaveFulfillment = async () => {
     const { error } = await supabase.from('client_requests' as any).update({
-      client_price_usd: clientPrice ? parseFloat(clientPrice) : null,
-      vendor_price_usd: allocPrice ? parseFloat(allocPrice) : null,
+      client_price_usd: quoted ? parseFloat(quoted) : null,
+      vendor_price_usd: procurement ? parseFloat(procurement) : null,
+      wire_cost_usd: wireCost ? parseFloat(wireCost) : null,
+      mrp_usd: mrpUsd ? parseFloat(mrpUsd) : null,
+      device_summary: deviceSummary.trim() || null,
+      employee_name: employeeName.trim() || null,
+      employee_address: employeeAddress.trim() || null,
+      employee_phone: employeePhone.trim() || null,
+      payment_status: paymentStatus,
+      client_payment_date: clientPaymentDate || null,
       shipping_date: shippingDate || null,
     }).eq('id', req.id);
     if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    else toast({ title: 'Updated' });
+    else toast({ title: 'Saved' });
   };
 
   return (
@@ -336,6 +451,40 @@ function ExpandedRequest({
         )}
       </div>
 
+      <div className="space-y-2">
+        <span className="text-xs text-muted-foreground font-medium">Device info (full line)</span>
+        <Input value={deviceSummary} onChange={(e) => setDeviceSummary(e.target.value)} className="text-sm" placeholder="Device summary for reports" />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="space-y-1">
+          <span className="text-xs text-muted-foreground">Employee name</span>
+          <Input value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} className="h-9 text-sm" />
+        </div>
+        <div className="space-y-1 sm:col-span-2">
+          <span className="text-xs text-muted-foreground">Employee address</span>
+          <Input value={employeeAddress} onChange={(e) => setEmployeeAddress(e.target.value)} className="h-9 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <span className="text-xs text-muted-foreground">Employee phone</span>
+          <Input value={employeePhone} onChange={(e) => setEmployeePhone(e.target.value)} className="h-9 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <span className="text-xs text-muted-foreground">Payment status</span>
+          <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'paid' | 'unpaid')}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="paid">Paid</SelectItem>
+              <SelectItem value="unpaid">Unpaid</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <span className="text-xs text-muted-foreground">Date of payment (client)</span>
+          <Input type="date" value={clientPaymentDate} onChange={(e) => setClientPaymentDate(e.target.value)} className="h-9 text-sm" />
+        </div>
+      </div>
+
       {addons.length > 0 && (
         <div>
           <span className="text-xs text-muted-foreground font-medium">Add-ons</span>
@@ -356,8 +505,8 @@ function ExpandedRequest({
 
       {/* Vendor Allocation & Pricing */}
       <div className="border-t pt-3 space-y-3">
-        <h5 className="text-sm font-semibold">Vendor & Pricing</h5>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <h5 className="text-sm font-semibold">Vendor & pricing (USD)</h5>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <div className="space-y-1">
             <span className="text-xs text-muted-foreground">Vendor</span>
             <Select value={allocVendorId} onValueChange={setAllocVendorId}>
@@ -368,25 +517,65 @@ function ExpandedRequest({
             </Select>
           </div>
           <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Vendor Price (USD)</span>
-            <Input type="number" step="0.01" value={allocPrice} onChange={(e) => setAllocPrice(e.target.value)} className="h-9 text-sm" placeholder="0.00" />
+            <span className="text-xs text-muted-foreground">Price quoted</span>
+            <Input type="number" step="0.01" value={quoted} onChange={(e) => setQuoted(e.target.value)} className="h-9 text-sm" placeholder="0.00" />
           </div>
           <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Client Price (USD)</span>
-            <Input type="number" step="0.01" value={clientPrice} onChange={(e) => setClientPrice(e.target.value)} className="h-9 text-sm" placeholder="0.00" />
+            <span className="text-xs text-muted-foreground">Wire cost</span>
+            <Input type="number" step="0.01" value={wireCost} onChange={(e) => setWireCost(e.target.value)} className="h-9 text-sm" placeholder="0.00" />
           </div>
           <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Shipping Date</span>
+            <span className="text-xs text-muted-foreground">Procurement</span>
+            <Input type="number" step="0.01" value={procurement} onChange={(e) => setProcurement(e.target.value)} className="h-9 text-sm" placeholder="0.00" />
+          </div>
+          <div className="space-y-1">
+            <span className="text-xs text-muted-foreground">MRP (USD)</span>
+            <Input type="number" step="0.01" value={mrpUsd} onChange={(e) => setMrpUsd(e.target.value)} className="h-9 text-sm" placeholder="Optional" />
+          </div>
+          <div className="space-y-1">
+            <span className="text-xs text-muted-foreground">Profit ($)</span>
+            <Input
+              readOnly
+              className="h-9 text-sm tabular-nums bg-muted/50"
+              value={profitLive != null ? profitLive.profitAmount.toFixed(2) : '—'}
+            />
+          </div>
+          <div className="space-y-1">
+            <span className="text-xs text-muted-foreground">Profit (% on cost)</span>
+            <Input
+              readOnly
+              className="h-9 text-sm tabular-nums bg-muted/50"
+              value={profitLive?.profitPctOnProcurement != null ? `${profitLive.profitPctOnProcurement.toFixed(2)}%` : '—'}
+            />
+          </div>
+          <div className="space-y-1 sm:col-span-2">
+            <span className="text-xs text-muted-foreground">Shipping date</span>
             <Input type="date" value={shippingDate} onChange={(e) => setShippingDate(e.target.value)} className="h-9 text-sm" />
           </div>
         </div>
+        {(mrpQuoted || mrpProc) && (
+          <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs space-y-1">
+            <span className="font-medium text-foreground flex items-center gap-1"><Tag className="h-3 w-3" /> vs MRP</span>
+            {mrpQuoted && quotedPctOfMrp(mrpN, parseFloat(quoted)) != null && (
+              <p className="text-muted-foreground">
+                Quoted: <span className="text-foreground font-medium">{quotedPctOfMrp(mrpN, parseFloat(quoted))!.toFixed(1)}% of MRP</span>
+                {' '}({mrpQuoted.pctOffMrp.toFixed(1)}% below list)
+              </p>
+            )}
+            {mrpProc && (
+              <p className="text-muted-foreground">
+                Procurement: <span className="text-foreground font-medium">{mrpProc.pctOffMrp.toFixed(1)}% below MRP</span>
+              </p>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-2 flex-wrap">
           {!req.vendor_id && allocVendorId && (
-            <Button size="sm" onClick={() => onAllocateVendor(req.id, allocVendorId, allocPrice)}>Allocate Vendor</Button>
+            <Button size="sm" onClick={() => onAllocateVendor(req.id, allocVendorId, procurement)}>Allocate Vendor</Button>
           )}
-          <Button size="sm" variant="outline" onClick={handleUpdatePricing}>Save Pricing</Button>
+          <Button size="sm" variant="outline" onClick={handleSaveFulfillment}>Save details</Button>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Status:</span>
+            <span className="text-xs text-muted-foreground">Fulfillment status:</span>
             <Select value={req.status} onValueChange={(v) => onStatusChange(req.id, v)}>
               <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>

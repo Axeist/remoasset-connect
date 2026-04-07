@@ -13,7 +13,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
   Search, Plus, Users, ChevronRight, X, Globe2, Package, Truck, CheckCircle2, Clock,
+  DollarSign, TrendingUp, CreditCard,
 } from 'lucide-react';
+import { clientRequestProfit } from '@/lib/client-request-pricing';
 import { ClientFormDialog } from '@/components/clients/ClientFormDialog';
 import type { Client } from '@/types/procurement';
 
@@ -22,6 +24,11 @@ interface ClientWithStats extends Client {
   fulfilled: number;
   inTransit: number;
   pending: number;
+  quotedUsd: number;
+  procurementUsd: number;
+  profitUsd: number;
+  paidCount: number;
+  unpaidCount: number;
 }
 
 export default function Clients() {
@@ -40,7 +47,7 @@ export default function Clients() {
         .select('*, country:countries!country_id(name, code)')
         .order('created_at', { ascending: false }),
       supabase.from('client_requests' as any)
-        .select('client_id, status'),
+        .select('client_id, status, client_price_usd, vendor_price_usd, payment_status, quantity'),
     ]);
 
     if (cErr) {
@@ -49,19 +56,51 @@ export default function Clients() {
       return;
     }
 
-    const statsMap = new Map<string, { total: number; fulfilled: number; inTransit: number; pending: number }>();
+    const statsMap = new Map<string, {
+      total: number; fulfilled: number; inTransit: number; pending: number;
+      quotedUsd: number; procurementUsd: number; profitUsd: number; paidCount: number; unpaidCount: number;
+    }>();
     (requestRows || []).forEach((r: any) => {
-      const s = statsMap.get(r.client_id) || { total: 0, fulfilled: 0, inTransit: 0, pending: 0 };
+      const s = statsMap.get(r.client_id) || {
+        total: 0, fulfilled: 0, inTransit: 0, pending: 0,
+        quotedUsd: 0, procurementUsd: 0, profitUsd: 0, paidCount: 0, unpaidCount: 0,
+      };
       s.total++;
       if (r.status === 'fulfilled') s.fulfilled++;
       else if (r.status === 'in_transit') s.inTransit++;
       else if (r.status === 'pending' || r.status === 'vendor_allocated' || r.status === 'ordered') s.pending++;
+      const qty = Number(r.quantity) || 1;
+      const cq = r.client_price_usd != null ? Number(r.client_price_usd) * qty : 0;
+      const vq = r.vendor_price_usd != null ? Number(r.vendor_price_usd) * qty : 0;
+      if (r.client_price_usd != null) s.quotedUsd += cq;
+      if (r.vendor_price_usd != null) s.procurementUsd += vq;
+      if (r.client_price_usd != null && r.vendor_price_usd != null) {
+        const p = clientRequestProfit(Number(r.vendor_price_usd), Number(r.client_price_usd));
+        if (p) s.profitUsd += p.profitAmount * qty;
+      }
+      const pay = r.payment_status ?? 'unpaid';
+      if (pay === 'paid') s.paidCount++;
+      else s.unpaidCount++;
       statsMap.set(r.client_id, s);
     });
 
     const combined: ClientWithStats[] = ((clientRows as any) || []).map((c: any) => {
-      const s = statsMap.get(c.id) || { total: 0, fulfilled: 0, inTransit: 0, pending: 0 };
-      return { ...c, totalRequests: s.total, fulfilled: s.fulfilled, inTransit: s.inTransit, pending: s.pending };
+      const s = statsMap.get(c.id) || {
+        total: 0, fulfilled: 0, inTransit: 0, pending: 0,
+        quotedUsd: 0, procurementUsd: 0, profitUsd: 0, paidCount: 0, unpaidCount: 0,
+      };
+      return {
+        ...c,
+        totalRequests: s.total,
+        fulfilled: s.fulfilled,
+        inTransit: s.inTransit,
+        pending: s.pending,
+        quotedUsd: s.quotedUsd,
+        procurementUsd: s.procurementUsd,
+        profitUsd: s.profitUsd,
+        paidCount: s.paidCount,
+        unpaidCount: s.unpaidCount,
+      };
     });
     setClients(combined);
     setLoading(false);
@@ -79,12 +118,22 @@ export default function Clients() {
     );
   }, [clients, search]);
 
-  const totals = useMemo(() => ({
-    clients: filtered.length,
-    requests: filtered.reduce((a, c) => a + c.totalRequests, 0),
-    fulfilled: filtered.reduce((a, c) => a + c.fulfilled, 0),
-    inTransit: filtered.reduce((a, c) => a + c.inTransit, 0),
-  }), [filtered]);
+  const totals = useMemo(() => {
+    const quoted = filtered.reduce((a, c) => a + c.quotedUsd, 0);
+    const profit = filtered.reduce((a, c) => a + c.profitUsd, 0);
+    const marginPct = quoted > 0 ? (profit / quoted) * 100 : 0;
+    return {
+      clients: filtered.length,
+      requests: filtered.reduce((a, c) => a + c.totalRequests, 0),
+      fulfilled: filtered.reduce((a, c) => a + c.fulfilled, 0),
+      inTransit: filtered.reduce((a, c) => a + c.inTransit, 0),
+      quoted,
+      profit,
+      marginPct,
+      paid: filtered.reduce((a, c) => a + c.paidCount, 0),
+      unpaid: filtered.reduce((a, c) => a + c.unpaidCount, 0),
+    };
+  }, [filtered]);
 
   return (
     <AppLayout>
@@ -100,22 +149,43 @@ export default function Clients() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Card className="p-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+          <Card className="p-3 border-border/80">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Users className="h-3.5 w-3.5" /> Clients</div>
             <p className="text-xl font-bold">{totals.clients}</p>
           </Card>
-          <Card className="p-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Package className="h-3.5 w-3.5" /> Total Requests</div>
+          <Card className="p-3 border-border/80">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Package className="h-3.5 w-3.5" /> Requests</div>
             <p className="text-xl font-bold">{totals.requests}</p>
           </Card>
-          <Card className="p-3">
+          <Card className="p-3 border-primary/20 bg-primary/5">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><DollarSign className="h-3.5 w-3.5" /> Quoted (Σ)</div>
+            <p className="text-xl font-bold tabular-nums">${totals.quoted.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">client price × qty</p>
+          </Card>
+          <Card className="p-3 border-primary/20 bg-primary/5">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><TrendingUp className="h-3.5 w-3.5" /> Profit (Σ)</div>
+            <p className="text-xl font-bold tabular-nums">${totals.profit.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{totals.quoted > 0 ? `${totals.marginPct.toFixed(1)}% of quoted` : 'add pricing on lines'}</p>
+          </Card>
+          <Card className="p-3 border-border/80">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><CreditCard className="h-3.5 w-3.5" /> Paid lines</div>
+            <p className="text-xl font-bold">{totals.paid}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{totals.unpaid} unpaid</p>
+          </Card>
+          <Card className="p-3 border-green-500/20 bg-green-500/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><CheckCircle2 className="h-3.5 w-3.5" /> Fulfilled</div>
             <p className="text-xl font-bold text-green-600">{totals.fulfilled}</p>
           </Card>
-          <Card className="p-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Truck className="h-3.5 w-3.5" /> In Transit</div>
+          <Card className="p-3 border-blue-500/20 bg-blue-500/5">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Truck className="h-3.5 w-3.5" /> In transit</div>
             <p className="text-xl font-bold text-blue-600">{totals.inTransit}</p>
+          </Card>
+          <Card className="p-3 border-border/80 opacity-90">
+            <div className="text-muted-foreground text-xs font-medium mb-1">Avg profit / client</div>
+            <p className="text-xl font-bold tabular-nums">
+              {totals.clients ? `$${(totals.profit / totals.clients).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
+            </p>
           </Card>
         </div>
 

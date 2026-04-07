@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
@@ -11,7 +11,9 @@ import { DeviceSpecForm, SectionHeader, type DeviceSpecValues } from '@/componen
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Tag } from 'lucide-react';
+import { discountVsMrp } from '@/lib/mrp-insights';
+import { Card, CardContent } from '@/components/ui/card';
 import type { VendorDevicePricing } from '@/types/procurement';
 
 interface Props {
@@ -31,6 +33,7 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
   const [countryId, setCountryId] = useState('');
   const [vendorId, setVendorId] = useState('');
   const [priceUsd, setPriceUsd] = useState('');
+  const [mrpUsd, setMrpUsd] = useState('');
   const [quoteDate, setQuoteDate] = useState(new Date().toISOString().slice(0, 10));
   const [quoteValidityDate, setQuoteValidityDate] = useState('');
 
@@ -54,6 +57,7 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
       setCountryId(editItem.country_id);
       setVendorId(editItem.vendor_id);
       setPriceUsd(String(editItem.price_usd));
+      setMrpUsd(editItem.mrp_usd != null ? String(editItem.mrp_usd) : '');
       setQuoteDate(editItem.quote_date);
       setQuoteValidityDate(editItem.quote_validity_date || '');
       setDeviceSpec({
@@ -70,7 +74,7 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
   }, [editItem, open]);
 
   const resetForm = () => {
-    setCountryId(''); setVendorId(''); setPriceUsd('');
+    setCountryId(''); setVendorId(''); setPriceUsd(''); setMrpUsd('');
     setQuoteDate(new Date().toISOString().slice(0, 10)); setQuoteValidityDate('');
     setDeviceSpec({
       brand: '', device_model: '', processor: '', display_size: '',
@@ -108,6 +112,10 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
       os: deviceSpec.os || null,
       addons: deviceSpec.addons as any,
       price_usd: parseFloat(priceUsd),
+      mrp_usd: (() => {
+        const m = parseFloat(mrpUsd);
+        return Number.isNaN(m) ? null : m;
+      })(),
       quantity: deviceSpec.quantity,
       quote_date: quoteDate,
       quote_validity_date: quoteValidityDate || null,
@@ -131,6 +139,12 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
   };
 
   const selectedCountryName = countries.find((c) => c.id === countryId)?.name;
+
+  const mrpInsight = useMemo(() => {
+    const m = parseFloat(mrpUsd);
+    const p = parseFloat(priceUsd);
+    return discountVsMrp(m, p);
+  }, [mrpUsd, priceUsd]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,9 +205,9 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
           {/* 4. Pricing & Quote */}
           <div>
             <SectionHeader number={4} title="Pricing & Quote" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Price (USD) <span className="text-destructive">*</span></Label>
+                <Label className="text-sm font-medium">Vendor quote (USD) <span className="text-destructive">*</span></Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
                   <Input
@@ -208,6 +222,22 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
                 </div>
               </div>
               <div className="space-y-1.5">
+                <Label className="text-sm font-medium">MRP / List price (USD)</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={mrpUsd}
+                    onChange={(e) => setMrpUsd(e.target.value)}
+                    className="h-10 pl-7"
+                    placeholder="Optional"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">Compare vendor quote vs typical list / MRP</p>
+              </div>
+              <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Quote Date</Label>
                 <Input type="date" value={quoteDate} onChange={(e) => setQuoteDate(e.target.value)} className="h-10" />
               </div>
@@ -216,6 +246,20 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
                 <Input type="date" value={quoteValidityDate} onChange={(e) => setQuoteValidityDate(e.target.value)} className="h-10" />
               </div>
             </div>
+            {mrpInsight && (
+              <Card className="mt-4 border-primary/25 bg-primary/5 shadow-none">
+                <CardContent className="p-4 flex flex-wrap items-center gap-4">
+                  <Tag className="h-5 w-5 text-primary shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold">vs MRP</p>
+                    <p className="text-xs text-muted-foreground">
+                      Quote is <span className="font-medium text-foreground">{mrpInsight.pctOffMrp.toFixed(1)}%</span> below list
+                      {' '}(save ${mrpInsight.savingsUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })})
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* 5. Additional Notes (after pricing) */}

@@ -18,6 +18,7 @@ export interface VendorDevicePricing {
   os: string | null;
   addons: DeviceAddon[];
   price_usd: number;
+  mrp_usd?: number | null;
   quantity: number;
   quote_date: string;
   quote_validity_date: string | null;
@@ -42,6 +43,7 @@ export interface VendorDevicePricingInsert {
   os?: string | null;
   addons?: DeviceAddon[];
   price_usd: number;
+  mrp_usd?: number | null;
   quantity?: number;
   quote_date?: string;
   quote_validity_date?: string | null;
@@ -73,6 +75,8 @@ export interface ClientInsert {
 
 export type ClientRequestStatus = 'pending' | 'vendor_allocated' | 'ordered' | 'in_transit' | 'fulfilled' | 'cancelled';
 
+export type ClientRequestPaymentStatus = 'paid' | 'unpaid';
+
 export interface ClientRequest {
   id: string;
   client_id: string;
@@ -90,8 +94,16 @@ export interface ClientRequest {
   gpu: string | null;
   os: string | null;
   addons: DeviceAddon[];
+  device_summary: string | null;
+  employee_name: string | null;
+  employee_address: string | null;
+  employee_phone: string | null;
+  payment_status?: ClientRequestPaymentStatus;
+  client_payment_date: string | null;
   vendor_price_usd: number | null;
   client_price_usd: number | null;
+  wire_cost_usd: number | null;
+  mrp_usd?: number | null;
   shipping_date: string | null;
   status: ClientRequestStatus;
   notes: string | null;
@@ -118,8 +130,16 @@ export interface ClientRequestInsert {
   gpu?: string | null;
   os?: string | null;
   addons?: DeviceAddon[];
+  device_summary?: string | null;
+  employee_name?: string | null;
+  employee_address?: string | null;
+  employee_phone?: string | null;
+  payment_status?: ClientRequestPaymentStatus;
+  client_payment_date?: string | null;
   vendor_price_usd?: number | null;
   client_price_usd?: number | null;
+  wire_cost_usd?: number | null;
+  mrp_usd?: number | null;
   shipping_date?: string | null;
   status?: ClientRequestStatus;
   notes?: string | null;
