@@ -32,6 +32,10 @@ import Developer from "./pages/Developer";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import DevicePricing from "./pages/DevicePricing";
+import Clients from "./pages/Clients";
+import ClientDetail from "./pages/ClientDetail";
+import WarehousePricing from "./pages/WarehousePricing";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +74,10 @@ const App = () => {
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
               <Route path="/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />
+              <Route path="/device-pricing" element={<ProtectedRoute><DevicePricing /></ProtectedRoute>} />
+              <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+              <Route path="/clients/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
+              <Route path="/warehouse-pricing" element={<ProtectedRoute><WarehousePricing /></ProtectedRoute>} />
               <Route path="/vendor-agent" element={<AdminRoute><VendorAgent /></AdminRoute>} />
               <Route path="/leads/:id" element={<ProtectedRoute><LeadDetail /></ProtectedRoute>} />
               <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
