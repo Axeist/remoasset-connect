@@ -9,13 +9,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { DeviceSpecForm, SectionHeader, type DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { clientRequestProfit } from '@/lib/client-request-pricing';
 import { discountVsMrp, quotedPctOfMrp } from '@/lib/mrp-insights';
-import { Loader2, TrendingUp, Package, UserRound, CreditCard, Tag } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Loader2, TrendingUp, Package, UserRound, CreditCard, Tag, Check } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -23,6 +25,14 @@ interface Props {
   onSuccess: () => void;
   clientId: string;
 }
+
+const WIZARD_STEPS = [
+  { key: 'scope', label: 'Scope', title: 'Delivery & vendor', description: 'Where this ships from and who supplies it.' },
+  { key: 'device', label: 'Device', title: 'Device & specs', description: 'Model, configuration, and summary line for reports.' },
+  { key: 'recipient', label: 'Recipient', title: 'Employee or inventory', description: 'End-user shipping details or hold at Remoasset.' },
+  { key: 'financials', label: 'Money', title: 'Payment & pricing', description: 'Client payment and USD amounts (optional until you have quotes).' },
+  { key: 'finish', label: 'Finish', title: 'Notes & submit', description: 'Internal notes, then create the request.' },
+] as const;
 
 function buildDeviceSummary(v: DeviceSpecValues): string {
   const parts = [
@@ -40,6 +50,7 @@ function buildDeviceSummary(v: DeviceSpecValues): string {
 export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [countries, setCountries] = useState<{ id: string; name: string }[]>([]);
   const [allVendors, setAllVendors] = useState<{ id: string; company_name: string; country_ids: string[] }[]>([]);
@@ -64,6 +75,8 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
     ram: '', storage: '', gpu: '', os: '', quantity: 1, addons: [], notes: '',
   });
 
+  const lastStepIndex = WIZARD_STEPS.length - 1;
+
   useEffect(() => {
     if (!open) return;
     supabase.from('countries').select('id, name').order('name').then(({ data }) => {
@@ -76,6 +89,7 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
 
   useEffect(() => {
     if (open) {
+      setStep(0);
       setCountryId(''); setVendorId(''); setExpectedDeliveryDate('');
       setDeviceSummary(''); setEmployeeName(''); setEmployeeAddress(''); setEmployeePhone('');
       setShipToInventory(false); setPaymentStatus('unpaid'); setClientPaymentDate('');
@@ -147,6 +161,26 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
     return Number.isNaN(n) ? null : n;
   };
 
+  const validateDeviceStep = () => {
+    if (!deviceSpec.brand || !deviceSpec.device_model || !deviceSpec.processor ||
+        !deviceSpec.display_size || !deviceSpec.ram || !deviceSpec.storage) {
+      toast({ title: 'Missing device details', description: 'Fill all required spec fields before continuing.', variant: 'destructive' });
+      return false;
+    }
+    return true;
+  };
+
+  const handleNext = () => {
+    if (step === 0 && !countryId) {
+      toast({ title: 'Select a country', description: 'Country is required for this request.', variant: 'destructive' });
+      return;
+    }
+    if (step === 1 && !validateDeviceStep()) return;
+    setStep((s) => Math.min(s + 1, lastStepIndex));
+  };
+
+  const handleBack = () => setStep((s) => Math.max(0, s - 1));
+
   const handleSave = async () => {
     if (!countryId || !deviceSpec.brand || !deviceSpec.device_model || !deviceSpec.processor ||
         !deviceSpec.display_size || !deviceSpec.ram || !deviceSpec.storage) {
@@ -197,280 +231,367 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
     }
   };
 
+  const meta = WIZARD_STEPS[step];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Add Device Request</DialogTitle>
-          <DialogDescription>
-            Full fulfillment line: vendor, device, employee delivery, payment, and pricing (matches your tracker sheet).
-          </DialogDescription>
+      <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col gap-0 p-0 overflow-hidden sm:rounded-xl">
+        <DialogHeader className="px-6 pt-6 pb-4 pr-14 space-y-4 shrink-0 border-b border-border/60">
+          <div>
+            <DialogTitle className="text-xl">Add device request</DialogTitle>
+            <DialogDescription className="text-sm mt-1.5">
+              Step-by-step — one section at a time.
+            </DialogDescription>
+          </div>
+
+          {/* Step rail */}
+          <nav aria-label="Form progress" className="flex gap-1.5 sm:gap-2">
+            {WIZARD_STEPS.map((s, i) => {
+              const done = i < step;
+              const active = i === step;
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => { if (i < step) setStep(i); }}
+                  disabled={i > step}
+                  className={cn(
+                    'flex-1 min-w-0 rounded-lg px-1.5 py-2 sm:px-3 sm:py-2.5 text-left transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    i <= step ? 'cursor-pointer hover:bg-muted/80' : 'cursor-not-allowed opacity-50',
+                    active && 'bg-primary/10 ring-1 ring-primary/30',
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'h-1 rounded-full mb-2 transition-colors',
+                      done ? 'bg-primary' : active ? 'bg-primary/70' : 'bg-muted',
+                    )}
+                  />
+                  <div className="flex items-center gap-1">
+                    {done && <Check className="h-3 w-3 text-primary shrink-0 hidden sm:block" aria-hidden />}
+                    <span
+                      className={cn(
+                        'text-[10px] sm:text-xs font-semibold uppercase tracking-wide truncate',
+                        active && 'text-primary',
+                      )}
+                    >
+                      {s.label}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </nav>
+
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">{meta.title}</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">{meta.description}</p>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-6 py-2">
-          {/* 1. Country, vendor, delivery */}
-          <div>
-            <SectionHeader number={1} title="Country & Vendor" subtitle="Delivery country and supplier" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Country <span className="text-destructive">*</span></Label>
-                <Select value={countryId} onValueChange={handleCountryChange}>
-                  <SelectTrigger className="h-10"><SelectValue placeholder="Select country first" /></SelectTrigger>
-                  <SelectContent>
-                    {countries.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Vendor name</Label>
-                <Select value={vendorId} onValueChange={setVendorId} disabled={!countryId}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder={countryId ? `Vendors in ${selectedCountryName}` : 'Select country first'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vendorsForCountry.length === 0 ? (
-                      <div className="px-2 py-3 text-sm text-muted-foreground text-center">No vendors for this country</div>
-                    ) : (
-                      vendorsForCountry.map((v) => (
-                        <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Expected delivery date</Label>
-                <Input type="date" value={expectedDeliveryDate} onChange={(e) => setExpectedDeliveryDate(e.target.value)} className="h-10" />
-              </div>
-            </div>
-          </div>
-
-          {/* 2–3. Device */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Package className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-semibold">Structured specs</span>
-            </div>
-            <DeviceSpecForm values={deviceSpec} onChange={setDeviceSpec} sectionNumberStart={2} hideNotes />
-            <div className="space-y-2 mt-4">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <Label className="text-sm font-medium">Device info (full line)</Label>
-                <Button type="button" variant="outline" size="sm" onClick={fillSummaryFromSpecs}>
-                  Fill from specs above
-                </Button>
-              </div>
-              <Textarea
-                value={deviceSummary}
-                onChange={(e) => setDeviceSummary(e.target.value)}
-                placeholder="e.g. M5 Pro chip, 18-core CPU, 20-core GPU, 64GB, 2TB, 16-inch"
-                rows={3}
-                className="text-sm"
-              />
-              <p className="text-[11px] text-muted-foreground">Shown on reports like your spreadsheet &ldquo;Device Info&rdquo; column.</p>
-            </div>
-          </div>
-
-          {/* 4. Employee / recipient */}
-          <div>
-            <SectionHeader number={4} title="Employee / Recipient" subtitle="End user or inventory hold" />
-            <div className="flex items-center gap-2 mb-3">
-              <Checkbox
-                id="inventory"
-                checked={shipToInventory}
-                onCheckedChange={(c) => setShipToInventory(c === true)}
-              />
-              <label htmlFor="inventory" className="text-sm cursor-pointer leading-none">
-                Ship to Remoasset inventory (no employee yet)
-              </label>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5 md:col-span-2">
-                <Label className="text-sm font-medium">Employee name</Label>
-                <Input
-                  value={employeeName}
-                  onChange={(e) => setEmployeeName(e.target.value)}
-                  placeholder="e.g. Ahmed Gaafer"
-                  className="h-10"
-                  disabled={shipToInventory}
-                />
-              </div>
-              <div className="space-y-1.5 md:col-span-2">
-                <Label className="text-sm font-medium">Employee address</Label>
-                <Textarea
-                  value={employeeAddress}
-                  onChange={(e) => setEmployeeAddress(e.target.value)}
-                  placeholder="Full street address, city, country"
-                  rows={2}
-                  className="text-sm"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Employee phone</Label>
-                <Input
-                  value={employeePhone}
-                  onChange={(e) => setEmployeePhone(e.target.value)}
-                  placeholder="e.g. 201007621919"
-                  className="h-10"
-                  disabled={shipToInventory}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 5. Payment */}
-          <div>
-            <SectionHeader number={5} title="Payment" subtitle="Client payment status" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Payment status</Label>
-                <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'paid' | 'unpaid')}>
-                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="unpaid">Unpaid</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Date of payment (client)</Label>
-                <Input type="date" value={clientPaymentDate} onChange={(e) => setClientPaymentDate(e.target.value)} className="h-10" />
-              </div>
-            </div>
-          </div>
-
-          {/* 6. Pricing — sheet columns */}
-          <div>
-            <SectionHeader number={6} title="Pricing (USD)" subtitle="MRP · quoted · wire · procurement · profit" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-              <Card className="border-[1.5px] border-input shadow-none">
-                <CardContent className="p-4 space-y-2">
-                  <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">MRP / List</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                    <Input type="number" step="0.01" min={0} value={mrpUsd} onChange={(e) => setMrpUsd(e.target.value)} className="h-10 pl-7" placeholder="Optional" />
+        <ScrollArea className="flex-1 min-h-0 max-h-[min(56vh,520px)]">
+          <div className="px-6 py-5 space-y-6">
+            {step === 0 && (
+              <div className="space-y-6 animate-in fade-in-0 duration-200">
+                <SectionHeader number={1} title="Country & vendor" subtitle="Delivery country and supplier" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Country <span className="text-destructive">*</span></Label>
+                    <Select value={countryId} onValueChange={handleCountryChange}>
+                      <SelectTrigger className="h-11 rounded-[10px]"><SelectValue placeholder="Select country" /></SelectTrigger>
+                      <SelectContent>
+                        {countries.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </CardContent>
-              </Card>
-              <Card className="border-[1.5px] border-input shadow-none">
-                <CardContent className="p-4 space-y-2">
-                  <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Price quoted</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                    <Input type="number" step="0.01" min={0} value={quotedUsd} onChange={(e) => setQuotedUsd(e.target.value)} className="h-10 pl-7" placeholder="0.00" />
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Vendor</Label>
+                    <Select value={vendorId} onValueChange={setVendorId} disabled={!countryId}>
+                      <SelectTrigger className="h-11 rounded-[10px]">
+                        <SelectValue placeholder={countryId ? `Vendors in ${selectedCountryName}` : 'Select country first'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vendorsForCountry.length === 0 ? (
+                          <div className="px-2 py-4 text-sm text-muted-foreground text-center">No vendors for this country</div>
+                        ) : (
+                          vendorsForCountry.map((v) => (
+                            <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </CardContent>
-              </Card>
-              <Card className="border-[1.5px] border-input shadow-none">
-                <CardContent className="p-4 space-y-2">
-                  <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Wire cost</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                    <Input type="number" step="0.01" min={0} value={wireCostUsd} onChange={(e) => setWireCostUsd(e.target.value)} className="h-10 pl-7" placeholder="0.00" />
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">Bank fees (informational)</p>
-                </CardContent>
-              </Card>
-              <Card className="border-[1.5px] border-input shadow-none">
-                <CardContent className="p-4 space-y-2">
-                  <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Procurement price</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                    <Input type="number" step="0.01" min={0} value={procurementUsd} onChange={(e) => setProcurementUsd(e.target.value)} className="h-10 pl-7" placeholder="0.00" />
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">Vendor / landing cost</p>
-                </CardContent>
-              </Card>
-              <Card className="border-[1.5px] border-primary/35 bg-primary/5 shadow-none">
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                    <TrendingUp className="h-3 w-5 text-primary shrink-0" />
-                    Profit (%)
-                  </div>
-                  <p className="text-xl font-bold tabular-nums">
-                    {profitInfo?.profitPctOnProcurement != null
-                      ? `${profitInfo.profitPctOnProcurement.toFixed(2)}%`
-                      : '—'}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">On procurement cost</p>
-                </CardContent>
-              </Card>
-              <Card className="border-[1.5px] border-primary/35 bg-primary/5 shadow-none">
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                    <CreditCard className="h-3 w-3.5 text-primary shrink-0" />
-                    Profit ($)
-                  </div>
-                  <p className="text-xl font-bold tabular-nums">
-                    {profitInfo !== null
-                      ? `$${profitInfo.profitAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      : '—'}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">Quoted − procurement</p>
-                </CardContent>
-              </Card>
-            </div>
-            {profitInfo !== null && wireParsed != null && wireParsed > 0 && (
-              <p className="text-xs text-muted-foreground mt-2">
-                After wire: ${(profitInfo.profitAmount - wireParsed).toLocaleString('en-US', { minimumFractionDigits: 2 })} (not stored; for your reference)
-              </p>
+                </div>
+                <div className="space-y-2 max-w-sm">
+                  <Label className="text-sm font-medium">Expected delivery date</Label>
+                  <Input type="date" value={expectedDeliveryDate} onChange={(e) => setExpectedDeliveryDate(e.target.value)} className="h-11 rounded-[10px]" />
+                </div>
+              </div>
             )}
-            {(mrpQuotedInsight || mrpProcurementInsight) && (
-              <Card className="mt-3 border-primary/25 bg-primary/5 shadow-none">
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Tag className="h-4 w-4 text-primary" />
-                    vs MRP
+
+            {step === 1 && (
+              <div className="space-y-6 animate-in fade-in-0 duration-200">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold">Structured specifications</span>
+                </div>
+                <DeviceSpecForm values={deviceSpec} onChange={setDeviceSpec} sectionNumberStart={2} hideNotes />
+                <div className="space-y-3 rounded-xl border border-border/80 bg-muted/30 p-4">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <Label className="text-sm font-medium">Device summary (reports)</Label>
+                    <Button type="button" variant="secondary" size="sm" onClick={fillSummaryFromSpecs} className="rounded-lg">
+                      Auto-fill from specs
+                    </Button>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                    {mrpQuotedInsight?.offList && mrpQuotedInsight.pctOfMrp != null && (
-                      <div>
-                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Client quoted</p>
-                        <p className="font-medium">
-                          {mrpQuotedInsight.pctOfMrp.toFixed(1)}% of MRP
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {mrpQuotedInsight.offList.pctOffMrp.toFixed(1)}% below list · save ${mrpQuotedInsight.offList.savingsUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                    )}
-                    {mrpProcurementInsight && (
-                      <div>
-                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Procurement</p>
-                        <p className="font-medium">{mrpProcurementInsight.pctOffMrp.toFixed(1)}% below MRP</p>
-                        <p className="text-xs text-muted-foreground">
-                          Saves ${mrpProcurementInsight.savingsUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })} vs list
-                        </p>
-                      </div>
-                    )}
+                  <Textarea
+                    value={deviceSummary}
+                    onChange={(e) => setDeviceSummary(e.target.value)}
+                    placeholder="One line for quotes and spreadsheets…"
+                    rows={4}
+                    className="text-sm rounded-[10px] resize-y min-h-[100px]"
+                  />
+                  <p className="text-xs text-muted-foreground">You can edit this after the auto-fill. Shown as &ldquo;Device info&rdquo; on exports.</p>
+                </div>
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="space-y-6 animate-in fade-in-0 duration-200">
+                <SectionHeader number={4} title="Employee / recipient" subtitle="End user or inventory hold" />
+                <div className="rounded-xl border border-border/80 bg-card/50 p-4">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="inventory"
+                      checked={shipToInventory}
+                      onCheckedChange={(c) => setShipToInventory(c === true)}
+                      className="mt-0.5"
+                    />
+                    <label htmlFor="inventory" className="text-sm cursor-pointer leading-snug">
+                      <span className="font-medium">Ship to Remoasset inventory</span>
+                      <span className="block text-muted-foreground text-xs mt-0.5">No employee yet — we will fill shipping later.</span>
+                    </label>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+                <div className="grid grid-cols-1 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Employee name</Label>
+                    <Input
+                      value={employeeName}
+                      onChange={(e) => setEmployeeName(e.target.value)}
+                      placeholder="e.g. Ahmed Gaafer"
+                      className="h-11 rounded-[10px]"
+                      disabled={shipToInventory}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Employee address</Label>
+                    <Textarea
+                      value={employeeAddress}
+                      onChange={(e) => setEmployeeAddress(e.target.value)}
+                      placeholder="Full street address, city, country"
+                      rows={4}
+                      className="text-sm rounded-[10px] resize-y min-h-[96px]"
+                    />
+                  </div>
+                  <div className="space-y-2 max-w-md">
+                    <Label className="text-sm font-medium">Employee phone</Label>
+                    <Input
+                      value={employeePhone}
+                      onChange={(e) => setEmployeePhone(e.target.value)}
+                      placeholder="e.g. 201007621919"
+                      className="h-11 rounded-[10px]"
+                      disabled={shipToInventory}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="space-y-8 animate-in fade-in-0 duration-200">
+                <div className="space-y-4">
+                  <SectionHeader number={5} title="Payment" subtitle="Client payment status" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Payment status</Label>
+                      <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'paid' | 'unpaid')}>
+                        <SelectTrigger className="h-11 rounded-[10px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="paid">Paid</SelectItem>
+                          <SelectItem value="unpaid">Unpaid</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Date of payment (client)</Label>
+                      <Input type="date" value={clientPaymentDate} onChange={(e) => setClientPaymentDate(e.target.value)} className="h-11 rounded-[10px]" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <SectionHeader number={6} title="Pricing (USD)" subtitle="MRP, quotes, and margins — relaxed layout" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Card className="border-border/90 shadow-sm rounded-xl overflow-hidden">
+                      <CardContent className="p-4 sm:p-5 space-y-3">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">MRP / list</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                          <Input type="number" step="0.01" min={0} value={mrpUsd} onChange={(e) => setMrpUsd(e.target.value)} className="h-11 pl-7 rounded-[10px] text-base tabular-nums" placeholder="Optional" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-border/90 shadow-sm rounded-xl overflow-hidden">
+                      <CardContent className="p-4 sm:p-5 space-y-3">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Price quoted</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                          <Input type="number" step="0.01" min={0} value={quotedUsd} onChange={(e) => setQuotedUsd(e.target.value)} className="h-11 pl-7 rounded-[10px] text-base tabular-nums" placeholder="0.00" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-border/90 shadow-sm rounded-xl overflow-hidden">
+                      <CardContent className="p-4 sm:p-5 space-y-3">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Wire cost</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                          <Input type="number" step="0.01" min={0} value={wireCostUsd} onChange={(e) => setWireCostUsd(e.target.value)} className="h-11 pl-7 rounded-[10px] text-base tabular-nums" placeholder="0.00" />
+                        </div>
+                        <p className="text-xs text-muted-foreground">Bank fees (informational)</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-border/90 shadow-sm rounded-xl overflow-hidden">
+                      <CardContent className="p-4 sm:p-5 space-y-3">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Procurement price</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                          <Input type="number" step="0.01" min={0} value={procurementUsd} onChange={(e) => setProcurementUsd(e.target.value)} className="h-11 pl-7 rounded-[10px] text-base tabular-nums" placeholder="0.00" />
+                        </div>
+                        <p className="text-xs text-muted-foreground">Vendor / landing cost</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Card className="border-primary/30 bg-primary/5 shadow-none rounded-xl">
+                      <CardContent className="p-4 sm:p-5 space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          <TrendingUp className="h-4 w-4 text-primary" />
+                          Profit (% on cost)
+                        </div>
+                        <p className="text-2xl font-bold tabular-nums tracking-tight">
+                          {profitInfo?.profitPctOnProcurement != null
+                            ? `${profitInfo.profitPctOnProcurement.toFixed(2)}%`
+                            : '—'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-primary/30 bg-primary/5 shadow-none rounded-xl">
+                      <CardContent className="p-4 sm:p-5 space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          <CreditCard className="h-4 w-4 text-primary" />
+                          Profit (USD)
+                        </div>
+                        <p className="text-2xl font-bold tabular-nums tracking-tight">
+                          {profitInfo !== null
+                            ? `$${profitInfo.profitAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : '—'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Quoted − procurement</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {profitInfo !== null && wireParsed != null && wireParsed > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      After wire: ${(profitInfo.profitAmount - wireParsed).toLocaleString('en-US', { minimumFractionDigits: 2 })} (reference only, not stored)
+                    </p>
+                  )}
+
+                  {(mrpQuotedInsight || mrpProcurementInsight) && (
+                    <Card className="border-primary/25 bg-primary/5 rounded-xl shadow-none">
+                      <CardContent className="p-4 sm:p-5 space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <Tag className="h-4 w-4 text-primary" />
+                          vs MRP
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                          {mrpQuotedInsight?.offList && mrpQuotedInsight.pctOfMrp != null && (
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Client quoted</p>
+                              <p className="font-semibold">{mrpQuotedInsight.pctOfMrp.toFixed(1)}% of MRP</p>
+                              <p className="text-xs text-muted-foreground">
+                                {mrpQuotedInsight.offList.pctOffMrp.toFixed(1)}% below list · save ${mrpQuotedInsight.offList.savingsUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                          )}
+                          {mrpProcurementInsight && (
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Procurement</p>
+                              <p className="font-semibold">{mrpProcurementInsight.pctOffMrp.toFixed(1)}% below MRP</p>
+                              <p className="text-xs text-muted-foreground">
+                                Saves ${mrpProcurementInsight.savingsUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })} vs list
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {step === 4 && (
+              <div className="space-y-6 animate-in fade-in-0 duration-200">
+                <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-4 sm:p-5 space-y-3 text-sm">
+                  <p className="font-medium text-foreground">Quick recap</p>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li><span className="text-foreground font-medium">Device:</span> {deviceSpec.brand} {deviceSpec.device_model}{deviceSpec.quantity > 1 ? ` ×${deviceSpec.quantity}` : ''}</li>
+                    <li><span className="text-foreground font-medium">Ship to:</span> {countries.find((c) => c.id === countryId)?.name ?? '—'}</li>
+                    <li><span className="text-foreground font-medium">Recipient:</span> {shipToInventory ? 'Remoasset inventory' : (employeeName.trim() || employeeAddress.trim() || '—')}</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <UserRound className="h-4 w-4 text-muted-foreground" />
+                    Additional notes
+                  </Label>
+                  <Textarea
+                    value={deviceSpec.notes}
+                    onChange={(e) => setDeviceSpec({ ...deviceSpec, notes: e.target.value })}
+                    placeholder="Internal notes, PO references…"
+                    rows={6}
+                    className="rounded-[10px] text-sm resize-y min-h-[140px]"
+                  />
+                </div>
+              </div>
             )}
           </div>
+        </ScrollArea>
 
-          {/* Notes */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium flex items-center gap-1.5">
-              <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
-              Additional notes
-            </Label>
-            <Textarea
-              value={deviceSpec.notes}
-              onChange={(e) => setDeviceSpec({ ...deviceSpec, notes: e.target.value })}
-              placeholder="Internal notes, PO references..."
-              rows={3}
-            />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Add Request
+        <DialogFooter className="px-6 py-4 shrink-0 border-t border-border/60 flex-row justify-between items-center gap-3 sm:gap-4">
+          <Button type="button" variant="ghost" className="text-muted-foreground" onClick={() => onOpenChange(false)}>
+            Cancel
           </Button>
+          <div className="flex gap-2">
+            {step > 0 && (
+              <Button type="button" variant="outline" onClick={handleBack} className="rounded-lg">
+                Back
+              </Button>
+            )}
+            {step < lastStepIndex ? (
+              <Button type="button" onClick={handleNext} className="rounded-lg gap-1 min-w-[7.5rem]">
+                Continue
+              </Button>
+            ) : (
+              <Button type="button" onClick={handleSave} disabled={saving} className="rounded-lg gap-1.5 min-w-[7.5rem]">
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                Add request
+              </Button>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
