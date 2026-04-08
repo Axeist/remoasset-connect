@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { DeviceSpecForm, SectionHeader, type DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -235,7 +234,7 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col gap-0 p-0 overflow-hidden sm:rounded-xl">
+      <DialogContent className="grid h-[min(92vh,880px)] max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:w-full sm:rounded-xl">
         <DialogHeader className="px-6 pt-6 pb-4 pr-14 space-y-4 shrink-0 border-b border-border/60">
           <div>
             <DialogTitle className="text-xl">Add device request</DialogTitle>
@@ -290,8 +289,12 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0 max-h-[min(56vh,520px)]">
-          <div className="px-6 py-5 space-y-6">
+        <div
+          className="min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-gutter:stable]"
+          role="region"
+          aria-label="Wizard step content"
+        >
+          <div className="space-y-6 px-6 py-5 pb-8">
             {step === 0 && (
               <div className="space-y-6 animate-in fade-in-0 duration-200">
                 <SectionHeader number={1} title="Country & vendor" subtitle="Delivery country and supplier" />
@@ -569,9 +572,9 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
-        <DialogFooter className="px-6 py-4 shrink-0 border-t border-border/60 flex-row justify-between items-center gap-3 sm:gap-4">
+        <DialogFooter className="flex shrink-0 flex-row items-center justify-between gap-3 border-t border-border/60 px-6 py-4 sm:gap-4">
           <Button type="button" variant="ghost" className="text-muted-foreground" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
