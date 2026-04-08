@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
@@ -11,7 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Check, MapPin, Building2, DollarSign, FileCheck, Search } from 'lucide-react';
+import { Loader2, Check, MapPin, Building2, DollarSign, FileCheck, Search, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getRateToUsd, convertToUsd } from '@/lib/fx-rates';
 import { FX_CURRENCY_OPTIONS, defaultCurrencyForCountryCode } from '@/lib/country-currencies';
@@ -43,13 +43,70 @@ const CHARGE_FIELDS: { key: WarehouseVendorChargeKey; label: string; sheetHint?:
 const WIZARD_STEPS = [
   { key: 'vendor', label: 'Vendor', title: 'Warehouse vendor', description: 'Choose the partner this tariff belongs to.' },
   { key: 'countries', label: 'Locations', title: 'Serviceable countries', description: 'Multi-select where they operate. Use region shortcuts to bulk-add.' },
-  { key: 'pricing', label: 'Pricing', title: 'Partner cost & your client price', description: 'Same layout as your cost sheet: partner landing (USD) vs client quote (USD) with margins per line.' },
+  { key: 'partner', label: 'Partner', title: 'Partner landed cost', description: 'What you pay the warehouse partner. Amounts convert to USD for storage when needed.' },
+  { key: 'client', label: 'Client', title: 'Client pricing (USD, tax included)', description: 'Pay-as-you-go vs subscription ($1499/year plan). Same column layout as your external cost sheet.' },
   { key: 'finish', label: 'Finish', title: 'Quote & save', description: 'Validity dates, notes, and confirm (one row per country).' },
 ] as const;
 
 function clientColumnName(k: WarehouseVendorChargeKey): string {
   return `client_${k}`;
 }
+
+function clientSubColumnName(k: WarehouseVendorChargeKey): string {
+  return `client_sub_${k}`;
+}
+
+/** Cost-sheet style groups (reference layout: PAYG vs subscription tiers). */
+const CLIENT_SHEET_GROUPS: {
+  title: string;
+  bullets?: string[];
+  fields: { key: WarehouseVendorChargeKey; lineLabel?: string }[];
+}[] = [
+  {
+    title: 'IT Asset Logistic Fulfillment Charges',
+    bullets: [
+      '1. Standard Shipping Charges (Both Ways)',
+      '2. Box Procurement Charges',
+    ],
+    fields: [
+      { key: 'shipping_to_employee', lineLabel: 'Ship to employee' },
+      { key: 'retrieve_from_employee', lineLabel: 'Retrieve from employee' },
+      { key: 'box_procurement_charges', lineLabel: 'Box procurement' },
+    ],
+  },
+  {
+    title: 'Box custom printing',
+    bullets: ['Branding / custom box artwork'],
+    fields: [{ key: 'box_custom_printing_charges', lineLabel: 'Box custom printing' }],
+  },
+  {
+    title: 'Warehouse Storage Cost / Device',
+    bullets: ['Per device warehousing'],
+    fields: [{ key: 'storage_charge', lineLabel: 'Storage / device' }],
+  },
+  {
+    title: 'Quality Checks',
+    bullets: [
+      '1. QC Inspection (Visual Check / Serial Number Verification)',
+      '2. Sticker Removal',
+      '3. Inward Handling',
+      '4. Outward Handling / Dispatch Preparation',
+      '5. Barcode / Labeling',
+      '6. Repacking / Bubble Wrapping',
+    ],
+    fields: [{ key: 'qc_charges', lineLabel: 'Quality checks' }],
+  },
+  {
+    title: 'Redeployment Charges',
+    bullets: ['Prep + ship to next employee'],
+    fields: [{ key: 'redeployment_charges', lineLabel: 'Redeployment' }],
+  },
+  {
+    title: 'Repair / Upgradation of Device',
+    bullets: ['Use 0 + notes if custom quote'],
+    fields: [{ key: 'repair_upgrade_charges', lineLabel: 'Repair / upgrade' }],
+  },
+];
 
 interface Props {
   open: boolean;
@@ -88,6 +145,8 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
     Object.fromEntries(CHARGE_FIELDS.map((f) => [f.key, '0'])));
   const [clientCharges, setClientCharges] = useState<Record<string, string>>(() =>
     Object.fromEntries(CHARGE_FIELDS.map((f) => [f.key, '0'])));
+  const [clientSubCharges, setClientSubCharges] = useState<Record<string, string>>(() =>
+    Object.fromEntries(CHARGE_FIELDS.map((f) => [f.key, '0'])));
 
   const lastStepIndex = WIZARD_STEPS.length - 1;
 
@@ -113,6 +172,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
     setNotes('');
     setCharges(Object.fromEntries(CHARGE_FIELDS.map((f) => [f.key, '0'])));
     setClientCharges(Object.fromEntries(CHARGE_FIELDS.map((f) => [f.key, '0'])));
+    setClientSubCharges(Object.fromEntries(CHARGE_FIELDS.map((f) => [f.key, '0'])));
   }, []);
 
   useEffect(() => {
@@ -145,6 +205,10 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
       setCharges(Object.fromEntries(CHARGE_FIELDS.map((f) => [f.key, String((editItem as any)[f.key] ?? 0)])));
       setClientCharges(Object.fromEntries(CHARGE_FIELDS.map((f) => {
         const ck = clientColumnName(f.key);
+        return [f.key, String((editItem as any)[ck] ?? 0)];
+      })));
+      setClientSubCharges(Object.fromEntries(CHARGE_FIELDS.map((f) => {
+        const ck = clientSubColumnName(f.key);
         return [f.key, String((editItem as any)[ck] ?? 0)];
       })));
     } else {
@@ -239,12 +303,38 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
     [clientCharges],
   );
 
+  const clientSubGrand = useMemo(
+    () => CHARGE_FIELDS.reduce((s, f) => s + (parseFloat(clientSubCharges[f.key]) || 0), 0),
+    [clientSubCharges],
+  );
+
   const marginGrand = useMemo(() => clientGrand - vendorGrandUsd, [clientGrand, vendorGrandUsd]);
 
   const marginPctGrand = useMemo(() => {
     if (vendorGrandUsd <= 0) return null;
     return (marginGrand / vendorGrandUsd) * 100;
   }, [marginGrand, vendorGrandUsd]);
+
+  const marginSubGrand = useMemo(() => clientSubGrand - vendorGrandUsd, [clientSubGrand, vendorGrandUsd]);
+
+  const marginSubPctGrand = useMemo(() => {
+    if (vendorGrandUsd <= 0) return null;
+    return (marginSubGrand / vendorGrandUsd) * 100;
+  }, [marginSubGrand, vendorGrandUsd]);
+
+  const clientSheetTitle = useMemo(() => {
+    const names = countries
+      .filter((c) => selectedCountryIds.has(c.id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((c) => c.name);
+    if (isEdit && editItem?.country?.name) {
+      return `${editItem.country.name} Warehouse Storage & Shipping Cost | RemoAsset Corp`;
+    }
+    if (names.length === 0) return 'Warehouse Storage & Shipping Cost | RemoAsset Corp';
+    if (names.length === 1) return `${names[0]} Warehouse Storage & Shipping Cost | RemoAsset Corp`;
+    if (names.length <= 3) return `${names.join(', ')} — Warehouse Storage & Shipping Cost | RemoAsset Corp`;
+    return `${names.slice(0, 2).join(', ')} +${names.length - 2} — Warehouse Storage & Shipping Cost | RemoAsset Corp`;
+  }, [countries, selectedCountryIds, isEdit, editItem?.country?.name]);
 
   const toggleCountry = (id: string) => {
     setRegionBulkFocus(null);
@@ -315,6 +405,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
       const local = parseFloat(charges[f.key]) || 0;
       row[f.key] = landingCurrency === 'USD' ? local : convertToUsd(local, mult);
       row[clientColumnName(f.key)] = parseFloat(clientCharges[f.key]) || 0;
+      row[clientSubColumnName(f.key)] = parseFloat(clientSubCharges[f.key]) || 0;
     });
     const fxLine =
       landingCurrency !== 'USD' && fxRate != null
@@ -362,16 +453,21 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
   };
 
   const meta = WIZARD_STEPS[step];
-  const stepIcons = [Building2, MapPin, DollarSign, FileCheck];
+  const stepIcons = [Building2, MapPin, DollarSign, Receipt, FileCheck];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid h-[min(92vh,900px)] max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:w-full sm:rounded-xl">
+      <DialogContent
+        className={cn(
+          'grid h-[min(92vh,900px)] max-h-[92vh] w-[calc(100vw-1.5rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:w-full sm:rounded-xl',
+          step === 3 ? 'max-w-5xl' : 'max-w-3xl',
+        )}
+      >
         <DialogHeader className="shrink-0 space-y-4 border-b border-border/60 px-6 pb-4 pr-14 pt-6">
           <div>
             <DialogTitle className="text-xl">{isEdit ? 'Edit warehouse pricing' : 'Add warehouse pricing'}</DialogTitle>
             <DialogDescription className="mt-1.5 text-sm">
-              Wizard: vendor → countries → partner &amp; client pricing (margins) → save.
+              Wizard: vendor → countries → partner cost → client pricing (PAYG + subscription) → save.
             </DialogDescription>
           </div>
 
@@ -600,33 +696,24 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                 </div>
 
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  One sheet per your warehouse cost model: <strong className="text-foreground">partner landed cost</strong> (what you pay the vendor, saved in USD) next to <strong className="text-foreground">your client quote</strong> (USD). Margin = client − partner per line.
+                  Enter <strong className="text-foreground">partner landed cost</strong> per line. Values are stored in USD (converted using the rate above when needed). Client-facing prices are set in the next step.
                 </p>
 
                 <div className="overflow-x-auto rounded-xl border border-border/80 shadow-sm">
-                  <table className="w-full min-w-[720px] text-sm caption-bottom">
-                    <caption className="sr-only">Partner and client pricing with margins</caption>
+                  <table className="w-full min-w-[520px] text-sm caption-bottom">
+                    <caption className="sr-only">Partner costs by service</caption>
                     <thead>
                       <tr className="border-b border-border bg-muted/70">
-                        <th className="w-[min(40%,280px)] px-3 py-2.5 text-left align-bottom font-semibold">Service</th>
+                        <th className="w-[min(55%,320px)] px-3 py-2.5 text-left align-bottom font-semibold">Service</th>
                         <th className="px-2 py-2.5 text-right align-bottom font-semibold whitespace-nowrap">
                           <span className="block">Partner cost</span>
                           <span className="block text-[10px] font-normal text-muted-foreground">{landingCurrency === 'USD' ? 'USD' : `${landingCurrency} → USD`}</span>
                         </th>
-                        <th className="px-2 py-2.5 text-right align-bottom font-semibold whitespace-nowrap">
-                          <span className="block">Your client price</span>
-                          <span className="block text-[10px] font-normal text-muted-foreground">USD</span>
-                        </th>
-                        <th className="px-2 py-2.5 text-right align-bottom font-semibold whitespace-nowrap">Margin</th>
-                        <th className="hidden px-2 py-2.5 text-right align-bottom font-semibold md:table-cell whitespace-nowrap">Margin %</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
                       {CHARGE_FIELDS.map((f) => {
                         const wUsd = vendorUsdPreview[f.key] || 0;
-                        const cUsd = parseFloat(clientCharges[f.key]) || 0;
-                        const margin = cUsd - wUsd;
-                        const marginPct = wUsd > 0 ? (margin / wUsd) * 100 : null;
                         return (
                           <tr key={f.key} className="bg-card/20 hover:bg-muted/25">
                             <td className="px-3 py-2.5 align-top">
@@ -658,50 +745,14 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                                 </div>
                               )}
                             </td>
-                            <td className="px-2 py-2 align-top text-right">
-                              <div className="relative ml-auto max-w-[7.5rem]">
-                                <span className="pointer-events-none absolute left-2 top-1/2 z-[1] -translate-y-1/2 text-muted-foreground text-xs">$</span>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  min={0}
-                                  value={clientCharges[f.key]}
-                                  onChange={(e) => setClientCharges((p) => ({ ...p, [f.key]: e.target.value }))}
-                                  className="h-9 rounded-lg pl-6 pr-2 text-right tabular-nums"
-                                />
-                              </div>
-                            </td>
-                            <td
-                              className={cn(
-                                'px-2 py-2.5 text-right align-middle tabular-nums font-semibold',
-                                margin >= 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive',
-                              )}
-                            >
-                              ${margin.toFixed(2)}
-                            </td>
-                            <td className="hidden px-2 py-2.5 text-right align-middle tabular-nums text-muted-foreground md:table-cell">
-                              {marginPct != null ? `${marginPct.toFixed(1)}%` : '—'}
-                            </td>
                           </tr>
                         );
                       })}
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-primary/35 bg-primary/10">
-                        <td className="px-3 py-3 font-bold">Total</td>
+                        <td className="px-3 py-3 font-bold">Total partner (USD)</td>
                         <td className="px-2 py-3 text-right font-bold tabular-nums">${vendorGrandUsd.toFixed(2)}</td>
-                        <td className="px-2 py-3 text-right font-bold tabular-nums">${clientGrand.toFixed(2)}</td>
-                        <td
-                          className={cn(
-                            'px-2 py-3 text-right font-bold tabular-nums',
-                            marginGrand >= 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive',
-                          )}
-                        >
-                          ${marginGrand.toFixed(2)}
-                        </td>
-                        <td className="hidden px-2 py-3 text-right font-bold tabular-nums md:table-cell">
-                          {marginPctGrand != null ? `${marginPctGrand.toFixed(1)}%` : '—'}
-                        </td>
                       </tr>
                     </tfoot>
                   </table>
@@ -710,6 +761,112 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
             )}
 
             {step === 3 && (
+              <div className="space-y-4 animate-in fade-in-0 duration-200">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Client amounts are in <strong className="text-foreground">USD, tax included</strong>. Use the next step for quote dates and notes.
+                </p>
+                <div className="overflow-x-auto rounded-sm border-2 border-[#1b5e20] shadow-md">
+                  <table className="w-full min-w-[640px] border-collapse text-sm">
+                    <caption className="sr-only">{clientSheetTitle}</caption>
+                    <thead>
+                      <tr className="bg-[#2e7d32] text-white">
+                        <th
+                          colSpan={3}
+                          className="border border-[#1b5e20] px-3 py-3 text-center text-sm font-bold leading-snug tracking-tight"
+                        >
+                          {clientSheetTitle}
+                        </th>
+                      </tr>
+                      <tr className="bg-[#ffeb3b] text-black">
+                        <th className="border border-amber-700/40 px-3 py-2.5 text-left align-bottom font-semibold">
+                          Description
+                        </th>
+                        <th className="border border-amber-700/40 px-2 py-2 text-center align-bottom font-semibold">
+                          <span className="block">(Pay As You Go)</span>
+                          <span className="mt-1 block text-[11px] font-normal normal-case">Costing (USD) Tax Included</span>
+                        </th>
+                        <th className="border border-amber-700/40 px-2 py-2 text-center align-bottom font-semibold">
+                          <span className="block">(Subscription) 1499$/Annum</span>
+                          <span className="mt-1 block text-[11px] font-normal normal-case">Costing (USD) Tax Included</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {CLIENT_SHEET_GROUPS.map((group) => (
+                        <Fragment key={group.title}>
+                          {group.fields.map((line, lineIdx) => (
+                            <tr key={`${group.title}-${line.key}`} className="odd:bg-background even:bg-muted/30">
+                              <td className="border border-border/80 px-3 py-2 align-top">
+                                {lineIdx === 0 && (
+                                  <>
+                                    <div className="font-bold leading-snug">*{group.title}*</div>
+                                    {group.bullets && group.bullets.length > 0 && (
+                                      <ol className="mt-1.5 list-decimal space-y-0.5 pl-4 text-[12px] text-muted-foreground">
+                                        {group.bullets.map((b) => (
+                                          <li key={b} className="leading-snug">{b}</li>
+                                        ))}
+                                      </ol>
+                                    )}
+                                  </>
+                                )}
+                                {group.fields.length > 1 ? (
+                                  <div className={cn('text-[12px] font-medium text-foreground', lineIdx === 0 ? 'mt-2' : 'mt-0 pl-2')}>
+                                    {line.lineLabel}
+                                  </div>
+                                ) : null}
+                              </td>
+                              <td className="border border-border/80 px-2 py-2 align-top text-right">
+                                <div className="relative ml-auto max-w-[6.75rem]">
+                                  <span className="pointer-events-none absolute left-2 top-1/2 z-[1] -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    value={clientCharges[line.key]}
+                                    onChange={(e) => setClientCharges((p) => ({ ...p, [line.key]: e.target.value }))}
+                                    className="h-9 rounded-md border-amber-900/20 bg-background pl-6 pr-2 text-right text-sm tabular-nums"
+                                    placeholder={line.key === 'repair_upgrade_charges' ? '0' : undefined}
+                                  />
+                                </div>
+                                {line.key === 'repair_upgrade_charges' && (
+                                  <p className="mt-1 text-[11px] text-muted-foreground">Custom quote — use 0 + notes</p>
+                                )}
+                              </td>
+                              <td className="border border-border/80 px-2 py-2 align-top text-right">
+                                <div className="relative ml-auto max-w-[6.75rem]">
+                                  <span className="pointer-events-none absolute left-2 top-1/2 z-[1] -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    value={clientSubCharges[line.key]}
+                                    onChange={(e) => setClientSubCharges((p) => ({ ...p, [line.key]: e.target.value }))}
+                                    className="h-9 rounded-md border-amber-900/20 bg-background pl-6 pr-2 text-right text-sm tabular-nums"
+                                    placeholder={line.key === 'repair_upgrade_charges' ? '0' : undefined}
+                                  />
+                                </div>
+                                {line.key === 'repair_upgrade_charges' && (
+                                  <p className="mt-1 text-[11px] text-muted-foreground">Custom quote — use 0 + notes</p>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </Fragment>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-[#ffeb3b]/50 font-bold text-black">
+                        <td className="border border-amber-800/30 px-3 py-2.5">Total (USD)</td>
+                        <td className="border border-amber-800/30 px-2 py-2.5 text-right tabular-nums">${clientGrand.toFixed(2)}</td>
+                        <td className="border border-amber-800/30 px-2 py-2.5 text-right tabular-nums">${clientSubGrand.toFixed(2)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {step === 4 && (
               <div className="space-y-5 animate-in fade-in-0 duration-200">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -732,23 +889,21 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                       <tr className="border-b bg-muted/60">
                         <th className="px-3 py-2 text-left font-semibold">Service</th>
                         <th className="px-3 py-2 text-right font-semibold">Partner (USD)</th>
-                        <th className="px-3 py-2 text-right font-semibold">Client (USD)</th>
-                        <th className="px-3 py-2 text-right font-semibold">Margin</th>
+                        <th className="px-3 py-2 text-right font-semibold">PAYG (USD)</th>
+                        <th className="px-3 py-2 text-right font-semibold">Subscription (USD)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
                       {CHARGE_FIELDS.map((f) => {
                         const w = vendorUsdPreview[f.key] || 0;
-                        const c = parseFloat(clientCharges[f.key]) || 0;
-                        const m = c - w;
+                        const payg = parseFloat(clientCharges[f.key]) || 0;
+                        const sub = parseFloat(clientSubCharges[f.key]) || 0;
                         return (
                           <tr key={f.key}>
                             <td className="px-3 py-2">{f.label}</td>
                             <td className="px-3 py-2 text-right tabular-nums">${w.toFixed(2)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums font-medium">${c.toFixed(2)}</td>
-                            <td className={cn('px-3 py-2 text-right tabular-nums font-medium', m >= 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive')}>
-                              ${m.toFixed(2)}
-                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums font-medium">${payg.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums font-medium">${sub.toFixed(2)}</td>
                           </tr>
                         );
                       })}
@@ -758,9 +913,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                         <td className="px-3 py-2.5">Total</td>
                         <td className="px-3 py-2.5 text-right tabular-nums">${vendorGrandUsd.toFixed(2)}</td>
                         <td className="px-3 py-2.5 text-right tabular-nums">${clientGrand.toFixed(2)}</td>
-                        <td className={cn('px-3 py-2.5 text-right tabular-nums', marginGrand >= 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive')}>
-                          ${marginGrand.toFixed(2)}
-                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">${clientSubGrand.toFixed(2)}</td>
                       </tr>
                     </tfoot>
                   </table>

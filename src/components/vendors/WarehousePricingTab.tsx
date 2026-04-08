@@ -177,7 +177,8 @@ export function WarehousePricingTab() {
                       <TableHead key={col.key} className="text-right whitespace-nowrap text-xs">{col.short}</TableHead>
                     ))}
                     <TableHead className="text-right font-bold">Grand Total</TableHead>
-                    <TableHead className="text-right font-semibold text-primary">Client Σ</TableHead>
+                    <TableHead className="text-right font-semibold text-primary">Client PAYG Σ</TableHead>
+                    <TableHead className="text-right font-semibold text-amber-600 dark:text-amber-400">Client Sub Σ</TableHead>
                     <TableHead>Quote Status</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
@@ -195,6 +196,9 @@ export function WarehousePricingTab() {
                         <TableCell className="text-right tabular-nums font-bold text-sm">${Number(row.grand_total).toFixed(2)}</TableCell>
                         <TableCell className="text-right tabular-nums text-sm font-semibold text-primary">
                           ${Number((row as any).client_grand_total ?? 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-sm font-semibold text-amber-600 dark:text-amber-400">
+                          ${Number((row as any).client_sub_grand_total ?? 0).toFixed(2)}
                         </TableCell>
                         <TableCell><Badge variant={qs.variant} className="text-xs">{qs.label}</Badge></TableCell>
                         <TableCell>
