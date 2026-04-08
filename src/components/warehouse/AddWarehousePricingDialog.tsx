@@ -11,7 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Check, MapPin, Building2, DollarSign, Users, FileCheck, Tags, Search } from 'lucide-react';
+import { Loader2, Check, MapPin, Building2, DollarSign, FileCheck, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getRateToUsd, convertToUsd } from '@/lib/fx-rates';
 import { FX_CURRENCY_OPTIONS, defaultCurrencyForCountryCode } from '@/lib/country-currencies';
@@ -43,9 +43,8 @@ const CHARGE_FIELDS: { key: WarehouseVendorChargeKey; label: string; sheetHint?:
 const WIZARD_STEPS = [
   { key: 'vendor', label: 'Vendor', title: 'Warehouse vendor', description: 'Choose the partner this tariff belongs to.' },
   { key: 'countries', label: 'Locations', title: 'Serviceable countries', description: 'Multi-select where they operate. Use region shortcuts to bulk-add.' },
-  { key: 'landing', label: 'Landing', title: 'Vendor landing cost', description: 'Enter amounts in local currency or USD; we convert to USD for storage.' },
-  { key: 'client', label: 'Client', title: 'Client-side pricing (USD)', description: 'Your bundle to clients — USD only, parallel line items.' },
-  { key: 'finish', label: 'Finish', title: 'Quote & review', description: 'Validity dates, notes, and save (one row per country).' },
+  { key: 'pricing', label: 'Pricing', title: 'Partner cost & your client price', description: 'Same layout as your cost sheet: partner landing (USD) vs client quote (USD) with margins per line.' },
+  { key: 'finish', label: 'Finish', title: 'Quote & save', description: 'Validity dates, notes, and confirm (one row per country).' },
 ] as const;
 
 function clientColumnName(k: WarehouseVendorChargeKey): string {
@@ -80,6 +79,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
   const [fxDate, setFxDate] = useState<string | null>(null);
   const [fxLoading, setFxLoading] = useState(false);
   const [fxError, setFxError] = useState<string | null>(null);
+  const [fxSource, setFxSource] = useState<string | null>(null);
 
   const [quoteDate, setQuoteDate] = useState(new Date().toISOString().slice(0, 10));
   const [quoteValidityDate, setQuoteValidityDate] = useState('');
@@ -107,6 +107,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
     setFxRate(null);
     setFxDate(null);
     setFxError(null);
+    setFxSource(null);
     setQuoteDate(new Date().toISOString().slice(0, 10));
     setQuoteValidityDate('');
     setNotes('');
@@ -139,6 +140,8 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
       setNotes(editItem.notes || '');
       setLandingCurrency('USD');
       setFxRate(1);
+      setFxSource('USD');
+      setFxError(null);
       setCharges(Object.fromEntries(CHARGE_FIELDS.map((f) => [f.key, String((editItem as any)[f.key] ?? 0)])));
       setClientCharges(Object.fromEntries(CHARGE_FIELDS.map((f) => {
         const ck = clientColumnName(f.key);
@@ -172,18 +175,21 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
       setFxRate(1);
       setFxDate(new Date().toISOString().slice(0, 10));
       setFxError(null);
+      setFxSource('USD');
       return;
     }
     setFxLoading(true);
     setFxError(null);
     try {
-      const { rate, date } = await getRateToUsd(currency);
+      const { rate, date, source } = await getRateToUsd(currency);
       setFxRate(rate);
       setFxDate(date);
+      setFxSource(source);
     } catch (e: any) {
       setFxRate(null);
+      setFxSource(null);
       setFxError(e?.message || 'Could not load exchange rate');
-      toast({ title: 'FX unavailable', description: 'Try USD or refresh. You can still enter landing amounts in USD.', variant: 'destructive' });
+      toast({ title: 'FX unavailable', description: 'Switch to USD or tap Refresh. Rates use ECB/OpenExchange fallback.', variant: 'destructive' });
     } finally {
       setFxLoading(false);
     }
@@ -232,6 +238,13 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
     () => CHARGE_FIELDS.reduce((s, f) => s + (parseFloat(clientCharges[f.key]) || 0), 0),
     [clientCharges],
   );
+
+  const marginGrand = useMemo(() => clientGrand - vendorGrandUsd, [clientGrand, vendorGrandUsd]);
+
+  const marginPctGrand = useMemo(() => {
+    if (vendorGrandUsd <= 0) return null;
+    return (marginGrand / vendorGrandUsd) * 100;
+  }, [marginGrand, vendorGrandUsd]);
 
   const toggleCountry = (id: string) => {
     setRegionBulkFocus(null);
@@ -305,9 +318,12 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
     });
     const fxLine =
       landingCurrency !== 'USD' && fxRate != null
-        ? `Vendor landing entered in ${landingCurrency}; stored USD @ ${fxRate.toFixed(6)} (Frankfurter / ECB ref ${fxDate || '—'}).`
+        ? `Partner costs entered in ${landingCurrency}; stored USD @ ${fxRate.toFixed(6)} (ref ${fxDate || '—'}).`
         : '';
     const parts = [notes?.trim(), fxLine].filter(Boolean);
+    if (fxSource && landingCurrency !== 'USD') {
+      parts.push(`FX source: ${fxSource}`);
+    }
     row.notes = parts.length ? parts.join('\n') : null;
     return row;
   };
@@ -346,7 +362,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
   };
 
   const meta = WIZARD_STEPS[step];
-  const stepIcons = [Building2, MapPin, DollarSign, Users, FileCheck];
+  const stepIcons = [Building2, MapPin, DollarSign, FileCheck];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -355,7 +371,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
           <div>
             <DialogTitle className="text-xl">{isEdit ? 'Edit warehouse pricing' : 'Add warehouse pricing'}</DialogTitle>
             <DialogDescription className="mt-1.5 text-sm">
-              Wizard: vendor → countries → vendor landing (FX) → client USD → save.
+              Wizard: vendor → countries → partner &amp; client pricing (margins) → save.
             </DialogDescription>
           </div>
 
@@ -532,10 +548,10 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
             )}
 
             {step === 2 && (
-              <div className="space-y-5 animate-in fade-in-0 duration-200">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <div className="space-y-2 sm:flex-1">
-                    <Label className="text-sm font-medium">Landing amounts currency</Label>
+              <div className="space-y-4 animate-in fade-in-0 duration-200">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                  <div className="space-y-2 lg:flex-1">
+                    <Label className="text-sm font-medium">Partner quote currency</Label>
                     <Select value={landingCurrency} onValueChange={setLandingCurrency}>
                       <SelectTrigger className="h-11 rounded-[10px]"><SelectValue /></SelectTrigger>
                       <SelectContent className="max-h-72">
@@ -561,92 +577,139 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                       );
                     })()}
                   </div>
-                  <Button type="button" variant="outline" size="sm" className="rounded-lg shrink-0" onClick={() => refreshFx(landingCurrency)} disabled={fxLoading || landingCurrency === 'USD'}>
+                  <Button type="button" variant="outline" size="sm" className="h-11 rounded-lg shrink-0 lg:mb-0" onClick={() => refreshFx(landingCurrency)} disabled={fxLoading || landingCurrency === 'USD'}>
                     {fxLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh rate'}
                   </Button>
                 </div>
                 <div className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-sm">
                   {landingCurrency === 'USD' ? (
-                    <span>Amounts are stored in USD as entered.</span>
+                    <span>Partner amounts are entered in USD and stored as shown.</span>
                   ) : fxError ? (
                     <span className="text-destructive">{fxError}</span>
                   ) : fxRate != null ? (
                     <span>
                       <span className="font-medium">1 {landingCurrency} = {fxRate.toFixed(6)} USD</span>
-                      {fxDate && <span className="text-muted-foreground"> · ECB/ref {fxDate}</span>}
+                      {fxDate && <span className="text-muted-foreground"> · {fxDate}</span>}
+                      {fxSource && fxSource !== 'USD' && (
+                        <span className="text-muted-foreground"> · {fxSource}</span>
+                      )}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">Loading rate…</span>
                   )}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {CHARGE_FIELDS.map((f) => {
-                    const localV = parseFloat(charges[f.key]) || 0;
-                    const usdV = vendorUsdPreview[f.key] || 0;
-                    return (
-                      <div key={f.key} className="rounded-xl border border-border/80 bg-card/40 p-3">
-                        <Label className="text-xs font-medium leading-tight">{f.label}</Label>
-                        {f.sheetHint && <p className="text-[10px] text-muted-foreground mb-1">{f.sheetHint}</p>}
-                        <div className="relative mt-1.5">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{landingCurrency === 'USD' ? '$' : '¤'}</span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            value={charges[f.key]}
-                            onChange={(e) => setCharges((p) => ({ ...p, [f.key]: e.target.value }))}
-                            className="h-10 rounded-[10px] pl-8 text-sm tabular-nums"
-                          />
-                        </div>
-                        {landingCurrency !== 'USD' && fxMultiplier > 0 && (
-                          <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">
-                            ≈ ${usdV.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="flex justify-between border-t border-border/60 pt-3 text-sm">
-                  <span className="font-medium">Vendor landing total (USD)</span>
-                  <span className="text-lg font-bold tabular-nums">${vendorGrandUsd.toFixed(2)}</span>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  One sheet per your warehouse cost model: <strong className="text-foreground">partner landed cost</strong> (what you pay the vendor, saved in USD) next to <strong className="text-foreground">your client quote</strong> (USD). Margin = client − partner per line.
+                </p>
+
+                <div className="overflow-x-auto rounded-xl border border-border/80 shadow-sm">
+                  <table className="w-full min-w-[720px] text-sm caption-bottom">
+                    <caption className="sr-only">Partner and client pricing with margins</caption>
+                    <thead>
+                      <tr className="border-b border-border bg-muted/70">
+                        <th className="w-[min(40%,280px)] px-3 py-2.5 text-left align-bottom font-semibold">Service</th>
+                        <th className="px-2 py-2.5 text-right align-bottom font-semibold whitespace-nowrap">
+                          <span className="block">Partner cost</span>
+                          <span className="block text-[10px] font-normal text-muted-foreground">{landingCurrency === 'USD' ? 'USD' : `${landingCurrency} → USD`}</span>
+                        </th>
+                        <th className="px-2 py-2.5 text-right align-bottom font-semibold whitespace-nowrap">
+                          <span className="block">Your client price</span>
+                          <span className="block text-[10px] font-normal text-muted-foreground">USD</span>
+                        </th>
+                        <th className="px-2 py-2.5 text-right align-bottom font-semibold whitespace-nowrap">Margin</th>
+                        <th className="hidden px-2 py-2.5 text-right align-bottom font-semibold md:table-cell whitespace-nowrap">Margin %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {CHARGE_FIELDS.map((f) => {
+                        const wUsd = vendorUsdPreview[f.key] || 0;
+                        const cUsd = parseFloat(clientCharges[f.key]) || 0;
+                        const margin = cUsd - wUsd;
+                        const marginPct = wUsd > 0 ? (margin / wUsd) * 100 : null;
+                        return (
+                          <tr key={f.key} className="bg-card/20 hover:bg-muted/25">
+                            <td className="px-3 py-2.5 align-top">
+                              <div className="font-medium leading-snug">{f.label}</div>
+                              {f.sheetHint && (
+                                <div className="mt-0.5 text-[11px] text-muted-foreground leading-snug">{f.sheetHint}</div>
+                              )}
+                            </td>
+                            <td className="px-2 py-2 align-top text-right">
+                              <div className="relative ml-auto max-w-[7.5rem]">
+                                <span className="pointer-events-none absolute left-2 top-1/2 z-[1] -translate-y-1/2 text-[10px] font-medium text-muted-foreground">
+                                  {landingCurrency === 'USD' ? '$' : landingCurrency}
+                                </span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min={0}
+                                  value={charges[f.key]}
+                                  onChange={(e) => setCharges((p) => ({ ...p, [f.key]: e.target.value }))}
+                                  className={cn(
+                                    'h-9 rounded-lg text-right tabular-nums',
+                                    landingCurrency === 'USD' ? 'pl-6 pr-2' : 'pl-[2.75rem] pr-2',
+                                  )}
+                                />
+                              </div>
+                              {landingCurrency !== 'USD' && fxMultiplier > 0 && (
+                                <div className="mt-1 text-[10px] text-muted-foreground tabular-nums">
+                                  stored ${wUsd.toFixed(2)}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-2 py-2 align-top text-right">
+                              <div className="relative ml-auto max-w-[7.5rem]">
+                                <span className="pointer-events-none absolute left-2 top-1/2 z-[1] -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min={0}
+                                  value={clientCharges[f.key]}
+                                  onChange={(e) => setClientCharges((p) => ({ ...p, [f.key]: e.target.value }))}
+                                  className="h-9 rounded-lg pl-6 pr-2 text-right tabular-nums"
+                                />
+                              </div>
+                            </td>
+                            <td
+                              className={cn(
+                                'px-2 py-2.5 text-right align-middle tabular-nums font-semibold',
+                                margin >= 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive',
+                              )}
+                            >
+                              ${margin.toFixed(2)}
+                            </td>
+                            <td className="hidden px-2 py-2.5 text-right align-middle tabular-nums text-muted-foreground md:table-cell">
+                              {marginPct != null ? `${marginPct.toFixed(1)}%` : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-primary/35 bg-primary/10">
+                        <td className="px-3 py-3 font-bold">Total</td>
+                        <td className="px-2 py-3 text-right font-bold tabular-nums">${vendorGrandUsd.toFixed(2)}</td>
+                        <td className="px-2 py-3 text-right font-bold tabular-nums">${clientGrand.toFixed(2)}</td>
+                        <td
+                          className={cn(
+                            'px-2 py-3 text-right font-bold tabular-nums',
+                            marginGrand >= 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive',
+                          )}
+                        >
+                          ${marginGrand.toFixed(2)}
+                        </td>
+                        <td className="hidden px-2 py-3 text-right font-bold tabular-nums md:table-cell">
+                          {marginPctGrand != null ? `${marginPctGrand.toFixed(1)}%` : '—'}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
               </div>
             )}
 
             {step === 3 && (
-              <div className="space-y-5 animate-in fade-in-0 duration-200">
-                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-200/90">
-                  <Tags className="mt-0.5 h-4 w-4 shrink-0" />
-                  <p>Client bundle is <strong className="text-foreground">USD only</strong> — aligned with your warehouse cost sheet (Pay-as-you-go vs subscription style bundles you quote to clients).</p>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {CHARGE_FIELDS.map((f) => (
-                    <div key={f.key} className="rounded-xl border border-border/80 p-3">
-                      <Label className="text-xs font-medium">{f.label} (USD)</Label>
-                      <div className="relative mt-1.5">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          value={clientCharges[f.key]}
-                          onChange={(e) => setClientCharges((p) => ({ ...p, [f.key]: e.target.value }))}
-                          className="h-10 rounded-[10px] pl-7 text-sm tabular-nums"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex justify-between border-t pt-2 text-sm">
-                  <span className="font-medium">Client bundle total (USD)</span>
-                  <span className="text-lg font-bold tabular-nums text-primary">${clientGrand.toFixed(2)}</span>
-                </div>
-              </div>
-            )}
-
-            {step === 4 && (
               <div className="space-y-5 animate-in fade-in-0 duration-200">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -663,30 +726,48 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                   <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="rounded-[10px]" placeholder="Internal context, PO refs, custom repair handling…" />
                 </div>
 
-                <div className="overflow-hidden rounded-xl border border-border/80">
-                  <div className="grid grid-cols-3 gap-0 bg-muted/50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    <span>Service</span>
-                    <span className="text-right">Landing (USD)</span>
-                    <span className="text-right">Client (USD)</span>
-                  </div>
-                  <div className="divide-y divide-border/60">
-                    {CHARGE_FIELDS.map((f) => (
-                      <div key={f.key} className="grid grid-cols-3 gap-2 px-3 py-2 text-sm">
-                        <span>{f.label}</span>
-                        <span className="text-right tabular-nums">${(vendorUsdPreview[f.key] || 0).toFixed(2)}</span>
-                        <span className="text-right tabular-nums font-medium">${(parseFloat(clientCharges[f.key]) || 0).toFixed(2)}</span>
-                      </div>
-                    ))}
-                    <div className="grid grid-cols-3 gap-2 bg-primary/5 px-3 py-2.5 text-sm font-bold">
-                      <span>Total</span>
-                      <span className="text-right tabular-nums">${vendorGrandUsd.toFixed(2)}</span>
-                      <span className="text-right tabular-nums">${clientGrand.toFixed(2)}</span>
-                    </div>
-                  </div>
+                <div className="overflow-x-auto rounded-xl border border-border/80">
+                  <table className="w-full min-w-[560px] text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/60">
+                        <th className="px-3 py-2 text-left font-semibold">Service</th>
+                        <th className="px-3 py-2 text-right font-semibold">Partner (USD)</th>
+                        <th className="px-3 py-2 text-right font-semibold">Client (USD)</th>
+                        <th className="px-3 py-2 text-right font-semibold">Margin</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {CHARGE_FIELDS.map((f) => {
+                        const w = vendorUsdPreview[f.key] || 0;
+                        const c = parseFloat(clientCharges[f.key]) || 0;
+                        const m = c - w;
+                        return (
+                          <tr key={f.key}>
+                            <td className="px-3 py-2">{f.label}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">${w.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums font-medium">${c.toFixed(2)}</td>
+                            <td className={cn('px-3 py-2 text-right tabular-nums font-medium', m >= 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive')}>
+                              ${m.toFixed(2)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-primary/30 bg-primary/5 font-bold">
+                        <td className="px-3 py-2.5">Total</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">${vendorGrandUsd.toFixed(2)}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">${clientGrand.toFixed(2)}</td>
+                        <td className={cn('px-3 py-2.5 text-right tabular-nums', marginGrand >= 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive')}>
+                          ${marginGrand.toFixed(2)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
                 {!isEdit && (
                   <p className="text-xs text-muted-foreground">
-                    Saving creates <strong>{selectedCountryIds.size}</strong> row{selectedCountryIds.size !== 1 ? 's' : ''} (vendor + country) with the same landing and client figures.
+                    Saving creates <strong>{selectedCountryIds.size}</strong> row{selectedCountryIds.size !== 1 ? 's' : ''} (vendor + country) with the same partner and client figures.
                   </p>
                 )}
               </div>
