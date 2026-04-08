@@ -16,11 +16,23 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   ArrowLeft, Plus, Globe2, Mail, Phone, User, Package,
   CheckCircle2, Truck, Clock, DollarSign, ChevronDown, ChevronRight, Edit,
-  TrendingUp, CreditCard, Tag, ClipboardList,
+  TrendingUp, CreditCard, Tag, ClipboardList, Trash2,
 } from 'lucide-react';
 import { AddRequestDialog } from '@/components/clients/AddRequestDialog';
+import { ClientFormDialog } from '@/components/clients/ClientFormDialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { CLIENT_REQUEST_STATUSES } from '@/constants/device-options';
 import { clientRequestProfit } from '@/lib/client-request-pricing';
 import { discountVsMrp, quotedPctOfMrp } from '@/lib/mrp-insights';
@@ -30,10 +42,15 @@ export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
   const [client, setClient] = useState<Client | null>(null);
   const [requests, setRequests] = useState<ClientRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [addReqOpen, setAddReqOpen] = useState(false);
+  const [editClientOpen, setEditClientOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ClientRequest | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -118,6 +135,21 @@ export default function ClientDetail() {
     }
   };
 
+  const handleDeleteRequest = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase.from('client_requests' as any).delete().eq('id', deleteTarget.id);
+    setDeleting(false);
+    if (error) {
+      toast({ title: 'Could not delete request', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Request deleted' });
+    if (expandedId === deleteTarget.id) setExpandedId(null);
+    setDeleteTarget(null);
+    fetchData();
+  };
+
   if (loading) {
     return (
       <AppLayout>
@@ -143,7 +175,19 @@ export default function ClientDetail() {
             <Button variant="ghost" size="sm" onClick={() => navigate('/clients')} className="gap-1 -ml-2 mb-1 text-muted-foreground">
               <ArrowLeft className="h-4 w-4" /> Back to Clients
             </Button>
-            <h1 className="text-2xl font-bold tracking-tight">{client.name}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight">{client.name}</h1>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 shrink-0 h-8"
+                onClick={() => setEditClientOpen(true)}
+              >
+                <Edit className="h-3.5 w-3.5" />
+                Edit info
+              </Button>
+            </div>
             <div className="flex flex-wrap items-center gap-3 mt-1.5 text-sm text-muted-foreground">
               {client.country && (
                 <span className="flex items-center gap-1"><Globe2 className="h-3.5 w-3.5" />{client.country.name}</span>
@@ -238,6 +282,7 @@ export default function ClientDetail() {
                       <TableHead className="text-right">Profit</TableHead>
                       <TableHead>Shipping</TableHead>
                       <TableHead>Status</TableHead>
+                      {isAdmin && <TableHead className="w-10 text-right"><span className="sr-only">Actions</span></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -250,9 +295,11 @@ export default function ClientDetail() {
                           req={req}
                           isExpanded={isExpanded}
                           statusInfo={statusInfo}
+                          isAdmin={isAdmin}
                           onToggle={() => setExpandedId(isExpanded ? null : req.id)}
                           onStatusChange={handleStatusChange}
                           onAllocateVendor={handleAllocateVendor}
+                          onDeleteRequest={setDeleteTarget}
                         />
                       );
                     })}
@@ -265,19 +312,54 @@ export default function ClientDetail() {
       </div>
 
       <AddRequestDialog open={addReqOpen} onOpenChange={setAddReqOpen} onSuccess={fetchData} clientId={id!} />
+      <ClientFormDialog
+        open={editClientOpen}
+        onOpenChange={setEditClientOpen}
+        onSuccess={fetchData}
+        editItem={client}
+      />
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the line item for{' '}
+              <span className="font-medium text-foreground">
+                {deleteTarget ? `${deleteTarget.brand} ${deleteTarget.device_model}` : ''}
+              </span>
+              . This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteRequest();
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
 
 function RequestRows({
-  req, isExpanded, statusInfo, onToggle, onStatusChange, onAllocateVendor,
+  req, isExpanded, statusInfo, isAdmin, onToggle, onStatusChange, onAllocateVendor, onDeleteRequest,
 }: {
   req: ClientRequest;
   isExpanded: boolean;
   statusInfo: { value: string; label: string; color: string } | undefined;
+  isAdmin: boolean;
   onToggle: () => void;
   onStatusChange: (id: string, status: string) => void;
   onAllocateVendor: (id: string, vendorId: string, price: string) => void;
+  onDeleteRequest: (req: ClientRequest) => void;
 }) {
   const pay = req.payment_status ?? 'unpaid';
   const profit =
@@ -342,10 +424,24 @@ function RequestRows({
             {statusInfo?.label || req.status}
           </Badge>
         </TableCell>
+        {isAdmin && (
+          <TableCell className="text-right p-1 w-10" onClick={(e) => e.stopPropagation()}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              aria-label="Delete request"
+              onClick={() => onDeleteRequest(req)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </TableCell>
+        )}
       </TableRow>
       {isExpanded && (
         <TableRow className="bg-muted/30 hover:bg-muted/30">
-          <TableCell colSpan={10}>
+          <TableCell colSpan={isAdmin ? 11 : 10}>
             <ExpandedRequest
               req={req}
               onStatusChange={onStatusChange}
