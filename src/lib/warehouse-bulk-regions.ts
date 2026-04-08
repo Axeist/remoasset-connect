@@ -37,6 +37,28 @@ export function countryIdsInPreset(countries: CountryRow[], presetId: string): s
   return countries.filter((c) => codesInPreset(presetId, c)).map((c) => c.id);
 }
 
+/** DB `countries.region` group labels to scroll to when a bulk preset is activated. Order = first match wins. */
+export function regionGroupKeysForPreset(presetId: string): string[] {
+  switch (presetId) {
+    case 'apac':
+      return ['APAC'];
+    case 'anz':
+      return ['ANZ'];
+    case 'na':
+      return ['NA', 'LATAM'];
+    case 'latam':
+      return ['LATAM'];
+    case 'europe':
+      return ['EU'];
+    case 'mena':
+      return ['MENA'];
+    case 'emea':
+      return ['EU', 'MENA', 'Africa'];
+    default:
+      return [];
+  }
+}
+
 /** Toggle: if every id in preset is already selected, remove them; otherwise add all from preset. */
 export function togglePresetSelection(
   selected: Set<string>,

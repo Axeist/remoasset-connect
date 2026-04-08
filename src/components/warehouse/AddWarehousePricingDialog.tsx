@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
@@ -11,12 +11,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Check, MapPin, Building2, DollarSign, Users, FileCheck, Tags } from 'lucide-react';
+import { Loader2, Check, MapPin, Building2, DollarSign, Users, FileCheck, Tags, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getRateToUsd, convertToUsd } from '@/lib/fx-rates';
 import { FX_CURRENCY_OPTIONS, defaultCurrencyForCountryCode } from '@/lib/country-currencies';
 import type { CountryRow } from '@/lib/warehouse-bulk-regions';
-import { BULK_REGION_PRESETS, togglePresetSelection } from '@/lib/warehouse-bulk-regions';
+import { BULK_REGION_PRESETS, regionGroupKeysForPreset, togglePresetSelection } from '@/lib/warehouse-bulk-regions';
 import type { WarehouseVendorPricing } from '@/types/procurement';
 
 export type WarehouseVendorChargeKey =
@@ -71,6 +71,9 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
   const [vendorId, setVendorId] = useState('');
   const [selectedCountryIds, setSelectedCountryIds] = useState<Set<string>>(new Set());
   const [countrySearch, setCountrySearch] = useState('');
+  /** Last region bulk action for pill highlight + scroll (cleared when user toggles individual countries). */
+  const [regionBulkFocus, setRegionBulkFocus] = useState<string | null>(null);
+  const countryListScrollRef = useRef<HTMLDivElement>(null);
 
   const [landingCurrency, setLandingCurrency] = useState('USD');
   const [fxRate, setFxRate] = useState<number | null>(null);
@@ -99,6 +102,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
     setVendorId('');
     setSelectedCountryIds(new Set());
     setCountrySearch('');
+    setRegionBulkFocus(null);
     setLandingCurrency('USD');
     setFxRate(null);
     setFxDate(null);
@@ -129,6 +133,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
     if (editItem) {
       setVendorId(editItem.vendor_id);
       setSelectedCountryIds(new Set(editItem.country_id ? [editItem.country_id] : []));
+      setRegionBulkFocus(null);
       setQuoteDate(editItem.quote_date || new Date().toISOString().slice(0, 10));
       setQuoteValidityDate(editItem.quote_validity_date || '');
       setNotes(editItem.notes || '');
@@ -141,8 +146,26 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
       })));
     } else {
       resetForm();
+      setRegionBulkFocus(null);
     }
   }, [editItem, open, resetForm]);
+
+  const scrollCountryListToPreset = useCallback((presetId: string) => {
+    const root = countryListScrollRef.current;
+    if (!root) return;
+    if (presetId === 'all') {
+      root.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    const keys = regionGroupKeysForPreset(presetId);
+    for (const key of keys) {
+      const el = root.querySelector(`[data-wh-region="${key}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+    }
+  }, []);
 
   const refreshFx = useCallback(async (currency: string) => {
     if (currency === 'USD') {
@@ -211,6 +234,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
   );
 
   const toggleCountry = (id: string) => {
+    setRegionBulkFocus(null);
     setSelectedCountryIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -219,8 +243,27 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
     });
   };
 
+  const runAfterPaint = (fn: () => void) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(fn);
+    });
+  };
+
   const handleBulkToggle = (presetId: string) => {
+    setRegionBulkFocus(presetId);
     setSelectedCountryIds((prev) => togglePresetSelection(prev, countries, presetId));
+    runAfterPaint(() => scrollCountryListToPreset(presetId));
+  };
+
+  const handleSelectAllCountries = () => {
+    setRegionBulkFocus('all');
+    setSelectedCountryIds(new Set(countries.map((c) => c.id)));
+    runAfterPaint(() => scrollCountryListToPreset('all'));
+  };
+
+  const handleClearCountries = () => {
+    setRegionBulkFocus('clear');
+    setSelectedCountryIds(new Set());
   };
 
   const handleNext = () => {
@@ -384,15 +427,47 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
               <div className="space-y-4 animate-in fade-in-0 duration-200">
                 {!isEdit && (
                   <div className="flex flex-wrap gap-2">
-                    {BULK_REGION_PRESETS.map((p) => (
-                      <Button key={p.id} type="button" variant="secondary" size="sm" className="h-8 rounded-lg text-xs" onClick={() => handleBulkToggle(p.id)} title={p.description}>
-                        {p.label}
-                      </Button>
-                    ))}
-                    <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-xs" onClick={() => setSelectedCountryIds(new Set(countries.map((c) => c.id)))}>
+                    {BULK_REGION_PRESETS.map((p) => {
+                      const active = regionBulkFocus === p.id;
+                      return (
+                        <Button
+                          key={p.id}
+                          type="button"
+                          variant={active ? 'default' : 'secondary'}
+                          size="sm"
+                          className={cn(
+                            'h-8 rounded-full border px-3 text-xs transition-shadow',
+                            active && 'shadow-[0_0_0_2px_hsl(var(--background)),0_0_0_4px_hsl(var(--primary))]',
+                          )}
+                          onClick={() => handleBulkToggle(p.id)}
+                          title={p.description}
+                        >
+                          {p.label}
+                        </Button>
+                      );
+                    })}
+                    <Button
+                      type="button"
+                      variant={regionBulkFocus === 'all' ? 'default' : 'outline'}
+                      size="sm"
+                      className={cn(
+                        'h-8 rounded-full px-3 text-xs',
+                        regionBulkFocus === 'all' && 'shadow-[0_0_0_2px_hsl(var(--background)),0_0_0_4px_hsl(var(--primary))]',
+                      )}
+                      onClick={handleSelectAllCountries}
+                    >
                       All countries
                     </Button>
-                    <Button type="button" variant="ghost" size="sm" className="h-8 rounded-lg text-xs" onClick={() => setSelectedCountryIds(new Set())}>
+                    <Button
+                      type="button"
+                      variant={regionBulkFocus === 'clear' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className={cn(
+                        'h-8 rounded-lg text-xs',
+                        regionBulkFocus === 'clear' && 'ring-2 ring-primary/60',
+                      )}
+                      onClick={handleClearCountries}
+                    >
                       Clear
                     </Button>
                   </div>
@@ -400,23 +475,58 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                 {isEdit && (
                   <p className="text-sm text-muted-foreground">Editing a single country row. To add more countries, create a new pricing entry.</p>
                 )}
-                <Input placeholder="Search countries…" value={countrySearch} onChange={(e) => setCountrySearch(e.target.value)} className="h-10 rounded-[10px]" />
-                <p className="text-xs text-muted-foreground">{selectedCountryIds.size} selected</p>
-                <div className="max-h-[min(42vh,360px)] space-y-4 overflow-y-auto rounded-xl border border-border/80 bg-muted/20 p-3">
-                  {groupedCountries.map(([region, list]) => (
-                    <div key={region}>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden />
+                  <Input
+                    placeholder="Search countries by name or code…"
+                    value={countrySearch}
+                    onChange={(e) => {
+                      setCountrySearch(e.target.value);
+                      setRegionBulkFocus(null);
+                    }}
+                    className="h-11 rounded-[10px] pl-10"
+                    aria-label="Search countries"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{selectedCountryIds.size}</span> selected
+                  {countrySearch.trim() ? (
+                    <span className="text-muted-foreground"> · showing {filteredCountries.length} match{filteredCountries.length !== 1 ? 'es' : ''}</span>
+                  ) : null}
+                </p>
+                <div
+                  ref={countryListScrollRef}
+                  className="max-h-[min(42vh,360px)] space-y-4 overflow-y-auto rounded-xl border border-border/80 bg-muted/20 p-3 scroll-pb-4"
+                >
+                  {groupedCountries.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-muted-foreground">No countries match your search.</p>
+                  ) : (
+                  groupedCountries.map(([region, list]) => (
+                    <div key={region} data-wh-region={region}>
                       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{region}</p>
                       <div className="grid gap-1.5 sm:grid-cols-2">
-                        {list.map((c) => (
-                          <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 py-1.5 hover:bg-muted/60">
-                            <Checkbox checked={selectedCountryIds.has(c.id)} onCheckedChange={() => toggleCountry(c.id)} disabled={isEdit} />
-                            <span className="text-sm">{c.name}</span>
-                            <span className="text-xs text-muted-foreground">{c.code}</span>
-                          </label>
-                        ))}
+                        {list.map((c) => {
+                          const checked = selectedCountryIds.has(c.id);
+                          return (
+                            <label
+                              key={c.id}
+                              className={cn(
+                                'flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors',
+                                checked
+                                  ? 'border-primary/40 bg-primary/10 hover:bg-primary/15'
+                                  : 'border-transparent hover:bg-muted/60',
+                              )}
+                            >
+                              <Checkbox checked={checked} onCheckedChange={() => toggleCountry(c.id)} disabled={isEdit} />
+                              <span className="text-sm font-medium">{c.name}</span>
+                              <span className="text-xs text-muted-foreground tabular-nums">{c.code}</span>
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
-                  ))}
+                  ))
+                  )}
                 </div>
               </div>
             )}
