@@ -9,7 +9,7 @@ import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 import { AddFollowUpDialog } from '@/components/leads/AddFollowUpDialog';
 import { UploadDocumentDialog } from '@/components/leads/UploadDocumentDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
-import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin, Pencil, Check, X, Video, ChevronDown, Clock, Users, Sparkles } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin, Pencil, Check, X, Video, ChevronDown, Clock, Users, Sparkles, ArrowRightLeft } from 'lucide-react';
 import { MeetingActivityCard, hasMeetingData, extractMeetingMeta } from '@/components/leads/MeetingActivityCard';
 import { LeadEmailTab } from '@/components/leads/LeadEmailTab';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import type { Lead } from '@/types/lead';
 import { useToast } from '@/hooks/use-toast';
 import { MoveCommentDialog, getTransitionMode, type TransitionMode, type StageTransitionResult } from '@/components/pipeline/MoveCommentDialog';
+import { TransferLeadDialog } from '@/components/leads/TransferLeadDialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +44,7 @@ const activityTypeConfig = {
   linkedin: { icon: Linkedin, label: 'LinkedIn', color: 'bg-sky-500/10 text-sky-600', score: 4 },
   nda: { icon: ShieldCheck, label: 'NDA', color: 'bg-primary/10 text-primary', score: 8 },
   quotation: { icon: FileText, label: 'Quotation', color: 'bg-amber-500/10 text-amber-600', score: 7 },
+  transfer: { icon: ArrowRightLeft, label: 'Transfer', color: 'bg-indigo-500/10 text-indigo-600', score: 0 },
 };
 
 /** Lead score points for activity types. Notes get score from description (Task/Follow-up/Lead updated). */
@@ -138,6 +140,7 @@ export default function LeadDetail() {
   } | null>(null);
   const [stageSubmitting, setStageSubmitting] = useState(false);
   const [enriching, setEnriching] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
 
   const isAdmin = role === 'admin';
   const isOwner = lead?.owner_id === user?.id;
@@ -169,7 +172,6 @@ export default function LeadDetail() {
       if (data) setStatusOptions(data);
     })();
 
-    if (!isAdmin) return;
     (async () => {
       const { data: roles } = await supabase.from('user_roles').select('user_id');
       if (roles?.length) {
@@ -180,7 +182,7 @@ export default function LeadDetail() {
         setOwnerOptions((profiles ?? []).map((p) => ({ id: p.user_id, full_name: p.full_name })));
       }
     })();
-  }, [isAdmin]);
+  }, []);
 
   // Support deep link from Inbox: /leads/:id?tab=emails&thread=THREAD_ID
   useEffect(() => {
@@ -359,6 +361,10 @@ export default function LeadDetail() {
           <div className="flex gap-2">
             {canEdit && (
               <>
+                <Button variant="outline" onClick={() => setTransferOpen(true)} className="gap-1.5">
+                  <ArrowRightLeft className="h-4 w-4" />
+                  Transfer
+                </Button>
                 <Button variant="outline" onClick={handleEnrichLead} disabled={enriching} className="gap-1.5">
                   {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   {enriching ? 'Enriching…' : 'Enrich'}
@@ -764,6 +770,19 @@ export default function LeadDetail() {
           lead={lead}
           onSuccess={refreshAll}
         />
+        <TransferLeadDialog
+          open={transferOpen}
+          onOpenChange={setTransferOpen}
+          leadId={lead.id}
+          leadCompanyName={lead.company_name}
+          currentOwnerId={lead.owner_id}
+          currentOwnerName={
+            lead.owner_id
+              ? (ownerOptions.find((o) => o.id === lead.owner_id)?.full_name ?? 'Unknown')
+              : null
+          }
+          onSuccess={refreshAll}
+        />
         <TaskFormDialog
           open={taskFormOpen}
           onOpenChange={setTaskFormOpen}
@@ -878,6 +897,7 @@ const activityTypeFilterOptions = [
   { value: 'linkedin', label: 'LinkedIn' },
   { value: 'nda', label: 'NDA' },
   { value: 'quotation', label: 'Quotation' },
+  { value: 'transfer', label: 'Transfer' },
   { value: 'note', label: 'Note' },
 ] as const;
 

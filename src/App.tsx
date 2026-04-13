@@ -29,6 +29,7 @@ import Inbox from "./pages/Inbox";
 import ApiDocs from "./pages/ApiDocs";
 import ApiTester from "./pages/ApiTester";
 import Developer from "./pages/Developer";
+import TransferLog from "./pages/TransferLog";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
@@ -84,6 +85,7 @@ const App = () => {
               <Route path="/admin/api-tester" element={<AdminRoute><ApiTester /></AdminRoute>} />
               <Route path="/developer" element={<AdminRoute><Developer /></AdminRoute>} />
               <Route path="/admin/team-activity" element={<ProtectedRoute><TeamActivity /></ProtectedRoute>} />
+              <Route path="/admin/transfer-log" element={<AdminRoute><TransferLog /></AdminRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
