@@ -52,12 +52,9 @@ export function TransferLeadDialog({
     setTargetUserId('');
     setNotes('');
     (async () => {
-      const { data: roles } = await supabase.from('user_roles').select('user_id');
-      if (!roles?.length) return;
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('user_id, full_name')
-        .in('user_id', roles.map((r) => r.user_id));
+        .select('user_id, full_name');
       const list = (profiles ?? [])
         .map((p) => ({ id: p.user_id, full_name: p.full_name }))
         .filter((p) => p.id !== currentOwnerId);

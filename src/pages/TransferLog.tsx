@@ -51,12 +51,9 @@ export default function TransferLog() {
   }, []);
 
   const fetchEmployees = async () => {
-    const { data: roles } = await supabase.from('user_roles').select('user_id');
-    if (!roles?.length) return;
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('user_id, full_name')
-      .in('user_id', roles.map((r) => r.user_id));
+      .select('user_id, full_name');
     setEmployees((profiles ?? []).map((p) => ({ id: p.user_id, full_name: p.full_name })));
   };
 

@@ -173,14 +173,10 @@ export default function LeadDetail() {
     })();
 
     (async () => {
-      const { data: roles } = await supabase.from('user_roles').select('user_id');
-      if (roles?.length) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name')
-          .in('user_id', roles.map((r) => r.user_id));
-        setOwnerOptions((profiles ?? []).map((p) => ({ id: p.user_id, full_name: p.full_name })));
-      }
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, full_name');
+      setOwnerOptions((profiles ?? []).map((p) => ({ id: p.user_id, full_name: p.full_name })));
     })();
   }, []);
 
@@ -995,11 +991,9 @@ function LeadActivityTab({
                 Refresh meeting info
               </Button>
             )}
-          {canEdit && (
-            <Button size="sm" onClick={() => setAddDialogOpen(true)}>
-              Add activity
-            </Button>
-          )}
+          <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+            Add activity
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
