@@ -8,7 +8,7 @@ import { LeadImportDialog } from '@/components/leads/LeadImportDialog';
 import { BulkActionsDialog } from '@/components/leads/BulkActionsDialog';
 import { LeadSidePanel } from '@/components/leads/LeadSidePanel';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Upload, UserPlus, Tag, Trash2, List, Loader2, ChevronDown, FileText, Filter } from 'lucide-react';
+import { Plus, Download, Upload, UserPlus, Tag, Trash2, List, Loader2, ChevronDown, FileText, Filter, Database } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -164,12 +164,20 @@ export default function Leads() {
         `
         id,
         company_name,
+        website,
         contact_name,
+        contact_designation,
         email,
         phone,
+        additional_contacts,
         lead_score,
         vendor_types,
         warehouse_available,
+        warehouse_location,
+        warehouse_notes,
+        warehouse_price,
+        warehouse_currency,
+        notes,
         hq_country_id,
         country_ids,
         created_at,
@@ -296,30 +304,62 @@ export default function Leads() {
     fetchLeads();
   };
 
+  const formatAdditionalContacts = (contacts: unknown): string => {
+    if (!Array.isArray(contacts) || contacts.length === 0) return '';
+    return contacts
+      .map((c: any) => {
+        const parts: string[] = [];
+        if (c?.name) parts.push(c.name);
+        if (c?.designation) parts.push(`(${c.designation})`);
+        if (c?.email) parts.push(`<${c.email}>`);
+        if (c?.phone) parts.push(`tel:${c.phone}`);
+        return parts.join(' ');
+      })
+      .filter(Boolean)
+      .join(' | ');
+  };
+
   const buildCsvRows = (leadsData: Lead[]) => {
     const headers = [
-      'Company', 'Website', 'Contact Name', 'Contact Designation',
-      'Email', 'Phone', 'Status', 'Score', 'HQ Country', 'Served Countries',
-      'Vendor Types', 'Warehouse Available', 'Owner', 'Notes', 'Created', 'Last Updated',
+      'Lead ID', 'Company', 'Website', 'Status',
+      'Contact Name', 'Contact Designation', 'Email', 'Phone',
+      'Additional Contacts',
+      'Score', 'HQ Country', 'Served Countries',
+      'Vendor Types',
+      'Warehouse Available', 'Warehouse Location', 'Warehouse Notes', 'Warehouse Price', 'Warehouse Currency',
+      'Owner', 'Notes', 'Created', 'Last Updated',
     ];
-    const rows = leadsData.map((l) => [
-      l.company_name,
-      l.website ?? '',
-      l.contact_name ?? '',
-      l.contact_designation ?? '',
-      l.email ?? '',
-      l.phone ?? '',
-      l.status?.name ?? '',
-      l.lead_score ?? '',
-      l.hq_country?.name ?? '',
-      (l.countries ?? []).map((c) => c.name).join('; ') || '',
-      (l.vendor_types ?? []).join('; ') || '',
-      l.warehouse_available != null ? (l.warehouse_available ? 'Yes' : 'No') : '',
-      l.owner?.full_name ?? '',
-      l.notes ?? '',
-      safeFormat(l.created_at, 'PP', '-'),
-      safeFormat(l.updated_at, 'PP', '-'),
-    ]);
+    const rows = leadsData.map((l) => {
+      const a = l as any;
+      const warehousePrice =
+        a.warehouse_price != null && a.warehouse_price !== ''
+          ? Number(a.warehouse_price).toFixed(2)
+          : '';
+      return [
+        l.id,
+        l.company_name,
+        l.website ?? '',
+        l.status?.name ?? '',
+        l.contact_name ?? '',
+        l.contact_designation ?? '',
+        l.email ?? '',
+        l.phone ?? '',
+        formatAdditionalContacts(a.additional_contacts),
+        l.lead_score ?? '',
+        l.hq_country?.name ?? '',
+        (l.countries ?? []).map((c) => c.name).join('; ') || '',
+        (l.vendor_types ?? []).join('; ') || '',
+        l.warehouse_available != null ? (l.warehouse_available ? 'Yes' : 'No') : '',
+        a.warehouse_location ?? '',
+        a.warehouse_notes ?? '',
+        warehousePrice,
+        warehousePrice ? (a.warehouse_currency ?? 'USD') : '',
+        l.owner?.full_name ?? '',
+        l.notes ?? '',
+        safeFormat(l.created_at, 'PPp', '-'),
+        safeFormat(l.updated_at, 'PPp', '-'),
+      ];
+    });
     return { headers, rows };
   };
 
@@ -372,7 +412,9 @@ export default function Leads() {
         .from('leads')
         .select(
           `id, company_name, website, contact_name, contact_designation,
-          email, phone, lead_score, vendor_types, warehouse_available,
+          email, phone, additional_contacts, lead_score, vendor_types,
+          warehouse_available, warehouse_location, warehouse_notes,
+          warehouse_price, warehouse_currency,
           notes, hq_country_id, country_ids, created_at, updated_at, owner_id,
           status:lead_statuses(name, color)`
         )
@@ -461,6 +503,264 @@ export default function Leads() {
     }
   };
 
+  // Comprehensive "export all" — every lead with every field PLUS related activities,
+  // follow-ups, tasks, and documents flattened into the same CSV row per lead.
+  const exportCompleteData = async (withFilters = false) => {
+    setExportingAll(true);
+    try {
+      let ndaLeadIds: string[] | null = null;
+      if (withFilters && filters.ndaStatus) {
+        if (filters.ndaStatus === 'no_nda') {
+          const { data: ndaRows } = await supabase.from('lead_activities').select('lead_id').eq('activity_type', 'nda');
+          ndaLeadIds = [...new Set((ndaRows ?? []).map((r) => r.lead_id))];
+        } else {
+          let ndaQuery = supabase.from('lead_activities').select('lead_id, description').eq('activity_type', 'nda');
+          if (filters.ndaStatus === 'nda_sent') ndaQuery = ndaQuery.ilike('description', 'NDA Sent%');
+          else if (filters.ndaStatus === 'nda_received') ndaQuery = ndaQuery.ilike('description', 'NDA Received%');
+          const { data: ndaRows } = await ndaQuery;
+          ndaLeadIds = [...new Set((ndaRows ?? []).map((r) => r.lead_id))];
+        }
+      }
+
+      let linkedinLeadIds: string[] | null = null;
+      if (withFilters && filters.linkedinOutreach) {
+        const { data: liRows } = await supabase.from('lead_activities').select('lead_id').eq('activity_type', 'linkedin');
+        linkedinLeadIds = [...new Set((liRows ?? []).map((r) => r.lead_id))];
+      }
+
+      let query = supabase
+        .from('leads')
+        .select(
+          `id, company_name, website, contact_name, contact_designation,
+          email, phone, additional_contacts, lead_score, vendor_types,
+          warehouse_available, warehouse_location, warehouse_notes,
+          warehouse_price, warehouse_currency,
+          notes, hq_country_id, country_ids, created_at, updated_at, owner_id,
+          status:lead_statuses(name, color)`
+        )
+        .order(sortBy, { ascending: sortOrder === 'asc' });
+
+      if (withFilters) {
+        if (filters.search) {
+          query = query.or(`company_name.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
+        }
+        if (filters.status) query = query.eq('status_id', filters.status);
+        if (filters.region) {
+          const { data: regionCountries } = await supabase.from('countries').select('id').eq('region', filters.region);
+          const regionCountryIds = (regionCountries ?? []).map((r) => r.id);
+          if (regionCountryIds.length > 0) {
+            query = (query as any).overlaps('country_ids', regionCountryIds);
+          } else {
+            query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+          }
+        }
+        if (filters.country) query = (query as any).contains('country_ids', [filters.country]);
+        if (filters.owner === 'unassigned') query = query.is('owner_id', null);
+        else if (filters.owner) query = query.eq('owner_id', filters.owner);
+        if (filters.vendorType) query = query.contains('vendor_types', [filters.vendorType]);
+        if (filters.warehouseAvailable === 'true') query = query.eq('warehouse_available', true);
+        else if (filters.warehouseAvailable === 'false') query = query.eq('warehouse_available', false);
+        query = query.gte('lead_score', filters.scoreMin).lte('lead_score', filters.scoreMax);
+        if (filters.createdFrom) query = query.gte('created_at', filters.createdFrom);
+        if (filters.createdTo) query = query.lte('created_at', filters.createdTo);
+        if (filters.lastActivityFrom) query = query.gte('updated_at', filters.lastActivityFrom);
+        if (filters.lastActivityTo) query = query.lte('updated_at', filters.lastActivityTo);
+        if (ndaLeadIds !== null && filters.ndaStatus !== 'no_nda') {
+          query = ndaLeadIds.length > 0
+            ? query.in('id', ndaLeadIds)
+            : query.in('id', ['00000000-0000-0000-0000-000000000000']);
+        }
+        if (linkedinLeadIds !== null && filters.linkedinOutreach === 'has_linkedin') {
+          query = linkedinLeadIds.length > 0
+            ? query.in('id', linkedinLeadIds)
+            : query.in('id', ['00000000-0000-0000-0000-000000000000']);
+        }
+      }
+
+      const { data: rawData, error } = await query;
+      if (error) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to export leads' });
+        return;
+      }
+
+      let leadRows = (rawData ?? []) as any[];
+      if (withFilters && filters.ndaStatus === 'no_nda' && ndaLeadIds !== null) {
+        const excludeSet = new Set(ndaLeadIds);
+        leadRows = leadRows.filter((l) => !excludeSet.has(l.id));
+      }
+      if (withFilters && filters.linkedinOutreach === 'no_linkedin' && linkedinLeadIds !== null) {
+        const excludeSet = new Set(linkedinLeadIds);
+        leadRows = leadRows.filter((l) => !excludeSet.has(l.id));
+      }
+
+      if (leadRows.length === 0) {
+        toast({ title: 'Nothing to export', description: 'No leads matched.' });
+        return;
+      }
+
+      const leadIds = leadRows.map((l) => l.id);
+
+      // Resolve owners and countries (for the base columns)
+      const ownerIds = [...new Set(leadRows.map((l) => l.owner_id).filter(Boolean))] as string[];
+      let ownerMap: Record<string, { full_name: string | null }> = {};
+      if (ownerIds.length > 0) {
+        const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', ownerIds);
+        ownerMap = (profiles ?? []).reduce((acc, p) => { acc[p.user_id] = { full_name: p.full_name }; return acc; }, {} as Record<string, { full_name: string | null }>);
+      }
+      const hqIds = leadRows.map((l) => l.hq_country_id).filter(Boolean) as string[];
+      const allCountryIds = [...new Set([...hqIds, ...leadRows.flatMap((l) => l.country_ids ?? [])])] as string[];
+      let countryMap: Record<string, { name: string; code: string }> = {};
+      if (allCountryIds.length > 0) {
+        const { data: countryRows } = await supabase.from('countries').select('id, name, code').in('id', allCountryIds);
+        countryMap = (countryRows ?? []).reduce((acc, c) => { acc[c.id] = { name: c.name, code: c.code }; return acc; }, {} as Record<string, { name: string; code: string }>);
+      }
+
+      // Pull all related data for the matching lead set in parallel
+      const [activitiesRes, followUpsRes, tasksRes, documentsRes] = await Promise.all([
+        supabase
+          .from('lead_activities')
+          .select('id, lead_id, activity_type, description, created_at, user_id')
+          .in('lead_id', leadIds)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('follow_ups')
+          .select('id, lead_id, reminder_type, scheduled_at, is_completed, notes, user_id')
+          .in('lead_id', leadIds)
+          .order('scheduled_at', { ascending: true }),
+        supabase
+          .from('tasks')
+          .select('id, lead_id, title, description, priority, due_date, is_completed, assignee_id')
+          .in('lead_id', leadIds)
+          .order('due_date', { ascending: true }),
+        supabase
+          .from('lead_documents' as any)
+          .select('id, lead_id, document_type, custom_name, file_name, uploaded_at')
+          .in('lead_id', leadIds)
+          .order('uploaded_at', { ascending: false }),
+      ]);
+
+      const activitiesByLead: Record<string, any[]> = {};
+      for (const row of (activitiesRes.data ?? [])) {
+        (activitiesByLead[row.lead_id] ||= []).push(row);
+      }
+      const followUpsByLead: Record<string, any[]> = {};
+      for (const row of (followUpsRes.data ?? [])) {
+        (followUpsByLead[row.lead_id] ||= []).push(row);
+      }
+      const tasksByLead: Record<string, any[]> = {};
+      for (const row of (tasksRes.data ?? [])) {
+        (tasksByLead[row.lead_id] ||= []).push(row);
+      }
+      const documentsByLead: Record<string, any[]> = {};
+      // documentsRes.data may be null if the query failed silently (e.g. RLS) — guard it
+      for (const row of (((documentsRes as any).data ?? []) as any[])) {
+        (documentsByLead[row.lead_id] ||= []).push(row);
+      }
+
+      const formatActivity = (a: any) =>
+        `[${safeFormat(a.created_at, 'yyyy-MM-dd HH:mm', '?')} ${String(a.activity_type ?? '').toUpperCase()}] ${(a.description ?? '').replace(/\s+/g, ' ').trim()}`;
+      const formatFollowUp = (f: any) =>
+        `[${f.is_completed ? 'Done' : 'Pending'} ${safeFormat(f.scheduled_at, 'yyyy-MM-dd HH:mm', '?')}] ${f.reminder_type ?? ''}${f.notes ? ` — ${String(f.notes).replace(/\s+/g, ' ').trim()}` : ''}`;
+      const formatTask = (t: any) =>
+        `[${t.is_completed ? 'Done' : 'Open'}${t.priority ? ` · ${t.priority}` : ''}${t.due_date ? ` · due ${safeFormat(t.due_date, 'yyyy-MM-dd', '?')}` : ''}] ${t.title ?? ''}${t.description ? ` — ${String(t.description).replace(/\s+/g, ' ').trim()}` : ''}`;
+      const formatDoc = (d: any) =>
+        `${d.file_name ?? d.custom_name ?? 'document'} (${d.document_type ?? 'file'}${d.uploaded_at ? `, ${safeFormat(d.uploaded_at, 'yyyy-MM-dd', '?')}` : ''})`;
+
+      const headers = [
+        'Lead ID', 'Company', 'Website', 'Status',
+        'Contact Name', 'Contact Designation', 'Email', 'Phone',
+        'Additional Contacts',
+        'Score', 'HQ Country', 'Served Countries',
+        'Vendor Types',
+        'Warehouse Available', 'Warehouse Location', 'Warehouse Notes', 'Warehouse Price', 'Warehouse Currency',
+        'Owner', 'Notes', 'Created', 'Last Updated',
+        'Activities Count', 'Last Activity At', 'Last Activity Type', 'Last Activity Description', 'All Activities',
+        'Follow-ups Count', 'Open Follow-ups', 'Next Follow-up At', 'All Follow-ups',
+        'Tasks Count', 'Open Tasks Count', 'Next Task Due', 'All Tasks',
+        'Documents Count', 'All Documents',
+      ];
+
+      const rows = leadRows.map((l) => {
+        const owner = l.owner_id ? ownerMap[l.owner_id] ?? null : null;
+        const hq = l.hq_country_id ? countryMap[l.hq_country_id] ?? null : null;
+        const countries = (l.country_ids ?? []).map((id: string) => countryMap[id]).filter(Boolean) as { name: string; code: string }[];
+        const acts = activitiesByLead[l.id] ?? [];
+        const fus = followUpsByLead[l.id] ?? [];
+        const tks = tasksByLead[l.id] ?? [];
+        const docs = documentsByLead[l.id] ?? [];
+
+        const lastActivity = acts[0];
+        const openFollowUps = fus.filter((f) => !f.is_completed);
+        const openTasks = tks.filter((t) => !t.is_completed);
+        const nextFollowUp = openFollowUps[0];
+        const nextTask = openTasks.find((t) => t.due_date) ?? openTasks[0];
+
+        const warehousePrice =
+          l.warehouse_price != null && l.warehouse_price !== ''
+            ? Number(l.warehouse_price).toFixed(2)
+            : '';
+
+        return [
+          l.id,
+          l.company_name,
+          l.website ?? '',
+          l.status?.name ?? '',
+          l.contact_name ?? '',
+          l.contact_designation ?? '',
+          l.email ?? '',
+          l.phone ?? '',
+          formatAdditionalContacts(l.additional_contacts),
+          l.lead_score ?? '',
+          hq?.name ?? '',
+          countries.map((c) => c.name).join('; ') || '',
+          (l.vendor_types ?? []).join('; ') || '',
+          l.warehouse_available != null ? (l.warehouse_available ? 'Yes' : 'No') : '',
+          l.warehouse_location ?? '',
+          l.warehouse_notes ?? '',
+          warehousePrice,
+          warehousePrice ? (l.warehouse_currency ?? 'USD') : '',
+          owner?.full_name ?? '',
+          l.notes ?? '',
+          safeFormat(l.created_at, 'PPp', '-'),
+          safeFormat(l.updated_at, 'PPp', '-'),
+          acts.length,
+          lastActivity ? safeFormat(lastActivity.created_at, 'PPp', '-') : '',
+          lastActivity?.activity_type ?? '',
+          lastActivity ? String(lastActivity.description ?? '').replace(/\s+/g, ' ').trim() : '',
+          acts.map(formatActivity).join(' | '),
+          fus.length,
+          openFollowUps.length,
+          nextFollowUp ? safeFormat(nextFollowUp.scheduled_at, 'PPp', '-') : '',
+          fus.map(formatFollowUp).join(' | '),
+          tks.length,
+          openTasks.length,
+          nextTask?.due_date ? safeFormat(nextTask.due_date, 'PP', '-') : '',
+          tks.map(formatTask).join(' | '),
+          docs.length,
+          docs.map(formatDoc).join(' | '),
+        ];
+      });
+
+      const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leads-complete-${withFilters ? 'filtered-' : ''}export-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: 'Complete export ready',
+        description: `${leadRows.length} lead(s) exported with full history.`,
+      });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Export failed', description: err?.message ?? 'Unknown error' });
+    } finally {
+      setExportingAll(false);
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0 || !isAdmin) return;
     setDeleting(true);
@@ -522,6 +822,22 @@ export default function Leads() {
                     <div>
                       <div className="font-medium">All leads</div>
                       <div className="text-xs text-muted-foreground">Ignore active filters</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Complete Export</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => exportCompleteData(true)} disabled={totalCount === 0 || exportingAll}>
+                    <Database className="h-4 w-4 mr-2 shrink-0" />
+                    <div>
+                      <div className="font-medium">Filtered + history</div>
+                      <div className="text-xs text-muted-foreground">Every field, activities, tasks, follow-ups, documents</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportCompleteData(false)} disabled={exportingAll}>
+                    <Database className="h-4 w-4 mr-2 shrink-0" />
+                    <div>
+                      <div className="font-medium">All leads + history</div>
+                      <div className="text-xs text-muted-foreground">Full export of every lead and related data</div>
                     </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
