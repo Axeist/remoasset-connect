@@ -36,6 +36,7 @@ import {
   Users,
 } from 'lucide-react';
 import type { Lead } from '@/types/lead';
+import { formatVendorTypeLabel } from '@/lib/vendorTypes';
 import { MeetingActivityCardCompact, hasMeetingData, extractMeetingMeta } from '@/components/leads/MeetingActivityCard';
 import { useSyncGoogleMeetingActivities } from '@/hooks/useSyncGoogleMeetingActivities';
 
@@ -336,7 +337,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                 {Array.isArray((displayLead as any).vendor_types) && (displayLead as any).vendor_types.length > 0 && (
                   <InfoRow
                     label="Vendor Types"
-                    value={(displayLead as any).vendor_types.map((t: string) => t.replace(/_/g, ' ')).join(', ')}
+                    value={(displayLead as any).vendor_types.map((t: string) => formatVendorTypeLabel(t)).join(', ')}
                   />
                 )}
                 {(displayLead as any).warehouse_available && (

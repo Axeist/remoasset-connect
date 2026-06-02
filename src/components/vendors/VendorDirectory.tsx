@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { formatVendorTypeLabel } from '@/lib/vendorTypes';
 import {
   Globe2, Search, Building2, User, Mail, Phone, FileText, ExternalLink,
   ShieldCheck, DollarSign, Star, X, ZoomIn, ZoomOut, RotateCcw,
@@ -671,7 +672,7 @@ export function VendorDirectory() {
                           <td className="px-4 py-3 max-w-[180px]">
                             <div className="flex flex-wrap gap-1">
                               {(v.vendor_types ?? []).map((t) => (
-                                <span key={t} className="inline-flex items-center rounded-md bg-primary/8 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary whitespace-nowrap">{t}</span>
+                                <span key={t} className="inline-flex items-center rounded-md bg-primary/8 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary whitespace-nowrap">{formatVendorTypeLabel(t)}</span>
                               ))}
                               {(!v.vendor_types || v.vendor_types.length === 0) && <span className="text-xs text-muted-foreground/40">—</span>}
                             </div>

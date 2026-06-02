@@ -9,6 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Search, SlidersHorizontal, X, CalendarDays, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatVendorTypeLabel, VENDOR_TYPE_OPTIONS } from '@/lib/vendorTypes';
 import { supabase } from '@/integrations/supabase/client';
 import {
   format,
@@ -312,10 +313,9 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Vendor Types</SelectItem>
-              <SelectItem value="new_device">New Device</SelectItem>
-              <SelectItem value="refurbished">Refurbished</SelectItem>
-              <SelectItem value="rental">Rental</SelectItem>
-              <SelectItem value="warehouse">Warehouse</SelectItem>
+              {VENDOR_TYPE_OPTIONS.map(({ value, label }) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -462,7 +462,7 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
                 )}
                 {filters.vendorType && (
                   <FilterChip
-                    label={`Vendor: ${filters.vendorType.replace(/_/g, ' ')}`}
+                    label={`Vendor: ${formatVendorTypeLabel(filters.vendorType)}`}
                     onRemove={() => update({ vendorType: '' })}
                   />
                 )}

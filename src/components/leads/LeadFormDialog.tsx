@@ -29,6 +29,7 @@ import type { Lead, LeadStatusOption, CountryOption, LeadContact } from '@/types
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Plus, Trash2, UserPlus, ChevronDown, X, AlertTriangle, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { VENDOR_TYPE_OPTIONS, VENDOR_TYPE_VALUES } from '@/lib/vendorTypes';
 
 const WON_PATTERNS = ['won', 'closed won', 'closed-won'];
 
@@ -50,7 +51,7 @@ const leadFormSchema = z.object({
   hq_country_id: z.string().uuid('Invalid country').optional().or(z.literal('')),
   country_ids: z.array(z.string().uuid()),
   status_id: z.string().min(1, 'Status is required').uuid('Invalid status'),
-  vendor_types: z.array(z.enum(['new_device', 'refurbished', 'rental', 'warehouse'])).min(1, 'Select at least one vendor type'),
+  vendor_types: z.array(z.enum(VENDOR_TYPE_VALUES)).min(1, 'Select at least one vendor type'),
   warehouse_available: z.boolean().default(false),
   warehouse_location: z.string().optional(),
   warehouse_notes: z.string().optional(),
@@ -682,12 +683,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
             <Label>Vendor Type *</Label>
             <p className="text-xs text-muted-foreground">Select all that apply</p>
             <div className="flex flex-wrap gap-4 pt-1">
-              {[
-                { value: 'new_device' as const, label: 'New Device' },
-                { value: 'refurbished' as const, label: 'Refurbished' },
-                { value: 'rental' as const, label: 'Rental' },
-                { value: 'warehouse' as const, label: 'Warehouse' },
-              ].map(({ value, label }) => {
+              {VENDOR_TYPE_OPTIONS.map(({ value, label }) => {
                 const types = form.watch('vendor_types') ?? [];
                 const checked = types.includes(value);
                 return (
