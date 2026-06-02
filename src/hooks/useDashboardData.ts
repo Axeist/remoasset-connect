@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchAllPaginated } from '@/lib/supabasePaginate';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 
 export interface DashboardKpis {
@@ -118,44 +119,83 @@ export function useDashboardData() {
 
     (async () => {
       try {
-        // Batch 1: KPIs + status/country charts in parallel so widgets show fast
-        const leadsQuery = supabase
-          .from('leads')
-          .select('id, lead_score, status_id, owner_id');
-        if (!isAdmin) (leadsQuery as any).eq('owner_id', user.id);
+        type LeadStatusRow = { id: string; name: string; color: string };
+        type CountryRow = { country_ids: string[] };
+        type WorldDemoRow = {
+          country_ids: string[];
+          status_id: string | null;
+          lead_statuses: { name: string; color: string } | null;
+        };
 
-        const tasksQuery = supabase
+        const applyOwnerFilter = <T extends { eq: (col: string, val: string) => T }>(q: T): T =>
+          !isAdmin ? q.eq('owner_id', user.id) : q;
+
+        let tasksQuery = supabase
           .from('tasks')
           .select('id', { count: 'exact', head: true })
           .eq('is_completed', false)
           .lte('due_date', todayEnd);
-        if (!isAdmin) (tasksQuery as any).eq('assignee_id', user.id);
+        if (!isAdmin) tasksQuery = tasksQuery.eq('assignee_id', user.id);
 
-        const countryQuery = supabase.from('leads').select('country_ids');
-        if (!isAdmin) (countryQuery as any).eq('owner_id', user.id);
+        const followUpsQuery = !isAdmin
+          ? supabase
+              .from('follow_ups')
+              .select('id', { count: 'exact', head: true })
+              .eq('user_id', user.id)
+              .eq('is_completed', false)
+              .gte('scheduled_at', now)
+          : Promise.resolve({ count: 0 });
 
-        const [leadsRes, statusesRes, tasksRes, followUpsRes, countryRes] = await Promise.all([
-          leadsQuery,
-          supabase.from('lead_statuses').select('id, name, color'),
-          tasksQuery,
-          !isAdmin
-            ? supabase
-                .from('follow_ups')
-                .select('id', { count: 'exact', head: true })
-                .eq('user_id', user.id)
-                .eq('is_completed', false)
-                .gte('scheduled_at', now)
+        const statusesRes = await supabase.from('lead_statuses').select('id, name, color');
+        const statuses = (statusesRes.data ?? []) as LeadStatusRow[];
+        const wonStatus = statuses.find((s) => s.name.toLowerCase() === 'won');
+
+        const [
+          totalLeadsRes,
+          hotLeadsRes,
+          wonCountRes,
+          tasksRes,
+          followUpsRes,
+          statusCountResults,
+          unassignedRes,
+          countryRowsData,
+          demoData,
+        ] = await Promise.all([
+          applyOwnerFilter(supabase.from('leads').select('id', { count: 'exact', head: true }) as any),
+          applyOwnerFilter(supabase.from('leads').select('id', { count: 'exact', head: true }).gte('lead_score', 70) as any),
+          wonStatus
+            ? applyOwnerFilter(supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status_id', wonStatus.id) as any)
             : Promise.resolve({ count: 0 }),
-          countryQuery,
+          tasksQuery,
+          followUpsQuery,
+          Promise.all(
+            statuses.map(async (s) => {
+              const { count } = await applyOwnerFilter(
+                supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status_id', s.id) as any
+              );
+              return { name: s.name, value: count ?? 0, color: s.color };
+            })
+          ),
+          applyOwnerFilter(supabase.from('leads').select('id', { count: 'exact', head: true }).is('status_id', null) as any),
+          fetchAllPaginated<CountryRow>((from, to) => {
+            let q = supabase.from('leads').select('country_ids').range(from, to);
+            if (!isAdmin) q = q.eq('owner_id', user.id);
+            return q;
+          }),
+          fetchAllPaginated<WorldDemoRow>((from, to) => {
+            let q = supabase
+              .from('leads')
+              .select('country_ids, status_id, lead_statuses(name, color)')
+              .range(from, to);
+            if (!isAdmin) q = q.eq('owner_id', user.id);
+            return q;
+          }),
         ]);
 
-        const leadList = leadsRes.data ?? [];
-        const totalLeads = leadList.length;
-        const statuses = (statusesRes.data ?? []) as { id: string; name: string; color: string }[];
-        const wonStatus = statuses.find((s) => s.name.toLowerCase() === 'won');
-        const wonCount = wonStatus ? leadList.filter((l) => l.status_id === wonStatus.id).length : 0;
+        const totalLeads = totalLeadsRes.count ?? 0;
+        const wonCount = wonCountRes.count ?? 0;
         const conversionRate = totalLeads > 0 ? ((wonCount / totalLeads) * 100).toFixed(1) + '%' : '0%';
-        const hotLeads = leadList.filter((l) => (l.lead_score ?? 0) >= 70).length;
+        const hotLeads = hotLeadsRes.count ?? 0;
         const followUps = !isAdmin && followUpsRes.count != null ? followUpsRes.count : 0;
 
         setKpis({
@@ -166,27 +206,21 @@ export function useDashboardData() {
           followUps,
         });
 
-        const statusCounts: Record<string, { count: number; color: string }> = {};
-        const statusById = Object.fromEntries(statuses.map((s) => [s.id, s]));
-        leadList.forEach((l: { status_id: string | null }) => {
-          const s = l.status_id ? statusById[l.status_id] : null;
-          const name = s?.name ?? 'Unassigned';
-          const color = s?.color ?? '#6E7180';
-          if (!statusCounts[name]) statusCounts[name] = { count: 0, color };
-          statusCounts[name].count++;
-        });
-        setStatusData(Object.entries(statusCounts).map(([name, { count, color }]) => ({ name, value: count, color })));
+        const statusChartData = [...statusCountResults];
+        const unassignedCount = unassignedRes.count ?? 0;
+        if (unassignedCount > 0) {
+          statusChartData.push({ name: 'Unassigned', value: unassignedCount, color: '#6E7180' });
+        }
+        setStatusData(statusChartData.filter((s) => s.value > 0));
 
         const countryCounts: Record<string, number> = {};
-        type CountryRow = { country_ids: string[] };
-        const countryRowsData = ((countryRes as { data?: CountryRow[] }).data ?? []);
-        const allCountryIds = [...new Set(countryRowsData.flatMap((l: CountryRow) => l.country_ids ?? []))];
+        const allCountryIds = [...new Set(countryRowsData.flatMap((l) => l.country_ids ?? []))];
         let countryCodeMap: Record<string, string> = {};
         if (allCountryIds.length > 0) {
           const { data: cRows } = await supabase.from('countries').select('id, code').in('id', allCountryIds);
           countryCodeMap = (cRows ?? []).reduce((acc: Record<string, string>, c: { id: string; code: string }) => { acc[c.id] = c.code; return acc; }, {});
         }
-        countryRowsData.forEach((l: CountryRow) => {
+        countryRowsData.forEach((l) => {
           (l.country_ids ?? []).forEach((cid: string) => {
             const code = countryCodeMap[cid] ?? 'Other';
             countryCounts[code] = (countryCounts[code] ?? 0) + 1;
@@ -194,20 +228,7 @@ export function useDashboardData() {
         });
         setCountryData(Object.entries(countryCounts).map(([name, leads]) => ({ name, leads })));
 
-        // Fetch world demographics data with status breakdown
-        const worldDemoQuery = supabase
-          .from('leads')
-          .select('country_ids, status_id, lead_statuses(name, color)');
-        if (!isAdmin) (worldDemoQuery as any).eq('owner_id', user.id);
-        
-        const worldDemoRes = await worldDemoQuery;
-        type WorldDemoRow = {
-          country_ids: string[];
-          status_id: string | null;
-          lead_statuses: { name: string; color: string } | null;
-        };
-        
-        const demoData = (worldDemoRes.data as WorldDemoRow[]) ?? [];
+        // World demographics from paginated lead data
         // Collect all country IDs from world demo data
         const demoCids = [...new Set(demoData.flatMap((r) => r.country_ids ?? []))];
         let demoCountryMap: Record<string, { code: string; name: string }> = {};
@@ -261,7 +282,11 @@ export function useDashboardData() {
         setLoading(false);
 
         // Batch 2: recent activity, charts, quick access (non-blocking)
-        const myLeadIds = !isAdmin ? leadList.map((l: { id: string }) => l.id) : null;
+        const myLeadIds = !isAdmin
+          ? (await fetchAllPaginated<{ id: string }>((from, to) =>
+              supabase.from('leads').select('id').eq('owner_id', user.id).range(from, to)
+            )).map((l) => l.id)
+          : null;
 
         let activityQuery = supabase
           .from('lead_activities')
@@ -321,19 +346,23 @@ export function useDashboardData() {
               })
             ),
             supabase.from('leads').select('id, company_name, status:lead_statuses(name, color)').order('updated_at', { ascending: false }).limit(10),
-            supabase.from('lead_activities').select('user_id'),
-            supabase.from('leads').select('owner_id'),
+            fetchAllPaginated<{ user_id: string }>((from, to) =>
+              supabase.from('lead_activities').select('user_id').range(from, to)
+            ),
+            fetchAllPaginated<{ owner_id: string | null }>((from, to) =>
+              supabase.from('leads').select('owner_id').range(from, to)
+            ),
           ]);
           setActivityData(activityByDay);
           setQuickAccessLeads((quickLeadsRes.data as QuickAccessLeadItem[]) ?? []);
 
           // Top performers by activities + leads owned
           const activityCounts: Record<string, number> = {};
-          ((allActivitiesRes.data ?? []) as { user_id: string }[]).forEach((a) => {
+          allActivitiesRes.forEach((a) => {
             activityCounts[a.user_id] = (activityCounts[a.user_id] ?? 0) + 1;
           });
           const leadCounts: Record<string, number> = {};
-          ((allLeadsRes.data ?? []) as { owner_id: string | null }[]).forEach((l) => {
+          allLeadsRes.forEach((l) => {
             if (l.owner_id) leadCounts[l.owner_id] = (leadCounts[l.owner_id] ?? 0) + 1;
           });
           const allUserIds = [...new Set([...Object.keys(activityCounts), ...Object.keys(leadCounts)])];
@@ -359,20 +388,32 @@ export function useDashboardData() {
           setQuickAccessLeads([]);
           setTopPerformers([]);
           if (user) {
-            const [tasksData, followUpsData, hotLeadsData, myActivitiesRes, myTasksStatsRes] = await Promise.all([
+            const [tasksData, followUpsData, hotLeadsData, myTasksTotalRes, myTasksCompletedRes] = await Promise.all([
               supabase.from('tasks').select('id, title, due_date, priority').eq('assignee_id', user.id).eq('is_completed', false).gte('due_date', now).order('due_date', { ascending: true }).limit(5),
               supabase.from('follow_ups').select('id, scheduled_at, notes').eq('user_id', user.id).eq('is_completed', false).gte('scheduled_at', now).order('scheduled_at', { ascending: true }).limit(5),
               supabase.from('leads').select('id, company_name, lead_score').eq('owner_id', user.id).gte('lead_score', 70).order('lead_score', { ascending: false }).limit(5),
-              myLeadIds?.length ? supabase.from('lead_activities').select('activity_type').in('lead_id', myLeadIds) : Promise.resolve({ data: [] }),
-              supabase.from('tasks').select('id, is_completed').eq('assignee_id', user.id),
+              supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('assignee_id', user.id),
+              supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('assignee_id', user.id).eq('is_completed', true),
             ]);
             setUpcomingTasks((tasksData.data as UpcomingTaskItem[]) ?? []);
             setUpcomingFollowUps((followUpsData.data as UpcomingFollowUpItem[]) ?? []);
             setHotLeadsList((hotLeadsData.data as HotLeadItem[]) ?? []);
 
-            // My activity breakdown
+            // My activity breakdown — fetch activities for owned leads in chunks
+            const myActivities: { activity_type: string }[] = [];
+            if (myLeadIds?.length) {
+              const CHUNK = 200;
+              for (let i = 0; i < myLeadIds.length; i += CHUNK) {
+                const chunk = myLeadIds.slice(i, i + CHUNK);
+                const batch = await fetchAllPaginated<{ activity_type: string }>((from, to) =>
+                  supabase.from('lead_activities').select('activity_type').in('lead_id', chunk).range(from, to)
+                );
+                myActivities.push(...batch);
+              }
+            }
+
             const actCounts = { call: 0, email: 0, meeting: 0, note: 0 };
-            ((myActivitiesRes.data ?? []) as { activity_type: string }[]).forEach((a) => {
+            myActivities.forEach((a) => {
               if (a.activity_type in actCounts) actCounts[a.activity_type as keyof typeof actCounts]++;
             });
             const colors = { call: 'hsl(var(--primary))', email: 'hsl(var(--accent))', meeting: 'hsl(var(--success))', note: 'hsl(var(--warning))' };
@@ -382,10 +423,8 @@ export function useDashboardData() {
                 .map((k) => ({ type: k, count: actCounts[k], color: colors[k] }))
             );
 
-            // Task completion
-            const tasks = ((myTasksStatsRes.data ?? []) as { is_completed: boolean }[]);
-            setMyTasksTotal(tasks.length);
-            setMyTasksCompleted(tasks.filter((t) => t.is_completed).length);
+            setMyTasksTotal(myTasksTotalRes.count ?? 0);
+            setMyTasksCompleted(myTasksCompletedRes.count ?? 0);
           }
         }
       } catch {

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { fetchAllPaginated } from '@/lib/supabasePaginate';
 import {
   Plus, Edit2, Users, User, Sliders, BarChart3, Download, ExternalLink,
   Settings2, Ban, ShieldCheck, Puzzle, Check, Zap, Globe, Tag, Building2,
@@ -447,23 +448,30 @@ export default function Admin() {
   };
 
   const fetchAnalytics = async () => {
-    const { data: leadsWithStatus } = await supabase.from('leads').select('status_id, lead_statuses(name, color)');
-    const statusCounts: Record<string, { count: number; color: string }> = {};
-    type Row = { lead_statuses: { name: string; color: string } | null };
-    (leadsWithStatus ?? []).forEach((l: Row) => {
-      const name = l.lead_statuses?.name ?? 'Unassigned';
-      const color = l.lead_statuses?.color ?? '#6E7180';
-      if (!statusCounts[name]) statusCounts[name] = { count: 0, color };
-      statusCounts[name].count++;
-    });
-    const byStatus = Object.entries(statusCounts).map(([name, { count, color }]) => ({ name, value: count, color }));
+    const statusList = statuses.length > 0
+      ? statuses
+      : ((await supabase.from('lead_statuses').select('id, name, color')).data ?? []);
 
-    const { data: leadsWithCountry } = await supabase.from('leads').select('country_ids');
-    const allCids = [...new Set((leadsWithCountry ?? []).flatMap((l: { country_ids: string[] }) => l.country_ids ?? []))];
+    const statusCountResults = await Promise.all(
+      statusList.map(async (s) => {
+        const { count } = await supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status_id', s.id);
+        return { name: s.name, value: count ?? 0, color: s.color };
+      })
+    );
+    const { count: unassignedCount } = await supabase.from('leads').select('id', { count: 'exact', head: true }).is('status_id', null);
+    const byStatus = [
+      ...statusCountResults.filter((s) => s.value > 0),
+      ...(unassignedCount ? [{ name: 'Unassigned', value: unassignedCount, color: '#6E7180' }] : []),
+    ];
+
+    const leadsWithCountry = await fetchAllPaginated<{ country_ids: string[] }>((from, to) =>
+      supabase.from('leads').select('country_ids').range(from, to)
+    );
+    const allCids = [...new Set(leadsWithCountry.flatMap((l) => l.country_ids ?? []))];
     const { data: codeRows } = allCids.length > 0 ? await supabase.from('countries').select('id, code').in('id', allCids) : { data: [] };
     const cidCodeMap = (codeRows ?? []).reduce((acc: Record<string, string>, c: { id: string; code: string }) => { acc[c.id] = c.code; return acc; }, {});
     const countryCounts: Record<string, number> = {};
-    (leadsWithCountry ?? []).forEach((l: { country_ids: string[] }) => {
+    leadsWithCountry.forEach((l) => {
       (l.country_ids ?? []).forEach((cid: string) => {
         const code = cidCodeMap[cid] ?? 'Other';
         countryCounts[code] = (countryCounts[code] ?? 0) + 1;
@@ -471,9 +479,11 @@ export default function Admin() {
     });
     const byCountry = Object.entries(countryCounts).map(([name, leads]) => ({ name, leads }));
 
-    const { data: activities } = await supabase.from('lead_activities').select('user_id');
+    const activities = await fetchAllPaginated<{ user_id: string }>((from, to) =>
+      supabase.from('lead_activities').select('user_id').range(from, to)
+    );
     const activityCounts: Record<string, number> = {};
-    (activities ?? []).forEach((a: { user_id: string }) => {
+    activities.forEach((a) => {
       activityCounts[a.user_id] = (activityCounts[a.user_id] ?? 0) + 1;
     });
     const userIds = Object.keys(activityCounts);

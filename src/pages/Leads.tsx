@@ -20,6 +20,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { safeFormat } from '@/lib/date';
+import { fetchAllPaginated } from '@/lib/supabasePaginate';
 import type { Lead } from '@/types/lead';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -458,13 +459,13 @@ export default function Leads() {
         }
       }
 
-      const { data: rawData, error } = await query;
-      if (error) {
+      let data: any[];
+      try {
+        data = await fetchAllPaginated((from, to) => query.range(from, to));
+      } catch {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to export leads' });
         return;
       }
-
-      let data = (rawData ?? []) as any[];
       if (withFilters && filters.ndaStatus === 'no_nda' && ndaLeadIds !== null) {
         const excludeSet = new Set(ndaLeadIds);
         data = data.filter((l) => !excludeSet.has(l.id));
@@ -577,13 +578,13 @@ export default function Leads() {
         }
       }
 
-      const { data: rawData, error } = await query;
-      if (error) {
+      let leadRows: any[];
+      try {
+        leadRows = await fetchAllPaginated((from, to) => query.range(from, to));
+      } catch {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to export leads' });
         return;
       }
-
-      let leadRows = (rawData ?? []) as any[];
       if (withFilters && filters.ndaStatus === 'no_nda' && ndaLeadIds !== null) {
         const excludeSet = new Set(ndaLeadIds);
         leadRows = leadRows.filter((l) => !excludeSet.has(l.id));
