@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "remoasset-connect": {
+      "command": "node",
+      "args": [
+        "/ABSOLUTE/PATH/TO/remoasset-connect/mcp-server/dist/index.js"
+      ],
+      "env": {
+        "REMOASSET_API_URL": "https://YOUR_PROJECT_REF.supabase.co/functions/v1/api",
+        "REMOASSET_API_KEY": "ra_YOUR_API_KEY_HERE"
+      }
+    }
+  }
+}

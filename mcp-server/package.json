@@ -1,0 +1,26 @@
+{
+  "name": "@remoasset/mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for RemoAsset Connect — connect Claude to your CRM via API key",
+  "type": "module",
+  "bin": {
+    "remoasset-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.16.5",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

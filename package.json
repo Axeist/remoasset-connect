@@ -11,7 +11,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "mcp:install": "npm install --prefix mcp-server",
+    "mcp:build": "npm run build --prefix mcp-server",
+    "mcp:start": "npm run start --prefix mcp-server",
+    "mcp:setup": "node scripts/setup-claude-mcp.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

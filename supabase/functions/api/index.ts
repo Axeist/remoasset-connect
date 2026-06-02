@@ -359,6 +359,220 @@ Deno.serve(async (req) => {
         break
       }
 
+      case 'clients': {
+        if (id) {
+          if (req.method === 'GET') {
+            const { data, error } = await supabaseAdmin.from('clients').select('*').eq('id', id).single()
+            if (error || !data) return err(error?.message ?? 'Not found', 404)
+            return json(data)
+          }
+          if (req.method === 'PATCH') {
+            const body = await req.json().catch(() => ({}))
+            const { data, error } = await supabaseAdmin.from('clients').update(body).eq('id', id).select().single()
+            if (error) return err(error.message, 400)
+            return json(data)
+          }
+          if (req.method === 'DELETE') {
+            const { error } = await supabaseAdmin.from('clients').delete().eq('id', id)
+            if (error) return err(error.message, 400)
+            return json({ success: true })
+          }
+        } else {
+          if (req.method === 'GET') {
+            const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 100)
+            const offset = Number(url.searchParams.get('offset')) || 0
+            const search = url.searchParams.get('search') || url.searchParams.get('q') || ''
+            let q = supabaseAdmin.from('clients').select('*', { count: 'exact' }).order('name').range(offset, offset + limit - 1)
+            if (search.trim()) {
+              const term = `%${search.trim().replace(/%/g, '')}%`
+              q = q.or(`name.ilike.${term},contact_name.ilike.${term},contact_email.ilike.${term}`)
+            }
+            const { data, error, count } = await q
+            if (error) return err(error.message, 400)
+            return json({ data: data ?? [], total: count ?? 0 })
+          }
+          if (req.method === 'POST') {
+            const body = await req.json().catch(() => ({}))
+            const { data, error } = await supabaseAdmin.from('clients').insert(body).select().single()
+            if (error) return err(error.message, 400)
+            return json(data, 201)
+          }
+        }
+        break
+      }
+
+      case 'client_requests': {
+        if (id) {
+          if (req.method === 'GET') {
+            const { data, error } = await supabaseAdmin.from('client_requests').select('*').eq('id', id).single()
+            if (error || !data) return err(error?.message ?? 'Not found', 404)
+            return json(data)
+          }
+          if (req.method === 'PATCH') {
+            const body = await req.json().catch(() => ({}))
+            const { data, error } = await supabaseAdmin.from('client_requests').update(body).eq('id', id).select().single()
+            if (error) return err(error.message, 400)
+            return json(data)
+          }
+          if (req.method === 'DELETE') {
+            const { error } = await supabaseAdmin.from('client_requests').delete().eq('id', id)
+            if (error) return err(error.message, 400)
+            return json({ success: true })
+          }
+        } else {
+          if (req.method === 'GET') {
+            const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 100)
+            const offset = Number(url.searchParams.get('offset')) || 0
+            const clientId = url.searchParams.get('client_id') || undefined
+            const status = url.searchParams.get('status') || undefined
+            let q = supabaseAdmin.from('client_requests').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(offset, offset + limit - 1)
+            if (clientId) q = q.eq('client_id', clientId)
+            if (status) q = q.eq('status', status)
+            const { data, error, count } = await q
+            if (error) return err(error.message, 400)
+            return json({ data: data ?? [], total: count ?? 0 })
+          }
+          if (req.method === 'POST') {
+            const body = await req.json().catch(() => ({}))
+            const { data, error } = await supabaseAdmin.from('client_requests').insert(body).select().single()
+            if (error) return err(error.message, 400)
+            return json(data, 201)
+          }
+        }
+        break
+      }
+
+      case 'device_pricing': {
+        if (id) {
+          if (req.method === 'GET') {
+            const { data, error } = await supabaseAdmin.from('vendor_device_pricing').select('*').eq('id', id).single()
+            if (error || !data) return err(error?.message ?? 'Not found', 404)
+            return json(data)
+          }
+          if (req.method === 'PATCH') {
+            const body = await req.json().catch(() => ({}))
+            const { data, error } = await supabaseAdmin.from('vendor_device_pricing').update(body).eq('id', id).select().single()
+            if (error) return err(error.message, 400)
+            return json(data)
+          }
+          if (req.method === 'DELETE') {
+            const { error } = await supabaseAdmin.from('vendor_device_pricing').delete().eq('id', id)
+            if (error) return err(error.message, 400)
+            return json({ success: true })
+          }
+        } else {
+          if (req.method === 'GET') {
+            const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 100)
+            const offset = Number(url.searchParams.get('offset')) || 0
+            const vendorId = url.searchParams.get('vendor_id') || undefined
+            const countryId = url.searchParams.get('country_id') || undefined
+            const brand = url.searchParams.get('brand') || undefined
+            let q = supabaseAdmin.from('vendor_device_pricing').select('*', { count: 'exact' }).order('updated_at', { ascending: false }).range(offset, offset + limit - 1)
+            if (vendorId) q = q.eq('vendor_id', vendorId)
+            if (countryId) q = q.eq('country_id', countryId)
+            if (brand) q = q.ilike('brand', `%${brand.replace(/%/g, '')}%`)
+            const { data, error, count } = await q
+            if (error) return err(error.message, 400)
+            return json({ data: data ?? [], total: count ?? 0 })
+          }
+          if (req.method === 'POST') {
+            const body = await req.json().catch(() => ({}))
+            const { data, error } = await supabaseAdmin.from('vendor_device_pricing').insert(body).select().single()
+            if (error) return err(error.message, 400)
+            return json(data, 201)
+          }
+        }
+        break
+      }
+
+      case 'warehouse_pricing': {
+        if (id) {
+          if (req.method === 'GET') {
+            const { data, error } = await supabaseAdmin.from('warehouse_vendor_pricing').select('*').eq('id', id).single()
+            if (error || !data) return err(error?.message ?? 'Not found', 404)
+            return json(data)
+          }
+          if (req.method === 'PATCH') {
+            const body = await req.json().catch(() => ({}))
+            const { data, error } = await supabaseAdmin.from('warehouse_vendor_pricing').update(body).eq('id', id).select().single()
+            if (error) return err(error.message, 400)
+            return json(data)
+          }
+          if (req.method === 'DELETE') {
+            const { error } = await supabaseAdmin.from('warehouse_vendor_pricing').delete().eq('id', id)
+            if (error) return err(error.message, 400)
+            return json({ success: true })
+          }
+        } else {
+          if (req.method === 'GET') {
+            const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 100)
+            const offset = Number(url.searchParams.get('offset')) || 0
+            const vendorId = url.searchParams.get('vendor_id') || undefined
+            const countryId = url.searchParams.get('country_id') || undefined
+            let q = supabaseAdmin.from('warehouse_vendor_pricing').select('*', { count: 'exact' }).order('updated_at', { ascending: false }).range(offset, offset + limit - 1)
+            if (vendorId) q = q.eq('vendor_id', vendorId)
+            if (countryId) q = q.eq('country_id', countryId)
+            const { data, error, count } = await q
+            if (error) return err(error.message, 400)
+            return json({ data: data ?? [], total: count ?? 0 })
+          }
+          if (req.method === 'POST') {
+            const body = await req.json().catch(() => ({}))
+            const { data, error } = await supabaseAdmin.from('warehouse_vendor_pricing').insert(body).select().single()
+            if (error) return err(error.message, 400)
+            return json(data, 201)
+          }
+        }
+        break
+      }
+
+      case 'lead_transfers': {
+        if (id) {
+          if (req.method === 'GET') {
+            const { data, error } = await supabaseAdmin.from('lead_transfers').select('*').eq('id', id).single()
+            if (error || !data) return err(error?.message ?? 'Not found', 404)
+            return json(data)
+          }
+        } else {
+          if (req.method === 'GET') {
+            const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 100)
+            const offset = Number(url.searchParams.get('offset')) || 0
+            const leadId = url.searchParams.get('lead_id') || undefined
+            let q = supabaseAdmin.from('lead_transfers').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(offset, offset + limit - 1)
+            if (leadId) q = q.eq('lead_id', leadId)
+            const { data, error, count } = await q
+            if (error) return err(error.message, 400)
+            return json({ data: data ?? [], total: count ?? 0 })
+          }
+          if (req.method === 'POST') {
+            const body = await req.json().catch(() => ({}))
+            const { lead_id, from_user_id, to_user_id, transferred_by, notes } = body
+            if (!lead_id || !to_user_id || !transferred_by) {
+              return err('lead_id, to_user_id, and transferred_by are required', 400)
+            }
+            const { data: lead, error: leadErr } = await supabaseAdmin.from('leads').select('owner_id, company_name').eq('id', lead_id).single()
+            if (leadErr || !lead) return err('Lead not found', 404)
+            const { data: transfer, error: transferErr } = await supabaseAdmin.from('lead_transfers').insert({
+              lead_id,
+              from_user_id: from_user_id ?? lead.owner_id,
+              to_user_id,
+              transferred_by,
+              notes: notes ?? null,
+            }).select().single()
+            if (transferErr) return err(transferErr.message, 400)
+            await supabaseAdmin.from('leads').update({ owner_id: to_user_id }).eq('id', lead_id)
+            await supabaseAdmin.from('lead_activities').insert({
+              lead_id,
+              user_id: transferred_by,
+              activity_type: 'transfer',
+              description: notes ? `Lead transferred — ${notes}` : 'Lead transferred to new owner',
+            })
+            return json(transfer, 201)
+          }
+        }
+        break
+      }
+
       case '': {
         if (req.method === 'GET') {
           return json({
@@ -377,6 +591,11 @@ Deno.serve(async (req) => {
               statuses: 'GET /statuses',
               countries: 'GET /countries',
               profiles: 'GET /profiles',
+              clients: { list: 'GET /clients', create: 'POST /clients', get: 'GET /clients/:id', update: 'PATCH /clients/:id', delete: 'DELETE /clients/:id', search: 'GET /clients?search= or q=' },
+              client_requests: { list: 'GET /client_requests', create: 'POST /client_requests', get: 'GET /client_requests/:id', update: 'PATCH /client_requests/:id', delete: 'DELETE /client_requests/:id', filters: 'client_id, status' },
+              device_pricing: { list: 'GET /device_pricing', create: 'POST /device_pricing', get: 'GET /device_pricing/:id', update: 'PATCH /device_pricing/:id', delete: 'DELETE /device_pricing/:id', filters: 'vendor_id, country_id, brand' },
+              warehouse_pricing: { list: 'GET /warehouse_pricing', create: 'POST /warehouse_pricing', get: 'GET /warehouse_pricing/:id', update: 'PATCH /warehouse_pricing/:id', delete: 'DELETE /warehouse_pricing/:id', filters: 'vendor_id, country_id' },
+              lead_transfers: { list: 'GET /lead_transfers', create: 'POST /lead_transfers (transfers owner + logs activity)', get: 'GET /lead_transfers/:id', filters: 'lead_id' },
             },
           })
         }
