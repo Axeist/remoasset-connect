@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "remoasset-connect": {
+      "command": "node",
+      "args": [
+        "/Users/axeist/remoasset-connect/mcp-server/dist/index.js"
+      ],
+      "env": {
+        "REMOASSET_API_URL": "https://snashlomudlvooanyqwt.supabase.co/functions/v1/api",
+        "REMOASSET_API_KEY": "ra_c3d4b72058d14d41bf848b822c348a024e4043d651644c21894674d64c44e51d"
+      }
+    }
+  }
+}
