@@ -31,7 +31,17 @@ import {
   TrendingUp, CreditCard, Tag, ClipboardList, Trash2,
 } from 'lucide-react';
 import { AddRequestDialog } from '@/components/clients/AddRequestDialog';
+import { AddRetrievalRequestDialog } from '@/components/clients/AddRetrievalRequestDialog';
+import { AddCrossBorderRequestDialog } from '@/components/clients/AddCrossBorderRequestDialog';
+import { AddItadRequestDialog } from '@/components/clients/AddItadRequestDialog';
+import { ChooseRequestTypeDialog } from '@/components/clients/ChooseRequestTypeDialog';
+import { ServiceRequestExpanded } from '@/components/clients/ServiceRequestExpanded';
 import { ClientFormDialog } from '@/components/clients/ClientFormDialog';
+import type { ClientRequestType } from '@/constants/client-request-types';
+import { getClientRequestTypeMeta } from '@/constants/client-request-types';
+import {
+  clientRequestTitle, clientRequestSubtitle, clientRequestTypeBadgeStyle,
+} from '@/lib/client-request-display';
 import { useAuth } from '@/contexts/AuthContext';
 import { CLIENT_REQUEST_STATUSES } from '@/constants/device-options';
 import { clientRequestProfit } from '@/lib/client-request-pricing';
@@ -47,7 +57,11 @@ export default function ClientDetail() {
   const [client, setClient] = useState<Client | null>(null);
   const [requests, setRequests] = useState<ClientRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [addReqOpen, setAddReqOpen] = useState(false);
+  const [chooseTypeOpen, setChooseTypeOpen] = useState(false);
+  const [fulfillmentOpen, setFulfillmentOpen] = useState(false);
+  const [retrievalOpen, setRetrievalOpen] = useState(false);
+  const [crossBorderOpen, setCrossBorderOpen] = useState(false);
+  const [itadOpen, setItadOpen] = useState(false);
   const [editClientOpen, setEditClientOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ClientRequest | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -61,7 +75,13 @@ export default function ClientDetail() {
         .select('*, country:countries!country_id(name, code)')
         .eq('id', id).single(),
       supabase.from('client_requests' as any)
-        .select('*, vendor:leads!vendor_id(company_name), country:countries!country_id(name, code)')
+        .select(`
+          *,
+          vendor:leads!vendor_id(company_name),
+          country:countries!country_id(name, code),
+          origin_country:countries!origin_country_id(name, code),
+          destination_country:countries!destination_country_id(name, code)
+        `)
         .eq('client_id', id)
         .order('created_at', { ascending: false }),
     ]);
@@ -203,7 +223,7 @@ export default function ClientDetail() {
               )}
             </div>
           </div>
-          <Button onClick={() => setAddReqOpen(true)} className="gap-1.5 shrink-0">
+          <Button onClick={() => setChooseTypeOpen(true)} className="gap-1.5 shrink-0">
             <Plus className="h-4 w-4" /> Add Request
           </Button>
         </div>
@@ -265,7 +285,9 @@ export default function ClientDetail() {
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Package className="h-12 w-12 text-muted-foreground/40 mb-3" />
                 <h3 className="font-semibold text-lg">No requests yet</h3>
-                <p className="text-sm text-muted-foreground mt-1">Add the first device request for this client.</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Add fulfillment, retrieval, cross-border, or ITAD requests for this client.
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -273,8 +295,9 @@ export default function ClientDetail() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-8" />
-                      <TableHead>Device</TableHead>
-                      <TableHead>Employee</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Summary</TableHead>
+                      <TableHead>Details</TableHead>
                       <TableHead className="text-center">Qty</TableHead>
                       <TableHead>Vendor</TableHead>
                       <TableHead>Payment</TableHead>
@@ -300,6 +323,7 @@ export default function ClientDetail() {
                           onStatusChange={handleStatusChange}
                           onAllocateVendor={handleAllocateVendor}
                           onDeleteRequest={setDeleteTarget}
+                          onSaved={fetchData}
                         />
                       );
                     })}
@@ -311,7 +335,20 @@ export default function ClientDetail() {
         </Card>
       </div>
 
-      <AddRequestDialog open={addReqOpen} onOpenChange={setAddReqOpen} onSuccess={fetchData} clientId={id!} />
+      <ChooseRequestTypeDialog
+        open={chooseTypeOpen}
+        onOpenChange={setChooseTypeOpen}
+        onSelect={(type: ClientRequestType) => {
+          if (type === 'fulfillment') setFulfillmentOpen(true);
+          else if (type === 'retrieval_redeployment') setRetrievalOpen(true);
+          else if (type === 'cross_border') setCrossBorderOpen(true);
+          else if (type === 'itad') setItadOpen(true);
+        }}
+      />
+      <AddRequestDialog open={fulfillmentOpen} onOpenChange={setFulfillmentOpen} onSuccess={fetchData} clientId={id!} />
+      <AddRetrievalRequestDialog open={retrievalOpen} onOpenChange={setRetrievalOpen} onSuccess={fetchData} clientId={id!} />
+      <AddCrossBorderRequestDialog open={crossBorderOpen} onOpenChange={setCrossBorderOpen} onSuccess={fetchData} clientId={id!} />
+      <AddItadRequestDialog open={itadOpen} onOpenChange={setItadOpen} onSuccess={fetchData} clientId={id!} />
       <ClientFormDialog
         open={editClientOpen}
         onOpenChange={setEditClientOpen}
@@ -325,7 +362,7 @@ export default function ClientDetail() {
             <AlertDialogDescription>
               This removes the line item for{' '}
               <span className="font-medium text-foreground">
-                {deleteTarget ? `${deleteTarget.brand} ${deleteTarget.device_model}` : ''}
+                {deleteTarget ? clientRequestTitle(deleteTarget) : ''}
               </span>
               . This cannot be undone.
             </AlertDialogDescription>
@@ -350,7 +387,7 @@ export default function ClientDetail() {
 }
 
 function RequestRows({
-  req, isExpanded, statusInfo, isAdmin, onToggle, onStatusChange, onAllocateVendor, onDeleteRequest,
+  req, isExpanded, statusInfo, isAdmin, onToggle, onStatusChange, onAllocateVendor, onDeleteRequest, onSaved,
 }: {
   req: ClientRequest;
   isExpanded: boolean;
@@ -360,12 +397,17 @@ function RequestRows({
   onStatusChange: (id: string, status: string) => void;
   onAllocateVendor: (id: string, vendorId: string, price: string) => void;
   onDeleteRequest: (req: ClientRequest) => void;
+  onSaved: () => void;
 }) {
   const pay = req.payment_status ?? 'unpaid';
+  const requestType = req.request_type ?? 'fulfillment';
+  const typeMeta = getClientRequestTypeMeta(requestType);
+  const isFulfillment = requestType === 'fulfillment';
   const profit =
     req.vendor_price_usd != null && req.client_price_usd != null
       ? clientRequestProfit(Number(req.vendor_price_usd), Number(req.client_price_usd))
       : null;
+  const subtitle = clientRequestSubtitle(req);
 
   return (
     <>
@@ -374,23 +416,45 @@ function RequestRows({
           {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </TableCell>
         <TableCell>
-          <div className="font-medium leading-tight">{req.brand} {req.device_model}</div>
-          {req.device_summary && (
+          <Badge className="text-[10px] border whitespace-nowrap" style={clientRequestTypeBadgeStyle(requestType)}>
+            {typeMeta.shortLabel}
+          </Badge>
+        </TableCell>
+        <TableCell>
+          <div className="font-medium leading-tight">{clientRequestTitle(req)}</div>
+          {subtitle && (
+            <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{subtitle}</p>
+          )}
+          {!subtitle && req.device_summary && requestType === 'fulfillment' && (
             <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{req.device_summary}</p>
           )}
         </TableCell>
         <TableCell>
-          {req.employee_name ? (
-            <>
-              <span className="text-xs font-medium block">{req.employee_name}</span>
-              {req.employee_address && (
-                <div className="text-[10px] text-muted-foreground line-clamp-2 max-w-[180px]">{req.employee_address}</div>
-              )}
-            </>
-          ) : req.employee_address ? (
-            <span className="text-xs text-muted-foreground line-clamp-2 max-w-[180px]">{req.employee_address}</span>
+          {isFulfillment ? (
+            req.employee_name ? (
+              <>
+                <span className="text-xs font-medium block">{req.employee_name}</span>
+                {req.employee_address && (
+                  <div className="text-[10px] text-muted-foreground line-clamp-2 max-w-[180px]">{req.employee_address}</div>
+                )}
+              </>
+            ) : req.employee_address ? (
+              <span className="text-xs text-muted-foreground line-clamp-2 max-w-[180px]">{req.employee_address}</span>
+            ) : (
+              <span className="text-muted-foreground text-xs">—</span>
+            )
+          ) : requestType === 'retrieval_redeployment' ? (
+            <span className="text-xs text-muted-foreground line-clamp-2 max-w-[200px]">
+              {req.from_address ? `${req.from_address.slice(0, 30)}…` : '—'}
+            </span>
+          ) : requestType === 'cross_border' ? (
+            <span className="text-xs">
+              {req.origin_country?.name ?? '—'} → {req.destination_country?.name ?? '—'}
+            </span>
           ) : (
-            <span className="text-muted-foreground text-xs">—</span>
+            <span className="text-xs text-muted-foreground line-clamp-2 max-w-[180px]">
+              {req.itad_services?.slice(0, 60) ?? '—'}
+            </span>
           )}
         </TableCell>
         <TableCell className="text-center">{req.quantity}</TableCell>
@@ -441,12 +505,20 @@ function RequestRows({
       </TableRow>
       {isExpanded && (
         <TableRow className="bg-muted/30 hover:bg-muted/30">
-          <TableCell colSpan={isAdmin ? 11 : 10}>
-            <ExpandedRequest
-              req={req}
-              onStatusChange={onStatusChange}
-              onAllocateVendor={onAllocateVendor}
-            />
+          <TableCell colSpan={isAdmin ? 12 : 11}>
+            {(req.request_type ?? 'fulfillment') === 'fulfillment' ? (
+              <ExpandedRequest
+                req={req}
+                onStatusChange={onStatusChange}
+                onAllocateVendor={onAllocateVendor}
+              />
+            ) : (
+              <ServiceRequestExpanded
+                req={req}
+                onStatusChange={onStatusChange}
+                onSaved={onSaved}
+              />
+            )}
           </TableCell>
         </TableRow>
       )}
@@ -517,7 +589,8 @@ function ExpandedRequest({
   };
 
   const specParts: { label: string; value: string }[] = [];
-  if (req.display_size) specParts.push({ label: 'Display', value: req.display_size });
+  if (req.brand && req.brand !== '—') specParts.push({ label: 'Brand', value: req.brand });
+  if (req.display_size && req.display_size !== '—') specParts.push({ label: 'Display', value: req.display_size });
   if (req.gpu) specParts.push({ label: 'GPU', value: req.gpu });
   if (req.os) specParts.push({ label: 'OS', value: req.os });
   if (req.country) specParts.push({ label: 'Ship to', value: req.country.name });

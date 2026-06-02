@@ -77,20 +77,32 @@ export type ClientRequestStatus = 'pending' | 'vendor_allocated' | 'ordered' | '
 
 export type ClientRequestPaymentStatus = 'paid' | 'unpaid';
 
+export type ClientRequestType = 'fulfillment' | 'retrieval_redeployment' | 'cross_border' | 'itad';
+
+export interface ClientRequestAttachment {
+  type: 'file' | 'url';
+  /** Public or signed URL when stored as url */
+  url?: string;
+  /** Storage path in client-request-documents bucket */
+  path?: string;
+  name?: string;
+}
+
 export interface ClientRequest {
   id: string;
   client_id: string;
+  request_type?: ClientRequestType;
   vendor_id: string | null;
   device_pricing_id: string | null;
   country_id: string | null;
   expected_delivery_date: string | null;
-  brand: string;
-  device_model: string;
+  brand: string | null;
+  device_model: string | null;
   quantity: number;
-  processor: string;
-  display_size: string;
-  ram: string;
-  storage: string;
+  processor: string | null;
+  display_size: string | null;
+  ram: string | null;
+  storage: string | null;
   gpu: string | null;
   os: string | null;
   addons: DeviceAddon[];
@@ -107,26 +119,42 @@ export interface ClientRequest {
   shipping_date: string | null;
   status: ClientRequestStatus;
   notes: string | null;
+  from_address?: string | null;
+  to_address?: string | null;
+  service_request_date?: string | null;
+  origin_country_id?: string | null;
+  destination_country_id?: string | null;
+  origin_poc_name?: string | null;
+  origin_poc_email?: string | null;
+  origin_poc_phone?: string | null;
+  destination_poc_name?: string | null;
+  destination_poc_email?: string | null;
+  destination_poc_phone?: string | null;
+  itad_services?: string | null;
+  attachments?: ClientRequestAttachment[];
   created_by: string | null;
   created_at: string;
   updated_at: string;
   vendor?: { company_name: string } | null;
   country?: { name: string; code: string } | null;
+  origin_country?: { name: string; code: string } | null;
+  destination_country?: { name: string; code: string } | null;
 }
 
 export interface ClientRequestInsert {
   client_id: string;
+  request_type?: ClientRequestType;
   vendor_id?: string | null;
   device_pricing_id?: string | null;
   country_id?: string | null;
   expected_delivery_date?: string | null;
-  brand: string;
-  device_model: string;
+  brand?: string | null;
+  device_model?: string | null;
   quantity?: number;
-  processor: string;
-  display_size: string;
-  ram: string;
-  storage: string;
+  processor?: string | null;
+  display_size?: string | null;
+  ram?: string | null;
+  storage?: string | null;
   gpu?: string | null;
   os?: string | null;
   addons?: DeviceAddon[];
@@ -143,6 +171,20 @@ export interface ClientRequestInsert {
   shipping_date?: string | null;
   status?: ClientRequestStatus;
   notes?: string | null;
+  from_address?: string | null;
+  to_address?: string | null;
+  service_request_date?: string | null;
+  origin_country_id?: string | null;
+  destination_country_id?: string | null;
+  origin_poc_name?: string | null;
+  origin_poc_email?: string | null;
+  origin_poc_phone?: string | null;
+  destination_poc_name?: string | null;
+  destination_poc_email?: string | null;
+  destination_poc_phone?: string | null;
+  itad_services?: string | null;
+  attachments?: ClientRequestAttachment[];
+  created_by?: string | null;
 }
 
 export interface WarehouseVendorPricing {

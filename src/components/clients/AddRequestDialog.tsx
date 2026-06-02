@@ -192,6 +192,7 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
 
     const payload = {
       client_id: clientId,
+      request_type: 'fulfillment',
       country_id: countryId,
       vendor_id: vendorId || null,
       expected_delivery_date: expectedDeliveryDate || null,
@@ -237,9 +238,9 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
       <DialogContent className="grid h-[min(92vh,880px)] max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:w-full sm:rounded-xl">
         <DialogHeader className="px-6 pt-6 pb-4 pr-14 space-y-4 shrink-0 border-b border-border/60">
           <div>
-            <DialogTitle className="text-xl">Add device request</DialogTitle>
+            <DialogTitle className="text-xl">Device fulfillment request</DialogTitle>
             <DialogDescription className="text-sm mt-1.5">
-              Step-by-step — one section at a time.
+              New device procurement — step-by-step, one section at a time.
             </DialogDescription>
           </div>
 
