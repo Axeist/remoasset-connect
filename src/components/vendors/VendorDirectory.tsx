@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,12 +16,20 @@ import { formatVendorTypeLabel } from '@/lib/vendorTypes';
 import {
   Globe2, Search, Building2, User, Mail, Phone, FileText, ExternalLink,
   ShieldCheck, DollarSign, Star, X, ZoomIn, ZoomOut, RotateCcw,
-  MapPin, ChevronRight, ChevronDown, Warehouse,
+  MapPin, ChevronRight, ChevronDown, Warehouse, ChevronsUpDown,
 } from 'lucide-react';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import { REGIONS } from '@/components/leads/LeadsFilters';
+import {
+  buildCodeToRegion,
+  countryCodesMatch,
+  isCountryVisibleInFilters,
+  mergeVendorCountries,
+  vendorMatchesCountryFilter,
+  vendorMatchesRegionFilters,
+} from '@/lib/region-filters';
 
 const geoUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
@@ -88,7 +98,7 @@ export function VendorDirectory() {
   const [documents, setDocuments] = useState<VendorDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [regionFilter, setRegionFilter] = useState('');
+  const [regionFilters, setRegionFilters] = useState<string[]>([]);
   const [countryFilter, setCountryFilter] = useState('');
   const [vendorTypeFilter, setVendorTypeFilter] = useState('');
   const [ndaFilter, setNdaFilter] = useState('');
@@ -194,11 +204,38 @@ export function VendorDirectory() {
     return [...set].sort();
   }, [vendors]);
 
-  const codeToRegion = useMemo(() => {
-    const map: Record<string, string | null> = {};
-    countries.forEach((c) => { map[c.code] = c.region ?? null; });
-    return map;
-  }, [countries]);
+  const codeToRegion = useMemo(() => buildCodeToRegion(countries), [countries]);
+
+  const countryFilterOpts = useMemo(
+    () => ({ regionFilters, countryFilter: countryFilter || undefined, codeToRegion }),
+    [regionFilters, countryFilter, codeToRegion],
+  );
+
+  const isCountryVisible = useCallback(
+    (code: string) => isCountryVisibleInFilters(code, countryFilterOpts),
+    [countryFilterOpts],
+  );
+
+  const countriesInSelectedRegions = useMemo(() => {
+    if (regionFilters.length === 0) return countries;
+    return countries.filter((c) => c.region != null && regionFilters.includes(c.region));
+  }, [countries, regionFilters]);
+
+  const regionFilterLabel = useMemo(() => {
+    if (regionFilters.length === 0) return 'All Regions';
+    if (regionFilters.length === 1) {
+      return REGIONS.find((r) => r.value === regionFilters[0])?.label ?? regionFilters[0];
+    }
+    return `${regionFilters.length} regions`;
+  }, [regionFilters]);
+
+  const toggleRegionFilter = useCallback((value: string) => {
+    setRegionFilters((prev) => {
+      const next = prev.includes(value) ? prev.filter((r) => r !== value) : [...prev, value];
+      return next;
+    });
+    setCountryFilter('');
+  }, []);
 
   const filteredVendors = useMemo(() => {
     return vendors.filter((v) => {
@@ -209,8 +246,9 @@ export function VendorDirectory() {
           .some((f) => f!.toLowerCase().includes(q));
         if (!match) return false;
       }
-      if (regionFilter && !(v.countries ?? []).some((c) => codeToRegion[c.code] === regionFilter)) return false;
-      if (countryFilter && !(v.countries ?? []).some((c) => c.code === countryFilter)) return false;
+      const operatingCodes = mergeVendorCountries(v.countries, v.hq_country).map((c) => c.code);
+      if (regionFilters.length > 0 && !vendorMatchesRegionFilters(operatingCodes, regionFilters, codeToRegion)) return false;
+      if (countryFilter && !vendorMatchesCountryFilter(operatingCodes, countryFilter)) return false;
       if (ownerFilter) {
         if (ownerFilter === '__unassigned__') { if (v.owner_id) return false; }
         else if (v.owner_id !== ownerFilter) return false;
@@ -234,14 +272,14 @@ export function VendorDirectory() {
       }
       return true;
     });
-  }, [vendors, search, regionFilter, countryFilter, ownerFilter, vendorTypeFilter, warehouseFilter, ndaFilter, docFilter, docsByLead, codeToRegion]);
+  }, [vendors, search, regionFilters, countryFilter, ownerFilter, vendorTypeFilter, warehouseFilter, ndaFilter, docFilter, docsByLead, codeToRegion]);
 
   const countryStats = useMemo((): CountryStats[] => {
     const map: Record<string, { name: string; count: number }> = {};
     filteredVendors.forEach((v) => {
-      (v.countries ?? []).forEach((c) => {
+      mergeVendorCountries(v.countries, v.hq_country).forEach((c) => {
         const code = c.code.toUpperCase();
-        if (!code) return;
+        if (!code || !isCountryVisible(code)) return;
         if (!map[code]) map[code] = { name: c.name, count: 0 };
         map[code].count++;
       });
@@ -250,7 +288,7 @@ export function VendorDirectory() {
       .filter(([, d]) => d.count > 0)
       .map(([code, d]) => ({ code, ...d }))
       .sort((a, b) => b.count - a.count);
-  }, [filteredVendors]);
+  }, [filteredVendors, isCountryVisible]);
 
   const countryStatsMap = useMemo(() => {
     const map: Record<string, number> = {};
@@ -287,7 +325,7 @@ export function VendorDirectory() {
   const handleCountryClick = useCallback((geo: any) => {
     const code = getCountryCodeFromGeo(geo);
     if (code && code in countryStatsMap && countryStatsMap[code] > 0) {
-      setCountryFilter((prev) => (prev === code ? '' : code));
+      setCountryFilter((prev) => (countryCodesMatch(prev, code) ? '' : code));
     }
   }, [countryStatsMap]);
 
@@ -300,10 +338,19 @@ export function VendorDirectory() {
     window.open(data.signedUrl, '_blank', 'noopener');
   };
 
-  const activeFilterCount = [search, regionFilter, countryFilter, vendorTypeFilter, ndaFilter, ownerFilter, warehouseFilter, docFilter].filter(Boolean).length;
+  const activeFilterCount = [
+    search,
+    regionFilters.length > 0,
+    countryFilter,
+    vendorTypeFilter,
+    ndaFilter,
+    ownerFilter,
+    warehouseFilter,
+    docFilter,
+  ].filter(Boolean).length;
 
   const clearFilters = () => {
-    setSearch(''); setRegionFilter(''); setCountryFilter('');
+    setSearch(''); setRegionFilters([]); setCountryFilter('');
     setVendorTypeFilter(''); setNdaFilter(''); setOwnerFilter('');
     setWarehouseFilter(''); setDocFilter('');
   };
@@ -317,13 +364,16 @@ export function VendorDirectory() {
     const map: Record<string, VendorLead[]> = {};
     const nameMap: Record<string, string> = {};
     filteredVendors.forEach((v) => {
-      const vendorCountries = v.countries ?? [];
-      if (vendorCountries.length === 0) {
-        const code = '__none__';
-        if (!map[code]) { map[code] = []; nameMap[code] = 'Unknown'; }
-        map[code].push(v);
+      const vendorCountries = mergeVendorCountries(v.countries, v.hq_country);
+      const visible = vendorCountries.filter((c) => isCountryVisible(c.code));
+      if (visible.length === 0) {
+        if (regionFilters.length === 0 && !countryFilter) {
+          const code = '__none__';
+          if (!map[code]) { map[code] = []; nameMap[code] = 'Unknown'; }
+          map[code].push(v);
+        }
       } else {
-        vendorCountries.forEach((c) => {
+        visible.forEach((c) => {
           const code = c.code.toUpperCase();
           if (!map[code]) { map[code] = []; nameMap[code] = c.name; }
           if (!map[code].find((x) => x.id === v.id)) map[code].push(v);
@@ -334,7 +384,7 @@ export function VendorDirectory() {
       .sort((a, b) => b[1].length - a[1].length)
       .forEach(([code, vendors]) => groups.push({ country: nameMap[code], code, vendors }));
     return groups;
-  }, [filteredVendors]);
+  }, [filteredVendors, isCountryVisible, regionFilters, countryFilter]);
 
   const toggleCountry = useCallback((code: string) => {
     setExpandedCountries((prev) => ({ ...prev, [code]: !prev[code] }));
@@ -412,7 +462,9 @@ export function VendorDirectory() {
             {countryFilter && (
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCountryFilter('')}>
                 <MapPin className="h-3.5 w-3.5" />
-                {countries.find((c) => c.code === countryFilter)?.name ?? countryFilter}
+                {countries.find((c) => countryCodesMatch(c.code, countryFilter))?.name
+                  ?? countriesInSelectedRegions.find((c) => countryCodesMatch(c.code, countryFilter))?.name
+                  ?? countryFilter}
                 <X className="h-3.5 w-3.5" />
               </Button>
             )}
@@ -432,7 +484,7 @@ export function VendorDirectory() {
                   {({ geographies }) =>
                     geographies.map((geo) => {
                       const code = getCountryCodeFromGeo(geo);
-                      const isSelected = countryFilter !== '' && countryFilter === code;
+                      const isSelected = countryFilter !== '' && countryCodesMatch(countryFilter, code);
                       return (
                         <Geography
                           key={geo.rsmKey}
@@ -485,10 +537,10 @@ export function VendorDirectory() {
             {countryStats.slice(0, 20).map((c) => (
               <button
                 key={c.code}
-                onClick={() => setCountryFilter((prev) => (prev === c.code ? '' : c.code))}
+                onClick={() => setCountryFilter((prev) => (countryCodesMatch(prev, c.code) ? '' : c.code))}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all',
-                  countryFilter === c.code
+                  countryCodesMatch(countryFilter, c.code)
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-muted/50 text-foreground border-border hover:border-primary/40'
                 )}
@@ -509,13 +561,46 @@ export function VendorDirectory() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search vendors..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-10" />
             </div>
-            <Select value={regionFilter || '__all__'} onValueChange={(v) => { setRegionFilter(v === '__all__' ? '' : v); setCountryFilter(''); }}>
-              <SelectTrigger className="w-[140px] h-10"><SelectValue placeholder="All Regions" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Regions</SelectItem>
-                {REGIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    'h-10 min-w-[140px] max-w-[220px] justify-between gap-2 font-normal',
+                    regionFilters.length > 0 && 'border-primary/50',
+                  )}
+                >
+                  <span className="truncate">{regionFilterLabel}</span>
+                  <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-2" align="start">
+                <div className="space-y-0.5">
+                  {REGIONS.map((r) => (
+                    <label
+                      key={r.value}
+                      className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-sm hover:bg-muted"
+                    >
+                      <Checkbox
+                        checked={regionFilters.includes(r.value)}
+                        onCheckedChange={() => toggleRegionFilter(r.value)}
+                      />
+                      {r.label}
+                    </label>
+                  ))}
+                </div>
+                {regionFilters.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 h-8 w-full text-xs text-muted-foreground"
+                    onClick={() => { setRegionFilters([]); setCountryFilter(''); }}
+                  >
+                    Clear regions
+                  </Button>
+                )}
+              </PopoverContent>
+            </Popover>
             <Select value={countryFilter || '__all__'} onValueChange={(v) => setCountryFilter(v === '__all__' ? '' : v)}>
               <SelectTrigger className="w-[180px] h-10"><SelectValue placeholder="All Countries" /></SelectTrigger>
               <SelectContent>
