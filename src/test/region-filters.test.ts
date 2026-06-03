@@ -106,7 +106,7 @@ describe('region-filters', () => {
   it('country filter accepts UK and GB interchangeably', () => {
     expect(
       isCountryVisibleInFilters('GB', {
-        countryFilter: 'UK',
+        countryFilters: ['UK'],
         codeToRegion,
       }),
     ).toBe(true);

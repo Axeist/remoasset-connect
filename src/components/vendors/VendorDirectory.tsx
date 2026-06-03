@@ -4,9 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,7 +13,7 @@ import { formatVendorTypeLabel } from '@/lib/vendorTypes';
 import {
   Globe2, Search, Building2, User, Mail, Phone, FileText, ExternalLink,
   ShieldCheck, DollarSign, Star, X, ZoomIn, ZoomOut, RotateCcw,
-  MapPin, ChevronRight, ChevronDown, Warehouse, ChevronsUpDown,
+  MapPin, ChevronRight, ChevronDown, Warehouse,
 } from 'lucide-react';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 import { Tooltip } from 'react-tooltip';
@@ -27,9 +24,18 @@ import {
   countryCodesMatch,
   isCountryVisibleInFilters,
   mergeVendorCountries,
-  vendorMatchesCountryFilter,
+  vendorMatchesCountryFilters,
   vendorMatchesRegionFilters,
 } from '@/lib/region-filters';
+import {
+  isCountrySelectedInFilters,
+  vendorMatchesDocFilters,
+  vendorMatchesNdaFilters,
+  vendorMatchesOwnerFilters,
+  vendorMatchesVendorTypeFilters,
+  vendorMatchesWarehouseFilters,
+} from '@/lib/vendor-directory-filters';
+import { FilterMultiSelect, toggleInList } from '@/components/vendors/FilterMultiSelect';
 
 const geoUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
@@ -89,6 +95,24 @@ const ZOOM_STEP = 1.35;
 
 const STATUS_WON_NAMES = ['won', 'closed won', 'closed-won'];
 
+const NDA_FILTER_OPTIONS = [
+  { value: 'has_nda', label: 'NDA Signed' },
+  { value: 'no_nda', label: 'No NDA' },
+] as const;
+
+const DOC_FILTER_OPTIONS = [
+  { value: 'has_pricing', label: 'Has Pricing' },
+  { value: 'has_docs', label: 'Has Documents' },
+  { value: 'no_docs', label: 'No Documents' },
+] as const;
+
+const WAREHOUSE_FILTER_OPTIONS = [
+  { value: 'yes', label: 'Has Warehouse' },
+  { value: 'no', label: 'No Warehouse' },
+] as const;
+
+const REGION_FILTER_OPTIONS = REGIONS.map((r) => ({ value: r.value, label: r.label }));
+
 export function VendorDirectory() {
   const navigate = useNavigate();
   const { role } = useAuth();
@@ -99,12 +123,12 @@ export function VendorDirectory() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [regionFilters, setRegionFilters] = useState<string[]>([]);
-  const [countryFilter, setCountryFilter] = useState('');
-  const [vendorTypeFilter, setVendorTypeFilter] = useState('');
-  const [ndaFilter, setNdaFilter] = useState('');
-  const [ownerFilter, setOwnerFilter] = useState('');
-  const [warehouseFilter, setWarehouseFilter] = useState('');
-  const [docFilter, setDocFilter] = useState('');
+  const [countryFilters, setCountryFilters] = useState<string[]>([]);
+  const [vendorTypeFilters, setVendorTypeFilters] = useState<string[]>([]);
+  const [ndaFilters, setNdaFilters] = useState<string[]>([]);
+  const [ownerFilters, setOwnerFilters] = useState<string[]>([]);
+  const [warehouseFilters, setWarehouseFilters] = useState<string[]>([]);
+  const [docFilters, setDocFilters] = useState<string[]>([]);
   const [expandedCountries, setExpandedCountries] = useState<Record<string, boolean>>({});
 
   const [countries, setCountries] = useState<{ id: string; name: string; code: string; region: string | null }[]>([]);
@@ -207,8 +231,8 @@ export function VendorDirectory() {
   const codeToRegion = useMemo(() => buildCodeToRegion(countries), [countries]);
 
   const countryFilterOpts = useMemo(
-    () => ({ regionFilters, countryFilter: countryFilter || undefined, codeToRegion }),
-    [regionFilters, countryFilter, codeToRegion],
+    () => ({ regionFilters, countryFilters, codeToRegion }),
+    [regionFilters, countryFilters, codeToRegion],
   );
 
   const isCountryVisible = useCallback(
@@ -221,24 +245,33 @@ export function VendorDirectory() {
     return countries.filter((c) => c.region != null && regionFilters.includes(c.region));
   }, [countries, regionFilters]);
 
-  const regionFilterLabel = useMemo(() => {
-    if (regionFilters.length === 0) return 'All Regions';
-    if (regionFilters.length === 1) {
-      return REGIONS.find((r) => r.value === regionFilters[0])?.label ?? regionFilters[0];
-    }
-    return `${regionFilters.length} regions`;
-  }, [regionFilters]);
+  const regionOnlyFilterOpts = useMemo(
+    () => ({ regionFilters, countryFilters: [] as string[], codeToRegion }),
+    [regionFilters, codeToRegion],
+  );
 
-  const toggleRegionFilter = useCallback((value: string) => {
-    setRegionFilters((prev) => {
-      const next = prev.includes(value) ? prev.filter((r) => r !== value) : [...prev, value];
-      return next;
+  const ownerFilterOptions = useMemo(
+    () => [
+      { value: '__unassigned__', label: 'Unassigned' },
+      ...owners.map((o) => ({ value: o.id, label: o.full_name || 'Unnamed' })),
+    ],
+    [owners],
+  );
+
+  const vendorTypeFilterOptions = useMemo(
+    () => allVendorTypes.map((t) => ({ value: t, label: formatVendorTypeLabel(t) })),
+    [allVendorTypes],
+  );
+
+  const toggleCountryFilterCode = useCallback((code: string) => {
+    setCountryFilters((prev) => {
+      const exists = prev.some((f) => countryCodesMatch(f, code));
+      return exists ? prev.filter((f) => !countryCodesMatch(f, code)) : [...prev, code];
     });
-    setCountryFilter('');
   }, []);
 
-  const filteredVendors = useMemo(() => {
-    return vendors.filter((v) => {
+  const vendorPassesFilters = useCallback(
+    (v: VendorLead, opts: { includeCountry: boolean }) => {
       if (search) {
         const q = search.toLowerCase();
         const match = [v.company_name, v.contact_name, v.email, v.owner?.full_name]
@@ -247,32 +280,42 @@ export function VendorDirectory() {
         if (!match) return false;
       }
       const operatingCodes = mergeVendorCountries(v.countries, v.hq_country).map((c) => c.code);
-      if (regionFilters.length > 0 && !vendorMatchesRegionFilters(operatingCodes, regionFilters, codeToRegion)) return false;
-      if (countryFilter && !vendorMatchesCountryFilter(operatingCodes, countryFilter)) return false;
-      if (ownerFilter) {
-        if (ownerFilter === '__unassigned__') { if (v.owner_id) return false; }
-        else if (v.owner_id !== ownerFilter) return false;
+      if (regionFilters.length > 0 && !vendorMatchesRegionFilters(operatingCodes, regionFilters, codeToRegion)) {
+        return false;
       }
-      if (vendorTypeFilter && !(v.vendor_types ?? []).includes(vendorTypeFilter)) return false;
-      if (warehouseFilter) {
-        if (warehouseFilter === 'yes' && !v.warehouse_available) return false;
-        if (warehouseFilter === 'no' && v.warehouse_available) return false;
+      if (opts.includeCountry && countryFilters.length > 0 && !vendorMatchesCountryFilters(operatingCodes, countryFilters)) {
+        return false;
       }
-      if (ndaFilter) {
-        const docs = docsByLead[v.id] ?? [];
-        const hasNda = docs.some((d) => d.document_type === 'nda');
-        if (ndaFilter === 'has_nda' && !hasNda) return false;
-        if (ndaFilter === 'no_nda' && hasNda) return false;
-      }
-      if (docFilter) {
-        const docs = docsByLead[v.id] ?? [];
-        if (docFilter === 'has_pricing' && !docs.some((d) => d.document_type === 'pricing' || d.document_type === 'quotation')) return false;
-        if (docFilter === 'has_docs' && docs.length === 0) return false;
-        if (docFilter === 'no_docs' && docs.length > 0) return false;
-      }
+      if (!vendorMatchesOwnerFilters(v, ownerFilters)) return false;
+      if (!vendorMatchesVendorTypeFilters(v, vendorTypeFilters)) return false;
+      if (!vendorMatchesWarehouseFilters(v, warehouseFilters)) return false;
+      if (!vendorMatchesNdaFilters(v.id, ndaFilters, docsByLead)) return false;
+      if (!vendorMatchesDocFilters(v.id, docFilters, docsByLead)) return false;
       return true;
-    });
-  }, [vendors, search, regionFilters, countryFilter, ownerFilter, vendorTypeFilter, warehouseFilter, ndaFilter, docFilter, docsByLead, codeToRegion]);
+    },
+    [
+      search,
+      regionFilters,
+      countryFilters,
+      ownerFilters,
+      vendorTypeFilters,
+      warehouseFilters,
+      ndaFilters,
+      docFilters,
+      docsByLead,
+      codeToRegion,
+    ],
+  );
+
+  const filteredVendors = useMemo(
+    () => vendors.filter((v) => vendorPassesFilters(v, { includeCountry: true })),
+    [vendors, vendorPassesFilters],
+  );
+
+  const vendorsForCountryPicker = useMemo(
+    () => vendors.filter((v) => vendorPassesFilters(v, { includeCountry: false })),
+    [vendors, vendorPassesFilters],
+  );
 
   const countryStats = useMemo((): CountryStats[] => {
     const map: Record<string, { name: string; count: number }> = {};
@@ -289,6 +332,28 @@ export function VendorDirectory() {
       .map(([code, d]) => ({ code, ...d }))
       .sort((a, b) => b.count - a.count);
   }, [filteredVendors, isCountryVisible]);
+
+  const countryStatsForPicker = useMemo((): CountryStats[] => {
+    const map: Record<string, { name: string; count: number }> = {};
+    const isVisibleForPicker = (code: string) => isCountryVisibleInFilters(code, regionOnlyFilterOpts);
+    vendorsForCountryPicker.forEach((v) => {
+      mergeVendorCountries(v.countries, v.hq_country).forEach((c) => {
+        const code = c.code.toUpperCase();
+        if (!code || !isVisibleForPicker(code)) return;
+        if (!map[code]) map[code] = { name: c.name, count: 0 };
+        map[code].count++;
+      });
+    });
+    return Object.entries(map)
+      .filter(([, d]) => d.count > 0)
+      .map(([code, d]) => ({ code, ...d }))
+      .sort((a, b) => b.count - a.count);
+  }, [vendorsForCountryPicker, regionOnlyFilterOpts]);
+
+  const countryFilterOptions = useMemo(
+    () => countryStatsForPicker.map((c) => ({ value: c.code, label: `${c.name} (${c.count})` })),
+    [countryStatsForPicker],
+  );
 
   const countryStatsMap = useMemo(() => {
     const map: Record<string, number> = {};
@@ -325,9 +390,9 @@ export function VendorDirectory() {
   const handleCountryClick = useCallback((geo: any) => {
     const code = getCountryCodeFromGeo(geo);
     if (code && code in countryStatsMap && countryStatsMap[code] > 0) {
-      setCountryFilter((prev) => (countryCodesMatch(prev, code) ? '' : code));
+      toggleCountryFilterCode(code);
     }
-  }, [countryStatsMap]);
+  }, [countryStatsMap, toggleCountryFilterCode]);
 
   const handleViewDoc = async (doc: VendorDoc) => {
     const { data, error } = await supabase.storage.from('lead-documents').createSignedUrl(doc.file_path, 120);
@@ -341,18 +406,23 @@ export function VendorDirectory() {
   const activeFilterCount = [
     search,
     regionFilters.length > 0,
-    countryFilter,
-    vendorTypeFilter,
-    ndaFilter,
-    ownerFilter,
-    warehouseFilter,
-    docFilter,
+    countryFilters.length > 0,
+    vendorTypeFilters.length > 0,
+    ndaFilters.length > 0,
+    ownerFilters.length > 0,
+    warehouseFilters.length > 0,
+    docFilters.length > 0,
   ].filter(Boolean).length;
 
   const clearFilters = () => {
-    setSearch(''); setRegionFilters([]); setCountryFilter('');
-    setVendorTypeFilter(''); setNdaFilter(''); setOwnerFilter('');
-    setWarehouseFilter(''); setDocFilter('');
+    setSearch('');
+    setRegionFilters([]);
+    setCountryFilters([]);
+    setVendorTypeFilters([]);
+    setNdaFilters([]);
+    setOwnerFilters([]);
+    setWarehouseFilters([]);
+    setDocFilters([]);
   };
 
   const withNda = filteredVendors.filter((v) => (docsByLead[v.id] ?? []).some((d) => d.document_type === 'nda'));
@@ -367,7 +437,7 @@ export function VendorDirectory() {
       const vendorCountries = mergeVendorCountries(v.countries, v.hq_country);
       const visible = vendorCountries.filter((c) => isCountryVisible(c.code));
       if (visible.length === 0) {
-        if (regionFilters.length === 0 && !countryFilter) {
+        if (regionFilters.length === 0 && countryFilters.length === 0) {
           const code = '__none__';
           if (!map[code]) { map[code] = []; nameMap[code] = 'Unknown'; }
           map[code].push(v);
@@ -384,7 +454,7 @@ export function VendorDirectory() {
       .sort((a, b) => b[1].length - a[1].length)
       .forEach(([code, vendors]) => groups.push({ country: nameMap[code], code, vendors }));
     return groups;
-  }, [filteredVendors, isCountryVisible, regionFilters, countryFilter]);
+  }, [filteredVendors, isCountryVisible, regionFilters, countryFilters]);
 
   const toggleCountry = useCallback((code: string) => {
     setExpandedCountries((prev) => ({ ...prev, [code]: !prev[code] }));
@@ -457,14 +527,16 @@ export function VendorDirectory() {
                 <Globe2 className="h-5 w-5" />
                 Vendor Distribution
               </CardTitle>
-              <CardDescription className="mt-1">Click a country to filter vendors from that region</CardDescription>
+              <CardDescription className="mt-1">Click countries on the map to add or remove them from the filter</CardDescription>
             </div>
-            {countryFilter && (
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCountryFilter('')}>
+            {countryFilters.length > 0 && (
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCountryFilters([])}>
                 <MapPin className="h-3.5 w-3.5" />
-                {countries.find((c) => countryCodesMatch(c.code, countryFilter))?.name
-                  ?? countriesInSelectedRegions.find((c) => countryCodesMatch(c.code, countryFilter))?.name
-                  ?? countryFilter}
+                {countryFilters.length === 1
+                  ? (countries.find((c) => countryCodesMatch(c.code, countryFilters[0]))?.name
+                    ?? countriesInSelectedRegions.find((c) => countryCodesMatch(c.code, countryFilters[0]))?.name
+                    ?? countryFilters[0])
+                  : `${countryFilters.length} countries`}
                 <X className="h-3.5 w-3.5" />
               </Button>
             )}
@@ -484,7 +556,7 @@ export function VendorDirectory() {
                   {({ geographies }) =>
                     geographies.map((geo) => {
                       const code = getCountryCodeFromGeo(geo);
-                      const isSelected = countryFilter !== '' && countryCodesMatch(countryFilter, code);
+                      const isSelected = isCountrySelectedInFilters(code, countryFilters);
                       return (
                         <Geography
                           key={geo.rsmKey}
@@ -537,10 +609,10 @@ export function VendorDirectory() {
             {countryStats.slice(0, 20).map((c) => (
               <button
                 key={c.code}
-                onClick={() => setCountryFilter((prev) => (countryCodesMatch(prev, c.code) ? '' : c.code))}
+                onClick={() => toggleCountryFilterCode(c.code)}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all',
-                  countryCodesMatch(countryFilter, c.code)
+                  isCountrySelectedInFilters(c.code, countryFilters)
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-muted/50 text-foreground border-border hover:border-primary/40'
                 )}
@@ -561,95 +633,77 @@ export function VendorDirectory() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search vendors..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-10" />
             </div>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    'h-10 min-w-[140px] max-w-[220px] justify-between gap-2 font-normal',
-                    regionFilters.length > 0 && 'border-primary/50',
-                  )}
-                >
-                  <span className="truncate">{regionFilterLabel}</span>
-                  <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-2" align="start">
-                <div className="space-y-0.5">
-                  {REGIONS.map((r) => (
-                    <label
-                      key={r.value}
-                      className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-sm hover:bg-muted"
-                    >
-                      <Checkbox
-                        checked={regionFilters.includes(r.value)}
-                        onCheckedChange={() => toggleRegionFilter(r.value)}
-                      />
-                      {r.label}
-                    </label>
-                  ))}
-                </div>
-                {regionFilters.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-2 h-8 w-full text-xs text-muted-foreground"
-                    onClick={() => { setRegionFilters([]); setCountryFilter(''); }}
-                  >
-                    Clear regions
-                  </Button>
-                )}
-              </PopoverContent>
-            </Popover>
-            <Select value={countryFilter || '__all__'} onValueChange={(v) => setCountryFilter(v === '__all__' ? '' : v)}>
-              <SelectTrigger className="w-[180px] h-10"><SelectValue placeholder="All Countries" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Countries</SelectItem>
-                {countryStats.map((c) => <SelectItem key={c.code} value={c.code}>{c.name} ({c.count})</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={ownerFilter || '__all__'} onValueChange={(v) => setOwnerFilter(v === '__all__' ? '' : v)}>
-              <SelectTrigger className="w-[180px] h-10"><SelectValue placeholder="All Owners" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Owners</SelectItem>
-                <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                {owners.map((o) => <SelectItem key={o.id} value={o.id}>{o.full_name || 'Unnamed'}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <FilterMultiSelect
+              emptyLabel="All Regions"
+              selected={regionFilters}
+              options={REGION_FILTER_OPTIONS}
+              onToggle={(v) => {
+                setRegionFilters((prev) => toggleInList(prev, v));
+                setCountryFilters([]);
+              }}
+              onClear={() => { setRegionFilters([]); setCountryFilters([]); }}
+              clearLabel="Clear regions"
+              className="min-w-[140px]"
+            />
+            <FilterMultiSelect
+              emptyLabel="All Countries"
+              selected={countryFilters}
+              options={countryFilterOptions}
+              onToggle={toggleCountryFilterCode}
+              onClear={() => setCountryFilters([])}
+              clearLabel="Clear countries"
+              className="min-w-[160px]"
+              contentClassName="w-[260px]"
+              maxListHeight="max-h-[320px]"
+            />
+            <FilterMultiSelect
+              emptyLabel="All Owners"
+              selected={ownerFilters}
+              options={ownerFilterOptions}
+              onToggle={(v) => setOwnerFilters((prev) => toggleInList(prev, v))}
+              onClear={() => setOwnerFilters([])}
+              clearLabel="Clear owners"
+              className="min-w-[140px]"
+              maxListHeight="max-h-[320px]"
+            />
             {allVendorTypes.length > 0 && (
-              <Select value={vendorTypeFilter || '__all__'} onValueChange={(v) => setVendorTypeFilter(v === '__all__' ? '' : v)}>
-                <SelectTrigger className="w-[160px] h-10"><SelectValue placeholder="All Types" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">All Types</SelectItem>
-                  {allVendorTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <FilterMultiSelect
+                emptyLabel="All Types"
+                selected={vendorTypeFilters}
+                options={vendorTypeFilterOptions}
+                onToggle={(v) => setVendorTypeFilters((prev) => toggleInList(prev, v))}
+                onClear={() => setVendorTypeFilters([])}
+                clearLabel="Clear types"
+                className="min-w-[130px]"
+              />
             )}
-            <Select value={ndaFilter || '__all__'} onValueChange={(v) => setNdaFilter(v === '__all__' ? '' : v)}>
-              <SelectTrigger className="w-[140px] h-10"><SelectValue placeholder="NDA" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All NDA</SelectItem>
-                <SelectItem value="has_nda">NDA Signed</SelectItem>
-                <SelectItem value="no_nda">No NDA</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={docFilter || '__all__'} onValueChange={(v) => setDocFilter(v === '__all__' ? '' : v)}>
-              <SelectTrigger className="w-[155px] h-10"><SelectValue placeholder="Documents" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Documents</SelectItem>
-                <SelectItem value="has_pricing">Has Pricing</SelectItem>
-                <SelectItem value="has_docs">Has Documents</SelectItem>
-                <SelectItem value="no_docs">No Documents</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={warehouseFilter || '__all__'} onValueChange={(v) => setWarehouseFilter(v === '__all__' ? '' : v)}>
-              <SelectTrigger className="w-[155px] h-10"><SelectValue placeholder="Warehouse" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Warehouse</SelectItem>
-                <SelectItem value="yes">Has Warehouse</SelectItem>
-                <SelectItem value="no">No Warehouse</SelectItem>
-              </SelectContent>
-            </Select>
+            <FilterMultiSelect
+              emptyLabel="All NDA"
+              selected={ndaFilters}
+              options={[...NDA_FILTER_OPTIONS]}
+              onToggle={(v) => setNdaFilters((prev) => toggleInList(prev, v))}
+              onClear={() => setNdaFilters([])}
+              clearLabel="Clear NDA"
+              className="min-w-[120px]"
+            />
+            <FilterMultiSelect
+              emptyLabel="All Documents"
+              selected={docFilters}
+              options={[...DOC_FILTER_OPTIONS]}
+              onToggle={(v) => setDocFilters((prev) => toggleInList(prev, v))}
+              onClear={() => setDocFilters([])}
+              clearLabel="Clear documents"
+              className="min-w-[150px]"
+            />
+            <FilterMultiSelect
+              emptyLabel="All Warehouse"
+              selected={warehouseFilters}
+              options={[...WAREHOUSE_FILTER_OPTIONS]}
+              onToggle={(v) => setWarehouseFilters((prev) => toggleInList(prev, v))}
+              onClear={() => setWarehouseFilters([])}
+              clearLabel="Clear warehouse"
+              className="min-w-[150px]"
+            />
             {activeFilterCount > 0 && (
               <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1.5 text-muted-foreground">
                 <X className="h-3.5 w-3.5" />

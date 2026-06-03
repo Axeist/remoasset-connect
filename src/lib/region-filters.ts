@@ -39,20 +39,30 @@ export function countryMatchesAnyRegion(
   return region != null && regionFilters.includes(region);
 }
 
+export function countryMatchesAnyCountryFilter(
+  code: string,
+  countryFilters: string[],
+): boolean {
+  if (countryFilters.length === 0) return true;
+  return countryFilters.some((f) => countryCodesMatch(code, f));
+}
+
 export function isCountryVisibleInFilters(
   code: string,
   opts: {
     regionFilters?: string[];
-    countryFilter?: string;
+    countryFilters?: string[];
     codeToRegion: Record<string, string | null>;
   },
 ): boolean {
   const upper = normalizeCountryCode(code);
-  const { regionFilters = [], countryFilter, codeToRegion } = opts;
+  const { regionFilters = [], countryFilters = [], codeToRegion } = opts;
   if (regionFilters.length > 0 && !countryMatchesAnyRegion(upper, regionFilters, codeToRegion)) {
     return false;
   }
-  if (countryFilter && !countryCodesMatch(upper, countryFilter)) return false;
+  if (countryFilters.length > 0 && !countryMatchesAnyCountryFilter(upper, countryFilters)) {
+    return false;
+  }
   return true;
 }
 
@@ -75,11 +85,20 @@ export function vendorMatchesRegionFilter(
   return vendorMatchesRegionFilters(countryCodes, [regionFilter], codeToRegion);
 }
 
+export function vendorMatchesCountryFilters(
+  countryCodes: string[],
+  countryFilters: string[],
+): boolean {
+  if (countryFilters.length === 0) return true;
+  return countryCodes.some((code) => countryMatchesAnyCountryFilter(code, countryFilters));
+}
+
+/** @deprecated Use vendorMatchesCountryFilters. */
 export function vendorMatchesCountryFilter(
   countryCodes: string[],
   countryFilter: string,
 ): boolean {
-  return countryCodes.some((code) => countryCodesMatch(code, countryFilter));
+  return vendorMatchesCountryFilters(countryCodes, [countryFilter]);
 }
 
 export interface CountryRef {
@@ -107,7 +126,7 @@ export function visibleCountryCodes(
   countryCodes: string[],
   opts: {
     regionFilters?: string[];
-    countryFilter?: string;
+    countryFilters?: string[];
     codeToRegion: Record<string, string | null>;
   },
 ): string[] {
