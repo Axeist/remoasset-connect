@@ -674,6 +674,7 @@ function ExpandedRequest({
   const handleSaveFulfillment = async () => {
     const devicesPayload = buildDevicesPayload();
     const { error } = await supabase.from('client_requests' as any).update({
+      vendor_id: allocVendorId || null,
       client_price_usd: quoted ? parseFloat(quoted) : null,
       vendor_price_usd: procurement ? parseFloat(procurement) : null,
       wire_cost_usd: wireCost ? parseFloat(wireCost) : null,
