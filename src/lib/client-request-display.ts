@@ -1,5 +1,6 @@
 import { getClientRequestTypeMeta } from '@/constants/client-request-types';
 import type { ClientRequest, ClientRequestAttachment } from '@/types/procurement';
+import { parseRequestDevices } from '@/lib/device-spec-utils';
 
 export function clientRequestTitle(req: ClientRequest): string {
   const type = req.request_type ?? 'fulfillment';
@@ -17,6 +18,12 @@ export function clientRequestTitle(req: ClientRequest): string {
   }
   const brand = req.brand?.trim() || '';
   const model = req.device_model?.trim() || '';
+  const devices = parseRequestDevices(req);
+  if (devices.length > 1) {
+    const first = devices[0];
+    const firstLabel = `${first.brand} ${first.device_model}`.trim();
+    return firstLabel ? `${firstLabel} +${devices.length - 1} more` : `${devices.length} devices`;
+  }
   return `${brand} ${model}`.trim() || 'Device request';
 }
 

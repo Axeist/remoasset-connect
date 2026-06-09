@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,7 +29,7 @@ import {
 import {
   ArrowLeft, Plus, Globe2, Mail, Phone, User, Package,
   CheckCircle2, Truck, Clock, DollarSign, ChevronDown, ChevronRight, Edit,
-  TrendingUp, CreditCard, Tag, ClipboardList, Trash2,
+  TrendingUp, CreditCard, Tag, ClipboardList, Trash2, ScanLine,
 } from 'lucide-react';
 import { AddRequestDialog } from '@/components/clients/AddRequestDialog';
 import { AddRetrievalRequestDialog } from '@/components/clients/AddRetrievalRequestDialog';
@@ -47,6 +48,8 @@ import { CLIENT_REQUEST_STATUSES } from '@/constants/device-options';
 import { clientRequestProfit } from '@/lib/client-request-pricing';
 import { discountVsMrp, quotedPctOfMrp } from '@/lib/mrp-insights';
 import type { Client, ClientRequest } from '@/types/procurement';
+import { categoryLabel, deviceSpecToLine, parseRequestDevices } from '@/lib/device-spec-utils';
+import type { DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
 
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -303,7 +306,7 @@ export default function ClientDetail() {
                       <TableHead>Payment</TableHead>
                       <TableHead className="text-right">Quoted</TableHead>
                       <TableHead className="text-right">Profit</TableHead>
-                      <TableHead>Shipping</TableHead>
+                      <TableHead>Tracking</TableHead>
                       <TableHead>Status</TableHead>
                       {isAdmin && <TableHead className="w-10 text-right"><span className="sr-only">Actions</span></TableHead>}
                     </TableRow>
@@ -482,7 +485,24 @@ function RequestRows({
             '-'
           )}
         </TableCell>
-        <TableCell className="text-sm">{req.shipping_date || '-'}</TableCell>
+        <TableCell className="text-sm max-w-[140px]">
+          <div className="space-y-0.5 leading-tight">
+            {req.shipping_date ? (
+              <span className="block tabular-nums">Ship: {req.shipping_date}</span>
+            ) : null}
+            {req.delivery_date ? (
+              <span className="block tabular-nums text-muted-foreground">Del: {req.delivery_date}</span>
+            ) : null}
+            {req.serial_number ? (
+              <span className="block text-[10px] text-muted-foreground truncate" title={req.serial_number}>
+                S/N: {req.serial_number}
+              </span>
+            ) : null}
+            {!req.shipping_date && !req.delivery_date && !req.serial_number ? (
+              <span className="text-muted-foreground">—</span>
+            ) : null}
+          </div>
+        </TableCell>
         <TableCell>
           <Badge style={{ backgroundColor: statusInfo?.color + '20', color: statusInfo?.color, borderColor: statusInfo?.color + '40' }} className="text-xs border">
             {statusInfo?.label || req.status}
@@ -511,6 +531,7 @@ function RequestRows({
                 req={req}
                 onStatusChange={onStatusChange}
                 onAllocateVendor={onAllocateVendor}
+                onSaved={onSaved}
               />
             ) : (
               <ServiceRequestExpanded
@@ -527,11 +548,12 @@ function RequestRows({
 }
 
 function ExpandedRequest({
-  req, onStatusChange, onAllocateVendor,
+  req, onStatusChange, onAllocateVendor, onSaved,
 }: {
   req: ClientRequest;
   onStatusChange: (id: string, status: string) => void;
   onAllocateVendor: (id: string, vendorId: string, price: string) => void;
+  onSaved?: () => void;
 }) {
   const [vendors, setVendors] = useState<{ id: string; company_name: string }[]>([]);
   const [allocVendorId, setAllocVendorId] = useState(req.vendor_id || '');
@@ -546,7 +568,49 @@ function ExpandedRequest({
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid'>(req.payment_status ?? 'unpaid');
   const [clientPaymentDate, setClientPaymentDate] = useState(req.client_payment_date || '');
   const [shippingDate, setShippingDate] = useState(req.shipping_date || '');
+  const [deliveryDate, setDeliveryDate] = useState(req.delivery_date || '');
+  const [serialNumber, setSerialNumber] = useState(req.serial_number || '');
+  const [deviceLines, setDeviceLines] = useState<DeviceSpecValues[]>(() => parseRequestDevices(req));
+  const [savingTracking, setSavingTracking] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    setAllocVendorId(req.vendor_id || '');
+    setProcurement(req.vendor_price_usd != null ? String(req.vendor_price_usd) : '');
+    setQuoted(req.client_price_usd != null ? String(req.client_price_usd) : '');
+    setWireCost(req.wire_cost_usd != null ? String(req.wire_cost_usd) : '');
+    setMrpUsd(req.mrp_usd != null ? String(req.mrp_usd) : '');
+    setDeviceSummary(req.device_summary || '');
+    setEmployeeName(req.employee_name || '');
+    setEmployeeAddress(req.employee_address || '');
+    setEmployeePhone(req.employee_phone || '');
+    setPaymentStatus(req.payment_status ?? 'unpaid');
+    setClientPaymentDate(req.client_payment_date || '');
+    setShippingDate(req.shipping_date || '');
+    setDeliveryDate(req.delivery_date || '');
+    setSerialNumber(req.serial_number || '');
+    setDeviceLines(parseRequestDevices(req));
+  }, [
+    req.id,
+    req.updated_at,
+    req.vendor_id,
+    req.vendor_price_usd,
+    req.client_price_usd,
+    req.wire_cost_usd,
+    req.mrp_usd,
+    req.device_summary,
+    req.employee_name,
+    req.employee_address,
+    req.employee_phone,
+    req.payment_status,
+    req.client_payment_date,
+    req.shipping_date,
+    req.delivery_date,
+    req.serial_number,
+    req.devices,
+    req.brand,
+    req.device_model,
+  ]);
 
   const profitLive =
     procurement !== '' && quoted !== ''
@@ -570,7 +634,45 @@ function ExpandedRequest({
 
   const addons = (req.addons || []) as any[];
 
+  const buildDevicesPayload = () => {
+    const lines = deviceLines.map((d) => deviceSpecToLine(d));
+    if (lines.length === 1 && serialNumber.trim() && !lines[0].serial_number) {
+      lines[0].serial_number = serialNumber.trim();
+    }
+    return lines;
+  };
+
+  const aggregateSerial = (lines: ReturnType<typeof buildDevicesPayload>) => {
+    const fromLines = lines.map((d) => d.serial_number).filter(Boolean).join(', ');
+    return fromLines || serialNumber.trim() || null;
+  };
+
+  const handleSaveTracking = async () => {
+    setSavingTracking(true);
+    const devicesPayload = buildDevicesPayload();
+    const { error } = await supabase.from('client_requests' as any).update({
+      serial_number: aggregateSerial(devicesPayload),
+      shipping_date: shippingDate || null,
+      delivery_date: deliveryDate || null,
+      devices: devicesPayload as any,
+    }).eq('id', req.id);
+    setSavingTracking(false);
+    if (error) {
+      toast({
+        title: 'Could not save tracking',
+        description: error.message.includes('column')
+          ? `${error.message} — run the latest Supabase migration (devices / serial_number / delivery_date).`
+          : error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({ title: 'Tracking saved', description: 'Serial and dates updated.' });
+      onSaved?.();
+    }
+  };
+
   const handleSaveFulfillment = async () => {
+    const devicesPayload = buildDevicesPayload();
     const { error } = await supabase.from('client_requests' as any).update({
       client_price_usd: quoted ? parseFloat(quoted) : null,
       vendor_price_usd: procurement ? parseFloat(procurement) : null,
@@ -583,9 +685,30 @@ function ExpandedRequest({
       payment_status: paymentStatus,
       client_payment_date: clientPaymentDate || null,
       shipping_date: shippingDate || null,
+      delivery_date: deliveryDate || null,
+      serial_number: aggregateSerial(devicesPayload),
+      devices: devicesPayload as any,
     }).eq('id', req.id);
-    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    else toast({ title: 'Saved' });
+    if (error) {
+      toast({
+        title: 'Error',
+        description: error.message.includes('column')
+          ? `${error.message} — run the latest Supabase migration.`
+          : error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({ title: 'Saved' });
+      onSaved?.();
+    }
+  };
+
+  const updateDeviceSerial = (index: number, serial: string) => {
+    setDeviceLines((prev) => {
+      const next = prev.map((d, i) => (i === index ? { ...d, serial_number: serial } : d));
+      if (next.length === 1) setSerialNumber(serial);
+      return next;
+    });
   };
 
   const specParts: { label: string; value: string }[] = [];
@@ -595,6 +718,12 @@ function ExpandedRequest({
   if (req.os) specParts.push({ label: 'OS', value: req.os });
   if (req.country) specParts.push({ label: 'Ship to', value: req.country.name });
   if (req.expected_delivery_date) specParts.push({ label: 'ETA', value: req.expected_delivery_date });
+  const trackingSerial = serialNumber.trim() || req.serial_number;
+  if (trackingSerial) specParts.push({ label: 'Serial', value: trackingSerial });
+  const trackingShip = shippingDate || req.shipping_date;
+  if (trackingShip) specParts.push({ label: 'Shipped', value: trackingShip });
+  const trackingDel = deliveryDate || req.delivery_date;
+  if (trackingDel) specParts.push({ label: 'Delivered', value: trackingDel });
 
   return (
     <div
@@ -615,6 +744,64 @@ function ExpandedRequest({
           ))}
         </div>
       )}
+
+      {/* Always-visible tracking — serial often added after fulfillment */}
+      <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 sm:p-4 mb-3 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <ScanLine className="h-4 w-4 text-primary shrink-0" />
+            <div>
+              <p className="text-sm font-semibold">Fulfillment tracking</p>
+              <p className="text-[11px] text-muted-foreground">Serial and dates can be filled in anytime after the order ships.</p>
+            </div>
+          </div>
+          <Button size="sm" variant="secondary" onClick={handleSaveTracking} disabled={savingTracking} className="shrink-0">
+            {savingTracking ? 'Saving…' : 'Save tracking'}
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1 sm:col-span-1">
+            <span className="text-xs font-medium text-muted-foreground">Serial number(s)</span>
+            <Input
+              value={serialNumber}
+              onChange={(e) => {
+                setSerialNumber(e.target.value);
+                if (deviceLines.length === 1) {
+                  setDeviceLines((prev) => prev.map((d, i) => (i === 0 ? { ...d, serial_number: e.target.value } : d)));
+                }
+              }}
+              className="h-9 text-sm"
+              placeholder="Add when device is received"
+            />
+          </div>
+          <div className="space-y-1">
+            <span className="text-xs font-medium text-muted-foreground">Shipping date</span>
+            <Input type="date" value={shippingDate} onChange={(e) => setShippingDate(e.target.value)} className="h-9 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <span className="text-xs font-medium text-muted-foreground">Delivery date</span>
+            <Input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} className="h-9 text-sm" />
+          </div>
+        </div>
+        {deviceLines.length > 1 && (
+          <div className="space-y-2 pt-1 border-t border-primary/15">
+            <p className="text-xs font-medium text-muted-foreground">Serial per device</p>
+            {deviceLines.map((device, i) => (
+              <div key={device.id ?? i} className="grid grid-cols-1 sm:grid-cols-[1fr_minmax(0,220px)] gap-2 items-center">
+                <span className="text-xs truncate">
+                  {categoryLabel(device.category)} · {device.brand} {device.device_model}
+                </span>
+                <Input
+                  value={device.serial_number}
+                  onChange={(e) => updateDeviceSerial(i, e.target.value)}
+                  placeholder="Serial"
+                  className="h-8 text-xs"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <Tabs defaultValue="pricing" className="w-full">
         <TabsList className="h-9 w-full justify-start gap-0.5 overflow-x-auto bg-muted/60 p-1 rounded-md">
@@ -677,10 +864,6 @@ function ExpandedRequest({
                 />
               </div>
             </div>
-            <div className="space-y-1 sm:col-span-2 xl:col-span-2">
-              <span className="text-xs text-muted-foreground">Shipping date</span>
-              <Input type="date" value={shippingDate} onChange={(e) => setShippingDate(e.target.value)} className="h-9 text-sm" />
-            </div>
           </div>
           {(mrpQuoted || mrpProc) && (
             <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs space-y-0.5">
@@ -720,6 +903,34 @@ function ExpandedRequest({
         </TabsContent>
 
         <TabsContent value="order" className="mt-3 space-y-3 outline-none">
+          {deviceLines.length > 0 && (
+            <div className="space-y-2">
+              <span className="text-xs text-muted-foreground font-medium">Devices ({deviceLines.length})</span>
+              <div className="space-y-2">
+                {deviceLines.map((device, i) => (
+                  <div key={device.id ?? i} className="rounded-md border border-border/80 bg-muted/20 px-3 py-2 text-sm space-y-2">
+                    <p className="font-medium">
+                      {categoryLabel(device.category)} · {device.brand} {device.device_model}
+                      {device.quantity > 1 ? ` ×${device.quantity}` : ''}
+                    </p>
+                    <div className="space-y-1 max-w-md">
+                      <Label className="text-xs text-muted-foreground">Serial number</Label>
+                      <Input
+                        value={device.serial_number}
+                        onChange={(e) => updateDeviceSerial(i, e.target.value)}
+                        placeholder="Add when available"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    {device.custom_fields?.filter((f) => f.label && f.value).map((f, j) => (
+                      <p key={j} className="text-xs text-muted-foreground">{f.label}: {f.value}</p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <Button size="sm" variant="outline" onClick={handleSaveTracking}>Save device serials</Button>
+            </div>
+          )}
           <div className="space-y-1.5">
             <span className="text-xs text-muted-foreground font-medium">Device summary (reports)</span>
             <Textarea

@@ -1,7 +1,38 @@
+import type { DeviceCategory } from '@/constants/device-categories';
+
 export interface DeviceAddon {
   type: string;
   model: string;
   qty: number;
+}
+
+export interface CustomSpecField {
+  label: string;
+  value: string;
+}
+
+/** One device line on a client request (stored in client_requests.devices JSONB). */
+export interface RequestDeviceLine {
+  id?: string;
+  category: DeviceCategory;
+  brand: string;
+  device_model: string;
+  quantity: number;
+  serial_number?: string | null;
+  processor?: string | null;
+  display_size?: string | null;
+  ram?: string | null;
+  storage?: string | null;
+  gpu?: string | null;
+  os?: string | null;
+  color?: string | null;
+  connectivity?: string | null;
+  size_dimensions?: string | null;
+  material?: string | null;
+  spec_description?: string | null;
+  custom_fields?: CustomSpecField[];
+  addons?: DeviceAddon[];
+  notes?: string | null;
 }
 
 export interface VendorDevicePricing {
@@ -117,6 +148,9 @@ export interface ClientRequest {
   wire_cost_usd: number | null;
   mrp_usd?: number | null;
   shipping_date: string | null;
+  delivery_date: string | null;
+  serial_number: string | null;
+  devices: RequestDeviceLine[];
   status: ClientRequestStatus;
   notes: string | null;
   from_address?: string | null;
@@ -169,6 +203,9 @@ export interface ClientRequestInsert {
   wire_cost_usd?: number | null;
   mrp_usd?: number | null;
   shipping_date?: string | null;
+  delivery_date?: string | null;
+  serial_number?: string | null;
+  devices?: RequestDeviceLine[];
   status?: ClientRequestStatus;
   notes?: string | null;
   from_address?: string | null;

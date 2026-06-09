@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DeviceSpecForm, SectionHeader, type DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
+import { createEmptyDeviceSpec } from '@/lib/device-spec-utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -46,20 +47,14 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
   const [quoteDate, setQuoteDate] = useState(new Date().toISOString().slice(0, 10));
   const [quoteValidityDate, setQuoteValidityDate] = useState('');
 
-  const [deviceSpec, setDeviceSpec] = useState<DeviceSpecValues>({
-    brand: '', device_model: '', processor: '', display_size: '',
-    ram: '', storage: '', gpu: '', os: '', quantity: 1, addons: [], notes: '',
-  });
+  const [deviceSpec, setDeviceSpec] = useState<DeviceSpecValues>(createEmptyDeviceSpec());
 
   const lastStepIndex = WIZARD_STEPS.length - 1;
 
   const resetForm = () => {
     setCountryId(''); setVendorId(''); setPriceUsd(''); setMrpUsd('');
     setQuoteDate(new Date().toISOString().slice(0, 10)); setQuoteValidityDate('');
-    setDeviceSpec({
-      brand: '', device_model: '', processor: '', display_size: '',
-      ram: '', storage: '', gpu: '', os: '', quantity: 1, addons: [], notes: '',
-    });
+    setDeviceSpec(createEmptyDeviceSpec());
   };
 
   useEffect(() => {
@@ -83,11 +78,17 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
       setQuoteDate(editItem.quote_date);
       setQuoteValidityDate(editItem.quote_validity_date || '');
       setDeviceSpec({
-        brand: editItem.brand, device_model: editItem.device_model,
-        processor: editItem.processor, display_size: editItem.display_size,
-        ram: editItem.ram, storage: editItem.storage,
-        gpu: editItem.gpu || '', os: editItem.os || '',
-        quantity: editItem.quantity, addons: editItem.addons || [],
+        ...createEmptyDeviceSpec('laptop'),
+        brand: editItem.brand,
+        device_model: editItem.device_model,
+        processor: editItem.processor,
+        display_size: editItem.display_size,
+        ram: editItem.ram,
+        storage: editItem.storage,
+        gpu: editItem.gpu || '',
+        os: editItem.os || '',
+        quantity: editItem.quantity,
+        addons: editItem.addons || [],
         notes: editItem.notes || '',
       });
     } else {
@@ -105,10 +106,13 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
   };
 
   const handleSave = async () => {
-    if (!countryId || !vendorId || !deviceSpec.brand || !deviceSpec.device_model ||
-        !deviceSpec.processor || !deviceSpec.display_size || !deviceSpec.ram ||
-        !deviceSpec.storage || !priceUsd) {
+    const needsLaptopSpecs = deviceSpec.category === 'laptop' || deviceSpec.category === 'desktop_server';
+    if (!countryId || !vendorId || !deviceSpec.brand || !deviceSpec.device_model || !priceUsd) {
       toast({ title: 'Missing fields', description: 'Please fill all required fields.', variant: 'destructive' });
+      return;
+    }
+    if (needsLaptopSpecs && (!deviceSpec.processor || !deviceSpec.display_size || !deviceSpec.ram || !deviceSpec.storage)) {
+      toast({ title: 'Missing specs', description: 'Processor, display, RAM, and storage are required for laptops/desktops.', variant: 'destructive' });
       return;
     }
     setSaving(true);
@@ -160,9 +164,13 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
   }, [mrpUsd, priceUsd]);
 
   const validateDevice = () => {
-    if (!deviceSpec.brand || !deviceSpec.device_model || !deviceSpec.processor ||
-        !deviceSpec.display_size || !deviceSpec.ram || !deviceSpec.storage) {
-      toast({ title: 'Missing device details', description: 'Fill all required spec fields before continuing.', variant: 'destructive' });
+    if (!deviceSpec.brand || !deviceSpec.device_model) {
+      toast({ title: 'Missing device details', description: 'Brand and model are required.', variant: 'destructive' });
+      return false;
+    }
+    const needsLaptopSpecs = deviceSpec.category === 'laptop' || deviceSpec.category === 'desktop_server';
+    if (needsLaptopSpecs && (!deviceSpec.processor || !deviceSpec.display_size || !deviceSpec.ram || !deviceSpec.storage)) {
+      toast({ title: 'Missing specs', description: 'Processor, display, RAM, and storage are required for laptops/desktops.', variant: 'destructive' });
       return false;
     }
     return true;

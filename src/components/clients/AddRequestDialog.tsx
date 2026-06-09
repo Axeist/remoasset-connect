@@ -9,12 +9,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { DeviceSpecForm, SectionHeader, type DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
+import { MultiDeviceSpecForm, SectionHeader, type DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { clientRequestProfit } from '@/lib/client-request-pricing';
 import { discountVsMrp, quotedPctOfMrp } from '@/lib/mrp-insights';
+import {
+  buildMultiDeviceSummary,
+  createEmptyDeviceSpec,
+  deviceSpecToLine,
+  flattenPrimaryDevice,
+  validateDeviceLines,
+} from '@/lib/device-spec-utils';
 import { cn } from '@/lib/utils';
 import { Loader2, TrendingUp, Package, UserRound, CreditCard, Tag, Check } from 'lucide-react';
 
@@ -27,23 +34,14 @@ interface Props {
 
 const WIZARD_STEPS = [
   { key: 'scope', label: 'Scope', title: 'Delivery & vendor', description: 'Where this ships from and who supplies it.' },
-  { key: 'device', label: 'Device', title: 'Device & specs', description: 'Model, configuration, and summary line for reports.' },
+  { key: 'device', label: 'Device', title: 'Devices & specs', description: 'One or more items — laptops, monitors, furniture, peripherals, etc.' },
   { key: 'recipient', label: 'Recipient', title: 'Employee or inventory', description: 'End-user shipping details or hold at Remoasset.' },
   { key: 'financials', label: 'Money', title: 'Payment & pricing', description: 'Client payment and USD amounts (optional until you have quotes).' },
   { key: 'finish', label: 'Finish', title: 'Notes & submit', description: 'Internal notes, then create the request.' },
 ] as const;
 
-function buildDeviceSummary(v: DeviceSpecValues): string {
-  const parts = [
-    `${v.brand} ${v.device_model}`.trim(),
-    v.processor,
-    v.ram,
-    v.storage,
-    v.display_size,
-    v.gpu && `GPU: ${v.gpu}`,
-    v.os && v.os,
-  ].filter(Boolean);
-  return parts.join(', ');
+function buildDeviceSummaryFromList(devices: DeviceSpecValues[]): string {
+  return buildMultiDeviceSummary(devices);
 }
 
 export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Props) {
@@ -69,10 +67,7 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
   const [procurementUsd, setProcurementUsd] = useState('');
   const [mrpUsd, setMrpUsd] = useState('');
 
-  const [deviceSpec, setDeviceSpec] = useState<DeviceSpecValues>({
-    brand: '', device_model: '', processor: '', display_size: '',
-    ram: '', storage: '', gpu: '', os: '', quantity: 1, addons: [], notes: '',
-  });
+  const [devices, setDevices] = useState<DeviceSpecValues[]>([createEmptyDeviceSpec()]);
 
   const lastStepIndex = WIZARD_STEPS.length - 1;
 
@@ -93,10 +88,7 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
       setDeviceSummary(''); setEmployeeName(''); setEmployeeAddress(''); setEmployeePhone('');
       setShipToInventory(false); setPaymentStatus('unpaid'); setClientPaymentDate('');
       setQuotedUsd(''); setWireCostUsd(''); setProcurementUsd(''); setMrpUsd('');
-      setDeviceSpec({
-        brand: '', device_model: '', processor: '', display_size: '',
-        ram: '', storage: '', gpu: '', os: '', quantity: 1, addons: [], notes: '',
-      });
+      setDevices([createEmptyDeviceSpec()]);
     }
   }, [open]);
 
@@ -147,8 +139,8 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
   const selectedCountryName = countries.find((c) => c.id === countryId)?.name;
 
   const fillSummaryFromSpecs = () => {
-    const built = buildDeviceSummary(deviceSpec);
-    if (!built.replace(/,/g, '').trim()) {
+    const built = buildDeviceSummaryFromList(devices);
+    if (!built.trim()) {
       toast({ title: 'Fill device fields first', variant: 'destructive' });
       return;
     }
@@ -161,9 +153,9 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
   };
 
   const validateDeviceStep = () => {
-    if (!deviceSpec.brand || !deviceSpec.device_model || !deviceSpec.processor ||
-        !deviceSpec.display_size || !deviceSpec.ram || !deviceSpec.storage) {
-      toast({ title: 'Missing device details', description: 'Fill all required spec fields before continuing.', variant: 'destructive' });
+    const err = validateDeviceLines(devices);
+    if (err) {
+      toast({ title: 'Missing device details', description: err, variant: 'destructive' });
       return false;
     }
     return true;
@@ -181,14 +173,17 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
   const handleBack = () => setStep((s) => Math.max(0, s - 1));
 
   const handleSave = async () => {
-    if (!countryId || !deviceSpec.brand || !deviceSpec.device_model || !deviceSpec.processor ||
-        !deviceSpec.display_size || !deviceSpec.ram || !deviceSpec.storage) {
-      toast({ title: 'Missing fields', description: 'Please fill country and all required device details.', variant: 'destructive' });
+    const deviceErr = validateDeviceLines(devices);
+    if (!countryId || deviceErr) {
+      toast({ title: 'Missing fields', description: deviceErr ?? 'Please select a country and add device details.', variant: 'destructive' });
       return;
     }
     setSaving(true);
 
-    const summaryToSave = deviceSummary.trim() || buildDeviceSummary(deviceSpec) || null;
+    const primary = flattenPrimaryDevice(devices);
+    const deviceLines = devices.map(deviceSpecToLine);
+    const summaryToSave = deviceSummary.trim() || buildDeviceSummaryFromList(devices) || null;
+    const requestNotes = devices.map((d) => d.notes.trim()).filter(Boolean).join('\n\n') || null;
 
     const payload = {
       client_id: clientId,
@@ -196,16 +191,18 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
       country_id: countryId,
       vendor_id: vendorId || null,
       expected_delivery_date: expectedDeliveryDate || null,
-      brand: deviceSpec.brand,
-      device_model: deviceSpec.device_model,
-      quantity: deviceSpec.quantity,
-      processor: deviceSpec.processor,
-      display_size: deviceSpec.display_size,
-      ram: deviceSpec.ram,
-      storage: deviceSpec.storage,
-      gpu: deviceSpec.gpu || null,
-      os: deviceSpec.os || null,
-      addons: deviceSpec.addons as any,
+      brand: primary.brand,
+      device_model: primary.device_model,
+      quantity: primary.quantity,
+      processor: primary.processor,
+      display_size: primary.display_size,
+      ram: primary.ram,
+      storage: primary.storage,
+      gpu: primary.gpu,
+      os: primary.os,
+      addons: primary.addons as any,
+      devices: deviceLines as any,
+      serial_number: primary.serial_number,
       device_summary: summaryToSave,
       employee_name: shipToInventory ? null : (employeeName.trim() || null),
       employee_address: employeeAddress.trim() || null,
@@ -216,7 +213,7 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
       wire_cost_usd: parseMoney(wireCostUsd),
       vendor_price_usd: parseMoney(procurementUsd),
       mrp_usd: parseMoney(mrpUsd),
-      notes: deviceSpec.notes || null,
+      notes: requestNotes,
       created_by: user?.id,
     };
 
@@ -225,7 +222,10 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } else {
-      toast({ title: 'Request added', description: `${deviceSpec.brand} ${deviceSpec.device_model} request created.` });
+      const title = devices.length > 1
+        ? `${devices.length} devices`
+        : `${devices[0].brand} ${devices[0].device_model}`;
+      toast({ title: 'Request added', description: `${title.trim()} request created.` });
       onOpenChange(false);
       onSuccess();
     }
@@ -340,7 +340,7 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
                   <Package className="h-4 w-4 text-primary" />
                   <span className="text-sm font-semibold">Structured specifications</span>
                 </div>
-                <DeviceSpecForm values={deviceSpec} onChange={setDeviceSpec} sectionNumberStart={2} hideNotes />
+                <MultiDeviceSpecForm devices={devices} onChange={setDevices} sectionNumberStart={2} hideNotes />
                 <div className="space-y-3 rounded-xl border border-border/80 bg-muted/30 p-4">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <Label className="text-sm font-medium">Device summary (reports)</Label>
@@ -552,7 +552,11 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
                 <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-4 sm:p-5 space-y-3 text-sm">
                   <p className="font-medium text-foreground">Quick recap</p>
                   <ul className="space-y-2 text-muted-foreground">
-                    <li><span className="text-foreground font-medium">Device:</span> {deviceSpec.brand} {deviceSpec.device_model}{deviceSpec.quantity > 1 ? ` ×${deviceSpec.quantity}` : ''}</li>
+                    <li><span className="text-foreground font-medium">Device{devices.length > 1 ? 's' : ''}:</span>{' '}
+                      {devices.length === 1
+                        ? `${devices[0].brand} ${devices[0].device_model}${devices[0].quantity > 1 ? ` ×${devices[0].quantity}` : ''}`
+                        : `${devices.length} items (${devices.map((d) => `${d.brand} ${d.device_model}`.trim()).filter(Boolean).slice(0, 2).join(', ')}${devices.length > 2 ? '…' : ''})`}
+                    </li>
                     <li><span className="text-foreground font-medium">Ship to:</span> {countries.find((c) => c.id === countryId)?.name ?? '—'}</li>
                     <li><span className="text-foreground font-medium">Recipient:</span> {shipToInventory ? 'Remoasset inventory' : (employeeName.trim() || employeeAddress.trim() || '—')}</li>
                   </ul>
@@ -563,8 +567,8 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
                     Additional notes
                   </Label>
                   <Textarea
-                    value={deviceSpec.notes}
-                    onChange={(e) => setDeviceSpec({ ...deviceSpec, notes: e.target.value })}
+                    value={devices[0]?.notes ?? ''}
+                    onChange={(e) => setDevices((prev) => prev.map((d, i) => (i === 0 ? { ...d, notes: e.target.value } : d)))}
                     placeholder="Internal notes, PO references…"
                     rows={6}
                     className="rounded-[10px] text-sm resize-y min-h-[140px]"
