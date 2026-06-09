@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { CLIENT_REQUEST_STATUSES } from '@/constants/device-options';
 import { getClientRequestTypeMeta } from '@/constants/client-request-types';
 import { CLIENT_REQUEST_SELECT, parseAttachments } from '@/lib/client-request-display';
-import { clientRequestProfit } from '@/lib/client-request-pricing';
+import { ServiceRequestPricingFields } from '@/components/clients/shared/ServiceRequestPricingFields';
 import type { ClientRequest } from '@/types/procurement';
 import {
   fetchCountries, fetchVendorsWithCountries, retrievalVendorsForCountry, type VendorWithCountries,
@@ -35,7 +35,8 @@ export function ServiceRequestExpanded({ req, onStatusChange, onRequestUpdated }
   const [countryId, setCountryId] = useState(req.country_id || '');
   const [vendorId, setVendorId] = useState(req.vendor_id || '');
   const [quoted, setQuoted] = useState(req.client_price_usd != null ? String(req.client_price_usd) : '');
-  const [procurement, setProcurement] = useState(req.vendor_price_usd != null ? String(req.vendor_price_usd) : '');
+  const [landingCost, setLandingCost] = useState(req.vendor_price_usd != null ? String(req.vendor_price_usd) : '');
+  const [serviceCost, setServiceCost] = useState(req.service_cost_usd != null ? String(req.service_cost_usd) : '');
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid'>(req.payment_status ?? 'unpaid');
   const [clientPaymentDate, setClientPaymentDate] = useState(req.client_payment_date || '');
   const [serviceRequestDate, setServiceRequestDate] = useState(req.service_request_date || '');
@@ -67,7 +68,8 @@ export function ServiceRequestExpanded({ req, onStatusChange, onRequestUpdated }
     setCountryId(req.country_id || '');
     setVendorId(req.vendor_id || '');
     setQuoted(req.client_price_usd != null ? String(req.client_price_usd) : '');
-    setProcurement(req.vendor_price_usd != null ? String(req.vendor_price_usd) : '');
+    setLandingCost(req.vendor_price_usd != null ? String(req.vendor_price_usd) : '');
+    setServiceCost(req.service_cost_usd != null ? String(req.service_cost_usd) : '');
     setPaymentStatus(req.payment_status ?? 'unpaid');
     setClientPaymentDate(req.client_payment_date || '');
     setServiceRequestDate(req.service_request_date || '');
@@ -113,16 +115,12 @@ export function ServiceRequestExpanded({ req, onStatusChange, onRequestUpdated }
     return () => { cancelled = true; };
   }, [req.id, req.attachments]);
 
-  const profitLive =
-    procurement !== '' && quoted !== ''
-      ? clientRequestProfit(parseFloat(procurement), parseFloat(quoted))
-      : null;
-
   const handleSave = async () => {
     const base: Record<string, unknown> = {
       vendor_id: vendorId || null,
       client_price_usd: quoted ? parseFloat(quoted) : null,
-      vendor_price_usd: procurement ? parseFloat(procurement) : null,
+      vendor_price_usd: landingCost ? parseFloat(landingCost) : null,
+      service_cost_usd: serviceCost ? parseFloat(serviceCost) : null,
       payment_status: paymentStatus,
       client_payment_date: clientPaymentDate || null,
       service_request_date: serviceRequestDate || null,
@@ -314,17 +312,16 @@ export function ServiceRequestExpanded({ req, onStatusChange, onRequestUpdated }
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1">
-          <span className="text-xs text-muted-foreground">Client price (USD)</span>
-          <Input type="number" step="0.01" value={quoted} onChange={(e) => setQuoted(e.target.value)} className="h-9 text-sm" />
-        </div>
-        <div className="space-y-1">
-          <span className="text-xs text-muted-foreground">Vendor cost (USD)</span>
-          <Input type="number" step="0.01" value={procurement} onChange={(e) => setProcurement(e.target.value)} className="h-9 text-sm" />
-        </div>
-        <div className="space-y-1">
-          <span className="text-xs text-muted-foreground">Profit</span>
-          <Input readOnly className="h-9 text-sm bg-muted/50 tabular-nums" value={profitLive != null ? profitLive.profitAmount.toFixed(2) : '—'} />
+        <div className="space-y-1 sm:col-span-2 xl:col-span-4">
+          <ServiceRequestPricingFields
+            quoted={quoted}
+            onQuotedChange={setQuoted}
+            landingCost={landingCost}
+            onLandingCostChange={setLandingCost}
+            serviceCost={serviceCost}
+            onServiceCostChange={setServiceCost}
+            compact
+          />
         </div>
         <div className="space-y-1">
           <span className="text-xs text-muted-foreground">Payment</span>

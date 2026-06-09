@@ -46,7 +46,7 @@ import {
 } from '@/lib/client-request-display';
 import { useAuth } from '@/contexts/AuthContext';
 import { CLIENT_REQUEST_STATUSES } from '@/constants/device-options';
-import { clientRequestProfit } from '@/lib/client-request-pricing';
+import { clientRequestProfitFromRequest } from '@/lib/client-request-pricing';
 import { discountVsMrp, quotedPctOfMrp } from '@/lib/mrp-insights';
 import type { Client, ClientRequest } from '@/types/procurement';
 import { categoryLabel, deviceSpecToLine, parseRequestDevices } from '@/lib/device-spec-utils';
@@ -110,15 +110,15 @@ export default function ClientDetail() {
     const totalSpend = requests
       .filter((r) => r.client_price_usd)
       .reduce((a, r) => a + (Number(r.client_price_usd) * r.quantity), 0);
-    const procurement = requests
-      .filter((r) => r.vendor_price_usd != null)
-      .reduce((a, r) => a + Number(r.vendor_price_usd) * r.quantity, 0);
+    const procurement = requests.reduce((a, r) => {
+      const landing = r.vendor_price_usd != null ? Number(r.vendor_price_usd) : 0;
+      const service = r.service_cost_usd != null ? Number(r.service_cost_usd) : 0;
+      return a + (landing + service) * r.quantity;
+    }, 0);
     let profit = 0;
     requests.forEach((r) => {
-      if (r.client_price_usd != null && r.vendor_price_usd != null) {
-        const p = clientRequestProfit(Number(r.vendor_price_usd), Number(r.client_price_usd));
-        if (p) profit += p.profitAmount * r.quantity;
-      }
+      const p = clientRequestProfitFromRequest(r.client_price_usd, r.vendor_price_usd, r.service_cost_usd);
+      if (p) profit += p.profitAmount * r.quantity;
     });
     const paid = requests.filter((r) => (r.payment_status ?? 'unpaid') === 'paid').length;
     const unpaid = requests.filter((r) => (r.payment_status ?? 'unpaid') === 'unpaid').length;
@@ -408,10 +408,7 @@ function RequestRows({
   const requestType = req.request_type ?? 'fulfillment';
   const typeMeta = getClientRequestTypeMeta(requestType);
   const isFulfillment = requestType === 'fulfillment';
-  const profit =
-    req.vendor_price_usd != null && req.client_price_usd != null
-      ? clientRequestProfit(Number(req.vendor_price_usd), Number(req.client_price_usd))
-      : null;
+  const profit = clientRequestProfitFromRequest(req.client_price_usd, req.vendor_price_usd, req.service_cost_usd);
   const subtitle = clientRequestSubtitle(req);
 
   return (
@@ -560,6 +557,7 @@ function ExpandedRequest({
   const [vendors, setVendors] = useState<{ id: string; company_name: string }[]>([]);
   const [allocVendorId, setAllocVendorId] = useState(req.vendor_id || '');
   const [procurement, setProcurement] = useState(req.vendor_price_usd != null ? String(req.vendor_price_usd) : '');
+  const [serviceCost, setServiceCost] = useState(req.service_cost_usd != null ? String(req.service_cost_usd) : '');
   const [quoted, setQuoted] = useState(req.client_price_usd != null ? String(req.client_price_usd) : '');
   const [wireCost, setWireCost] = useState(req.wire_cost_usd != null ? String(req.wire_cost_usd) : '');
   const [mrpUsd, setMrpUsd] = useState(req.mrp_usd != null ? String(req.mrp_usd) : '');
@@ -579,6 +577,7 @@ function ExpandedRequest({
   useEffect(() => {
     setAllocVendorId(req.vendor_id || '');
     setProcurement(req.vendor_price_usd != null ? String(req.vendor_price_usd) : '');
+    setServiceCost(req.service_cost_usd != null ? String(req.service_cost_usd) : '');
     setQuoted(req.client_price_usd != null ? String(req.client_price_usd) : '');
     setWireCost(req.wire_cost_usd != null ? String(req.wire_cost_usd) : '');
     setMrpUsd(req.mrp_usd != null ? String(req.mrp_usd) : '');
@@ -597,6 +596,7 @@ function ExpandedRequest({
     req.updated_at,
     req.vendor_id,
     req.vendor_price_usd,
+    req.service_cost_usd,
     req.client_price_usd,
     req.wire_cost_usd,
     req.mrp_usd,
@@ -615,8 +615,12 @@ function ExpandedRequest({
   ]);
 
   const profitLive =
-    procurement !== '' && quoted !== ''
-      ? clientRequestProfit(parseFloat(procurement), parseFloat(quoted))
+    quoted !== '' && (procurement !== '' || serviceCost !== '')
+      ? clientRequestProfitFromRequest(
+        parseFloat(quoted),
+        procurement ? parseFloat(procurement) : 0,
+        serviceCost ? parseFloat(serviceCost) : 0,
+      )
       : null;
 
   const mrpN = parseFloat(mrpUsd);
@@ -679,6 +683,7 @@ function ExpandedRequest({
       vendor_id: allocVendorId || null,
       client_price_usd: quoted ? parseFloat(quoted) : null,
       vendor_price_usd: procurement ? parseFloat(procurement) : null,
+      service_cost_usd: serviceCost ? parseFloat(serviceCost) : null,
       wire_cost_usd: wireCost ? parseFloat(wireCost) : null,
       mrp_usd: mrpUsd ? parseFloat(mrpUsd) : null,
       device_summary: deviceSummary.trim() || null,
@@ -838,8 +843,12 @@ function ExpandedRequest({
               <Input type="number" step="0.01" value={quoted} onChange={(e) => setQuoted(e.target.value)} className="h-9 text-sm tabular-nums" placeholder="0.00" />
             </div>
             <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">Procurement (USD)</span>
+              <span className="text-xs text-muted-foreground">Landing cost (USD)</span>
               <Input type="number" step="0.01" value={procurement} onChange={(e) => setProcurement(e.target.value)} className="h-9 text-sm tabular-nums" placeholder="0.00" />
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Service cost (USD)</span>
+              <Input type="number" step="0.01" value={serviceCost} onChange={(e) => setServiceCost(e.target.value)} className="h-9 text-sm tabular-nums" placeholder="0.00" />
             </div>
             <div className="space-y-1">
               <span className="text-xs text-muted-foreground">Wire cost</span>

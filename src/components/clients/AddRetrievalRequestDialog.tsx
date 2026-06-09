@@ -19,6 +19,7 @@ import {
   retrievalVendorsForCountry, SERVICE_SPEC_PLACEHOLDERS, uploadClientRequestFiles,
   type RetrievalEndpointType, type VendorWithCountries,
 } from '@/components/clients/shared/client-request-form-utils';
+import { ServiceRequestPricingFields } from '@/components/clients/shared/ServiceRequestPricingFields';
 
 interface Props {
   open: boolean;
@@ -103,8 +104,9 @@ export function AddRetrievalRequestDialog({ open, onOpenChange, onSuccess, clien
   const [serviceRequestDate, setServiceRequestDate] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid'>('unpaid');
   const [clientPaymentDate, setClientPaymentDate] = useState('');
-  const [amountPaid, setAmountPaid] = useState('');
-  const [vendorCost, setVendorCost] = useState('');
+  const [quotedUsd, setQuotedUsd] = useState('');
+  const [landingCostUsd, setLandingCostUsd] = useState('');
+  const [serviceCostUsd, setServiceCostUsd] = useState('');
   const [notes, setNotes] = useState('');
 
   const vendors = useMemo(() => retrievalVendorsForCountry(allVendors, countryId), [allVendors, countryId]);
@@ -138,7 +140,7 @@ export function AddRetrievalRequestDialog({ open, onOpenChange, onSuccess, clien
     setPickupDate(''); setWarehouseDeliveryDate(''); setReceiverDeliveryDate('');
     setQcPhotos([]);
     setServiceRequestDate(''); setPaymentStatus('unpaid');
-    setClientPaymentDate(''); setAmountPaid(''); setVendorCost(''); setNotes('');
+    setClientPaymentDate(''); setQuotedUsd(''); setLandingCostUsd(''); setServiceCostUsd(''); setNotes('');
   }, [open]);
 
   useEffect(() => {
@@ -288,8 +290,9 @@ export function AddRetrievalRequestDialog({ open, onOpenChange, onSuccess, clien
       service_request_date: serviceRequestDate || null,
       payment_status: paymentStatus,
       client_payment_date: clientPaymentDate || null,
-      client_price_usd: parseMoney(amountPaid),
-      vendor_price_usd: parseMoney(vendorCost),
+      client_price_usd: parseMoney(quotedUsd),
+      vendor_price_usd: parseMoney(landingCostUsd),
+      service_cost_usd: parseMoney(serviceCostUsd),
       notes: notes.trim() || null,
       attachments,
       status: 'pending',
@@ -554,8 +557,16 @@ export function AddRetrievalRequestDialog({ open, onOpenChange, onSuccess, clien
 
             {currentKey === 'finish' && (
               <div className="space-y-6 animate-in fade-in-0 duration-200">
-                <SectionHeader number={6} title="Payment" subtitle="Client payment and vendor cost" />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <SectionHeader number={6} title="Pricing & payment" subtitle="Quoted price, landing and service costs, profit" />
+                <ServiceRequestPricingFields
+                  quoted={quotedUsd}
+                  onQuotedChange={setQuotedUsd}
+                  landingCost={landingCostUsd}
+                  onLandingCostChange={setLandingCostUsd}
+                  serviceCost={serviceCostUsd}
+                  onServiceCostChange={setServiceCostUsd}
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Date of request</Label>
                     <Input type="date" value={serviceRequestDate} onChange={(e) => setServiceRequestDate(e.target.value)} />
@@ -569,14 +580,6 @@ export function AddRetrievalRequestDialog({ open, onOpenChange, onSuccess, clien
                         <SelectItem value="unpaid">Unpaid</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Amount client paid (USD)</Label>
-                    <Input type="number" step="0.01" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} placeholder="0.00" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Vendor cost (USD)</Label>
-                    <Input type="number" step="0.01" value={vendorCost} onChange={(e) => setVendorCost(e.target.value)} placeholder="0.00" />
                   </div>
                   <div className="space-y-2">
                     <Label>Payment date</Label>

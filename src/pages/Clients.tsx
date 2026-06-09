@@ -15,7 +15,7 @@ import {
   Search, Plus, Users, ChevronRight, X, Globe2, Package, Truck, CheckCircle2, Clock,
   DollarSign, TrendingUp, CreditCard,
 } from 'lucide-react';
-import { clientRequestProfit } from '@/lib/client-request-pricing';
+import { clientRequestProfitFromRequest } from '@/lib/client-request-pricing';
 import { ClientFormDialog } from '@/components/clients/ClientFormDialog';
 import type { Client } from '@/types/procurement';
 
@@ -71,13 +71,13 @@ export default function Clients() {
       else if (r.status === 'pending' || r.status === 'vendor_allocated' || r.status === 'ordered') s.pending++;
       const qty = Number(r.quantity) || 1;
       const cq = r.client_price_usd != null ? Number(r.client_price_usd) * qty : 0;
-      const vq = r.vendor_price_usd != null ? Number(r.vendor_price_usd) * qty : 0;
+      const landing = r.vendor_price_usd != null ? Number(r.vendor_price_usd) : 0;
+      const service = r.service_cost_usd != null ? Number(r.service_cost_usd) : 0;
+      const vq = (landing + service) * qty;
       if (r.client_price_usd != null) s.quotedUsd += cq;
-      if (r.vendor_price_usd != null) s.procurementUsd += vq;
-      if (r.client_price_usd != null && r.vendor_price_usd != null) {
-        const p = clientRequestProfit(Number(r.vendor_price_usd), Number(r.client_price_usd));
-        if (p) s.profitUsd += p.profitAmount * qty;
-      }
+      if (landing + service > 0) s.procurementUsd += vq;
+      const p = clientRequestProfitFromRequest(r.client_price_usd, r.vendor_price_usd, r.service_cost_usd);
+      if (p) s.profitUsd += p.profitAmount * qty;
       const pay = r.payment_status ?? 'unpaid';
       if (pay === 'paid') s.paidCount++;
       else s.unpaidCount++;

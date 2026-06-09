@@ -14,6 +14,7 @@ import { Loader2, Ship, X, Paperclip } from 'lucide-react';
 import {
   fetchAllVendors, parseMoney, SERVICE_SPEC_PLACEHOLDERS, uploadClientRequestFiles,
 } from '@/components/clients/shared/client-request-form-utils';
+import { ServiceRequestPricingFields } from '@/components/clients/shared/ServiceRequestPricingFields';
 
 interface Props {
   open: boolean;
@@ -43,7 +44,8 @@ export function AddCrossBorderRequestDialog({ open, onOpenChange, onSuccess, cli
   const [quantity, setQuantity] = useState('1');
   const [vendorId, setVendorId] = useState('');
   const [quotedUsd, setQuotedUsd] = useState('');
-  const [procurementUsd, setProcurementUsd] = useState('');
+  const [landingCostUsd, setLandingCostUsd] = useState('');
+  const [serviceCostUsd, setServiceCostUsd] = useState('');
   const [serviceRequestDate, setServiceRequestDate] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -61,7 +63,7 @@ export function AddCrossBorderRequestDialog({ open, onOpenChange, onSuccess, cli
     setOriginPocName(''); setOriginPocEmail(''); setOriginPocPhone('');
     setDestPocName(''); setDestPocEmail(''); setDestPocPhone('');
     setDeviceInfo(''); setQuantity('1'); setVendorId('');
-    setQuotedUsd(''); setProcurementUsd(''); setServiceRequestDate('');
+    setQuotedUsd(''); setLandingCostUsd(''); setServiceCostUsd(''); setServiceRequestDate('');
     setNotes(''); setPendingFiles([]); setDocLabels([]);
   }, [open]);
 
@@ -125,7 +127,8 @@ export function AddCrossBorderRequestDialog({ open, onOpenChange, onSuccess, cli
       vendor_id: vendorId || null,
       service_request_date: serviceRequestDate || null,
       client_price_usd: parseMoney(quotedUsd),
-      vendor_price_usd: parseMoney(procurementUsd),
+      vendor_price_usd: parseMoney(landingCostUsd),
+      service_cost_usd: parseMoney(serviceCostUsd),
       notes: notes.trim() || null,
       attachments,
       status: 'pending',
@@ -199,7 +202,7 @@ export function AddCrossBorderRequestDialog({ open, onOpenChange, onSuccess, cli
             <Label>Device info <span className="text-destructive">*</span></Label>
             <Textarea value={deviceInfo} onChange={(e) => setDeviceInfo(e.target.value)} rows={3} placeholder="Models, serials, packaging…" />
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 max-w-md">
             <div className="space-y-2">
               <Label>Quantity</Label>
               <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
@@ -208,15 +211,15 @@ export function AddCrossBorderRequestDialog({ open, onOpenChange, onSuccess, cli
               <Label>Request date</Label>
               <Input type="date" value={serviceRequestDate} onChange={(e) => setServiceRequestDate(e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Quoted (USD)</Label>
-              <Input type="number" step="0.01" value={quotedUsd} onChange={(e) => setQuotedUsd(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Procurement (USD)</Label>
-              <Input type="number" step="0.01" value={procurementUsd} onChange={(e) => setProcurementUsd(e.target.value)} />
-            </div>
           </div>
+          <ServiceRequestPricingFields
+            quoted={quotedUsd}
+            onQuotedChange={setQuotedUsd}
+            landingCost={landingCostUsd}
+            onLandingCostChange={setLandingCostUsd}
+            serviceCost={serviceCostUsd}
+            onServiceCostChange={setServiceCostUsd}
+          />
           <div className="space-y-2">
             <Label>Vendor / logistics partner</Label>
             <Select value={vendorId} onValueChange={setVendorId}>

@@ -14,6 +14,7 @@ import { Loader2, Recycle } from 'lucide-react';
 import {
   fetchAllVendors, filterItadVendors, parseMoney, SERVICE_SPEC_PLACEHOLDERS,
 } from '@/components/clients/shared/client-request-form-utils';
+import { ServiceRequestPricingFields } from '@/components/clients/shared/ServiceRequestPricingFields';
 
 interface Props {
   open: boolean;
@@ -36,7 +37,8 @@ export function AddItadRequestDialog({ open, onOpenChange, onSuccess, clientId }
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid'>('unpaid');
   const [clientPaymentDate, setClientPaymentDate] = useState('');
   const [quotedUsd, setQuotedUsd] = useState('');
-  const [procurementUsd, setProcurementUsd] = useState('');
+  const [landingCostUsd, setLandingCostUsd] = useState('');
+  const [serviceCostUsd, setServiceCostUsd] = useState('');
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export function AddItadRequestDialog({ open, onOpenChange, onSuccess, clientId }
     if (!open) return;
     setItadServices(''); setDeviceInfo(''); setQuantity('1'); setVendorId('');
     setServiceRequestDate(''); setPaymentStatus('unpaid'); setClientPaymentDate('');
-    setQuotedUsd(''); setProcurementUsd(''); setNotes('');
+    setQuotedUsd(''); setLandingCostUsd(''); setServiceCostUsd(''); setNotes('');
   }, [open]);
 
   const handleSave = async () => {
@@ -82,7 +84,8 @@ export function AddItadRequestDialog({ open, onOpenChange, onSuccess, clientId }
       payment_status: paymentStatus,
       client_payment_date: clientPaymentDate || null,
       client_price_usd: parseMoney(quotedUsd),
-      vendor_price_usd: parseMoney(procurementUsd),
+      vendor_price_usd: parseMoney(landingCostUsd),
+      service_cost_usd: parseMoney(serviceCostUsd),
       notes: notes.trim() || null,
       status: 'pending',
       created_by: user?.id,
@@ -152,15 +155,15 @@ export function AddItadRequestDialog({ open, onOpenChange, onSuccess, clientId }
             </Select>
             <p className="text-xs text-muted-foreground">Prefers vendors tagged as ITAD; shows all if none tagged.</p>
           </div>
+          <ServiceRequestPricingFields
+            quoted={quotedUsd}
+            onQuotedChange={setQuotedUsd}
+            landingCost={landingCostUsd}
+            onLandingCostChange={setLandingCostUsd}
+            serviceCost={serviceCostUsd}
+            onServiceCostChange={setServiceCostUsd}
+          />
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Client price (USD)</Label>
-              <Input type="number" step="0.01" value={quotedUsd} onChange={(e) => setQuotedUsd(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Vendor cost (USD)</Label>
-              <Input type="number" step="0.01" value={procurementUsd} onChange={(e) => setProcurementUsd(e.target.value)} />
-            </div>
             <div className="space-y-2">
               <Label>Payment status</Label>
               <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as 'paid' | 'unpaid')}>

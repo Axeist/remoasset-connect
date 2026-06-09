@@ -146,6 +146,7 @@ export interface ClientRequest {
   payment_status?: ClientRequestPaymentStatus;
   client_payment_date: string | null;
   vendor_price_usd: number | null;
+  service_cost_usd?: number | null;
   client_price_usd: number | null;
   wire_cost_usd: number | null;
   mrp_usd?: number | null;
@@ -208,6 +209,7 @@ export interface ClientRequestInsert {
   payment_status?: ClientRequestPaymentStatus;
   client_payment_date?: string | null;
   vendor_price_usd?: number | null;
+  service_cost_usd?: number | null;
   client_price_usd?: number | null;
   wire_cost_usd?: number | null;
   mrp_usd?: number | null;
