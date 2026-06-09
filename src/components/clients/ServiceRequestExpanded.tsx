@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { CLIENT_REQUEST_STATUSES } from '@/constants/device-options';
 import { getClientRequestTypeMeta } from '@/constants/client-request-types';
-import { parseAttachments } from '@/lib/client-request-display';
+import { CLIENT_REQUEST_SELECT, parseAttachments } from '@/lib/client-request-display';
 import { clientRequestProfit } from '@/lib/client-request-pricing';
 import type { ClientRequest } from '@/types/procurement';
 import { ExternalLink, Paperclip, Loader2 } from 'lucide-react';
@@ -16,10 +16,10 @@ import { ExternalLink, Paperclip, Loader2 } from 'lucide-react';
 interface Props {
   req: ClientRequest;
   onStatusChange: (id: string, status: string) => void;
-  onSaved: () => void;
+  onRequestUpdated: (req: ClientRequest) => void;
 }
 
-export function ServiceRequestExpanded({ req, onStatusChange, onSaved }: Props) {
+export function ServiceRequestExpanded({ req, onStatusChange, onRequestUpdated }: Props) {
   const { toast } = useToast();
   const type = req.request_type ?? 'fulfillment';
   const meta = getClientRequestTypeMeta(type);
@@ -100,12 +100,20 @@ export function ServiceRequestExpanded({ req, onStatusChange, onSaved }: Props) 
     if (type === 'itad') {
       base.itad_services = itadServices.trim() || null;
     }
-    const { error } = await supabase.from('client_requests' as any).update(base).eq('id', req.id);
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    const { data, error } = await supabase.from('client_requests' as any)
+      .update(base)
+      .eq('id', req.id)
+      .select(CLIENT_REQUEST_SELECT)
+      .single();
+    if (error || !data) {
+      toast({
+        title: 'Could not save',
+        description: error?.message ?? 'No rows were updated.',
+        variant: 'destructive',
+      });
     } else {
       toast({ title: 'Saved' });
-      onSaved();
+      onRequestUpdated(data as ClientRequest);
     }
   };
 

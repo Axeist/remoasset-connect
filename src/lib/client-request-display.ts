@@ -66,3 +66,12 @@ function truncate(s: string, max: number) {
   const t = s.replace(/\s+/g, ' ').trim();
   return t.length <= max ? t : `${t.slice(0, max - 1)}…`;
 }
+
+/** Supabase select fragment for client_requests with related vendor/country rows. */
+export const CLIENT_REQUEST_SELECT = `
+  *,
+  vendor:leads!vendor_id(company_name),
+  country:countries!country_id(name, code),
+  origin_country:countries!origin_country_id(name, code),
+  destination_country:countries!destination_country_id(name, code)
+`;

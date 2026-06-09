@@ -41,6 +41,7 @@ import { ClientFormDialog } from '@/components/clients/ClientFormDialog';
 import type { ClientRequestType } from '@/constants/client-request-types';
 import { getClientRequestTypeMeta } from '@/constants/client-request-types';
 import {
+  CLIENT_REQUEST_SELECT,
   clientRequestTitle, clientRequestSubtitle, clientRequestTypeBadgeStyle,
 } from '@/lib/client-request-display';
 import { useAuth } from '@/contexts/AuthContext';
@@ -70,21 +71,15 @@ export default function ClientDetail() {
   const [deleting, setDeleting] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (opts?: { silent?: boolean }) => {
     if (!id) return;
-    setLoading(true);
-    const [{ data: cData, error: cErr }, { data: rData }] = await Promise.all([
+    if (!opts?.silent) setLoading(true);
+    const [{ data: cData, error: cErr }, { data: rData, error: rErr }] = await Promise.all([
       supabase.from('clients' as any)
         .select('*, country:countries!country_id(name, code)')
         .eq('id', id).single(),
       supabase.from('client_requests' as any)
-        .select(`
-          *,
-          vendor:leads!vendor_id(company_name),
-          country:countries!country_id(name, code),
-          origin_country:countries!origin_country_id(name, code),
-          destination_country:countries!destination_country_id(name, code)
-        `)
+        .select(CLIENT_REQUEST_SELECT)
         .eq('client_id', id)
         .order('created_at', { ascending: false }),
     ]);
@@ -93,10 +88,17 @@ export default function ClientDetail() {
       navigate('/clients');
       return;
     }
+    if (rErr) {
+      toast({ title: 'Could not load requests', description: rErr.message, variant: 'destructive' });
+    }
     setClient(cData as any);
-    setRequests((rData as any) || []);
-    setLoading(false);
+    if (rData) setRequests(rData as ClientRequest[]);
+    if (!opts?.silent) setLoading(false);
   }, [id, toast, navigate]);
+
+  const patchRequest = useCallback((updated: ClientRequest) => {
+    setRequests((prev) => prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
+  }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -140,7 +142,7 @@ export default function ClientDetail() {
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } else {
-      fetchData();
+      fetchData({ silent: true });
     }
   };
 
@@ -154,7 +156,7 @@ export default function ClientDetail() {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } else {
       toast({ title: 'Vendor allocated' });
-      fetchData();
+      fetchData({ silent: true });
     }
   };
 
@@ -326,7 +328,7 @@ export default function ClientDetail() {
                           onStatusChange={handleStatusChange}
                           onAllocateVendor={handleAllocateVendor}
                           onDeleteRequest={setDeleteTarget}
-                          onSaved={fetchData}
+                          onRequestUpdated={patchRequest}
                         />
                       );
                     })}
@@ -390,7 +392,7 @@ export default function ClientDetail() {
 }
 
 function RequestRows({
-  req, isExpanded, statusInfo, isAdmin, onToggle, onStatusChange, onAllocateVendor, onDeleteRequest, onSaved,
+  req, isExpanded, statusInfo, isAdmin, onToggle, onStatusChange, onAllocateVendor, onDeleteRequest, onRequestUpdated,
 }: {
   req: ClientRequest;
   isExpanded: boolean;
@@ -400,7 +402,7 @@ function RequestRows({
   onStatusChange: (id: string, status: string) => void;
   onAllocateVendor: (id: string, vendorId: string, price: string) => void;
   onDeleteRequest: (req: ClientRequest) => void;
-  onSaved: () => void;
+  onRequestUpdated: (req: ClientRequest) => void;
 }) {
   const pay = req.payment_status ?? 'unpaid';
   const requestType = req.request_type ?? 'fulfillment';
@@ -531,13 +533,13 @@ function RequestRows({
                 req={req}
                 onStatusChange={onStatusChange}
                 onAllocateVendor={onAllocateVendor}
-                onSaved={onSaved}
+                onRequestUpdated={onRequestUpdated}
               />
             ) : (
               <ServiceRequestExpanded
                 req={req}
                 onStatusChange={onStatusChange}
-                onSaved={onSaved}
+                onRequestUpdated={onRequestUpdated}
               />
             )}
           </TableCell>
@@ -548,12 +550,12 @@ function RequestRows({
 }
 
 function ExpandedRequest({
-  req, onStatusChange, onAllocateVendor, onSaved,
+  req, onStatusChange, onAllocateVendor, onRequestUpdated,
 }: {
   req: ClientRequest;
   onStatusChange: (id: string, status: string) => void;
   onAllocateVendor: (id: string, vendorId: string, price: string) => void;
-  onSaved?: () => void;
+  onRequestUpdated: (req: ClientRequest) => void;
 }) {
   const [vendors, setVendors] = useState<{ id: string; company_name: string }[]>([]);
   const [allocVendorId, setAllocVendorId] = useState(req.vendor_id || '');
@@ -650,30 +652,30 @@ function ExpandedRequest({
   const handleSaveTracking = async () => {
     setSavingTracking(true);
     const devicesPayload = buildDevicesPayload();
-    const { error } = await supabase.from('client_requests' as any).update({
+    const { data, error } = await supabase.from('client_requests' as any).update({
       serial_number: aggregateSerial(devicesPayload),
       shipping_date: shippingDate || null,
       delivery_date: deliveryDate || null,
       devices: devicesPayload as any,
-    }).eq('id', req.id);
+    }).eq('id', req.id).select(CLIENT_REQUEST_SELECT).single();
     setSavingTracking(false);
-    if (error) {
+    if (error || !data) {
       toast({
         title: 'Could not save tracking',
-        description: error.message.includes('column')
+        description: error?.message?.includes('column')
           ? `${error.message} — run the latest Supabase migration (devices / serial_number / delivery_date).`
-          : error.message,
+          : error?.message ?? 'No rows were updated.',
         variant: 'destructive',
       });
     } else {
       toast({ title: 'Tracking saved', description: 'Serial and dates updated.' });
-      onSaved?.();
+      onRequestUpdated(data as ClientRequest);
     }
   };
 
   const handleSaveFulfillment = async () => {
     const devicesPayload = buildDevicesPayload();
-    const { error } = await supabase.from('client_requests' as any).update({
+    const { data, error } = await supabase.from('client_requests' as any).update({
       vendor_id: allocVendorId || null,
       client_price_usd: quoted ? parseFloat(quoted) : null,
       vendor_price_usd: procurement ? parseFloat(procurement) : null,
@@ -689,18 +691,18 @@ function ExpandedRequest({
       delivery_date: deliveryDate || null,
       serial_number: aggregateSerial(devicesPayload),
       devices: devicesPayload as any,
-    }).eq('id', req.id);
-    if (error) {
+    }).eq('id', req.id).select(CLIENT_REQUEST_SELECT).single();
+    if (error || !data) {
       toast({
-        title: 'Error',
-        description: error.message.includes('column')
+        title: 'Could not save',
+        description: error?.message?.includes('column')
           ? `${error.message} — run the latest Supabase migration.`
-          : error.message,
+          : error?.message ?? 'No rows were updated.',
         variant: 'destructive',
       });
     } else {
       toast({ title: 'Saved' });
-      onSaved?.();
+      onRequestUpdated(data as ClientRequest);
     }
   };
 
