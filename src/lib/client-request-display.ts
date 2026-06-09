@@ -30,10 +30,11 @@ export function clientRequestTitle(req: ClientRequest): string {
 export function clientRequestSubtitle(req: ClientRequest): string | null {
   const type = req.request_type ?? 'fulfillment';
   if (type === 'retrieval_redeployment') {
-    if (req.from_address && req.to_address) {
-      return `${truncate(req.from_address, 40)} → ${truncate(req.to_address, 40)}`;
-    }
-    return req.from_address || req.to_address || null;
+    const fromKind = req.retrieval_from_type === 'inventory' ? 'Inventory' : (req.origin_poc_name?.trim() || 'Employee');
+    const toKind = req.retrieval_to_type === 'inventory' ? 'Inventory' : (req.destination_poc_name?.trim() || 'Employee');
+    const services = [req.qc_required && 'QC', req.data_wipe_required && 'Wipe'].filter(Boolean).join(' · ');
+    const route = `${fromKind} → ${toKind}`;
+    return services ? `${route} · ${services}` : route;
   }
   if (type === 'cross_border') {
     return req.device_summary?.trim() || null;

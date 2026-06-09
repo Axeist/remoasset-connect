@@ -6,9 +6,59 @@ export function parseMoney(s: string): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+export type VendorWithCountries = {
+  id: string;
+  company_name: string;
+  country_ids: string[];
+  vendor_types?: string[] | null;
+  warehouse_available?: boolean | null;
+};
+
+export const REMOASSET_INVENTORY_LABEL = 'Remoasset Inventory';
+
+export type RetrievalEndpointType = 'employee' | 'inventory';
+
+export async function fetchCountries() {
+  const { data } = await supabase.from('countries').select('id, name').order('name');
+  return (data ?? []) as { id: string; name: string }[];
+}
+
 export async function fetchAllVendors() {
-  const { data } = await supabase.from('leads').select('id, company_name, vendor_types').order('company_name');
-  return (data ?? []) as { id: string; company_name: string; vendor_types: string[] | null }[];
+  const { data } = await supabase.from('leads')
+    .select('id, company_name, vendor_types, country_ids, warehouse_available')
+    .order('company_name');
+  return (data ?? []).map((v) => ({
+    id: v.id,
+    company_name: v.company_name,
+    vendor_types: v.vendor_types,
+    country_ids: Array.isArray(v.country_ids) ? v.country_ids : [],
+    warehouse_available: v.warehouse_available,
+  })) as { id: string; company_name: string; vendor_types: string[] | null; country_ids: string[]; warehouse_available: boolean | null }[];
+}
+
+export async function fetchVendorsWithCountries(): Promise<VendorWithCountries[]> {
+  const vendors = await fetchAllVendors();
+  return vendors.map(({ id, company_name, country_ids, vendor_types, warehouse_available }) => ({
+    id, company_name, country_ids, vendor_types, warehouse_available,
+  }));
+}
+
+export function vendorsForCountry(vendors: VendorWithCountries[], countryId: string) {
+  if (!countryId) return [];
+  return vendors.filter((v) => v.country_ids.includes(countryId));
+}
+
+/** Prefer warehouse partners in-country; fall back to all in-country vendors. */
+export function retrievalVendorsForCountry(vendors: VendorWithCountries[], countryId: string) {
+  const inCountry = vendorsForCountry(vendors, countryId);
+  const warehouse = inCountry.filter(
+    (v) => (Array.isArray(v.vendor_types) && v.vendor_types.includes('warehouse')) || v.warehouse_available,
+  );
+  return warehouse.length > 0 ? warehouse : inCountry;
+}
+
+export function isWarehouseVendor(v: VendorWithCountries) {
+  return (Array.isArray(v.vendor_types) && v.vendor_types.includes('warehouse')) || !!v.warehouse_available;
 }
 
 export function filterItadVendors(

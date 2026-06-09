@@ -110,6 +110,8 @@ export type ClientRequestPaymentStatus = 'paid' | 'unpaid';
 
 export type ClientRequestType = 'fulfillment' | 'retrieval_redeployment' | 'cross_border' | 'itad';
 
+export type RetrievalEndpointType = 'employee' | 'inventory';
+
 export interface ClientRequestAttachment {
   type: 'file' | 'url';
   /** Public or signed URL when stored as url */
@@ -155,6 +157,13 @@ export interface ClientRequest {
   notes: string | null;
   from_address?: string | null;
   to_address?: string | null;
+  retrieval_from_type?: RetrievalEndpointType | null;
+  retrieval_to_type?: RetrievalEndpointType | null;
+  qc_required?: boolean;
+  data_wipe_required?: boolean;
+  pickup_date?: string | null;
+  warehouse_delivery_date?: string | null;
+  receiver_delivery_date?: string | null;
   service_request_date?: string | null;
   origin_country_id?: string | null;
   destination_country_id?: string | null;
@@ -210,6 +219,13 @@ export interface ClientRequestInsert {
   notes?: string | null;
   from_address?: string | null;
   to_address?: string | null;
+  retrieval_from_type?: RetrievalEndpointType | null;
+  retrieval_to_type?: RetrievalEndpointType | null;
+  qc_required?: boolean;
+  data_wipe_required?: boolean;
+  pickup_date?: string | null;
+  warehouse_delivery_date?: string | null;
+  receiver_delivery_date?: string | null;
   service_request_date?: string | null;
   origin_country_id?: string | null;
   destination_country_id?: string | null;
