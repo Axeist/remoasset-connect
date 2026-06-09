@@ -48,13 +48,15 @@ export function vendorsForCountry(vendors: VendorWithCountries[], countryId: str
   return vendors.filter((v) => v.country_ids.includes(countryId));
 }
 
-/** Prefer warehouse partners in-country; fall back to all in-country vendors. */
+/** All in-country vendors; warehouse-capable partners sorted to the top. */
 export function retrievalVendorsForCountry(vendors: VendorWithCountries[], countryId: string) {
   const inCountry = vendorsForCountry(vendors, countryId);
-  const warehouse = inCountry.filter(
-    (v) => (Array.isArray(v.vendor_types) && v.vendor_types.includes('warehouse')) || v.warehouse_available,
-  );
-  return warehouse.length > 0 ? warehouse : inCountry;
+  return [...inCountry].sort((a, b) => {
+    const aWarehouse = isWarehouseVendor(a) ? 0 : 1;
+    const bWarehouse = isWarehouseVendor(b) ? 0 : 1;
+    if (aWarehouse !== bWarehouse) return aWarehouse - bWarehouse;
+    return a.company_name.localeCompare(b.company_name);
+  });
 }
 
 export function isWarehouseVendor(v: VendorWithCountries) {

@@ -302,7 +302,7 @@ export function ServiceRequestExpanded({ req, onStatusChange, onRequestUpdated }
             <SelectTrigger className="h-9 text-sm">
               <SelectValue placeholder={
                 type === 'retrieval_redeployment' && !countryId ? 'Select country first'
-                  : type === 'retrieval_redeployment' && vendors.length === 0 ? 'No vendors for this country'
+                  : type === 'retrieval_redeployment' && vendors.length === 0 ? 'No vendors in country'
                     : type === 'retrieval_redeployment' && selectedCountryName ? `Vendors in ${selectedCountryName}`
                       : 'Vendor'
               } />

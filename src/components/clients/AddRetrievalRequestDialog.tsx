@@ -194,7 +194,7 @@ export function AddRetrievalRequestDialog({ open, onOpenChange, onSuccess, clien
   const validateStep = (key: string): boolean => {
     if (key === 'route') {
       if (!countryId) {
-        toast({ title: 'Select a country', description: 'Country is required to find warehouse vendors.', variant: 'destructive' });
+        toast({ title: 'Select a country', description: 'Country is required to find available vendors.', variant: 'destructive' });
         return false;
       }
       if (fromType === 'employee' && !fromAddress.trim()) {
@@ -368,7 +368,7 @@ export function AddRetrievalRequestDialog({ open, onOpenChange, onSuccess, clien
           <div className="space-y-6 px-6 py-5 pb-8">
             {currentKey === 'route' && (
               <div className="space-y-6 animate-in fade-in-0 duration-200">
-                <SectionHeader number={1} title="Country & vendor" subtitle="Warehouse partners operating in this country" />
+                <SectionHeader number={1} title="Country & vendor" subtitle="All vendors in this country — warehouse partners listed first" />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <Label>Country <span className="text-destructive">*</span></Label>
@@ -385,7 +385,7 @@ export function AddRetrievalRequestDialog({ open, onOpenChange, onSuccess, clien
                       <SelectTrigger className="h-11 rounded-[10px]">
                         <SelectValue placeholder={
                           !countryId ? 'Select country first'
-                            : vendors.length === 0 ? 'No warehouse vendors'
+                            : vendors.length === 0 ? 'No vendors for this country'
                               : `Vendors in ${selectedCountryName}`
                         } />
                       </SelectTrigger>
