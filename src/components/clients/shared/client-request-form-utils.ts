@@ -10,6 +10,7 @@ export type VendorWithCountries = {
   id: string;
   company_name: string;
   country_ids: string[];
+  hq_country_id?: string | null;
   vendor_types?: string[] | null;
   warehouse_available?: boolean | null;
 };
@@ -25,27 +26,33 @@ export async function fetchCountries() {
 
 export async function fetchAllVendors() {
   const { data } = await supabase.from('leads')
-    .select('id, company_name, vendor_types, country_ids, warehouse_available')
+    .select('id, company_name, vendor_types, country_ids, hq_country_id, warehouse_available')
     .order('company_name');
   return (data ?? []).map((v) => ({
     id: v.id,
     company_name: v.company_name,
     vendor_types: v.vendor_types,
     country_ids: Array.isArray(v.country_ids) ? v.country_ids : [],
+    hq_country_id: v.hq_country_id,
     warehouse_available: v.warehouse_available,
-  })) as { id: string; company_name: string; vendor_types: string[] | null; country_ids: string[]; warehouse_available: boolean | null }[];
+  })) as VendorWithCountries[];
 }
 
 export async function fetchVendorsWithCountries(): Promise<VendorWithCountries[]> {
-  const vendors = await fetchAllVendors();
-  return vendors.map(({ id, company_name, country_ids, vendor_types, warehouse_available }) => ({
-    id, company_name, country_ids, vendor_types, warehouse_available,
-  }));
+  return fetchAllVendors();
+}
+
+/** Vendor operates in country if they serve it or are HQ'd there. */
+export function vendorOperatesInCountry(vendor: VendorWithCountries, countryId: string) {
+  if (!countryId) return false;
+  if (vendor.country_ids.includes(countryId)) return true;
+  if (vendor.hq_country_id === countryId) return true;
+  return false;
 }
 
 export function vendorsForCountry(vendors: VendorWithCountries[], countryId: string) {
   if (!countryId) return [];
-  return vendors.filter((v) => v.country_ids.includes(countryId));
+  return vendors.filter((v) => vendorOperatesInCountry(v, countryId));
 }
 
 /** All in-country vendors; warehouse-capable partners sorted to the top. */

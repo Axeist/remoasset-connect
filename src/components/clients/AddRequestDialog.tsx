@@ -22,6 +22,7 @@ import {
   flattenPrimaryDevice,
   validateDeviceLines,
 } from '@/lib/device-spec-utils';
+import { vendorsForCountry as filterVendorsForCountry } from '@/components/clients/shared/client-request-form-utils';
 import { cn } from '@/lib/utils';
 import { Loader2, TrendingUp, Package, UserRound, CreditCard, Tag, Check } from 'lucide-react';
 
@@ -50,7 +51,7 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [countries, setCountries] = useState<{ id: string; name: string }[]>([]);
-  const [allVendors, setAllVendors] = useState<{ id: string; company_name: string; country_ids: string[] }[]>([]);
+  const [allVendors, setAllVendors] = useState<{ id: string; company_name: string; country_ids: string[]; hq_country_id?: string | null }[]>([]);
 
   const [countryId, setCountryId] = useState('');
   const [vendorId, setVendorId] = useState('');
@@ -76,7 +77,7 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
     supabase.from('countries').select('id, name').order('name').then(({ data }) => {
       if (data) setCountries(data);
     });
-    supabase.from('leads').select('id, company_name, country_ids').order('company_name').then(({ data }) => {
+    supabase.from('leads').select('id, company_name, country_ids, hq_country_id').order('company_name').then(({ data }) => {
       if (data) setAllVendors(data as any);
     });
   }, [open]);
@@ -127,8 +128,8 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
     return discountVsMrp(m, p);
   }, [mrpUsd, procurementUsd]);
 
-  const vendorsForCountry = countryId
-    ? allVendors.filter((v) => Array.isArray(v.country_ids) && v.country_ids.includes(countryId))
+  const vendorsForCountryList = countryId
+    ? filterVendorsForCountry(allVendors as any, countryId)
     : allVendors;
 
   const handleCountryChange = (id: string) => {
@@ -316,10 +317,10 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
                         <SelectValue placeholder={countryId ? `Vendors in ${selectedCountryName}` : 'Select country first'} />
                       </SelectTrigger>
                       <SelectContent>
-                        {vendorsForCountry.length === 0 ? (
+                        {vendorsForCountryList.length === 0 ? (
                           <div className="px-2 py-4 text-sm text-muted-foreground text-center">No vendors for this country</div>
                         ) : (
-                          vendorsForCountry.map((v) => (
+                          vendorsForCountryList.map((v) => (
                             <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>
                           ))
                         )}
