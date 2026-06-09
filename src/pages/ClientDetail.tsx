@@ -37,6 +37,7 @@ import { AddCrossBorderRequestDialog } from '@/components/clients/AddCrossBorder
 import { AddItadRequestDialog } from '@/components/clients/AddItadRequestDialog';
 import { ChooseRequestTypeDialog } from '@/components/clients/ChooseRequestTypeDialog';
 import { ServiceRequestExpanded } from '@/components/clients/ServiceRequestExpanded';
+import { ClientRequestFilters } from '@/components/clients/ClientRequestFilters';
 import { ClientFormDialog } from '@/components/clients/ClientFormDialog';
 import type { ClientRequestType } from '@/constants/client-request-types';
 import { getClientRequestTypeMeta } from '@/constants/client-request-types';
@@ -46,7 +47,9 @@ import {
 } from '@/lib/client-request-display';
 import { useAuth } from '@/contexts/AuthContext';
 import { CLIENT_REQUEST_STATUSES } from '@/constants/device-options';
-import { clientRequestProfitFromRequest } from '@/lib/client-request-pricing';
+import {
+  clientRequestProfitFromRequest, clientRequestTotalCostUsd,
+} from '@/lib/client-request-pricing';
 import { discountVsMrp, quotedPctOfMrp } from '@/lib/mrp-insights';
 import type { Client, ClientRequest } from '@/types/procurement';
 import { categoryLabel, deviceSpecToLine, parseRequestDevices } from '@/lib/device-spec-utils';
@@ -54,6 +57,9 @@ import type { DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
 import {
   fetchVendorsWithCountries, vendorsForRequestSelect, type VendorWithCountries,
 } from '@/components/clients/shared/client-request-form-utils';
+import {
+  applyClientRequestFilters, EMPTY_CLIENT_REQUEST_FILTERS, type ClientRequestFiltersState,
+} from '@/lib/client-request-filters';
 
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -73,6 +79,7 @@ export default function ClientDetail() {
   const [deleteTarget, setDeleteTarget] = useState<ClientRequest | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [requestFilters, setRequestFilters] = useState<ClientRequestFiltersState>(EMPTY_CLIENT_REQUEST_FILTERS);
 
   const fetchData = useCallback(async (opts?: { silent?: boolean }) => {
     if (!id) return;
@@ -114,13 +121,14 @@ export default function ClientDetail() {
       .filter((r) => r.client_price_usd)
       .reduce((a, r) => a + (Number(r.client_price_usd) * r.quantity), 0);
     const procurement = requests.reduce((a, r) => {
-      const landing = r.vendor_price_usd != null ? Number(r.vendor_price_usd) : 0;
-      const service = r.service_cost_usd != null ? Number(r.service_cost_usd) : 0;
-      return a + (landing + service) * r.quantity;
+      const unitCost = clientRequestTotalCostUsd(r.request_type, r.vendor_price_usd, r.service_cost_usd);
+      return a + unitCost * r.quantity;
     }, 0);
     let profit = 0;
     requests.forEach((r) => {
-      const p = clientRequestProfitFromRequest(r.client_price_usd, r.vendor_price_usd, r.service_cost_usd);
+      const p = clientRequestProfitFromRequest(
+        r.client_price_usd, r.vendor_price_usd, r.service_cost_usd, r.request_type,
+      );
       if (p) profit += p.profitAmount * r.quantity;
     });
     const paid = requests.filter((r) => (r.payment_status ?? 'unpaid') === 'paid').length;
@@ -139,6 +147,11 @@ export default function ClientDetail() {
       marginOnQuoted, mrpRows: withMrp.length, avgPctOfMrp: withMrp.length ? avgPctOfMrp : null,
     };
   }, [requests]);
+
+  const filteredRequests = useMemo(
+    () => applyClientRequestFilters(requests, requestFilters),
+    [requests, requestFilters],
+  );
 
   const handleStatusChange = async (reqId: string, newStatus: string) => {
     const { error } = await supabase.from('client_requests' as any).update({ status: newStatus }).eq('id', reqId);
@@ -286,6 +299,15 @@ export default function ClientDetail() {
           </Card>
         </div>
 
+        {requests.length > 0 && (
+          <ClientRequestFilters
+            filters={requestFilters}
+            onFiltersChange={setRequestFilters}
+            requests={requests}
+            filteredCount={filteredRequests.length}
+          />
+        )}
+
         {/* Requests Table */}
         <Card>
           <CardContent className="p-0">
@@ -296,6 +318,22 @@ export default function ClientDetail() {
                 <p className="text-sm text-muted-foreground mt-1">
                   Add fulfillment, retrieval, cross-border, or ITAD requests for this client.
                 </p>
+              </div>
+            ) : filteredRequests.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+                <Package className="h-12 w-12 text-muted-foreground/40 mb-3" />
+                <h3 className="font-semibold text-lg">No matching requests</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                  Try adjusting your filters or search terms.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => setRequestFilters(EMPTY_CLIENT_REQUEST_FILTERS)}
+                >
+                  Clear filters
+                </Button>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -317,7 +355,7 @@ export default function ClientDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {requests.map((req) => {
+                    {filteredRequests.map((req) => {
                       const isExpanded = expandedId === req.id;
                       const statusInfo = CLIENT_REQUEST_STATUSES.find((s) => s.value === req.status);
                       return (
@@ -411,7 +449,10 @@ function RequestRows({
   const requestType = req.request_type ?? 'fulfillment';
   const typeMeta = getClientRequestTypeMeta(requestType);
   const isFulfillment = requestType === 'fulfillment';
-  const profit = clientRequestProfitFromRequest(req.client_price_usd, req.vendor_price_usd, req.service_cost_usd);
+  const profit = clientRequestProfitFromRequest(
+    req.client_price_usd, req.vendor_price_usd, req.service_cost_usd, req.request_type,
+  );
+  const lineProfit = profit != null ? profit.profitAmount * req.quantity : null;
   const subtitle = clientRequestSubtitle(req);
 
   return (
@@ -476,10 +517,15 @@ function RequestRows({
             : '-'}
         </TableCell>
         <TableCell className="text-right tabular-nums text-sm">
-          {profit !== null ? (
+          {lineProfit !== null ? (
             <span>
-              ${profit.profitAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              {profit.profitPctOnProcurement != null && (
+              ${lineProfit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {req.quantity > 1 && profit != null && (
+                <span className="block text-[10px] text-muted-foreground">
+                  ${profit.profitAmount.toFixed(2)} × {req.quantity}
+                </span>
+              )}
+              {profit?.profitPctOnProcurement != null && (
                 <span className="block text-[10px] text-muted-foreground">{profit.profitPctOnProcurement.toFixed(2)}%</span>
               )}
             </span>
@@ -618,11 +664,12 @@ function ExpandedRequest({
   ]);
 
   const profitLive =
-    quoted !== '' && (procurement !== '' || serviceCost !== '')
+    quoted !== '' && !Number.isNaN(parseFloat(quoted))
       ? clientRequestProfitFromRequest(
         parseFloat(quoted),
         procurement ? parseFloat(procurement) : 0,
         serviceCost ? parseFloat(serviceCost) : 0,
+        'fulfillment',
       )
       : null;
 
@@ -861,6 +908,7 @@ function ExpandedRequest({
             <div className="space-y-1">
               <span className="text-xs text-muted-foreground">Service cost (USD)</span>
               <Input type="number" step="0.01" value={serviceCost} onChange={(e) => setServiceCost(e.target.value)} className="h-9 text-sm tabular-nums" placeholder="0.00" />
+              <p className="text-[10px] text-muted-foreground">Tracked only — fulfillment profit uses landing cost.</p>
             </div>
             <div className="space-y-1">
               <span className="text-xs text-muted-foreground">Wire cost</span>

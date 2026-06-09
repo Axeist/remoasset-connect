@@ -23,12 +23,9 @@ export function ServiceRequestPricingFields({
 }: Props) {
   const profit = useMemo(() => {
     const q = parseFloat(quoted);
-    const l = parseFloat(landingCost);
-    const s = parseFloat(serviceCost);
     if (Number.isNaN(q)) return null;
-    const landing = Number.isNaN(l) ? 0 : l;
-    const service = Number.isNaN(s) ? 0 : s;
-    if (landing + service <= 0) return null;
+    const landing = Number.isNaN(parseFloat(landingCost)) ? 0 : parseFloat(landingCost);
+    const service = Number.isNaN(parseFloat(serviceCost)) ? 0 : parseFloat(serviceCost);
     return clientRequestProfit(landing, q, service);
   }, [quoted, landingCost, serviceCost]);
 
