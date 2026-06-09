@@ -12,7 +12,9 @@ import { CLIENT_REQUEST_SELECT, parseAttachments } from '@/lib/client-request-di
 import { ServiceRequestPricingFields } from '@/components/clients/shared/ServiceRequestPricingFields';
 import type { ClientRequest } from '@/types/procurement';
 import {
-  fetchCountries, fetchVendorsWithCountries, retrievalVendorsForCountry, type VendorWithCountries,
+  ensureSelectedVendor,
+  fetchCountries, fetchVendorsWithCountries, retrievalVendorsForCountry,
+  vendorsForRequestSelect, type VendorWithCountries,
 } from '@/components/clients/shared/client-request-form-utils';
 import { ExternalLink, Paperclip, Loader2 } from 'lucide-react';
 
@@ -51,9 +53,12 @@ export function ServiceRequestExpanded({ req, onStatusChange, onRequestUpdated }
   const [itadServices, setItadServices] = useState(req.itad_services || '');
 
   const vendors = useMemo(() => {
-    if (type === 'retrieval_redeployment') return retrievalVendorsForCountry(allVendors, countryId);
-    return allVendors;
-  }, [allVendors, countryId, type]);
+    if (type === 'retrieval_redeployment' && countryId) {
+      const filtered = retrievalVendorsForCountry(allVendors, countryId);
+      return ensureSelectedVendor(filtered, allVendors, vendorId, req.vendor?.company_name);
+    }
+    return vendorsForRequestSelect(allVendors, countryId || req.country_id, vendorId, req.vendor?.company_name);
+  }, [allVendors, countryId, req.country_id, type, vendorId, req.vendor?.company_name]);
 
   const selectedCountryName = countries.find((c) => c.id === countryId)?.name;
 
@@ -295,7 +300,7 @@ export function ServiceRequestExpanded({ req, onStatusChange, onRequestUpdated }
         <div className="space-y-1">
           <span className="text-xs text-muted-foreground">Vendor</span>
           <Select
-            value={vendorId}
+            value={vendorId || undefined}
             onValueChange={setVendorId}
             disabled={type === 'retrieval_redeployment' && !countryId}
           >
@@ -303,11 +308,11 @@ export function ServiceRequestExpanded({ req, onStatusChange, onRequestUpdated }
               <SelectValue placeholder={
                 type === 'retrieval_redeployment' && !countryId ? 'Select country first'
                   : type === 'retrieval_redeployment' && vendors.length === 0 ? 'No vendors in country'
-                    : type === 'retrieval_redeployment' && selectedCountryName ? `Vendors in ${selectedCountryName}`
+                    : selectedCountryName ? `Vendors in ${selectedCountryName}`
                       : 'Vendor'
               } />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-[min(320px,50vh)]">
               {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>)}
             </SelectContent>
           </Select>

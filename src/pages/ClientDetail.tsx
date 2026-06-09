@@ -51,6 +51,9 @@ import { discountVsMrp, quotedPctOfMrp } from '@/lib/mrp-insights';
 import type { Client, ClientRequest } from '@/types/procurement';
 import { categoryLabel, deviceSpecToLine, parseRequestDevices } from '@/lib/device-spec-utils';
 import type { DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
+import {
+  fetchVendorsWithCountries, vendorsForRequestSelect, type VendorWithCountries,
+} from '@/components/clients/shared/client-request-form-utils';
 
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -554,7 +557,7 @@ function ExpandedRequest({
   onAllocateVendor: (id: string, vendorId: string, price: string) => void;
   onRequestUpdated: (req: ClientRequest) => void;
 }) {
-  const [vendors, setVendors] = useState<{ id: string; company_name: string }[]>([]);
+  const [allVendors, setAllVendors] = useState<VendorWithCountries[]>([]);
   const [allocVendorId, setAllocVendorId] = useState(req.vendor_id || '');
   const [procurement, setProcurement] = useState(req.vendor_price_usd != null ? String(req.vendor_price_usd) : '');
   const [serviceCost, setServiceCost] = useState(req.service_cost_usd != null ? String(req.service_cost_usd) : '');
@@ -633,10 +636,15 @@ function ExpandedRequest({
     : null;
 
   useEffect(() => {
-    supabase.from('leads').select('id, company_name').order('company_name').then(({ data }) => {
-      if (data) setVendors(data);
-    });
+    fetchVendorsWithCountries().then(setAllVendors);
   }, []);
+
+  const vendors = useMemo(
+    () => vendorsForRequestSelect(allVendors, req.country_id, allocVendorId, req.vendor?.company_name),
+    [allVendors, req.country_id, allocVendorId, req.vendor?.company_name],
+  );
+
+  const vendorCountryLabel = req.country?.name;
 
   const addons = (req.addons || []) as any[];
 
@@ -830,10 +838,14 @@ function ExpandedRequest({
         <TabsContent value="pricing" className="mt-3 space-y-3 outline-none">
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             <div className="space-y-1 sm:col-span-2">
-              <span className="text-xs text-muted-foreground">Vendor</span>
-              <Select value={allocVendorId} onValueChange={setAllocVendorId}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Allocate vendor" /></SelectTrigger>
-                <SelectContent>
+              <span className="text-xs text-muted-foreground">
+                Vendor{vendorCountryLabel ? ` · ${vendorCountryLabel}` : ''}
+              </span>
+              <Select value={allocVendorId || undefined} onValueChange={setAllocVendorId}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder={vendorCountryLabel ? `Vendors in ${vendorCountryLabel}` : 'Select vendor'} />
+                </SelectTrigger>
+                <SelectContent className="max-h-[min(320px,50vh)]">
                   {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>)}
                 </SelectContent>
               </Select>

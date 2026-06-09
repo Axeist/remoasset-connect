@@ -24,18 +24,40 @@ export async function fetchCountries() {
   return (data ?? []) as { id: string; name: string }[];
 }
 
-export async function fetchAllVendors() {
-  const { data } = await supabase.from('leads')
-    .select('id, company_name, vendor_types, country_ids, hq_country_id, warehouse_available')
-    .order('company_name');
-  return (data ?? []).map((v) => ({
+function mapVendorRow(v: {
+  id: string;
+  company_name: string;
+  vendor_types: string[] | null;
+  country_ids: string[] | null;
+  hq_country_id: string | null;
+  warehouse_available: boolean | null;
+}): VendorWithCountries {
+  return {
     id: v.id,
     company_name: v.company_name,
     vendor_types: v.vendor_types,
     country_ids: Array.isArray(v.country_ids) ? v.country_ids : [],
     hq_country_id: v.hq_country_id,
     warehouse_available: v.warehouse_available,
-  })) as VendorWithCountries[];
+  };
+}
+
+/** Paginate past the default PostgREST row cap so late-alphabet vendors are included. */
+export async function fetchAllVendors() {
+  const pageSize = 1000;
+  let from = 0;
+  const rows: VendorWithCountries[] = [];
+  for (;;) {
+    const { data, error } = await supabase.from('leads')
+      .select('id, company_name, vendor_types, country_ids, hq_country_id, warehouse_available')
+      .order('company_name')
+      .range(from, from + pageSize - 1);
+    if (error || !data?.length) break;
+    rows.push(...data.map(mapVendorRow));
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return rows;
 }
 
 export async function fetchVendorsWithCountries(): Promise<VendorWithCountries[]> {
@@ -53,6 +75,37 @@ export function vendorOperatesInCountry(vendor: VendorWithCountries, countryId: 
 export function vendorsForCountry(vendors: VendorWithCountries[], countryId: string) {
   if (!countryId) return [];
   return vendors.filter((v) => vendorOperatesInCountry(v, countryId));
+}
+
+/** Keep the assigned vendor visible even when country filter would exclude them. */
+export function ensureSelectedVendor(
+  list: VendorWithCountries[],
+  allVendors: VendorWithCountries[],
+  selectedVendorId?: string | null,
+  selectedVendorName?: string | null,
+): VendorWithCountries[] {
+  if (!selectedVendorId || list.some((v) => v.id === selectedVendorId)) {
+    return list;
+  }
+  const existing = allVendors.find((v) => v.id === selectedVendorId);
+  const pinned: VendorWithCountries = existing ?? {
+    id: selectedVendorId,
+    company_name: selectedVendorName ?? 'Selected vendor',
+    country_ids: [],
+    hq_country_id: null,
+  };
+  return [...list, pinned].sort((a, b) => a.company_name.localeCompare(b.company_name));
+}
+
+/** Vendors for a request's country, always including the current selection. */
+export function vendorsForRequestSelect(
+  allVendors: VendorWithCountries[],
+  countryId: string | null | undefined,
+  selectedVendorId?: string | null,
+  selectedVendorName?: string | null,
+) {
+  const filtered = countryId ? vendorsForCountry(allVendors, countryId) : [...allVendors];
+  return ensureSelectedVendor(filtered, allVendors, selectedVendorId, selectedVendorName);
 }
 
 /** All in-country vendors; warehouse-capable partners sorted to the top. */
