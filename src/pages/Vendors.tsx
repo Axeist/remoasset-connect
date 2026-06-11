@@ -2,24 +2,29 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { Globe2, Laptop, Warehouse } from 'lucide-react';
 import { VendorDirectory } from '@/components/vendors/VendorDirectory';
 import { DevicePricingTab } from '@/components/vendors/DevicePricingTab';
-import { WarehousePricingTab } from '@/components/vendors/WarehousePricingTab';
+import { WarehouseTab } from '@/components/vendors/WarehouseTab';
 
 const TABS = [
   { id: 'directory', label: 'Vendor Directory', icon: Globe2 },
   { id: 'device-pricing', label: 'Device Pricing', icon: Laptop },
-  { id: 'warehouse-pricing', label: 'Warehouse Pricing', icon: Warehouse },
+  { id: 'warehouse', label: 'Warehouse', icon: Warehouse },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
 
+const LEGACY_TAB_ALIASES: Record<string, TabId> = {
+  'warehouse-pricing': 'warehouse',
+};
+
 export default function Vendors() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = (searchParams.get('tab') as TabId) || 'directory';
-  const [activeTab, setActiveTab] = useState<string>(TABS.some(t => t.id === initialTab) ? initialTab : 'directory');
+  const rawTab = searchParams.get('tab') ?? 'directory';
+  const resolvedTab = (LEGACY_TAB_ALIASES[rawTab] ?? rawTab) as TabId;
+  const initialTab = TABS.some((t) => t.id === resolvedTab) ? resolvedTab : 'directory';
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -63,8 +68,8 @@ export default function Vendors() {
             <DevicePricingTab />
           </TabsContent>
 
-          <TabsContent value="warehouse-pricing" className="mt-6">
-            <WarehousePricingTab />
+          <TabsContent value="warehouse" className="mt-6">
+            <WarehouseTab />
           </TabsContent>
         </Tabs>
       </div>
