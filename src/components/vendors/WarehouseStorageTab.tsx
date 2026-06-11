@@ -1,7 +1,6 @@
 import { Fragment, useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,14 +21,7 @@ import type { Client, ClientRequest } from '@/types/procurement';
 import {
   Search, X, Package, Building2, Globe2, Truck, ChevronDown, ChevronRight, ExternalLink, Boxes,
 } from 'lucide-react';
-import { getClientRequestTypeMeta } from '@/constants/client-request-types';
-import { CLIENT_REQUEST_STATUSES } from '@/constants/device-options';
-
-const STATE_BADGE: Record<string, { label: string; className: string }> = {
-  stored: { label: 'In storage', className: 'bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30' },
-  incoming: { label: 'Incoming', className: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30' },
-  outbound: { label: 'Outbound', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30' },
-};
+import { WarehouseStorageEntryCard } from '@/components/vendors/WarehouseStorageEntryCard';
 
 export function WarehouseStorageTab() {
   const navigate = useNavigate();
@@ -162,13 +154,13 @@ export function WarehouseStorageTab() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="hover:bg-transparent">
                     <TableHead className="w-8" />
-                    <TableHead>Client</TableHead>
-                    <TableHead>Country</TableHead>
-                    <TableHead className="text-right">Stored</TableHead>
-                    <TableHead className="text-right">Incoming</TableHead>
-                    <TableHead className="text-right">Requests</TableHead>
+                    <TableHead className="text-sm">Client</TableHead>
+                    <TableHead className="text-sm">Country</TableHead>
+                    <TableHead className="text-sm text-right">Stored</TableHead>
+                    <TableHead className="text-sm text-right">Incoming</TableHead>
+                    <TableHead className="text-sm text-right">Requests</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
@@ -181,11 +173,11 @@ export function WarehouseStorageTab() {
                           <TableCell className="py-3">
                             {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                           </TableCell>
-                          <TableCell className="font-medium py-3">{row.clientName}</TableCell>
-                          <TableCell className="py-3">{row.clientCountry ?? '—'}</TableCell>
-                          <TableCell className="text-right font-semibold tabular-nums py-3">{row.storedDevices}</TableCell>
-                          <TableCell className="text-right tabular-nums text-blue-600 dark:text-blue-400 py-3">{row.incomingDevices || '—'}</TableCell>
-                          <TableCell className="text-right tabular-nums py-3">{row.entries.length}</TableCell>
+                          <TableCell className="font-semibold text-sm py-3.5">{row.clientName}</TableCell>
+                          <TableCell className="text-sm py-3.5">{row.clientCountry ?? '—'}</TableCell>
+                          <TableCell className="text-right text-base font-bold tabular-nums py-3.5">{row.storedDevices}</TableCell>
+                          <TableCell className="text-right text-base tabular-nums text-blue-600 dark:text-blue-400 py-3.5">{row.incomingDevices || '—'}</TableCell>
+                          <TableCell className="text-right text-sm tabular-nums py-3.5">{row.entries.length}</TableCell>
                           <TableCell className="py-3">
                             <Button
                               variant="ghost"
@@ -197,42 +189,21 @@ export function WarehouseStorageTab() {
                             </Button>
                           </TableCell>
                         </TableRow>
-                        {expanded && row.entries.map((entry) => {
-                          const typeMeta = getClientRequestTypeMeta(entry.requestType);
-                          const statusInfo = CLIENT_REQUEST_STATUSES.find((s) => s.value === entry.status);
-                          const stateBadge = STATE_BADGE[entry.storageState];
-                          return (
-                            <TableRow key={`${entry.requestId}-${entry.direction}`} className="bg-muted/20">
-                              <TableCell />
-                              <TableCell colSpan={6} className="py-2.5">
-                                <div className="flex flex-col gap-1.5 pl-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-                                  <div className="flex flex-wrap items-center gap-2 min-w-0">
-                                    <Badge variant="outline" className="text-xs shrink-0" style={{ backgroundColor: `${typeMeta.color}15`, color: typeMeta.color, borderColor: `${typeMeta.color}40` }}>
-                                      {typeMeta.label}
-                                    </Badge>
-                                    <span className="text-sm font-medium">{entry.title}</span>
-                                    <span className="text-xs text-muted-foreground">{entry.deviceSummary}</span>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                                    <span className="tabular-nums font-medium">{entry.deviceCount} device{entry.deviceCount === 1 ? '' : 's'}</span>
-                                    <Badge variant="outline" className={`text-xs ${stateBadge.className}`}>{stateBadge.label}</Badge>
-                                    {statusInfo && (
-                                      <Badge variant="outline" className="text-xs" style={{ color: statusInfo.color, borderColor: `${statusInfo.color}50` }}>
-                                        {statusInfo.label}
-                                      </Badge>
-                                    )}
-                                    {entry.warehouseLocation && (
-                                      <span className="text-muted-foreground truncate max-w-[240px]">{entry.warehouseLocation}</span>
-                                    )}
-                                    {entry.vendorName && (
-                                      <span className="text-muted-foreground">via {entry.vendorName}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
+                        {expanded && (
+                          <TableRow className="bg-muted/10 hover:bg-muted/10">
+                            <TableCell colSpan={7} className="p-3 sm:p-4">
+                              <div className="space-y-3">
+                                {row.entries.map((entry) => (
+                                  <WarehouseStorageEntryCard
+                                    key={`${entry.requestId}-${entry.direction}`}
+                                    entry={entry}
+                                    onOpenClient={() => navigate(`/clients/${row.clientId}`)}
+                                  />
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
                       </Fragment>
                     );
                   })}

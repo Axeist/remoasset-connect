@@ -1,8 +1,20 @@
-import { clientRequestTitle } from '@/lib/client-request-display';
-import { parseRequestDevices } from '@/lib/device-spec-utils';
-import type { Client, ClientRequest, ClientRequestStatus } from '@/types/procurement';
+import { clientRequestSubtitle, clientRequestTitle } from '@/lib/client-request-display';
+import { categoryLabel, parseRequestDevices } from '@/lib/device-spec-utils';
+import { DEVICE_FIELD_LABELS, type DeviceSpecFieldKey } from '@/constants/device-categories';
+import type { Client, ClientRequest, ClientRequestStatus, DeviceSpecValues } from '@/types/procurement';
 
 export type WarehouseStorageState = 'stored' | 'incoming' | 'outbound';
+
+export interface WarehouseDeviceDetail {
+  category: string;
+  brand: string;
+  model: string;
+  quantity: number;
+  serialNumber: string | null;
+  specs: { label: string; value: string }[];
+  addons: string[];
+  notes: string | null;
+}
 
 export interface WarehouseStorageEntry {
   requestId: string;
@@ -11,14 +23,29 @@ export interface WarehouseStorageEntry {
   clientCountry: string | null;
   requestType: string;
   title: string;
+  subtitle: string | null;
   deviceCount: number;
   deviceSummary: string;
+  devices: WarehouseDeviceDetail[];
   warehouseLocation: string | null;
   vendorName: string | null;
+  vendorCountry: string | null;
+  requestCountry: string | null;
+  routeLabel: string | null;
+  fromAddress: string | null;
+  toAddress: string | null;
+  originContact: string | null;
+  destinationContact: string | null;
+  services: string[];
   direction: 'inbound' | 'outbound';
   storageState: WarehouseStorageState;
   status: ClientRequestStatus;
   warehouseDeliveryDate: string | null;
+  expectedDeliveryDate: string | null;
+  pickupDate: string | null;
+  shippingDate: string | null;
+  deliveryDate: string | null;
+  notes: string | null;
   createdAt: string;
 }
 
@@ -55,17 +82,86 @@ export function requestDeviceCount(req: ClientRequest): number {
   return Math.max(1, req.quantity ?? 1);
 }
 
+const SPEC_FIELD_KEYS: DeviceSpecFieldKey[] = [
+  'processor', 'display_size', 'ram', 'storage', 'gpu', 'os',
+  'color', 'connectivity', 'size_dimensions', 'material', 'spec_description',
+];
+
+function buildDeviceDetails(req: ClientRequest): WarehouseDeviceDetail[] {
+  const lines = parseRequestDevices(req);
+  if (lines.length === 0 && req.device_summary?.trim()) {
+    return [{
+      category: 'Other',
+      brand: req.brand?.trim() || '—',
+      model: req.device_model?.trim() || req.device_summary.trim(),
+      quantity: Math.max(1, req.quantity ?? 1),
+      serialNumber: req.serial_number?.trim() || null,
+      specs: [],
+      addons: (req.addons ?? []).map((a) => `${a.type}: ${a.model} ×${a.qty}`),
+      notes: req.notes?.trim() || null,
+    }];
+  }
+
+  return lines.map((line) => deviceLineToDetail(line));
+}
+
+function deviceLineToDetail(line: DeviceSpecValues): WarehouseDeviceDetail {
+  const specs: { label: string; value: string }[] = [];
+  for (const key of SPEC_FIELD_KEYS) {
+    const val = line[key];
+    if (typeof val === 'string' && val.trim()) {
+      specs.push({ label: DEVICE_FIELD_LABELS[key].label, value: val.trim() });
+    }
+  }
+  line.custom_fields
+    .filter((f) => f.label.trim() && f.value.trim())
+    .forEach((f) => specs.push({ label: f.label.trim(), value: f.value.trim() }));
+
+  return {
+    category: categoryLabel(line.category),
+    brand: line.brand.trim() || '—',
+    model: line.device_model.trim() || '—',
+    quantity: Math.max(1, line.quantity || 1),
+    serialNumber: line.serial_number.trim() || null,
+    specs,
+    addons: (line.addons ?? []).map((a) => `${a.type}: ${a.model} ×${a.qty}`),
+    notes: line.notes?.trim() || null,
+  };
+}
+
 function deviceSummaryText(req: ClientRequest): string {
-  const devices = parseRequestDevices(req);
+  const devices = buildDeviceDetails(req);
   if (devices.length === 0) {
     return req.device_summary?.trim() || '—';
   }
   if (devices.length === 1) {
     const d = devices[0];
-    const label = `${d.brand} ${d.device_model}`.trim();
+    const label = `${d.brand} ${d.model}`.trim();
     return label || req.device_summary?.trim() || '—';
   }
   return `${devices.length} device lines`;
+}
+
+function routeLabel(req: ClientRequest): string | null {
+  if (req.request_type !== 'retrieval_redeployment') return null;
+  const fromKind = req.retrieval_from_type === 'inventory' ? 'Inventory' : (req.origin_poc_name?.trim() || 'Employee');
+  const toKind = req.retrieval_to_type === 'inventory' ? 'Inventory' : (req.destination_poc_name?.trim() || 'Employee');
+  return `${fromKind} → ${toKind}`;
+}
+
+function warehouseServices(req: ClientRequest): string[] {
+  const services: string[] = [];
+  if (req.qc_required) services.push('Quality check');
+  if (req.data_wipe_required) services.push('Data wipe');
+  if (req.itad_services?.trim()) services.push('ITAD');
+  return services;
+}
+
+function formatContact(name?: string | null, phone?: string | null): string | null {
+  const n = name?.trim();
+  const p = phone?.trim();
+  if (n && p) return `${n} · ${p}`;
+  return n || p || null;
 }
 
 function warehouseLocation(req: ClientRequest, direction: 'inbound' | 'outbound'): string | null {
@@ -103,6 +199,7 @@ export function buildWarehouseStorageEntries(
     const clientName = client?.name ?? 'Unknown client';
     const clientCountry = client?.country?.name ?? null;
     const count = requestDeviceCount(req);
+    const devices = buildDeviceDetails(req);
     const base = {
       requestId: req.id,
       clientId: req.client_id,
@@ -110,11 +207,26 @@ export function buildWarehouseStorageEntries(
       clientCountry,
       requestType: req.request_type ?? 'fulfillment',
       title: clientRequestTitle(req),
+      subtitle: clientRequestSubtitle(req),
       deviceCount: count,
       deviceSummary: deviceSummaryText(req),
+      devices,
       vendorName: req.vendor?.company_name ?? null,
+      vendorCountry: req.country?.name ?? null,
+      requestCountry: req.country?.name ?? req.origin_country?.name ?? null,
+      routeLabel: routeLabel(req),
+      fromAddress: req.from_address?.trim() || null,
+      toAddress: req.to_address?.trim() || null,
+      originContact: formatContact(req.origin_poc_name, req.origin_poc_phone),
+      destinationContact: formatContact(req.destination_poc_name, req.destination_poc_phone),
+      services: warehouseServices(req),
       status: req.status,
-      warehouseDeliveryDate: req.warehouse_delivery_date ?? req.delivery_date ?? null,
+      warehouseDeliveryDate: req.warehouse_delivery_date ?? null,
+      expectedDeliveryDate: req.expected_delivery_date ?? null,
+      pickupDate: req.pickup_date ?? null,
+      shippingDate: req.shipping_date ?? null,
+      deliveryDate: req.delivery_date ?? null,
+      notes: req.notes?.trim() || req.device_summary?.trim() || null,
       createdAt: req.created_at,
     };
 
