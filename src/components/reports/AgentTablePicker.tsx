@@ -16,9 +16,10 @@ interface AgentTablePickerProps {
   selectedIds: string[] | null;
   onChange: (ids: string[] | null) => void;
   disabled?: boolean;
+  className?: string;
 }
 
-export function AgentTablePicker({ agents, selectedIds, onChange, disabled }: AgentTablePickerProps) {
+export function AgentTablePicker({ agents, selectedIds, onChange, disabled, className }: AgentTablePickerProps) {
   const label = useMemo(() => {
     if (!selectedIds) return 'All agents';
     if (selectedIds.length === 0) return 'No agents selected';
@@ -55,7 +56,7 @@ export function AgentTablePicker({ agents, selectedIds, onChange, disabled }: Ag
           variant="outline"
           size="sm"
           disabled={disabled || agents.length === 0}
-          className="h-9 text-sm gap-2 font-normal justify-start min-w-[160px]"
+          className={cn('h-9 w-full text-sm gap-2 font-normal justify-start', className)}
         >
           <Users className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="truncate">{label}</span>

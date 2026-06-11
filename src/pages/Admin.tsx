@@ -376,11 +376,26 @@ export default function Admin() {
     if (!slackWebhookUrl.trim()) return;
     setSlackDigestTesting(true);
     try {
-      const { error } = await supabase.functions.invoke('slack-digest', { body: { force: true } });
+      const { data, error } = await supabase.functions.invoke('slack-digest', { body: { force: true } });
       if (error) throw error;
-      toast({ title: 'Lead report sent to Slack', description: 'The MTD report was posted to your channel.' });
-    } catch {
-      toast({ variant: 'destructive', title: 'Lead report test failed', description: 'Make sure the slack-digest function is deployed.' });
+      if (data && typeof data === 'object' && 'ok' in data && !data.ok) {
+        const reason = (data as { reason?: string }).reason ?? 'Report was not sent';
+        throw new Error(reason);
+      }
+      if (data && typeof data === 'object' && 'error' in data) {
+        throw new Error(String((data as { error?: string }).error));
+      }
+      const leads = (data as { leads?: number })?.leads;
+      toast({
+        title: 'Lead report sent to Slack',
+        description: leads != null ? `MTD report posted (${leads} leads).` : 'The MTD report was posted to your channel.',
+      });
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Lead report failed',
+        description: (e as Error)?.message ?? 'Deploy slack-digest and check Slack settings.',
+      });
     } finally {
       setSlackDigestTesting(false);
     }
@@ -1956,7 +1971,7 @@ curl -X POST ${baseUrl}/notifications \\
                 { id: 'invite-user', label: 'invite-user', desc: 'User invitations' },
                 { id: 'manage-user', label: 'manage-user', desc: 'User management' },
                 { id: 'slack-notify', label: 'slack-notify', desc: 'Slack notifications' },
-                { id: 'slack-digest', label: 'slack-digest', desc: 'Slack digest' },
+                { id: 'slack-digest', label: 'slack-digest', desc: 'Morning MTD lead report to Slack' },
                 { id: 'slack-reminders', label: 'slack-reminders', desc: 'Slack reminders' },
                 { id: 'google-calendar', label: 'google-calendar', desc: 'Calendar integration' },
               ];

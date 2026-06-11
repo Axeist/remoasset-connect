@@ -184,15 +184,24 @@ function KpiCard({
   iconBg?: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border/80 bg-card/80 backdrop-blur-sm px-4 py-4 min-h-[88px] transition-all hover:shadow-sm hover:border-border">
-      <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-lg', iconBg ?? 'bg-primary/10')}>
-        <Icon className={cn('h-5 w-5', accent ?? 'text-primary')} />
+    <div className="flex h-full min-h-[104px] flex-col justify-between rounded-xl border border-border/80 bg-card px-4 py-3.5 transition-all hover:border-border hover:shadow-sm">
+      <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', iconBg ?? 'bg-primary/10')}>
+        <Icon className={cn('h-4 w-4', accent ?? 'text-primary')} />
       </div>
-      <div className="min-w-0">
-        <p className={cn('text-2xl font-bold leading-tight tracking-tight', accent ?? 'text-foreground')}>{value}</p>
-        <p className="text-sm text-muted-foreground leading-tight mt-0.5">{label}</p>
-        {subLabel && <p className="text-xs text-muted-foreground/80 mt-0.5 truncate">{subLabel}</p>}
+      <div className="mt-3 min-w-0">
+        <p className={cn('text-2xl font-bold leading-none tracking-tight', accent ?? 'text-foreground')}>{value}</p>
+        <p className="text-xs font-medium text-muted-foreground leading-tight mt-1.5">{label}</p>
+        {subLabel && <p className="text-[11px] text-muted-foreground/70 mt-0.5 line-clamp-1">{subLabel}</p>}
       </div>
+    </div>
+  );
+}
+
+function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <Label className="text-xs font-medium text-muted-foreground leading-none">{label}</Label>
+      <div className="w-full [&_button]:w-full [&_[role=combobox]]:w-full">{children}</div>
     </div>
   );
 }
@@ -591,9 +600,9 @@ export function LeadProductivityReport() {
 
       {loading ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
             {Array.from({ length: 7 }).map((_, i) => (
-              <Skeleton key={i} className="h-24 rounded-xl" />
+              <Skeleton key={i} className="h-[104px] rounded-xl" />
             ))}
           </div>
           <Skeleton className="h-64 rounded-xl" />
@@ -613,11 +622,11 @@ export function LeadProductivityReport() {
         </Card>
       ) : (
         <>
-          {/* KPI cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* KPI cards — single symmetrical grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
             <KpiCard label="Total leads" value={kpis.total} subLabel={rangeSubtitle || undefined} icon={Users} iconBg="bg-primary/10" />
             <KpiCard
-              label="Proposal / NDA sent"
+              label="Proposal / NDA"
               value={kpis.proposal}
               subLabel={kpis.total ? `${((kpis.proposal / kpis.total) * 100).toFixed(1)}% of total` : undefined}
               icon={Target}
@@ -633,15 +642,13 @@ export function LeadProductivityReport() {
               iconBg="bg-emerald-500/10"
             />
             <KpiCard
-              label="Countries covered"
+              label="Countries"
               value={kpis.countryCount}
               subLabel={`${kpis.regionCount} region${kpis.regionCount !== 1 ? 's' : ''}`}
               icon={Globe}
               iconBg="bg-violet-500/10"
               accent="text-violet-500"
             />
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <KpiCard
               label="Lost"
               value={kpis.lost}
@@ -651,9 +658,9 @@ export function LeadProductivityReport() {
               iconBg="bg-rose-500/10"
             />
             <KpiCard
-              label="Leads per day"
+              label="Leads / day"
               value={kpis.leadsPerDay.toFixed(1)}
-              subLabel="Average in selected period"
+              subLabel="Avg in period"
               icon={TrendingUp}
               iconBg="bg-amber-500/10"
               accent="text-amber-600"
@@ -661,7 +668,7 @@ export function LeadProductivityReport() {
             <KpiCard
               label="Period change"
               value={kpis.periodDelta != null ? `${kpis.periodDelta > 0 ? '+' : ''}${kpis.periodDelta}%` : '—'}
-              subLabel="vs previous period"
+              subLabel="vs prev. period"
               icon={kpis.periodDelta != null && kpis.periodDelta >= 0 ? TrendingUp : TrendingDown}
               accent={kpis.periodDelta != null && kpis.periodDelta >= 0 ? 'text-emerald-500' : 'text-rose-500'}
               iconBg={kpis.periodDelta != null && kpis.periodDelta >= 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10'}
@@ -671,19 +678,8 @@ export function LeadProductivityReport() {
           {/* Agent performance table */}
           <Card className="card-shadow rounded-xl border-border/80 overflow-hidden">
             <CardHeader className="pb-3 border-b bg-muted/20">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
-                  <CardTitle className="text-lg font-semibold">Agent performance</CardTitle>
-                  <CardDescription className="text-sm">Lead status breakdown by owner</CardDescription>
-                </div>
-                {isAdmin && agentRows.length > 0 && (
-                  <AgentTablePicker
-                    agents={agentRows.map((r) => ({ userId: r.userId, name: r.name, leadCount: r.total }))}
-                    selectedIds={tableAgentIds}
-                    onChange={setTableAgentIds}
-                  />
-                )}
-              </div>
+              <CardTitle className="text-lg font-semibold">Agent performance</CardTitle>
+              <CardDescription className="text-sm">Lead status breakdown by owner</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -958,27 +954,33 @@ function ReportFiltersBar({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <SlidersHorizontal className="h-4 w-4" />
-          <span className="font-medium">Filters</span>
+        <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+            Filters
+          </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground font-medium">Count leads by</Label>
-            <div className="flex items-center rounded-lg border bg-muted/40 p-0.5">
+        <div
+          className={cn(
+            'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3',
+            isAdmin && agentOptions.length > 0 ? 'xl:grid-cols-6' : 'xl:grid-cols-5',
+          )}
+        >
+          <FilterField label="Count leads by">
+            <div className="flex h-9 items-center rounded-md border border-input bg-background p-0.5">
               {([
-                { value: 'created' as const, label: 'Created date' },
-                { value: 'activity' as const, label: 'Activity date' },
+                { value: 'created' as const, label: 'Created' },
+                { value: 'activity' as const, label: 'Activity' },
               ]).map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => onDateBasisChange(opt.value)}
                   className={cn(
-                    'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-all',
+                    'flex h-full flex-1 items-center justify-center rounded-[5px] px-2 text-sm font-medium transition-all',
                     dateBasis === opt.value
-                      ? 'bg-background text-foreground shadow-sm'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
@@ -986,14 +988,15 @@ function ReportFiltersBar({
                 </button>
               ))}
             </div>
-          </div>
+          </FilterField>
 
-          <ReportDateFilter value={dateFilter} onChange={onDateChange} compact />
+          <FilterField label="Date range">
+            <ReportDateFilter value={dateFilter} onChange={onDateChange} compact className="space-y-0" />
+          </FilterField>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground font-medium">Region</Label>
+          <FilterField label="Region">
             <Select value={regionFilter} onValueChange={onRegionChange}>
-              <SelectTrigger className="h-9 text-sm">
+              <SelectTrigger className="h-9 w-full text-sm">
                 <SelectValue placeholder="All regions" />
               </SelectTrigger>
               <SelectContent>
@@ -1003,12 +1006,11 @@ function ReportFiltersBar({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </FilterField>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground font-medium">Country</Label>
+          <FilterField label="Country">
             <Select value={countryFilter} onValueChange={onCountryChange}>
-              <SelectTrigger className="h-9 text-sm">
+              <SelectTrigger className="h-9 w-full text-sm">
                 <SelectValue placeholder="All countries" />
               </SelectTrigger>
               <SelectContent>
@@ -1018,12 +1020,11 @@ function ReportFiltersBar({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </FilterField>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground font-medium">Status</Label>
+          <FilterField label="Status">
             <Select value={statusFilter} onValueChange={onStatusChange}>
-              <SelectTrigger className="h-9 text-sm">
+              <SelectTrigger className="h-9 w-full text-sm">
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
@@ -1038,17 +1039,17 @@ function ReportFiltersBar({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </FilterField>
 
           {isAdmin && agentOptions.length > 0 && (
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground font-medium">Agents in table</Label>
+            <FilterField label="Agents in table">
               <AgentTablePicker
                 agents={agentOptions}
                 selectedIds={tableAgentIds}
                 onChange={onTableAgentIdsChange}
+                className="w-full"
               />
-            </div>
+            </FilterField>
           )}
         </div>
       </CardContent>

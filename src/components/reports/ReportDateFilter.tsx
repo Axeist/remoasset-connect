@@ -81,7 +81,7 @@ export function ReportDateFilter({
         </SelectContent>
       </Select>
 
-      {value.preset === 'custom' && (
+      {value.preset === 'custom' && !compact && (
         <div className="flex items-center gap-2">
           <DatePickerButton
             value={customFrom}
@@ -97,12 +97,27 @@ export function ReportDateFilter({
         </div>
       )}
 
-      {rangeLabel && (
+      {rangeLabel && !compact && (
         <p className="text-xs text-muted-foreground">
           {value.preset === 'custom' && (!value.from || !value.to)
             ? 'Select both dates'
             : rangeLabel}
         </p>
+      )}
+      {compact && value.preset === 'custom' && (
+        <div className="flex items-center gap-2 mt-1.5">
+          <DatePickerButton
+            value={customFrom}
+            onChange={(d) => onChange({ ...value, from: d ? startOfDay(d).toISOString() : null })}
+            placeholder="From"
+          />
+          <span className="text-sm text-muted-foreground shrink-0">–</span>
+          <DatePickerButton
+            value={customTo}
+            onChange={(d) => onChange({ ...value, to: d ? endOfDay(d).toISOString() : null })}
+            placeholder="To"
+          />
+        </div>
       )}
     </div>
   );

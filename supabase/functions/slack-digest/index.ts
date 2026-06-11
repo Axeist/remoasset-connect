@@ -84,6 +84,20 @@ type LeadRow = {
   lead_statuses: { name: string; color: string } | { name: string; color: string }[] | null
 }
 
+function todayIstDate(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+function truncateMrkdwn(text: string, max = 2800): string {
+  if (text.length <= max) return text
+  return `${text.slice(0, max - 1)}…`
+}
+
 function statusName(lead: LeadRow): string {
   const s = lead.lead_statuses
   if (!s) return 'Unassigned'
@@ -105,7 +119,7 @@ Deno.serve(async (req) => {
 
     const { data: settings, error: settingsErr } = await supabaseAdmin
       .from('app_settings')
-      .select('slack_enabled, slack_webhook_url, slack_notify_daily_digest, slack_digest_hour')
+      .select('id, slack_enabled, slack_webhook_url, slack_notify_daily_digest, slack_digest_hour, slack_digest_last_sent_ist')
       .limit(1)
       .single()
 
@@ -135,6 +149,14 @@ Deno.serve(async (req) => {
     if (!force && currentHour !== targetUtcHour) {
       return new Response(
         JSON.stringify({ ok: false, reason: `Not report hour (UTC ${currentHour}, target UTC ${targetUtcHour} = ${digestHour}:00 IST)` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      )
+    }
+
+    const todayIst = todayIstDate()
+    if (!force && settings.slack_digest_last_sent_ist === todayIst) {
+      return new Response(
+        JSON.stringify({ ok: false, reason: 'Morning lead report already sent today (IST)' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
       )
     }
@@ -264,23 +286,22 @@ Deno.serve(async (req) => {
           .map(([name, count]) => `${name} ${count}`)
           .join(', ')
         const regionStr = [...row.regions].join(' · ')
-        return `*${row.name}*${regionStr ? ` _(${regionStr})_` : ''}\n${topCountries || '_No countries_'}"
+        return `*${row.name}*${regionStr ? ` _(${regionStr})_` : ''}\n${topCountries || '_No countries_'}`
       }).join('\n\n')
 
       blocks.push({
         type: 'section',
-        text: { type: 'mrkdwn', text: `*Country coverage*\n${coverageLines}` },
+        text: { type: 'mrkdwn', text: truncateMrkdwn(`*Country coverage*\n${coverageLines}`) },
       })
       blocks.push({ type: 'divider' })
     }
 
     blocks.push({
-      type: 'actions',
-      elements: [{
-        type: 'button',
-        text: { type: 'plain_text', text: 'Open Lead Report', emoji: true },
-        url: `${APP_URL}/reports`,
-      }],
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `<${APP_URL}/reports|Open Lead Report in RemoAsset →>`,
+      },
     })
 
     blocks.push({
@@ -291,10 +312,12 @@ Deno.serve(async (req) => {
       }],
     })
 
+    const fallbackText = `${label} · ${total} leads · ${won} won · ${agentRows.length} agents`
+
     const slackRes = await fetch(settings.slack_webhook_url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ blocks }),
+      body: JSON.stringify({ text: fallbackText, blocks }),
     })
 
     if (!slackRes.ok) {
@@ -305,8 +328,15 @@ Deno.serve(async (req) => {
       )
     }
 
+    if (settings.id) {
+      await supabaseAdmin
+        .from('app_settings')
+        .update({ slack_digest_last_sent_ist: todayIst })
+        .eq('id', settings.id)
+    }
+
     return new Response(
-      JSON.stringify({ ok: true, leads: total, agents: agentRows.length }),
+      JSON.stringify({ ok: true, leads: total, agents: agentRows.length, report: 'morning_lead' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
     )
   } catch (err) {
