@@ -52,14 +52,38 @@ interface CountryInfo {
   region: string | null;
 }
 
+interface ReportActivity {
+  user_id: string;
+  activity_type: string;
+  lead_id: string;
+}
+
+interface TableColumn {
+  id: string;
+  name: string;
+  color: string;
+}
+
 interface AgentRow {
   userId: string;
   name: string;
   regions: string[];
   total: number;
   byStatus: Record<string, number>;
+  byActivity: Record<string, number>;
   countries: { name: string; count: number }[];
 }
+
+const ACTIVITY_TABLE_COLUMNS: TableColumn[] = [
+  { id: 'call', name: 'Calls', color: '#EA6E35' },
+  { id: 'email', name: 'Emails', color: '#F09A72' },
+  { id: 'meeting', name: 'Meetings', color: '#3B9B6D' },
+  { id: 'whatsapp', name: 'WhatsApp', color: '#25d366' },
+  { id: 'linkedin', name: 'LinkedIn', color: '#0ea5e9' },
+  { id: 'nda', name: 'NDA', color: '#30282B' },
+  { id: 'quotation', name: 'Quotation', color: '#d97706' },
+  { id: 'note', name: 'Notes', color: '#6E7180' },
+];
 
 const TOOLTIP_STYLE = {
   backgroundColor: 'hsl(var(--popover))',
@@ -173,6 +197,55 @@ async function fetchLeadsByActivityDate(
   return allLeads;
 }
 
+async function fetchActivitiesInRange(
+  from: string | null,
+  to: string | null,
+  ownerId?: string,
+): Promise<ReportActivity[]> {
+  return fetchAllPaginated((pageFrom, pageTo) => {
+    let q = supabase
+      .from('lead_activities')
+      .select('user_id, activity_type, lead_id')
+      .range(pageFrom, pageTo);
+    if (from) q = q.gte('created_at', from);
+    if (to) q = q.lte('created_at', to);
+    if (ownerId) q = q.eq('user_id', ownerId);
+    return q;
+  });
+}
+
+function buildAgentCountries(
+  leads: ReportLead[],
+  countryMap: Record<string, CountryInfo>,
+): Map<string, { regions: string[]; countries: { name: string; count: number }[] }> {
+  const map = new Map<string, { regions: string[]; countries: { name: string; count: number }[] }>();
+
+  leads.forEach((lead) => {
+    const uid = lead.owner_id ?? '__unassigned__';
+    if (!map.has(uid)) {
+      map.set(uid, { regions: [], countries: [] });
+    }
+    const entry = map.get(uid)!;
+    const regionSet = new Set(entry.regions);
+    const countryCounts: Record<string, number> = {};
+    entry.countries.forEach((c) => { countryCounts[c.name] = c.count; });
+
+    (lead.country_ids ?? []).forEach((cid) => {
+      const c = countryMap[cid];
+      if (!c) return;
+      if (c.region) regionSet.add(c.region);
+      countryCounts[c.name] = (countryCounts[c.name] ?? 0) + 1;
+    });
+
+    entry.regions = [...regionSet].sort();
+    entry.countries = Object.entries(countryCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  });
+
+  return map;
+}
+
 function KpiCard({
   label, value, subLabel, icon: Icon, accent, iconBg,
 }: {
@@ -238,6 +311,7 @@ export function LeadProductivityReport() {
 
   const [loading, setLoading] = useState(true);
   const [leads, setLeads] = useState<ReportLead[]>([]);
+  const [activities, setActivities] = useState<ReportActivity[]>([]);
   const [prevPeriodTotal, setPrevPeriodTotal] = useState<number | null>(null);
   const [statuses, setStatuses] = useState<{ id: string; name: string; color: string; sort_order: number }[]>([]);
   const [countries, setCountries] = useState<CountryInfo[]>([]);
@@ -285,6 +359,15 @@ export function LeadProductivityReport() {
 
       setLeads(fetched);
 
+      const activityFrom = dateFilter.preset === 'all_time' ? null : dateFilter.from;
+      const activityTo = dateFilter.preset === 'all_time' ? null : dateFilter.to;
+      if (dateFilter.preset !== 'custom' || (activityFrom && activityTo)) {
+        const activityData = await fetchActivitiesInRange(activityFrom, activityTo, ownerScope);
+        setActivities(activityData);
+      } else {
+        setActivities([]);
+      }
+
       if (dateFilter.from && dateFilter.to && dateFilter.preset !== 'all_time') {
         const prev = getPreviousPeriodRange(dateFilter.from, dateFilter.to);
         let prevLeads: ReportLead[];
@@ -300,6 +383,7 @@ export function LeadProductivityReport() {
     } catch (err) {
       console.error('Lead report fetch failed:', err);
       setLeads([]);
+      setActivities([]);
       setPrevPeriodTotal(null);
     } finally {
       setLoading(false);
@@ -372,44 +456,87 @@ export function LeadProductivityReport() {
     return { total, proposal, won, lost, countryCount: countryIds.size, regionCount: regions.size, leadsPerDay, periodDelta };
   }, [filteredLeads, countryMap, dateFilter, prevPeriodTotal]);
 
-  const agentRows = useMemo((): AgentRow[] => {
+  const isActivityTable = dateBasis === 'activity';
+
+  const statusAgentRows = useMemo((): AgentRow[] => {
+    const geoByAgent = buildAgentCountries(filteredLeads, countryMap);
     const byAgent: Record<string, AgentRow> = {};
 
     filteredLeads.forEach((lead) => {
       const uid = lead.owner_id ?? '__unassigned__';
       if (!byAgent[uid]) {
+        const geo = geoByAgent.get(uid);
         byAgent[uid] = {
           userId: uid,
           name: uid === '__unassigned__' ? 'Unassigned' : (profileMap[uid] ?? uid.slice(0, 8)),
-          regions: [],
+          regions: geo?.regions ?? [],
           total: 0,
           byStatus: {},
-          countries: [],
+          byActivity: {},
+          countries: geo?.countries ?? [],
         };
       }
       const row = byAgent[uid];
       row.total++;
       const statusName = getStatusInfo(lead)?.name ?? 'Unassigned';
       row.byStatus[statusName] = (row.byStatus[statusName] ?? 0) + 1;
-
-      const regionSet = new Set(row.regions);
-      const countryCounts: Record<string, number> = {};
-      row.countries.forEach((c) => { countryCounts[c.name] = c.count; });
-
-      (lead.country_ids ?? []).forEach((cid) => {
-        const c = countryMap[cid];
-        if (!c) return;
-        if (c.region) regionSet.add(c.region);
-        countryCounts[c.name] = (countryCounts[c.name] ?? 0) + 1;
-      });
-      row.regions = [...regionSet].sort();
-      row.countries = Object.entries(countryCounts)
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count);
     });
 
     return Object.values(byAgent).sort((a, b) => b.total - a.total);
   }, [filteredLeads, profileMap, countryMap]);
+
+  const activityAgentRows = useMemo((): AgentRow[] => {
+    const filteredLeadIds = new Set(filteredLeads.map((l) => l.id));
+    const geoByAgent = buildAgentCountries(filteredLeads, countryMap);
+    const byAgent: Record<string, AgentRow> = {};
+
+    activities.forEach((act) => {
+      if (!filteredLeadIds.has(act.lead_id)) return;
+      const uid = act.user_id || '__unassigned__';
+      if (!byAgent[uid]) {
+        const geo = geoByAgent.get(uid);
+        byAgent[uid] = {
+          userId: uid,
+          name: uid === '__unassigned__' ? 'Unassigned' : (profileMap[uid] ?? uid.slice(0, 8)),
+          regions: geo?.regions ?? [],
+          total: 0,
+          byStatus: {},
+          byActivity: {},
+          countries: geo?.countries ?? [],
+        };
+      }
+      const row = byAgent[uid];
+      row.total++;
+      const type = act.activity_type || 'other';
+      row.byActivity[type] = (row.byActivity[type] ?? 0) + 1;
+    });
+
+    return Object.values(byAgent).sort((a, b) => b.total - a.total);
+  }, [activities, filteredLeads, profileMap, countryMap]);
+
+  const agentRows = isActivityTable ? activityAgentRows : statusAgentRows;
+
+  const tableColumns = useMemo((): TableColumn[] => {
+    if (!isActivityTable) return statusColumns;
+    const knownIds = new Set(ACTIVITY_TABLE_COLUMNS.map((c) => c.id));
+    const extras = new Set<string>();
+    activityAgentRows.forEach((row) => {
+      Object.keys(row.byActivity).forEach((type) => {
+        if (!knownIds.has(type)) extras.add(type);
+      });
+    });
+    const extraCols = [...extras].sort().map((type) => ({
+      id: type,
+      name: type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' '),
+      color: '#6E7180',
+    }));
+    return [...ACTIVITY_TABLE_COLUMNS, ...extraCols];
+  }, [isActivityTable, statusColumns, activityAgentRows]);
+
+  const getColumnCount = useCallback((row: AgentRow, col: TableColumn) => {
+    if (isActivityTable) return row.byActivity[col.id] ?? 0;
+    return row.byStatus[col.name] ?? 0;
+  }, [isActivityTable]);
 
   const displayAgentRows = useMemo(() => {
     if (!tableAgentIds) return agentRows;
@@ -417,17 +544,17 @@ export function LeadProductivityReport() {
   }, [agentRows, tableAgentIds]);
 
   const displayTeamTotals = useMemo(() => {
-    const byStatus: Record<string, number> = {};
-    statusColumns.forEach((s) => { byStatus[s.name] = 0; });
+    const breakdown: Record<string, number> = {};
+    tableColumns.forEach((c) => { breakdown[c.id] = 0; });
     let total = 0;
     displayAgentRows.forEach((row) => {
       total += row.total;
-      Object.entries(row.byStatus).forEach(([name, count]) => {
-        byStatus[name] = (byStatus[name] ?? 0) + count;
+      tableColumns.forEach((col) => {
+        breakdown[col.id] = (breakdown[col.id] ?? 0) + getColumnCount(row, col);
       });
     });
-    return { total, byStatus };
-  }, [displayAgentRows, statusColumns]);
+    return { total, breakdown };
+  }, [displayAgentRows, tableColumns, getColumnCount]);
 
   const teamTotals = useMemo(() => {
     const byStatus: Record<string, number> = {};
@@ -507,11 +634,11 @@ export function LeadProductivityReport() {
   }, [agentRows, isAdmin]);
 
   const exportCsv = () => {
-    const headers = ['Agent', 'Total', ...statusColumns.map((s) => s.name)];
+    const headers = ['Agent', 'Total', ...tableColumns.map((c) => c.name)];
     const rows = displayAgentRows.map((a) => [
       a.name,
       a.total,
-      ...statusColumns.map((s) => a.byStatus[s.name] ?? 0),
+      ...tableColumns.map((c) => getColumnCount(a, c)),
     ]);
     const csv = [headers, ...rows].map((r) => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -679,7 +806,11 @@ export function LeadProductivityReport() {
           <Card className="card-shadow rounded-xl border-border/80 overflow-hidden">
             <CardHeader className="pb-3 border-b bg-muted/20">
               <CardTitle className="text-lg font-semibold">Agent performance</CardTitle>
-              <CardDescription className="text-sm">Lead status breakdown by owner</CardDescription>
+              <CardDescription className="text-sm">
+                {isActivityTable
+                  ? 'Activity counts by agent in the selected period'
+                  : 'Lead status breakdown by owner'}
+              </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -687,12 +818,14 @@ export function LeadProductivityReport() {
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="w-[200px] text-sm font-semibold sticky left-0 bg-muted z-10">Agent</TableHead>
-                      <TableHead className="text-center text-sm font-semibold w-20">Total</TableHead>
-                      {statusColumns.map((s) => (
-                        <TableHead key={s.id} className="text-center text-sm font-semibold min-w-[72px]">
+                      <TableHead className="text-center text-sm font-semibold w-20">
+                        {isActivityTable ? 'Activities' : 'Total'}
+                      </TableHead>
+                      {tableColumns.map((col) => (
+                        <TableHead key={col.id} className="text-center text-sm font-semibold min-w-[72px]">
                           <div className="flex flex-col items-center gap-1 py-1">
-                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                            <span>{s.name}</span>
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: col.color }} />
+                            <span>{col.name}</span>
                           </div>
                         </TableHead>
                       ))}
@@ -701,8 +834,10 @@ export function LeadProductivityReport() {
                   <TableBody>
                     {displayAgentRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={statusColumns.length + 2} className="text-center py-10 text-muted-foreground">
-                          No agents selected. Use the agent picker above to choose who appears in the table.
+                        <TableCell colSpan={tableColumns.length + 2} className="text-center py-10 text-muted-foreground">
+                          {isActivityTable
+                            ? 'No activities found for the selected filters and period.'
+                            : 'No agents selected. Use the agent picker above to choose who appears in the table.'}
                         </TableCell>
                       </TableRow>
                     ) : displayAgentRows.map((row) => (
@@ -716,9 +851,9 @@ export function LeadProductivityReport() {
                         <TableCell className="text-center py-4">
                           <span className="text-lg font-bold text-foreground">{row.total}</span>
                         </TableCell>
-                        {statusColumns.map((s) => (
-                          <TableCell key={s.id} className="text-center py-4">
-                            <StatusCell count={row.byStatus[s.name] ?? 0} color={s.color} />
+                        {tableColumns.map((col) => (
+                          <TableCell key={col.id} className="text-center py-4">
+                            <StatusCell count={getColumnCount(row, col)} color={col.color} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -731,9 +866,9 @@ export function LeadProductivityReport() {
                         <TableCell className="text-center">
                           <span className="text-lg font-bold">{displayTeamTotals.total}</span>
                         </TableCell>
-                        {statusColumns.map((s) => (
-                          <TableCell key={s.id} className="text-center">
-                            <StatusCell count={displayTeamTotals.byStatus[s.name] ?? 0} color={s.color} />
+                        {tableColumns.map((col) => (
+                          <TableCell key={col.id} className="text-center">
+                            <StatusCell count={displayTeamTotals.breakdown[col.id] ?? 0} color={col.color} />
                           </TableCell>
                         ))}
                       </TableRow>
