@@ -107,7 +107,7 @@ const EDGE_FUNCTIONS = [
   { id: 'invite-user',   label: 'invite-user',    desc: 'User invitations' },
   { id: 'manage-user',   label: 'manage-user',    desc: 'User management' },
   { id: 'slack-notify',  label: 'slack-notify',   desc: 'Slack notifications' },
-  { id: 'slack-digest',  label: 'slack-digest',   desc: 'Slack digest' },
+  { id: 'slack-digest',  label: 'slack-digest',   desc: 'Morning MTD lead report' },
   { id: 'slack-reminders',label:'slack-reminders',desc: 'Slack reminders' },
   { id: 'google-calendar',label:'google-calendar',desc: 'Calendar integration' },
 ];
