@@ -15,7 +15,7 @@ import {
   Activity, MapPin, TrendingUp, ChevronRight, AlertTriangle, ListTodo,
   CalendarCheck, Layers, Database, RefreshCw, UserCheck, Key, Copy, Trash2,
   Loader2, Bell, FileText, UserPlus, MailCheck, Terminal, CheckCircle2, XCircle, Clock,
-  Shield, X,
+  Shield, X, Send,
 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
@@ -378,9 +378,9 @@ export default function Admin() {
     try {
       const { error } = await supabase.functions.invoke('slack-digest', { body: { force: true } });
       if (error) throw error;
-      toast({ title: 'Daily digest sent!', description: 'Check your Slack channel.' });
+      toast({ title: 'Lead report sent to Slack', description: 'The MTD report was posted to your channel.' });
     } catch {
-      toast({ variant: 'destructive', title: 'Digest test failed', description: 'Make sure the slack-digest function is deployed.' });
+      toast({ variant: 'destructive', title: 'Lead report test failed', description: 'Make sure the slack-digest function is deployed.' });
     } finally {
       setSlackDigestTesting(false);
     }
@@ -1640,40 +1640,50 @@ curl -X POST ${baseUrl}/notifications \\
                           </div>
                         </div>
 
-                        {/* Daily digest config */}
+                        {/* Morning lead report */}
                         <div className="rounded-lg border overflow-hidden">
-                          <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b">
-                            <div>
-                              <p className="text-xs font-medium flex items-center gap-1.5">📊 Daily digest</p>
-                              <p className="text-xs text-muted-foreground mt-0.5">Morning summary: new leads, tasks due today, overdue items.</p>
+                          <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b gap-3">
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium flex items-center gap-1.5">📊 Morning lead report</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">MTD pipeline summary: KPIs, agent table, and country coverage (Reports → Lead Report).</p>
                             </div>
-                            <Switch
-                              checked={slackToggles.slack_notify_daily_digest}
-                              onCheckedChange={(v) => setSlackToggles((prev) => ({ ...prev, slack_notify_daily_digest: v }))}
-                            />
-                          </div>
-                          {slackToggles.slack_notify_daily_digest && (
-                            <div className="p-3 space-y-3">
-                              <div className="flex items-center gap-3">
-                                <Label className="text-xs text-muted-foreground w-44 shrink-0">Send at (IST)</Label>
-                                <select
-                                  value={slackDigestHour}
-                                  onChange={(e) => setSlackDigestHour(Number(e.target.value))}
-                                  className="flex h-8 rounded-md border border-input bg-background px-2 py-1 text-sm w-36"
-                                >
-                                  {Array.from({ length: 24 }, (_, i) => {
-                                    const label = i === 0 ? '12:00 AM' : i < 12 ? `${i}:00 AM` : i === 12 ? '12:00 PM' : `${i - 12}:00 PM`;
-                                    return <option key={i} value={i}>{label} IST</option>;
-                                  })}
-                                </select>
-                              </div>
-                              <p className="text-xs text-muted-foreground">Cron runs hourly — digest fires at your selected IST time ±30 min.</p>
-                              <Button size="sm" variant="outline" onClick={testSlackDigest} disabled={slackDigestTesting || !slackWebhookUrl.trim()} className="gap-2 h-7 text-xs">
-                                {slackDigestTesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-                                Send test digest now
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Button
+                                size="sm"
+                                onClick={testSlackDigest}
+                                disabled={slackDigestTesting || !slackWebhookUrl.trim()}
+                                className="gap-1.5 h-8 text-xs"
+                              >
+                                {slackDigestTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                                Send now
                               </Button>
+                              <Switch
+                                checked={slackToggles.slack_notify_daily_digest}
+                                onCheckedChange={(v) => setSlackToggles((prev) => ({ ...prev, slack_notify_daily_digest: v }))}
+                              />
                             </div>
-                          )}
+                          </div>
+                          <div className="p-3 space-y-3">
+                            <div className="flex items-center gap-3">
+                              <Label className="text-xs text-muted-foreground w-44 shrink-0">Schedule at (IST)</Label>
+                              <select
+                                value={slackDigestHour}
+                                onChange={(e) => setSlackDigestHour(Number(e.target.value))}
+                                disabled={!slackToggles.slack_notify_daily_digest}
+                                className="flex h-8 rounded-md border border-input bg-background px-2 py-1 text-sm w-36 disabled:opacity-50"
+                              >
+                                {Array.from({ length: 24 }, (_, i) => {
+                                  const label = i === 0 ? '12:00 AM' : i < 12 ? `${i}:00 AM` : i === 12 ? '12:00 PM' : `${i - 12}:00 PM`;
+                                  return <option key={i} value={i}>{label} IST</option>;
+                                })}
+                              </select>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {slackToggles.slack_notify_daily_digest
+                                ? 'Scheduled report runs daily at the selected IST time. Use Send now to post immediately.'
+                                : 'Enable the toggle to schedule daily delivery. Send now works anytime.'}
+                            </p>
+                          </div>
                         </div>
 
                         <div className="flex gap-2 pt-1">

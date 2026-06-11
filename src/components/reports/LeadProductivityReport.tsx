@@ -3,16 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { AgentTablePicker } from './AgentTablePicker';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from 'recharts';
 import {
   Users, Target, Trophy, Globe, TrendingUp, TrendingDown, Download, RotateCcw,
-  FileText, XCircle, CalendarDays,
+  FileText, XCircle, CalendarDays, SlidersHorizontal,
 } from 'lucide-react';
 import {
   format, startOfDay, endOfDay, differenceInDays, eachDayOfInterval,
@@ -75,11 +76,10 @@ function getStatusInfo(lead: ReportLead): LeadStatusInfo | null {
 
 function applySecondaryFilters(
   leads: ReportLead[],
-  filters: { agent: string; region: string; country: string; status: string },
+  filters: { region: string; country: string; status: string },
   countryMap: Record<string, CountryInfo>,
 ): ReportLead[] {
   return leads.filter((lead) => {
-    if (filters.agent && filters.agent !== 'all' && lead.owner_id !== filters.agent) return false;
     if (filters.status && filters.status !== 'all' && lead.status_id !== filters.status) return false;
     if (filters.country && filters.country !== 'all') {
       if (!lead.country_ids?.includes(filters.country)) return false;
@@ -174,41 +174,42 @@ async function fetchLeadsByActivityDate(
 }
 
 function KpiCard({
-  label, value, subLabel, icon: Icon, accent,
+  label, value, subLabel, icon: Icon, accent, iconBg,
 }: {
   label: string;
   value: string | number;
   subLabel?: string;
   icon: React.ElementType;
   accent?: string;
+  iconBg?: string;
 }) {
   return (
-    <Card className="card-shadow">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground font-medium">{label}</p>
-            <p className={cn('text-2xl font-bold mt-1', accent)}>{value}</p>
-            {subLabel && <p className="text-[11px] text-muted-foreground mt-0.5">{subLabel}</p>}
-          </div>
-          <div className="h-9 w-9 rounded-lg bg-muted/50 flex items-center justify-center shrink-0">
-            <Icon className="h-4 w-4 text-muted-foreground" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex items-center gap-3 rounded-xl border border-border/80 bg-card/80 backdrop-blur-sm px-4 py-4 min-h-[88px] transition-all hover:shadow-sm hover:border-border">
+      <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-lg', iconBg ?? 'bg-primary/10')}>
+        <Icon className={cn('h-5 w-5', accent ?? 'text-primary')} />
+      </div>
+      <div className="min-w-0">
+        <p className={cn('text-2xl font-bold leading-tight tracking-tight', accent ?? 'text-foreground')}>{value}</p>
+        <p className="text-sm text-muted-foreground leading-tight mt-0.5">{label}</p>
+        {subLabel && <p className="text-xs text-muted-foreground/80 mt-0.5 truncate">{subLabel}</p>}
+      </div>
+    </div>
   );
 }
 
-function StatusBadge({ count, color }: { count: number; color: string }) {
-  if (count === 0) return <span className="text-muted-foreground/40">—</span>;
+function StatusCell({ count, color }: { count: number; color: string }) {
+  if (count === 0) {
+    return <span className="text-base text-muted-foreground/30 font-medium">—</span>;
+  }
   return (
-    <span
-      className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full text-xs font-semibold text-white"
-      style={{ backgroundColor: color }}
-    >
-      {count}
-    </span>
+    <div className="inline-flex flex-col items-center gap-1">
+      <span
+        className="inline-flex items-center justify-center min-w-[2.25rem] h-9 px-2.5 rounded-lg text-base font-bold text-white shadow-sm"
+        style={{ backgroundColor: color }}
+      >
+        {count}
+      </span>
+    </div>
   );
 }
 
@@ -221,7 +222,7 @@ export function LeadProductivityReport() {
     return { preset: 'this_month', from: range.from, to: range.to };
   });
   const [dateBasis, setDateBasis] = useState<DateBasis>('created');
-  const [agentFilter, setAgentFilter] = useState('all');
+  const [tableAgentIds, setTableAgentIds] = useState<string[] | null>(null);
   const [regionFilter, setRegionFilter] = useState('all');
   const [countryFilter, setCountryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -315,12 +316,11 @@ export function LeadProductivityReport() {
 
   const filteredLeads = useMemo(
     () => applySecondaryFilters(leads, {
-      agent: agentFilter,
       region: regionFilter,
       country: countryFilter,
       status: statusFilter,
     }, countryMap),
-    [leads, agentFilter, regionFilter, countryFilter, statusFilter, countryMap],
+    [leads, regionFilter, countryFilter, statusFilter, countryMap],
   );
 
   const statusColumns = useMemo(
@@ -402,6 +402,24 @@ export function LeadProductivityReport() {
     return Object.values(byAgent).sort((a, b) => b.total - a.total);
   }, [filteredLeads, profileMap, countryMap]);
 
+  const displayAgentRows = useMemo(() => {
+    if (!tableAgentIds) return agentRows;
+    return agentRows.filter((r) => tableAgentIds.includes(r.userId));
+  }, [agentRows, tableAgentIds]);
+
+  const displayTeamTotals = useMemo(() => {
+    const byStatus: Record<string, number> = {};
+    statusColumns.forEach((s) => { byStatus[s.name] = 0; });
+    let total = 0;
+    displayAgentRows.forEach((row) => {
+      total += row.total;
+      Object.entries(row.byStatus).forEach(([name, count]) => {
+        byStatus[name] = (byStatus[name] ?? 0) + count;
+      });
+    });
+    return { total, byStatus };
+  }, [displayAgentRows, statusColumns]);
+
   const teamTotals = useMemo(() => {
     const byStatus: Record<string, number> = {};
     statusColumns.forEach((s) => { byStatus[s.name] = 0; });
@@ -481,7 +499,7 @@ export function LeadProductivityReport() {
 
   const exportCsv = () => {
     const headers = ['Agent', 'Total', ...statusColumns.map((s) => s.name)];
-    const rows = agentRows.map((a) => [
+    const rows = displayAgentRows.map((a) => [
       a.name,
       a.total,
       ...statusColumns.map((s) => a.byStatus[s.name] ?? 0),
@@ -497,14 +515,14 @@ export function LeadProductivityReport() {
   };
 
   const clearFilters = () => {
-    setAgentFilter('all');
     setRegionFilter('all');
     setCountryFilter('all');
     setStatusFilter('all');
+    setTableAgentIds(null);
   };
 
-  const hasSecondaryFilters = agentFilter !== 'all' || regionFilter !== 'all'
-    || countryFilter !== 'all' || statusFilter !== 'all';
+  const hasSecondaryFilters = regionFilter !== 'all' || countryFilter !== 'all'
+    || statusFilter !== 'all' || tableAgentIds !== null;
 
   const rangeSubtitle = formatDateRangeSubtitle(dateFilter.preset, dateFilter.from, dateFilter.to);
   const reportTitle = getReportTitle(dateFilter.preset, dateFilter.from, dateFilter.to);
@@ -512,27 +530,30 @@ export function LeadProductivityReport() {
   if (dateFilter.preset === 'custom' && (!dateFilter.from || !dateFilter.to)) {
     return (
       <div className="space-y-6">
-        <ReportHeader
+        <ReportFiltersBar
           title={reportTitle}
+          rangeSubtitle={rangeSubtitle}
           dateBasis={dateBasis}
           onDateBasisChange={setDateBasis}
           dateFilter={dateFilter}
           onDateChange={handleDateChange}
           isAdmin={isAdmin}
-          agentFilter={agentFilter}
-          onAgentChange={setAgentFilter}
+          tableAgentIds={tableAgentIds}
+          onTableAgentIdsChange={setTableAgentIds}
+          agentOptions={[]}
           regionFilter={regionFilter}
           onRegionChange={setRegionFilter}
           countryFilter={countryFilter}
           onCountryChange={setCountryFilter}
           statusFilter={statusFilter}
           onStatusChange={setStatusFilter}
-          profiles={profiles}
           countries={countries}
           statuses={statuses}
           onExport={exportCsv}
+          onClearFilters={clearFilters}
+          hasFilters={hasSecondaryFilters}
         />
-        <Card className="card-shadow">
+        <Card className="card-shadow rounded-xl border-border/80">
           <CardContent className="py-12 text-center text-muted-foreground">
             <CalendarDays className="h-8 w-8 mx-auto mb-3 opacity-50" />
             <p>Select a start and end date for the custom range.</p>
@@ -544,25 +565,28 @@ export function LeadProductivityReport() {
 
   return (
     <div className="space-y-6">
-      <ReportHeader
+      <ReportFiltersBar
         title={reportTitle}
+        rangeSubtitle={rangeSubtitle}
         dateBasis={dateBasis}
         onDateBasisChange={setDateBasis}
         dateFilter={dateFilter}
         onDateChange={handleDateChange}
         isAdmin={isAdmin}
-        agentFilter={agentFilter}
-        onAgentChange={setAgentFilter}
+        tableAgentIds={tableAgentIds}
+        onTableAgentIdsChange={setTableAgentIds}
+        agentOptions={agentRows.map((r) => ({ userId: r.userId, name: r.name, leadCount: r.total }))}
         regionFilter={regionFilter}
         onRegionChange={setRegionFilter}
         countryFilter={countryFilter}
         onCountryChange={setCountryFilter}
         statusFilter={statusFilter}
         onStatusChange={setStatusFilter}
-        profiles={profiles}
         countries={countries}
         statuses={statuses}
         onExport={exportCsv}
+        onClearFilters={clearFilters}
+        hasFilters={hasSecondaryFilters}
       />
 
       {loading ? (
@@ -590,122 +614,161 @@ export function LeadProductivityReport() {
       ) : (
         <>
           {/* KPI cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-            <KpiCard label="Total leads" value={kpis.total} subLabel={rangeSubtitle || undefined} icon={Users} />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <KpiCard label="Total leads" value={kpis.total} subLabel={rangeSubtitle || undefined} icon={Users} iconBg="bg-primary/10" />
             <KpiCard
               label="Proposal / NDA sent"
               value={kpis.proposal}
               subLabel={kpis.total ? `${((kpis.proposal / kpis.total) * 100).toFixed(1)}% of total` : undefined}
               icon={Target}
-              accent="text-sky-400"
+              accent="text-sky-500"
+              iconBg="bg-sky-500/10"
             />
             <KpiCard
               label="Closed won"
               value={kpis.won}
               subLabel={kpis.total ? `${((kpis.won / kpis.total) * 100).toFixed(1)}% win rate` : undefined}
               icon={Trophy}
-              accent="text-emerald-400"
+              accent="text-emerald-500"
+              iconBg="bg-emerald-500/10"
             />
             <KpiCard
               label="Countries covered"
               value={kpis.countryCount}
               subLabel={`${kpis.regionCount} region${kpis.regionCount !== 1 ? 's' : ''}`}
               icon={Globe}
+              iconBg="bg-violet-500/10"
+              accent="text-violet-500"
             />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <KpiCard
               label="Lost"
               value={kpis.lost}
               subLabel={kpis.total ? `${((kpis.lost / kpis.total) * 100).toFixed(1)}% loss rate` : undefined}
               icon={XCircle}
-              accent="text-rose-400"
+              accent="text-rose-500"
+              iconBg="bg-rose-500/10"
             />
             <KpiCard
-              label="Leads / day"
+              label="Leads per day"
               value={kpis.leadsPerDay.toFixed(1)}
-              subLabel="avg in period"
+              subLabel="Average in selected period"
               icon={TrendingUp}
+              iconBg="bg-amber-500/10"
+              accent="text-amber-600"
             />
             <KpiCard
               label="Period change"
               value={kpis.periodDelta != null ? `${kpis.periodDelta > 0 ? '+' : ''}${kpis.periodDelta}%` : '—'}
               subLabel="vs previous period"
               icon={kpis.periodDelta != null && kpis.periodDelta >= 0 ? TrendingUp : TrendingDown}
-              accent={kpis.periodDelta != null && kpis.periodDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}
+              accent={kpis.periodDelta != null && kpis.periodDelta >= 0 ? 'text-emerald-500' : 'text-rose-500'}
+              iconBg={kpis.periodDelta != null && kpis.periodDelta >= 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10'}
             />
           </div>
 
           {/* Agent performance table */}
-          <Card className="card-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Agent performance</CardTitle>
-              <CardDescription>Lead status breakdown by owner</CardDescription>
+          <Card className="card-shadow rounded-xl border-border/80 overflow-hidden">
+            <CardHeader className="pb-3 border-b bg-muted/20">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <CardTitle className="text-lg font-semibold">Agent performance</CardTitle>
+                  <CardDescription className="text-sm">Lead status breakdown by owner</CardDescription>
+                </div>
+                {isAdmin && agentRows.length > 0 && (
+                  <AgentTablePicker
+                    agents={agentRows.map((r) => ({ userId: r.userId, name: r.name, leadCount: r.total }))}
+                    selectedIds={tableAgentIds}
+                    onChange={setTableAgentIds}
+                  />
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Agent</TableHead>
-                    <TableHead className="text-center">Total</TableHead>
-                    {statusColumns.map((s) => (
-                      <TableHead key={s.id} className="text-center">{s.name}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {agentRows.map((row) => (
-                    <TableRow key={row.userId}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium text-sm">{row.name}</p>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[900px]">
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-[200px] text-sm font-semibold sticky left-0 bg-muted z-10">Agent</TableHead>
+                      <TableHead className="text-center text-sm font-semibold w-20">Total</TableHead>
+                      {statusColumns.map((s) => (
+                        <TableHead key={s.id} className="text-center text-sm font-semibold min-w-[72px]">
+                          <div className="flex flex-col items-center gap-1 py-1">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                            <span>{s.name}</span>
+                          </div>
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {displayAgentRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={statusColumns.length + 2} className="text-center py-10 text-muted-foreground">
+                          No agents selected. Use the agent picker above to choose who appears in the table.
+                        </TableCell>
+                      </TableRow>
+                    ) : displayAgentRows.map((row) => (
+                      <TableRow key={row.userId} className="hover:bg-muted/30">
+                        <TableCell className="sticky left-0 bg-card z-10 py-4">
+                          <p className="font-semibold text-base text-foreground">{row.name}</p>
                           {row.regions.length > 0 && (
-                            <p className="text-[10px] text-muted-foreground">{row.regions.join(' · ')}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{row.regions.join(' · ')}</p>
                           )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center font-semibold">{row.total}</TableCell>
-                      {statusColumns.map((s) => (
-                        <TableCell key={s.id} className="text-center">
-                          <StatusBadge count={row.byStatus[s.name] ?? 0} color={s.color} />
                         </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-                {isAdmin && agentRows.length > 1 && (
-                  <TableFooter>
-                    <TableRow>
-                      <TableCell className="font-semibold">Team total</TableCell>
-                      <TableCell className="text-center font-bold">{teamTotals.total}</TableCell>
-                      {statusColumns.map((s) => (
-                        <TableCell key={s.id} className="text-center">
-                          <StatusBadge count={teamTotals.byStatus[s.name] ?? 0} color={s.color} />
+                        <TableCell className="text-center py-4">
+                          <span className="text-lg font-bold text-foreground">{row.total}</span>
                         </TableCell>
-                      ))}
-                    </TableRow>
-                  </TableFooter>
-                )}
-              </Table>
+                        {statusColumns.map((s) => (
+                          <TableCell key={s.id} className="text-center py-4">
+                            <StatusCell count={row.byStatus[s.name] ?? 0} color={s.color} />
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  {isAdmin && displayAgentRows.length > 1 && (
+                    <TableFooter>
+                      <TableRow className="bg-muted/40">
+                        <TableCell className="font-bold text-base sticky left-0 bg-muted/40 z-10">Team total</TableCell>
+                        <TableCell className="text-center">
+                          <span className="text-lg font-bold">{displayTeamTotals.total}</span>
+                        </TableCell>
+                        {statusColumns.map((s) => (
+                          <TableCell key={s.id} className="text-center">
+                            <StatusCell count={displayTeamTotals.byStatus[s.name] ?? 0} color={s.color} />
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    </TableFooter>
+                  )}
+                </Table>
+              </div>
             </CardContent>
           </Card>
 
           {/* Country coverage */}
-          <Card className="card-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Country coverage by agent</CardTitle>
+          <Card className="card-shadow rounded-xl border-border/80">
+            <CardHeader className="pb-3 border-b bg-muted/20">
+              <CardTitle className="text-lg font-semibold">Country coverage by agent</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {agentRows.map((row) => (
-                <div key={row.userId}>
-                  <p className="text-sm font-medium mb-2">
+            <CardContent className="p-4 space-y-5">
+              {displayAgentRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">Select agents to view country coverage.</p>
+              ) : displayAgentRows.map((row) => (
+                <div key={row.userId} className="rounded-lg border border-border/60 bg-muted/10 p-4">
+                  <p className="text-base font-semibold mb-3">
                     {row.name}
-                    <span className="text-muted-foreground font-normal ml-1.5">
-                      ({row.countries.length} countr{row.countries.length !== 1 ? 'ies' : 'y'})
+                    <span className="text-muted-foreground font-normal text-sm ml-2">
+                      {row.countries.length} {row.countries.length === 1 ? 'country' : 'countries'}
                     </span>
                   </p>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-2">
                     {row.countries.map((c) => (
-                      <Badge key={c.name} variant="outline" className="text-xs font-normal">
-                        {c.name} {c.count}
+                      <Badge key={c.name} variant="secondary" className="text-sm font-medium px-3 py-1">
+                        {c.name}
+                        <span className="ml-1.5 text-muted-foreground">{c.count}</span>
                       </Badge>
                     ))}
                   </div>
@@ -716,8 +779,8 @@ export function LeadProductivityReport() {
 
           {/* Charts row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="card-shadow">
-              <CardHeader className="pb-2">
+            <Card className="card-shadow rounded-xl border-border/80">
+              <CardHeader className="pb-2 border-b bg-muted/20">
                 <CardTitle className="text-base font-semibold">Conversion funnel</CardTitle>
               </CardHeader>
               <CardContent>
@@ -837,109 +900,158 @@ export function LeadProductivityReport() {
   );
 }
 
-function ReportHeader({
-  title, dateBasis, onDateBasisChange, dateFilter, onDateChange,
-  isAdmin, agentFilter, onAgentChange, regionFilter, onRegionChange,
-  countryFilter, onCountryChange, statusFilter, onStatusChange,
-  profiles, countries, statuses, onExport,
+function ReportFiltersBar({
+  title, rangeSubtitle, dateBasis, onDateBasisChange, dateFilter, onDateChange,
+  isAdmin, tableAgentIds, onTableAgentIdsChange, agentOptions,
+  regionFilter, onRegionChange, countryFilter, onCountryChange,
+  statusFilter, onStatusChange, countries, statuses, onExport,
+  onClearFilters, hasFilters,
 }: {
   title: string;
+  rangeSubtitle: string;
   dateBasis: DateBasis;
   onDateBasisChange: (v: DateBasis) => void;
   dateFilter: ReportDateFilterValue;
   onDateChange: (v: ReportDateFilterValue) => void;
   isAdmin: boolean;
-  agentFilter: string;
-  onAgentChange: (v: string) => void;
+  tableAgentIds: string[] | null;
+  onTableAgentIdsChange: (ids: string[] | null) => void;
+  agentOptions: { userId: string; name: string; leadCount: number }[];
   regionFilter: string;
   onRegionChange: (v: string) => void;
   countryFilter: string;
   onCountryChange: (v: string) => void;
   statusFilter: string;
   onStatusChange: (v: string) => void;
-  profiles: { user_id: string; full_name: string | null }[];
   countries: CountryInfo[];
-  statuses: { id: string; name: string }[];
+  statuses: { id: string; name: string; color?: string }[];
   onExport: () => void;
+  onClearFilters: () => void;
+  hasFilters: boolean;
 }) {
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-display font-bold text-foreground">{title}</h2>
-          <Badge variant="outline" className="mt-1.5 text-xs font-normal">
-            Live · as of {format(new Date(), 'MMM d, yyyy')}
-          </Badge>
+    <Card className="card-shadow rounded-xl border-border/80">
+      <CardContent className="p-4 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-display font-bold text-foreground tracking-tight">{title}</h2>
+            <div className="flex flex-wrap items-center gap-2 mt-1.5">
+              <Badge variant="secondary" className="text-xs font-normal">
+                Live · {format(new Date(), 'MMM d, yyyy')}
+              </Badge>
+              {rangeSubtitle && (
+                <span className="text-sm text-muted-foreground">{rangeSubtitle}</span>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            {hasFilters && (
+              <Button variant="ghost" size="sm" className="gap-1.5 h-9 text-muted-foreground" onClick={onClearFilters}>
+                <RotateCcw className="h-4 w-4" />
+                Reset
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={onExport}>
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+          </div>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={onExport}>
-          <Download className="h-4 w-4" />
-          Export CSV
-        </Button>
-      </div>
 
-      <div className="flex flex-col lg:flex-row lg:items-end gap-4 flex-wrap">
-        <ToggleGroup
-          type="single"
-          value={dateBasis}
-          onValueChange={(v) => { if (v) onDateBasisChange(v as DateBasis); }}
-          className="justify-start"
-        >
-          <ToggleGroupItem value="created" className="text-xs h-8 px-3">Created date</ToggleGroupItem>
-          <ToggleGroupItem value="activity" className="text-xs h-8 px-3">Activity / status change</ToggleGroupItem>
-        </ToggleGroup>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <SlidersHorizontal className="h-4 w-4" />
+          <span className="font-medium">Filters</span>
+        </div>
 
-        <ReportDateFilter value={dateFilter} onChange={onDateChange} />
-
-        {isAdmin && (
-          <Select value={agentFilter} onValueChange={onAgentChange}>
-            <SelectTrigger className="h-9 w-[160px] text-xs">
-              <SelectValue placeholder="All agents" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All agents</SelectItem>
-              {profiles.map((p) => (
-                <SelectItem key={p.user_id} value={p.user_id}>{p.full_name || 'Unknown'}</SelectItem>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground font-medium">Count leads by</Label>
+            <div className="flex items-center rounded-lg border bg-muted/40 p-0.5">
+              {([
+                { value: 'created' as const, label: 'Created date' },
+                { value: 'activity' as const, label: 'Activity date' },
+              ]).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onDateBasisChange(opt.value)}
+                  className={cn(
+                    'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-all',
+                    dateBasis === opt.value
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {opt.label}
+                </button>
               ))}
-            </SelectContent>
-          </Select>
-        )}
+            </div>
+          </div>
 
-        <Select value={regionFilter} onValueChange={onRegionChange}>
-          <SelectTrigger className="h-9 w-[130px] text-xs">
-            <SelectValue placeholder="All regions" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All regions</SelectItem>
-            {REGIONS.map((r) => (
-              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <ReportDateFilter value={dateFilter} onChange={onDateChange} compact />
 
-        <Select value={countryFilter} onValueChange={onCountryChange}>
-          <SelectTrigger className="h-9 w-[150px] text-xs">
-            <SelectValue placeholder="All countries" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All countries</SelectItem>
-            {countries.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground font-medium">Region</Label>
+            <Select value={regionFilter} onValueChange={onRegionChange}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="All regions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All regions</SelectItem>
+                {REGIONS.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <Select value={statusFilter} onValueChange={onStatusChange}>
-          <SelectTrigger className="h-9 w-[140px] text-xs">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {statuses.map((s) => (
-              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground font-medium">Country</Label>
+            <Select value={countryFilter} onValueChange={onCountryChange}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="All countries" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All countries</SelectItem>
+                {countries.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground font-medium">Status</Label>
+            <Select value={statusFilter} onValueChange={onStatusChange}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {statuses.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <div className="flex items-center gap-2">
+                      {s.color && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />}
+                      {s.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {isAdmin && agentOptions.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground font-medium">Agents in table</Label>
+              <AgentTablePicker
+                agents={agentOptions}
+                selectedIds={tableAgentIds}
+                onChange={onTableAgentIdsChange}
+              />
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

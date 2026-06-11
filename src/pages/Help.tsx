@@ -570,7 +570,7 @@ export default function Help() {
                       {[
                         { icon: Users,       title: 'Users',         desc: 'Add, invite, and manage team members. Set roles (Admin/Employee), ban/unban accounts, resend invites to pending users.' },
                         { icon: Settings,    title: 'Configuration', desc: 'Add and edit pipeline statuses (with colors and sort order) and countries. These are used across the entire app.' },
-                        { icon: Zap,         title: 'Integrations',  desc: 'Connect Google Workspace (Gmail + Calendar), configure Slack notifications (lead events, daily digest, reminders).' },
+                        { icon: Zap,         title: 'Integrations',  desc: 'Connect Google Workspace (Gmail + Calendar), configure Slack notifications (lead events, morning lead report, reminders).' },
                         { icon: Key,         title: 'API',           desc: 'Create and manage API keys for external integrations. View full API documentation.' },
                         { icon: BarChart3,   title: 'Analytics',     desc: 'Admin-level reports, sample data generation, and bulk data management tools.' },
                         { icon: Settings,    title: 'Developer',     desc: 'Enable/disable Developer mode — shows the Developer page in the sidebar with API tester, docs, and debug tools.' },
@@ -612,7 +612,7 @@ export default function Help() {
                       {[
                         { icon: Mail,     color: 'bg-blue-500/10 text-blue-500',   title: 'Gmail',          desc: 'Read and send emails within the app. All threads with lead emails are synced to the Inbox and Lead Emails tab.' },
                         { icon: Calendar, color: 'bg-violet-500/10 text-violet-500',title: 'Google Calendar',desc: 'Sync meeting activities to Calendar. Auto-generate Meet links and send invites to attendees.' },
-                        { icon: MessageCircle, color:'bg-emerald-500/10 text-emerald-500',title: 'Slack',    desc: 'Post notifications to a Slack channel for lead events, stage changes, tasks, follow-ups, and a daily digest.' },
+                        { icon: MessageCircle, color:'bg-emerald-500/10 text-emerald-500',title: 'Slack',    desc: 'Post notifications to a Slack channel for lead events, stage changes, tasks, follow-ups, and a morning MTD lead report.' },
                       ].map(({ icon: Icon, color, title, desc }) => (
                         <div key={title} className="flex flex-col gap-2 rounded-xl border border-border/60 bg-card p-4">
                           <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl', color)}>
@@ -638,8 +638,8 @@ export default function Help() {
                       'Create an incoming webhook in your Slack workspace (Apps → Incoming Webhooks).',
                       'Copy the webhook URL and paste it in Admin Panel → Integrations → Slack.',
                       'Toggle Slack notifications on and choose which events to notify about.',
-                      'Optionally enable <strong class="text-foreground">Daily digest</strong> and set the hour for a summary message.',
-                      'Use <strong class="text-foreground">Send test</strong> to verify the connection before saving.',
+                      'Optionally enable <strong class="text-foreground">Morning lead report</strong> and set the IST hour for the MTD pipeline summary in Slack.',
+                      'Use <strong class="text-foreground">Send now</strong> under Morning lead report to post the MTD report to Slack immediately.',
                     ]} />
                   </div>
                 </AccordionContent>

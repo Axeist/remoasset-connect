@@ -1,19 +1,13 @@
 /**
  * slack-digest — Scheduled Edge Function
  *
- * Sends a daily summary to the Slack channel at the configured hour
- * (app_settings.slack_digest_hour, default 9 AM UTC).
+ * Sends the MTD Lead Pipeline Report to Slack each morning at the configured
+ * IST hour (app_settings.slack_digest_hour, default 9 AM IST).
  *
- * Schedule: Every hour via pg_cron — the function self-gates by checking
- * whether the current UTC hour matches the configured digest hour.
+ * Replaces the legacy daily CRM digest with the Lead Report format from
+ * Reports → Lead Report (created-date, this-month MTD).
  *
- * Summary includes:
- *   • New leads added in the last 24h
- *   • Activities logged in the last 24h
- *   • Tasks due today (incomplete)
- *   • Follow-ups scheduled today (incomplete)
- *   • Overdue tasks (past due, still incomplete)
- *   • Overdue follow-ups (past due, still incomplete)
+ * Schedule: hourly via pg_cron — self-gates on slack_digest_hour.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
@@ -23,25 +17,78 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-IN', {
-      weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata',
-    })
-  } catch {
-    return iso
+const APP_URL = 'https://connect.remoasset.com'
+const BATCH_SIZE = 1000
+
+function istHourToUtcHour(istHour: number): number {
+  const utcMinutes = istHour * 60 - 330
+  return Math.floor(((utcMinutes % 1440) + 1440) % 1440 / 60)
+}
+
+function getMtdRangeIST(): { from: string; to: string; label: string; rangeLabel: string } {
+  const now = new Date()
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now)
+
+  const year = parts.find((p) => p.type === 'year')!.value
+  const month = parts.find((p) => p.type === 'month')!.value
+  const day = parts.find((p) => p.type === 'day')!.value
+
+  const from = `${year}-${month}-01T00:00:00+05:30`
+  const to = now.toISOString()
+
+  const monthName = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    month: 'long',
+    year: 'numeric',
+  }).format(now)
+
+  const dayNum = parseInt(day, 10)
+  const shortMonth = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    month: 'short',
+  }).format(now)
+
+  return {
+    from,
+    to,
+    label: `${monthName} — MTD Lead Report`,
+    rangeLabel: `${shortMonth} 1–${dayNum}, ${year}`,
   }
 }
 
-// IST is UTC+5:30. The stored digest_hour is the IST hour (0-23).
-// We convert to UTC hour for comparison: utcHour = (istHour * 60 - 330) / 60
-// Since cron fires every hour on the UTC hour, we check if current UTC hour
-// corresponds to the configured IST hour.
-function istHourToUtcHour(istHour: number): number {
-  // IST = UTC + 5:30, so UTC = IST - 5:30
-  // We floor to nearest UTC hour: e.g. 11 AM IST = 5:30 AM UTC → UTC hour 5
-  const utcMinutes = istHour * 60 - 330
-  return Math.floor(((utcMinutes % 1440) + 1440) % 1440 / 60)
+async function fetchAllPaginated<T>(
+  runQuery: (from: number, to: number) => Promise<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const all: T[] = []
+  let offset = 0
+  while (true) {
+    const { data, error } = await runQuery(offset, offset + BATCH_SIZE - 1)
+    if (error) throw error
+    const batch = data ?? []
+    all.push(...batch)
+    if (batch.length < BATCH_SIZE) break
+    offset += BATCH_SIZE
+  }
+  return all
+}
+
+type LeadRow = {
+  id: string
+  owner_id: string | null
+  country_ids: string[] | null
+  lead_statuses: { name: string; color: string } | { name: string; color: string }[] | null
+}
+
+function statusName(lead: LeadRow): string {
+  const s = lead.lead_statuses
+  if (!s) return 'Unassigned'
+  const info = Array.isArray(s) ? s[0] : s
+  return info?.name ?? 'Unassigned'
 }
 
 Deno.serve(async (req) => {
@@ -53,7 +100,7 @@ Deno.serve(async (req) => {
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } }
+      { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } },
     )
 
     const { data: settings, error: settingsErr } = await supabaseAdmin
@@ -65,218 +112,186 @@ Deno.serve(async (req) => {
     if (settingsErr || !settings?.slack_enabled || !settings?.slack_webhook_url) {
       return new Response(
         JSON.stringify({ ok: false, reason: 'Slack not configured or disabled' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
       )
     }
 
-    if (!settings.slack_notify_daily_digest) {
-      return new Response(
-        JSON.stringify({ ok: false, reason: 'Daily digest is disabled' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-      )
-    }
-
-    // Allow explicit trigger (force=true in body) to bypass hour check
     let force = false
     try {
       const body = await req.json().catch(() => ({}))
       force = body?.force === true
     } catch { /* ignore */ }
 
-    const currentHour = new Date().getUTCHours()
-    const digestHour = settings.slack_digest_hour ?? 5  // default 11 AM IST = 5 AM UTC
-    const targetUtcHour = istHourToUtcHour(digestHour)
-    if (!force && currentHour !== targetUtcHour) {
+    if (!settings.slack_notify_daily_digest && !force) {
       return new Response(
-        JSON.stringify({ ok: false, reason: `Not digest hour (current UTC: ${currentHour}, target UTC: ${targetUtcHour} = ${digestHour}:00 IST)` }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        JSON.stringify({ ok: false, reason: 'Morning lead report is disabled' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
       )
     }
 
-    const webhookUrl = settings.slack_webhook_url
-    const now = new Date()
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
+    const currentHour = new Date().getUTCHours()
+    const digestHour = settings.slack_digest_hour ?? 9
+    const targetUtcHour = istHourToUtcHour(digestHour)
+    if (!force && currentHour !== targetUtcHour) {
+      return new Response(
+        JSON.stringify({ ok: false, reason: `Not report hour (UTC ${currentHour}, target UTC ${targetUtcHour} = ${digestHour}:00 IST)` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      )
+    }
 
-    const appUrl = 'https://connect.remoasset.com'
+    const { from, to, label, rangeLabel } = getMtdRangeIST()
 
-    // Fetch all data in parallel
-    const [
-      { data: newLeads },
-      { data: activities },
-      { data: tasksDueToday },
-      { data: followUpsDueToday },
-      { data: overdueTasks },
-      { data: overdueFollowUps },
-    ] = await Promise.all([
-      // New leads in last 24h
-      supabaseAdmin
-        .from('leads')
-        .select('id, company_name, contact_name, lead_statuses:status_id(name)')
-        .gte('created_at', yesterday.toISOString())
-        .order('created_at', { ascending: false }),
-
-      // Activities in last 24h
-      supabaseAdmin
-        .from('lead_activities')
-        .select('id, activity_type, leads:lead_id(id, company_name), profiles:user_id(full_name)')
-        .gte('created_at', yesterday.toISOString()),
-
-      // Tasks due today (incomplete)
-      supabaseAdmin
-        .from('tasks')
-        .select('id, title, priority, assignee_id, lead_id, leads(company_name), profiles:assignee_id(full_name)')
-        .eq('is_completed', false)
-        .gte('due_date', todayStart.toISOString())
-        .lt('due_date', todayEnd.toISOString()),
-
-      // Follow-ups scheduled today (incomplete)
-      supabaseAdmin
-        .from('follow_ups')
-        .select('id, lead_id, scheduled_at, user_id, leads(company_name), profiles:user_id(full_name)')
-        .eq('is_completed', false)
-        .gte('scheduled_at', todayStart.toISOString())
-        .lt('scheduled_at', todayEnd.toISOString()),
-
-      // Overdue tasks
-      supabaseAdmin
-        .from('tasks')
-        .select('id, title, due_date, priority, assignee_id, lead_id, leads(company_name), profiles:assignee_id(full_name)')
-        .eq('is_completed', false)
-        .not('due_date', 'is', null)
-        .lt('due_date', now.toISOString()),
-
-      // Overdue follow-ups
-      supabaseAdmin
-        .from('follow_ups')
-        .select('id, lead_id, scheduled_at, user_id, leads(company_name), profiles:user_id(full_name)')
-        .eq('is_completed', false)
-        .lt('scheduled_at', now.toISOString()),
+    const [leads, statuses, countries, profiles] = await Promise.all([
+      fetchAllPaginated<LeadRow>((pageFrom, pageTo) =>
+        supabaseAdmin
+          .from('leads')
+          .select('id, owner_id, country_ids, lead_statuses:status_id(name, color)')
+          .gte('created_at', from)
+          .lte('created_at', to)
+          .range(pageFrom, pageTo),
+      ),
+      supabaseAdmin.from('lead_statuses').select('name, color, sort_order').order('sort_order'),
+      supabaseAdmin.from('countries').select('id, name, region'),
+      supabaseAdmin.from('profiles').select('user_id, full_name'),
     ])
 
-    // Count activities by type
-    const activityCounts: Record<string, number> = {}
-    ;(activities ?? []).forEach((a: { activity_type: string }) => {
-      activityCounts[a.activity_type] = (activityCounts[a.activity_type] ?? 0) + 1
-    })
-    const activitySummary = Object.entries(activityCounts)
-      .map(([type, count]) => `${count} ${type}${count > 1 ? 's' : ''}`)
-      .join(', ')
+    const statusList = statuses.data ?? []
+    const countryMap = Object.fromEntries((countries.data ?? []).map((c: { id: string; name: string; region: string | null }) => [c.id, c]))
+    const profileMap = Object.fromEntries((profiles.data ?? []).map((p: { user_id: string; full_name: string | null }) => [p.user_id, p.full_name || 'Unknown']))
 
-    const dateLabel = new Date(now).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' })
+    const total = leads.length
+    const proposal = leads.filter((l) => statusName(l) === 'Proposal').length
+    const won = leads.filter((l) => statusName(l) === 'Won').length
+    const lost = leads.filter((l) => statusName(l) === 'Lost').length
+
+    const countryIds = new Set<string>()
+    const regions = new Set<string>()
+    leads.forEach((l) => {
+      (l.country_ids ?? []).forEach((cid: string) => {
+        countryIds.add(cid)
+        const r = countryMap[cid]?.region
+        if (r) regions.add(r)
+      })
+    })
+
+    const winRate = total > 0 ? ((won / total) * 100).toFixed(1) : '0'
+    const proposalRate = total > 0 ? ((proposal / total) * 100).toFixed(1) : '0'
+
+    type AgentAgg = { name: string; total: number; byStatus: Record<string, number>; countries: Record<string, number>; regions: Set<string> }
+    const byAgent: Record<string, AgentAgg> = {}
+
+    leads.forEach((lead) => {
+      const uid = lead.owner_id ?? '__unassigned__'
+      if (!byAgent[uid]) {
+        byAgent[uid] = {
+          name: uid === '__unassigned__' ? 'Unassigned' : (profileMap[uid] ?? uid.slice(0, 8)),
+          total: 0,
+          byStatus: {},
+          countries: {},
+          regions: new Set(),
+        }
+      }
+      const row = byAgent[uid]
+      row.total++
+      const sName = statusName(lead)
+      row.byStatus[sName] = (row.byStatus[sName] ?? 0) + 1
+      ;(lead.country_ids ?? []).forEach((cid: string) => {
+        const c = countryMap[cid]
+        if (!c) return
+        if (c.region) row.regions.add(c.region)
+        row.countries[c.name] = (row.countries[c.name] ?? 0) + 1
+      })
+    })
+
+    const agentRows = Object.entries(byAgent)
+      .map(([userId, agg]) => ({ userId, ...agg }))
+      .sort((a, b) => b.total - a.total)
+
+    const statusCols = statusList.length > 0
+      ? statusList.map((s: { name: string }) => s.name)
+      : ['New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost']
+
     const blocks: object[] = []
 
-    // Header
     blocks.push({
       type: 'header',
-      text: { type: 'plain_text', text: `📊 Daily CRM Digest — ${dateLabel}`, emoji: true },
+      text: { type: 'plain_text', text: `📊 ${label}`, emoji: true },
+    })
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `_Live · ${rangeLabel} · Created-date basis_` }],
     })
     blocks.push({ type: 'divider' })
 
-    // Summary stats
     blocks.push({
       type: 'section',
       fields: [
-        { type: 'mrkdwn', text: `*🆕 New Leads (24h):*\n${newLeads?.length ?? 0}` },
-        { type: 'mrkdwn', text: `*📌 Activities (24h):*\n${activities?.length ?? 0}${activitySummary ? ` _(${activitySummary})_` : ''}` },
-        { type: 'mrkdwn', text: `*✅ Tasks Due Today:*\n${tasksDueToday?.length ?? 0}` },
-        { type: 'mrkdwn', text: `*📅 Follow-ups Today:*\n${followUpsDueToday?.length ?? 0}` },
-        { type: 'mrkdwn', text: `*⚠️ Overdue Tasks:*\n${overdueTasks?.length ?? 0}` },
-        { type: 'mrkdwn', text: `*⚠️ Overdue Follow-ups:*\n${overdueFollowUps?.length ?? 0}` },
+        { type: 'mrkdwn', text: `*Total leads*\n*${total}*` },
+        { type: 'mrkdwn', text: `*Proposal / NDA*\n*${proposal}* _(${proposalRate}%)_` },
+        { type: 'mrkdwn', text: `*Closed won*\n*${won}* _(${winRate}% win rate)_` },
+        { type: 'mrkdwn', text: `*Countries*\n*${countryIds.size}* _(${regions.size} regions)_` },
+        { type: 'mrkdwn', text: `*Lost*\n*${lost}*` },
+        { type: 'mrkdwn', text: `*Agents*\n*${agentRows.length}*` },
       ],
     })
     blocks.push({ type: 'divider' })
 
-    // New leads section
-    if (newLeads && newLeads.length > 0) {
-      const leadLines = newLeads.slice(0, 5).map((l: { id: string; company_name: string; contact_name: string | null; lead_statuses: { name: string } | null }) => {
-        const status = l.lead_statuses?.name ?? 'New'
-        const contact = l.contact_name ? ` — ${l.contact_name}` : ''
-        return `• *<${appUrl}/leads/${l.id}|${l.company_name}>*${contact} _(${status})_`
-      }).join('\n')
+    if (agentRows.length > 0) {
+      const headerCols = ['Agent', 'Tot', ...statusCols.slice(0, 5).map((n: string) => n.slice(0, 4))]
+      const tableHeader = headerCols.map((h) => h.padEnd(6)).join(' ')
+      const tableRows = agentRows.slice(0, 8).map((row) => {
+        const cols = [
+          row.name.slice(0, 14).padEnd(14),
+          String(row.total).padStart(3),
+          ...statusCols.slice(0, 5).map((s: string) => String(row.byStatus[s] ?? 0).padStart(4)),
+        ]
+        return cols.join(' ')
+      })
+
       blocks.push({
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*🆕 New Leads Added*\n${leadLines}${newLeads.length > 5 ? `\n_...and ${newLeads.length - 5} more_` : ''}`,
+          text: `*Agent performance*\n\`\`\`${tableHeader}\n${tableRows.join('\n')}\`\`\`${agentRows.length > 8 ? `\n_...and ${agentRows.length - 8} more agents_` : ''}`,
         },
       })
       blocks.push({ type: 'divider' })
-    }
 
-    // Tasks due today
-    if (tasksDueToday && tasksDueToday.length > 0) {
-      const PRIORITY_EMOJI: Record<string, string> = { low: '🟢', medium: '🟡', high: '🟠', urgent: '🔴' }
-      const taskLines = tasksDueToday.slice(0, 8).map((t: {
-        title: string; priority: string; lead_id: string | null;
-        leads: { company_name: string } | null; profiles: { full_name: string | null } | null
-      }) => {
-        const emoji = PRIORITY_EMOJI[t.priority] ?? '⚪'
-        const leadPart = t.lead_id && t.leads ? ` (*<${appUrl}/leads/${t.lead_id}|${t.leads.company_name}>*)` : ''
-        const assignee = t.profiles?.full_name ?? 'Unknown'
-        return `${emoji} *${t.title}*${leadPart} — ${assignee}`
-      }).join('\n')
+      const coverageLines = agentRows.slice(0, 5).map((row) => {
+        const topCountries = Object.entries(row.countries)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 4)
+          .map(([name, count]) => `${name} ${count}`)
+          .join(', ')
+        const regionStr = [...row.regions].join(' · ')
+        return `*${row.name}*${regionStr ? ` _(${regionStr})_` : ''}\n${topCountries || '_No countries_'}"
+      }).join('\n\n')
+
       blocks.push({
         type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `*✅ Tasks Due Today*\n${taskLines}${tasksDueToday.length > 8 ? `\n_...and ${tasksDueToday.length - 8} more_` : ''}`,
-        },
+        text: { type: 'mrkdwn', text: `*Country coverage*\n${coverageLines}` },
       })
       blocks.push({ type: 'divider' })
     }
 
-    // Follow-ups today
-    if (followUpsDueToday && followUpsDueToday.length > 0) {
-      const fuLines = followUpsDueToday.slice(0, 8).map((fu: {
-        lead_id: string; scheduled_at: string;
-        leads: { company_name: string } | null; profiles: { full_name: string | null } | null
-      }) => {
-        const time = new Date(fu.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
-        const companyName = fu.leads?.company_name ?? 'Unknown'
-        const assignee = fu.profiles?.full_name ?? 'Unknown'
-        return `• *<${appUrl}/leads/${fu.lead_id}|${companyName}>* at ${time} UTC — ${assignee}`
-      }).join('\n')
-      blocks.push({
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `*📅 Follow-ups Today*\n${fuLines}${followUpsDueToday.length > 8 ? `\n_...and ${followUpsDueToday.length - 8} more_` : ''}`,
-        },
-      })
-      blocks.push({ type: 'divider' })
-    }
+    blocks.push({
+      type: 'actions',
+      elements: [{
+        type: 'button',
+        text: { type: 'plain_text', text: 'Open Lead Report', emoji: true },
+        url: `${APP_URL}/reports`,
+      }],
+    })
 
-    // Overdue alerts
-    const overdueTaskCount = overdueTasks?.length ?? 0
-    const overdueFollowUpCount = overdueFollowUps?.length ?? 0
-    if (overdueTaskCount > 0 || overdueFollowUpCount > 0) {
-      blocks.push({
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `*⚠️ Overdue Items Requiring Attention*\n${overdueTaskCount > 0 ? `• ${overdueTaskCount} overdue task${overdueTaskCount > 1 ? 's' : ''}` : ''}${overdueFollowUpCount > 0 ? `\n• ${overdueFollowUpCount} overdue follow-up${overdueFollowUpCount > 1 ? 's' : ''}` : ''}`,
-        },
-        accessory: {
-          type: 'button',
-          text: { type: 'plain_text', text: 'View in CRM', emoji: true },
-          url: `${appUrl}/tasks`,
-        },
-      })
-      blocks.push({ type: 'divider' })
-    }
-
-    // Footer
     blocks.push({
       type: 'context',
       elements: [{
         type: 'mrkdwn',
-        text: `_RemoAsset CRM Daily Digest · ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST · <${appUrl}|Open CRM>_`,
+        text: `_RemoAsset Morning Lead Report · ${new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }).format(new Date())} IST_`,
       }],
     })
 
-    const slackRes = await fetch(webhookUrl, {
+    const slackRes = await fetch(settings.slack_webhook_url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ blocks }),
@@ -286,18 +301,18 @@ Deno.serve(async (req) => {
       const text = await slackRes.text()
       return new Response(
         JSON.stringify({ error: 'Slack rejected the message', detail: text }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 },
       )
     }
 
     return new Response(
-      JSON.stringify({ ok: true }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      JSON.stringify({ ok: true, leads: total, agents: agentRows.length }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
     )
   } catch (err) {
     return new Response(
       JSON.stringify({ error: String(err) }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 },
     )
   }
 })
