@@ -22,6 +22,7 @@ import {
 import { format, subDays, startOfDay, endOfDay, differenceInDays, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, eachMonthOfInterval, eachHourOfInterval, subMonths, subYears } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProductivityReport } from '@/components/reports/ProductivityReport';
+import { LeadProductivityReport } from '@/components/reports/LeadProductivityReport';
 
 type TimeRange = 'hourly' | 'weekly' | 'monthly' | 'yearly';
 
@@ -545,10 +546,18 @@ export default function Reports() {
               <Target className="h-4 w-4" />
               Productivity
             </TabsTrigger>
+            <TabsTrigger value="lead-report" className="gap-1.5">
+              <Users className="h-4 w-4" />
+              Lead Report
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="productivity" className="mt-6">
             <ProductivityReport />
+          </TabsContent>
+
+          <TabsContent value="lead-report" className="mt-6">
+            <LeadProductivityReport />
           </TabsContent>
 
           <TabsContent value="overview" className="mt-6">

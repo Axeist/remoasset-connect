@@ -42,7 +42,8 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths, startOfYear } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
+import { LEGACY_DATE_PRESETS as DATE_PRESETS, getPresetRange } from '@/lib/datePresets';
 import type { Lead, LeadStatusOption, CountryOption } from '@/types/lead';
 import { REGIONS } from '@/components/leads/LeadsFilters';
 import { KanbanColumn } from '@/components/pipeline/KanbanColumn';
@@ -66,33 +67,6 @@ const ACTIVITY_COLUMNS = [
 ];
 
 // ------- Filter types -------
-
-const DATE_PRESETS = [
-  { value: 'today', label: 'Today' },
-  { value: 'yesterday', label: 'Yesterday' },
-  { value: 'this_week', label: 'This Week' },
-  { value: 'last_week', label: 'Last Week' },
-  { value: 'this_month', label: 'This Month' },
-  { value: 'last_month', label: 'Last Month' },
-  { value: 'last_3_months', label: 'Last 3 Months' },
-  { value: 'this_year', label: 'This Year' },
-  { value: 'custom', label: 'Custom' },
-];
-
-function getPresetRange(preset: string): { from: string; to: string } | null {
-  const now = new Date();
-  switch (preset) {
-    case 'today': return { from: startOfDay(now).toISOString(), to: endOfDay(now).toISOString() };
-    case 'yesterday': { const y = subDays(now, 1); return { from: startOfDay(y).toISOString(), to: endOfDay(y).toISOString() }; }
-    case 'this_week': return { from: startOfWeek(now, { weekStartsOn: 1 }).toISOString(), to: endOfWeek(now, { weekStartsOn: 1 }).toISOString() };
-    case 'last_week': { const s = subDays(startOfWeek(now, { weekStartsOn: 1 }), 7); return { from: s.toISOString(), to: endOfWeek(s, { weekStartsOn: 1 }).toISOString() }; }
-    case 'this_month': return { from: startOfMonth(now).toISOString(), to: endOfMonth(now).toISOString() };
-    case 'last_month': { const m = subMonths(now, 1); return { from: startOfMonth(m).toISOString(), to: endOfMonth(m).toISOString() }; }
-    case 'last_3_months': return { from: subMonths(now, 3).toISOString(), to: now.toISOString() };
-    case 'this_year': return { from: startOfYear(now).toISOString(), to: now.toISOString() };
-    default: return null;
-  }
-}
 
 interface Filters {
   search: string;
@@ -211,8 +185,8 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     let dateFrom = filters.dateFrom;
     let dateTo = filters.dateTo;
     if (filters.datePreset && filters.datePreset !== 'custom') {
-      const range = getPresetRange(filters.datePreset);
-      if (range) { dateFrom = range.from; dateTo = range.to; }
+      const range = getPresetRange(filters.datePreset, 'calendar');
+      if (range?.from && range?.to) { dateFrom = range.from; dateTo = range.to; }
     }
     if (dateFrom) query = query.gte('created_at', dateFrom);
     if (dateTo) query = query.lte('created_at', dateTo);
@@ -480,7 +454,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     if (preset === 'custom') {
       update({ datePreset: 'custom' });
     } else {
-      const range = getPresetRange(preset);
+      const range = getPresetRange(preset, 'calendar');
       update({ datePreset: preset, dateFrom: range?.from ?? '', dateTo: range?.to ?? '' });
     }
   };

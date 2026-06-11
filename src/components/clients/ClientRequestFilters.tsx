@@ -19,63 +19,8 @@ import {
   vendorOptionsFromRequests,
   countryOptionsFromRequests,
 } from '@/lib/client-request-filters';
-import {
-  format,
-  startOfDay,
-  endOfDay,
-  subDays,
-  startOfWeek,
-  endOfWeek,
-  subWeeks,
-  startOfMonth,
-  endOfMonth,
-  subMonths,
-  startOfYear,
-} from 'date-fns';
-
-const DATE_PRESETS = [
-  { value: 'today', label: 'Today' },
-  { value: 'yesterday', label: 'Yesterday' },
-  { value: 'this_week', label: 'This week' },
-  { value: 'last_week', label: 'Last week' },
-  { value: 'this_month', label: 'This month' },
-  { value: 'last_month', label: 'Last month' },
-  { value: 'last_3_months', label: 'Last 3 months' },
-  { value: 'this_year', label: 'This year' },
-  { value: 'custom', label: 'Custom range' },
-] as const;
-
-function getPresetRange(preset: string): { from: string; to: string } {
-  const now = new Date();
-  const today = startOfDay(now);
-
-  switch (preset) {
-    case 'today':
-      return { from: today.toISOString(), to: endOfDay(now).toISOString() };
-    case 'yesterday': {
-      const y = subDays(today, 1);
-      return { from: y.toISOString(), to: endOfDay(y).toISOString() };
-    }
-    case 'this_week':
-      return { from: startOfWeek(today, { weekStartsOn: 1 }).toISOString(), to: endOfDay(now).toISOString() };
-    case 'last_week': {
-      const lw = subWeeks(today, 1);
-      return { from: startOfWeek(lw, { weekStartsOn: 1 }).toISOString(), to: endOfWeek(lw, { weekStartsOn: 1 }).toISOString() };
-    }
-    case 'this_month':
-      return { from: startOfMonth(today).toISOString(), to: endOfDay(now).toISOString() };
-    case 'last_month': {
-      const lm = subMonths(today, 1);
-      return { from: startOfMonth(lm).toISOString(), to: endOfMonth(lm).toISOString() };
-    }
-    case 'last_3_months':
-      return { from: startOfMonth(subMonths(today, 2)).toISOString(), to: endOfDay(now).toISOString() };
-    case 'this_year':
-      return { from: startOfYear(today).toISOString(), to: endOfDay(now).toISOString() };
-    default:
-      return { from: '', to: '' };
-  }
-}
+import { format, startOfDay, endOfDay } from 'date-fns';
+import { LEGACY_DATE_PRESETS as DATE_PRESETS, getPresetRange } from '@/lib/datePresets';
 
 interface ClientRequestFiltersProps {
   filters: ClientRequestFiltersState;
@@ -116,8 +61,8 @@ export function ClientRequestFilters({
       update({ createdPreset: 'custom' });
       return;
     }
-    const range = getPresetRange(preset);
-    update({ createdPreset: preset, createdFrom: range.from, createdTo: range.to });
+    const range = getPresetRange(preset)!;
+    update({ createdPreset: preset, createdFrom: range.from ?? '', createdTo: range.to ?? '' });
   };
 
   const customFrom = filters.createdFrom ? new Date(filters.createdFrom) : undefined;
