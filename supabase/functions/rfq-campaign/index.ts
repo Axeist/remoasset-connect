@@ -60,14 +60,6 @@ function serviceClient() {
   )
 }
 
-function userClient(authHeader: string) {
-  return createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: authHeader } } },
-  )
-}
-
 function computePricing(quoted: number, mrp: number | null, shipping: number, tax: number, other: number) {
   const total = quoted + shipping + tax + other
   let discount_pct: number | null = null
@@ -260,10 +252,16 @@ Deno.serve(async (req) => {
 
     // ——— Authenticated actions ———
     const authHeader = req.headers.get('Authorization') || ''
-    if (!authHeader) return json({ error: 'Unauthorized' }, 401)
-    const userSb = userClient(authHeader)
-    const { data: { user } } = await userSb.auth.getUser()
-    if (!user) return json({ error: 'Unauthorized' }, 401)
+    if (!authHeader.startsWith('Bearer ')) {
+      return json({ error: 'Unauthorized' }, 401)
+    }
+    const jwt = authHeader.replace(/^Bearer\s+/i, '').trim()
+    // Validate JWT via Auth API (same pattern as invite-user). Avoid anon-client
+    // getUser() without an explicit token — that often 401s in Edge Functions.
+    const { data: { user }, error: userError } = await sb.auth.getUser(jwt)
+    if (userError || !user) {
+      return json({ error: 'Unauthorized', detail: userError?.message }, 401)
+    }
 
     if (action === 'send' || action === 'test_send' || action === 'remind' || action === 'award_emails') {
       const rfqId = body.rfq_id as string

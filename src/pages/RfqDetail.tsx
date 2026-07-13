@@ -26,14 +26,25 @@ import {
   type RfqEmail,
   type RfqRecipient,
 } from '@/types/rfq';
-import { ArrowLeft, Trophy, Bell, Unlock, CheckSquare, Send } from 'lucide-react';
+import { ArrowLeft, Trophy, Bell, Unlock, CheckSquare, Send, Trash2 } from 'lucide-react';
 import { FieldHint, InfoCallout, RFQ_RECIPIENT_HELP, RFQ_STATUS_HELP } from '@/components/rfq/RfqInfo';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function RfqDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { toast } = useToast();
+  const isAdmin = role === 'admin';
   const [rfq, setRfq] = useState<Rfq | null>(null);
   const [recipients, setRecipients] = useState<RfqRecipient[]>([]);
   const [bids, setBids] = useState<RfqBid[]>([]);
@@ -43,6 +54,8 @@ export default function RfqDetail() {
   const [awardBidId, setAwardBidId] = useState<string | null>(null);
   const [rationale, setRationale] = useState('');
   const [busy, setBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [checklist, setChecklist] = useState({
     pricing: false,
     file: false,
@@ -219,6 +232,20 @@ export default function RfqDetail() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!rfq || !isAdmin) return;
+    setDeleting(true);
+    await supabase.from('rfqs' as any).update({ awarded_bid_id: null }).eq('id', rfq.id);
+    const { error } = await supabase.from('rfqs' as any).delete().eq('id', rfq.id);
+    setDeleting(false);
+    if (error) {
+      toast({ title: 'Failed to delete RFQ', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'RFQ deleted', description: `${rfq.client?.name || 'Campaign'} removed.` });
+    navigate('/rfq');
+  };
+
   if (loading || !rfq) {
     return (
       <AppLayout>
@@ -284,6 +311,17 @@ export default function RfqDetail() {
                 title="Reveal bid amounts before the deadline"
               >
                 <Unlock className="h-4 w-4 mr-2" /> Unseal bids
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                variant="outline"
+                className="rounded-xl text-destructive hover:text-destructive"
+                disabled={busy || deleting}
+                onClick={() => setDeleteOpen(true)}
+                title="Permanently delete this campaign"
+              >
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
               </Button>
             )}
           </div>
@@ -527,6 +565,31 @@ export default function RfqDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={(open) => !deleting && setDeleteOpen(open)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this RFQ campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Permanently delete “{rfq.client?.name || 'this campaign'}” and all recipients, bids, and email logs.
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting…' : 'Delete permanently'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

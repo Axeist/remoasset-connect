@@ -8,11 +8,22 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { campaignRollups, formatCountdown } from '@/lib/rfq';
 import { RFQ_STATUS_LABELS, type Rfq, type RfqRecipient } from '@/types/rfq';
-import { Plus, Search, Megaphone, Clock } from 'lucide-react';
+import { Plus, Search, Megaphone, Clock, Trash2 } from 'lucide-react';
 import { HowItWorksStrip, InfoCallout, RFQ_STATUS_HELP } from '@/components/rfq/RfqInfo';
 
 type RfqRow = Rfq & {
@@ -21,10 +32,14 @@ type RfqRow = Rfq & {
 
 export default function RfqHub() {
   const navigate = useNavigate();
+  const { role } = useAuth();
   const { toast } = useToast();
+  const isAdmin = role === 'admin';
   const [rows, setRows] = useState<RfqRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<RfqRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,6 +81,24 @@ export default function RfqHub() {
     ).length;
     return { open, awarding, overdue, total: rows.length };
   }, [rows]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget || !isAdmin) return;
+    setDeleting(true);
+    // Clear award FK first so CASCADE delete of bids cannot conflict
+    await supabase.from('rfqs' as any).update({ awarded_bid_id: null }).eq('id', deleteTarget.id);
+    const { error } = await supabase.from('rfqs' as any).delete().eq('id', deleteTarget.id);
+    setDeleting(false);
+    if (error) {
+      toast({ title: 'Failed to delete RFQ', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'RFQ deleted', description: `${deleteTarget.client?.name || 'Campaign'} removed.` });
+    setDeleteTarget(null);
+    load();
+  };
+
+  const colSpan = isAdmin ? 7 : 6;
 
   return (
     <AppLayout>
@@ -124,17 +157,18 @@ export default function RfqHub() {
                 <TableHead>Status</TableHead>
                 <TableHead>Campaign tracking</TableHead>
                 <TableHead>Time left</TableHead>
+                {isAdmin && <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading && Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell>
+                  <TableCell colSpan={colSpan}><Skeleton className="h-8 w-full" /></TableCell>
                 </TableRow>
               ))}
               {!loading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-12">
+                  <TableCell colSpan={colSpan} className="py-12">
                     <div className="text-center space-y-2 max-w-md mx-auto">
                       <p className="font-medium">No RFQ campaigns yet</p>
                       <p className="text-sm text-muted-foreground">
@@ -188,6 +222,23 @@ export default function RfqHub() {
                         {new Date(r.deadline).toLocaleString()}
                       </div>
                     </TableCell>
+                    {isAdmin && (
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          title="Delete campaign"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget(r);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}
@@ -202,6 +253,31 @@ export default function RfqHub() {
           </p>
         </InfoCallout>
       </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !deleting && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this RFQ campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Permanently delete “{deleteTarget?.client?.name || 'this campaign'}” and all recipients, bids, and email logs.
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting…' : 'Delete permanently'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
