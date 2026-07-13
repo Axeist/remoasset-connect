@@ -17,7 +17,10 @@ import { VENDOR_TYPE_OPTIONS, type VendorType } from '@/lib/vendorTypes';
 import {
   defaultVendorTypesForRfqType,
   formatCountdown,
+  isClosedStatusName,
   matchRfqVendors,
+  vendorHasAnyType,
+  vendorOperatesInCountry,
   type MatchableVendor,
 } from '@/lib/rfq';
 import { buildInviteEmail } from '@/lib/rfq-email-templates';
@@ -59,25 +62,49 @@ export default function RfqNew() {
 
   useEffect(() => {
     (async () => {
-      const [{ data: c }, { data: countriesData }, { data: leads }] = await Promise.all([
+      const [{ data: c }, { data: countriesData }, { data: statusRows }] = await Promise.all([
         supabase.from('clients' as any).select('id, name, country_id').order('name'),
         supabase.from('countries').select('id, name').order('name'),
-        supabase.from('leads')
-          .select('id, company_name, email, country_ids, hq_country_id, vendor_types, status:lead_statuses(name)')
-          .order('company_name')
-          .limit(2000),
+        supabase.from('lead_statuses').select('id, name'),
       ]);
       setClients((c as any) || []);
       setCountries(countriesData || []);
-      setVendors(((leads as any) || []).map((v: any) => ({
-        id: v.id,
-        company_name: v.company_name,
-        email: v.email,
-        country_ids: Array.isArray(v.country_ids) ? v.country_ids : [],
-        hq_country_id: v.hq_country_id,
-        vendor_types: v.vendor_types,
-        status_name: v.status?.name ?? null,
-      })));
+
+      const statusById = new Map<string, string>(
+        ((statusRows as { id: string; name: string }[]) || []).map((s) => [s.id, s.name]),
+      );
+      const wonIds = [...statusById.entries()]
+        .filter(([, name]) => isClosedStatusName(name))
+        .map(([id]) => id);
+
+      // Only Closed/Won leads — paginate so we never miss partners past the first 2000 alpha rows
+      const pageSize = 1000;
+      let from = 0;
+      const rows: MatchableVendor[] = [];
+      for (;;) {
+        let q = supabase
+          .from('leads')
+          .select('id, company_name, email, country_ids, hq_country_id, vendor_types, status_id')
+          .order('company_name')
+          .range(from, from + pageSize - 1);
+        if (wonIds.length > 0) q = q.in('status_id', wonIds);
+        const { data, error } = await q;
+        if (error || !data?.length) break;
+        for (const v of data as any[]) {
+          rows.push({
+            id: v.id,
+            company_name: v.company_name,
+            email: v.email,
+            country_ids: Array.isArray(v.country_ids) ? v.country_ids : [],
+            hq_country_id: v.hq_country_id,
+            vendor_types: v.vendor_types,
+            status_name: statusById.get(v.status_id) ?? null,
+          });
+        }
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      setVendors(rows);
     })();
   }, []);
 
@@ -90,6 +117,25 @@ export default function RfqNew() {
     if (!countryId || !vendorTypes.length) return [];
     return matchRfqVendors(vendors, countryId, vendorTypes);
   }, [vendors, countryId, vendorTypes]);
+
+  /** Won vendors in-country that still fail a match rule — for diagnostics */
+  const nearMisses = useMemo(() => {
+    if (!countryId) return [];
+    return vendors
+      .filter((v) => isClosedStatusName(v.status_name))
+      .filter((v) => vendorOperatesInCountry(v, countryId))
+      .filter((v) => !matched.some((m) => m.id === v.id))
+      .map((v) => {
+        const reasons: string[] = [];
+        if (!v.email || !v.email.includes('@')) reasons.push('missing email');
+        if (!vendorHasAnyType(v, vendorTypes)) {
+          const have = (v.vendor_types || []).join(', ') || 'none';
+          reasons.push(`vendor types [${have}] do not overlap selection [${vendorTypes.join(', ')}]`);
+        }
+        return { ...v, reasons };
+      })
+      .slice(0, 8);
+  }, [vendors, countryId, vendorTypes, matched]);
 
   useEffect(() => {
     setSelectedVendorIds(new Set(matched.map((m) => m.id)));
@@ -420,8 +466,27 @@ export default function RfqNew() {
                 <p>
                   No Closed vendors with email for these types in this country. Check the vendor directory:
                   pipeline status must be Closed/Won, country coverage must include {countryName || 'this country'},
-                  and vendor types must overlap your selection.
+                  and vendor types must overlap your selection ({vendorTypes.join(', ') || 'none selected'}).
                 </p>
+                {nearMisses.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="font-semibold">Won partners in {countryName} that did not match:</p>
+                    {nearMisses.map((v) => (
+                      <p key={v.id} className="text-xs">
+                        <strong>{v.company_name}</strong> — {v.reasons.join('; ')}
+                      </p>
+                    ))}
+                    <p className="text-xs mt-2">
+                      Tip: for a fulfillment RFQ, select <strong>New Device</strong> on step 1 (or add that type on the lead).
+                      For retrieval, the lead needs <strong>warehouse</strong> and/or <strong>ITAD</strong> types.
+                    </p>
+                  </div>
+                )}
+                {nearMisses.length === 0 && (
+                  <p className="mt-2 text-xs">
+                    No Won partners found for {countryName} at all. Confirm the lead HQ/served country is Bahamas and status is Won.
+                  </p>
+                )}
               </InfoCallout>
             )}
             <div className="max-h-[360px] overflow-y-auto space-y-2">
