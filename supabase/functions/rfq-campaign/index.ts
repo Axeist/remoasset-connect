@@ -280,27 +280,56 @@ Deno.serve(async (req) => {
       if (action === 'test_send') {
         const to = body.to || ownerEmail
         if (!to) return json({ error: 'No test recipient' }, 400)
+
+        // Use a real recipient token so the magic link works end-to-end when testing
+        const { data: sampleRecipient } = await sb
+          .from('rfq_recipients')
+          .select('id, token, email, vendor:leads!vendor_id(company_name)')
+          .eq('rfq_id', rfqId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        if (!sampleRecipient?.token) {
+          return json({
+            error: 'No recipients on this RFQ yet — add partners before test send, or send the campaign first.',
+          }, 400)
+        }
+
+        const magic = `${APP_URL}/rfq/respond/${sampleRecipient.token}`
         const subject = body.subject || rfq.email_subject || 'RFQ test'
-        const html = (body.body_html || rfq.email_body_html || '').replaceAll('{{magic_link}}', `${APP_URL}/rfq/respond/test`)
+        const htmlRaw = body.body_html || rfq.email_body_html || ''
+        const html = htmlRaw
+          .replaceAll('{{magic_link}}', magic)
+          .replaceAll('{{vendor_name}}', (sampleRecipient as any).vendor?.company_name || 'Partner')
+        const text = (body.body_text || `Submit your quote: ${magic}`)
+          .replaceAll('{{magic_link}}', magic)
+
         const { message_id } = await sendViaResend({
           to,
           subject: `[TEST] ${subject}`,
           html,
-          text: body.body_text || 'RFQ test email',
+          text,
           cc: cc.filter((e) => e !== to.toLowerCase()),
         })
         await sb.from('rfq_emails').insert({
           rfq_id: rfqId,
+          recipient_id: sampleRecipient.id,
           kind: 'test_send',
           to_email: to,
           cc_emails: cc,
           subject: `[TEST] ${subject}`,
           body_html: html,
-          body_text: body.body_text || null,
+          body_text: text,
           resend_message_id: message_id,
           sent_by: user.id,
         })
-        return json({ ok: true, message_id })
+        return json({
+          ok: true,
+          message_id,
+          magic_link: magic,
+          note: 'Test email uses the first partner’s real quote link so you can click through and submit a quote.',
+        })
       }
 
       if (action === 'send') {

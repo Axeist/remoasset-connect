@@ -271,7 +271,10 @@ export default function RfqNew() {
           body_text: bodyText,
           to: user?.email,
         });
-        toast({ title: 'Test email sent', description: `Check ${user?.email}` });
+        toast({
+          title: 'Test email sent',
+          description: `Check ${user?.email}. The quote button uses a real partner link so you can click through and test the form.`,
+        });
         if (rfqId) navigate(`/rfq/${rfqId}`);
         return;
       }
@@ -523,9 +526,9 @@ export default function RfqNew() {
           <div className="space-y-4 rounded-xl border bg-card p-5">
             <InfoCallout title="Edit before you send" tone="amber">
               <p>
-                This is a branded HTML template with urgency and a clear CTA. Edit the subject and body as needed.
+                Template uses RemoAsset branding (orange + dark) and a human, short tone.
                 Keep <code className="text-[11px] bg-black/5 px-1 rounded">{'{{magic_link}}'}</code> in the body —
-                it is replaced with each vendor’s personal quote link. Use <strong>Test send</strong> to yourself first.
+                it becomes each partner’s personal quote link. Use <strong>Test send</strong> to yourself first.
               </p>
             </InfoCallout>
             <div className="space-y-2">

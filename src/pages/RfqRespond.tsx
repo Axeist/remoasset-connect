@@ -122,7 +122,21 @@ export default function RfqRespond() {
   }
 
   if (error && !payload) {
-    return <div className="min-h-screen grid place-items-center p-6 text-center text-destructive">{error}</div>;
+    const isPlaceholder = token === 'test'
+    return (
+      <div className="min-h-screen grid place-items-center p-6 text-center bg-[#F0F0F5]" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+        <div className="max-w-md space-y-3">
+          <p className="text-lg font-bold text-[#30282B]">
+            {isPlaceholder ? 'This was a placeholder test link' : 'Link invalid or expired'}
+          </p>
+          <p className="text-sm text-[#6E7180] leading-relaxed">
+            {isPlaceholder
+              ? 'Older test emails used /rfq/respond/test, which is not a real quote link. Raise the RFQ again and use Test send — the new email includes a working partner link. Or open Send campaign and use the link from that email.'
+              : (error || 'This quote link is not valid. Ask RemoAsset for a fresh invite, or open the latest email we sent you.')}
+          </p>
+        </div>
+      </div>
+    )
   }
 
   const rfq = payload?.rfq;
@@ -130,17 +144,19 @@ export default function RfqRespond() {
   const urgent = deadline ? new Date(deadline).getTime() - Date.now() < 4 * 3600_000 : false;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 text-slate-900">
-      <div className="bg-slate-900 text-white px-4 py-5">
-        <div className="max-w-xl mx-auto">
-          <p className="text-lg font-bold tracking-tight">RemoAsset</p>
-          <p className="text-slate-400 text-xs mt-0.5">Partner RFQ · Closed network</p>
+    <div className="min-h-screen bg-[#F0F0F5] text-[#30282B]" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+      <div className="bg-[#30282B] text-white px-4 py-5">
+        <div className="max-w-xl mx-auto text-center">
+          <p className="text-xl font-extrabold tracking-tight" style={{ fontFamily: "'Outfit', Manrope, sans-serif" }}>
+            Remo<span className="text-[#EA6E35]">Asset</span>
+          </p>
+          <p className="text-[#9DA2B3] text-xs mt-1">Partner quote · Closed network</p>
         </div>
       </div>
 
       {deadline && view !== 'won' && view !== 'lost' && view !== 'closed' && (
-        <div className={`px-4 py-3 text-center text-sm font-semibold ${urgent ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-900'}`}>
-          Closes in {formatCountdown(deadline)} · {new Date(deadline).toLocaleString()}
+        <div className={`px-4 py-3 text-center text-sm font-semibold ${urgent ? 'bg-[#EA6E35] text-white' : 'bg-[#FFF6F0] text-[#30282B] border-b border-[#F5D0B8]'}`}>
+          Ideally by {new Date(deadline).toLocaleString()} · {formatCountdown(deadline)} left
         </div>
       )}
 
@@ -298,19 +314,19 @@ export default function RfqRespond() {
               <p className="text-[11px] text-slate-500">Mandatory — you cannot submit without attaching your formal quote.</p>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button className="w-full rounded-xl h-11 font-semibold" disabled={submitting} onClick={submit}>
-              {submitting ? 'Submitting…' : 'Submit quote before deadline'}
+            <Button className="w-full rounded-xl h-11 font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white" disabled={submitting} onClick={submit}>
+              {submitting ? 'Submitting…' : 'Send your quote'}
             </Button>
-            <Button variant="ghost" className="w-full rounded-xl text-slate-500" disabled={submitting} onClick={decline}>
-              Decline this RFQ
+            <Button variant="ghost" className="w-full rounded-xl text-[#6E7180]" disabled={submitting} onClick={decline}>
+              Can’t take this one? Decline
             </Button>
-            <p className="text-[11px] text-center text-slate-400">
-              Declining tells RemoAsset you are not bidding so we stop reminders for this campaign.
+            <p className="text-[11px] text-center text-[#9DA2B3]">
+              Declining just tells us not to nudge you again on this request.
             </p>
           </div>
         )}
 
-        <p className="text-center text-xs text-slate-400 pb-8">RemoAsset · Global IT asset lifecycle</p>
+        <p className="text-center text-xs text-[#9DA2B3] pb-8">RemoAsset · Global IT asset lifecycle</p>
       </div>
     </div>
   );
