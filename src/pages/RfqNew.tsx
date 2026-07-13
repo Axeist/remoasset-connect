@@ -411,7 +411,7 @@ export default function RfqNew() {
               <div className="space-y-2">
                 <Label>Deadline</Label>
                 <Input className="rounded-xl" type="datetime-local" value={deadlineLocal} onChange={(e) => setDeadlineLocal(e.target.value)} />
-                <FieldHint>Default 48 hours. Bids stay sealed until this time (or you unseal early).</FieldHint>
+                <FieldHint>Default 48 hours. Partners must submit before this deadline.</FieldHint>
               </div>
             </div>
 

@@ -15,7 +15,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { campaignRollups, formatCountdown, isRfqSealed } from '@/lib/rfq';
+import { campaignRollups, formatCountdown } from '@/lib/rfq';
 import { buildAwardEmail, buildRemindEmail } from '@/lib/rfq-email-templates';
 import { invokeRfqCampaign } from '@/lib/rfq-api';
 import {
@@ -26,7 +26,7 @@ import {
   type RfqEmail,
   type RfqRecipient,
 } from '@/types/rfq';
-import { ArrowLeft, Trophy, Bell, Unlock, CheckSquare, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, Trophy, Bell, CheckSquare, Send, Trash2, FileText } from 'lucide-react';
 import { FieldHint, InfoCallout, RFQ_RECIPIENT_HELP, RFQ_STATUS_HELP } from '@/components/rfq/RfqInfo';
 import {
   AlertDialog,
@@ -38,6 +38,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
+function money(currency: string, value: number | null | undefined) {
+  if (value == null || Number.isNaN(Number(value))) return '—';
+  return `${currency} ${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
 
 export default function RfqDetail() {
   const { id } = useParams<{ id: string }>();
@@ -82,22 +87,21 @@ export default function RfqDetail() {
 
   useEffect(() => { load(); }, [load]);
 
-  const sealed = rfq ? isRfqSealed(rfq) : true;
   const roll = useMemo(() => campaignRollups(recipients), [recipients]);
 
-  const unseal = async () => {
-    if (!rfq) return;
-    setBusy(true);
-    const { error } = await supabase.from('rfqs' as any).update({
-      unsealed_at: new Date().toISOString(),
-      status: rfq.status === 'sent' ? 'bidding' : rfq.status,
-    }).eq('id', rfq.id);
-    setBusy(false);
-    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    else {
-      toast({ title: 'Bids unsealed' });
-      load();
+  const openQuotation = async (b: RfqBid) => {
+    if (!b.quotation_file_path) {
+      toast({ title: 'No file on this bid', variant: 'destructive' });
+      return;
     }
+    const { data, error } = await supabase.storage
+      .from('rfq-quotations')
+      .createSignedUrl(b.quotation_file_path, 120);
+    if (error || !data?.signedUrl) {
+      toast({ title: 'Could not open file', description: error?.message, variant: 'destructive' });
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   };
 
   const remind = async () => {
@@ -200,8 +204,14 @@ export default function RfqDetail() {
         }).eq('id', rfq.client_request_id);
       }
 
+      const fmtMoney = (n: number | null | undefined) =>
+        n == null || Number.isNaN(Number(n))
+          ? ''
+          : `${bid.currency} ${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
       const varsBase = {
-        vendor_name: 'Partner',
+        vendor_name: '{{vendor_name}}',
+        contact_name: '{{contact_name}}',
         country: rfq.country?.name || '',
         deadline: new Date(rfq.deadline).toLocaleString(),
         deadline_countdown: '0h',
@@ -210,6 +220,8 @@ export default function RfqDetail() {
         qty: rfq.quantity || 1,
         owner_name: user?.email?.split('@')[0] || 'RemoAsset',
         rfq_type_label: rfq.rfq_type,
+        finalized_price: fmtMoney(bid.quoted_price),
+        finalized_landed: fmtMoney(bid.total_landed) || fmtMoney(bid.quoted_price),
       };
       const win = buildAwardEmail(varsBase, true);
       const lose = buildAwardEmail(varsBase, false);
@@ -223,7 +235,10 @@ export default function RfqDetail() {
 
       setChecklist((c) => ({ ...c, pricing: true, file: true, winnerMail: true, loserMail: true }));
       setAwardOpen(false);
-      toast({ title: 'Awarded', description: bid.vendor?.company_name || 'Vendor selected' });
+      toast({
+        title: 'Awarded & notified',
+        description: `${bid.vendor?.company_name || 'Winner'} selected. Other partners emailed with the finalized price.`,
+      });
       load();
     } catch (e) {
       toast({ title: 'Award failed', description: e instanceof Error ? e.message : String(e), variant: 'destructive' });
@@ -266,7 +281,6 @@ export default function RfqDetail() {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-bold tracking-tight">{rfq.client?.name}</h1>
               <Badge>{RFQ_STATUS_LABELS[rfq.status]}</Badge>
-              {sealed && <Badge variant="outline">Sealed amounts</Badge>}
             </div>
             <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
               {RFQ_STATUS_HELP[rfq.status]}
@@ -302,17 +316,6 @@ export default function RfqDetail() {
             >
               <Bell className="h-4 w-4 mr-2" /> Remind silent
             </Button>
-            {sealed && rfq.status !== 'draft' && (
-              <Button
-                variant="outline"
-                className="rounded-xl"
-                disabled={busy}
-                onClick={unseal}
-                title="Reveal bid amounts before the deadline"
-              >
-                <Unlock className="h-4 w-4 mr-2" /> Unseal bids
-              </Button>
-            )}
             {isAdmin && (
               <Button
                 variant="outline"
@@ -326,16 +329,6 @@ export default function RfqDetail() {
             )}
           </div>
         </div>
-
-        {sealed && rfq.status !== 'draft' && (
-          <InfoCallout title="Why amounts are sealed" tone="amber">
-            <p>
-              Until the deadline (or until you unseal), you can see <strong>who quoted</strong> but not prices.
-              This keeps the process fair and avoids anchoring on the first number. Use Recipients to chase opens;
-              use Bids after unseal to compare landed cost and discount.
-            </p>
-          </InfoCallout>
-        )}
 
         <Tabs defaultValue="recipients">
           <TabsList className="rounded-xl flex-wrap h-auto">
@@ -395,31 +388,16 @@ export default function RfqDetail() {
           </TabsContent>
 
           <TabsContent value="bids" className="rounded-xl border bg-card mt-3">
-            {sealed ? (
-              <div className="p-6 text-sm space-y-3">
-                <p className="font-medium">Bid amounts are hidden while sealed</p>
-                <p className="text-muted-foreground">
-                  Partners who already quoted appear below without prices. Unseal when you are ready to compare
-                  quoted price, MRP discount, and total landed cost (quote + shipping + tax + other fees).
+            <div className="px-4 pt-4">
+              <InfoCallout title="All quote details" tone="emerald">
+                <p>
+                  Full response from each partner: prices, fees, lead time, notes, and quotation file.
+                  Prefer <strong>total landed</strong> (quote + shipping + tax + other) when comparing.
+                  Award requires a short rationale for the audit trail.
                 </p>
-                <div className="mt-3 space-y-1">
-                  {bids.map((b) => (
-                    <p key={b.id}>✓ {b.vendor?.company_name} — quote on file (amount hidden) · file: {b.quotation_file_name || 'attached'}</p>
-                  ))}
-                  {!bids.length && <p className="text-muted-foreground">No quotes yet. Use Remind silent for partners who only opened or were sent the invite.</p>}
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="px-4 pt-4">
-                  <InfoCallout title="How to compare" tone="emerald">
-                    <p>
-                      Prefer <strong>total landed</strong> over unit price alone. Discount % is vs the MRP the vendor declared.
-                      Request revision if pricing is not acceptable — their magic link will reopen for a new quote + file.
-                      Award requires a short rationale for the audit trail.
-                    </p>
-                  </InfoCallout>
-                </div>
+              </InfoCallout>
+            </div>
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -427,32 +405,80 @@ export default function RfqDetail() {
                     <TableHead>Quoted</TableHead>
                     <TableHead>MRP</TableHead>
                     <TableHead>Discount</TableHead>
+                    <TableHead>Shipping</TableHead>
+                    <TableHead>Tax</TableHead>
+                    <TableHead>Other</TableHead>
                     <TableHead>Landed total</TableHead>
                     <TableHead>Lead time</TableHead>
+                    <TableHead>Submitted</TableHead>
+                    <TableHead>Notes</TableHead>
                     <TableHead>File</TableHead>
-                    <TableHead>Pricing</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {bids.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                        No bids to compare yet.
+                      <TableCell colSpan={14} className="text-center text-muted-foreground py-8">
+                        No bids yet. When a partner submits a quote, every field they entered will show here.
                       </TableCell>
                     </TableRow>
                   )}
                   {bids.map((b) => (
                     <TableRow key={b.id}>
-                      <TableCell className="font-medium">{b.vendor?.company_name}</TableCell>
-                      <TableCell className="tabular-nums">{b.currency} {Number(b.quoted_price).toLocaleString()}</TableCell>
-                      <TableCell className="tabular-nums">{b.mrp_price != null ? Number(b.mrp_price).toLocaleString() : '—'}</TableCell>
-                      <TableCell className="tabular-nums">{b.discount_pct != null ? `${b.discount_pct}%` : '—'}</TableCell>
-                      <TableCell className="tabular-nums font-semibold">{b.total_landed != null ? Number(b.total_landed).toLocaleString() : '—'}</TableCell>
-                      <TableCell>{b.lead_time_days ?? '—'}d</TableCell>
-                      <TableCell className="text-xs">{b.quotation_file_name || '—'}</TableCell>
-                      <TableCell><Badge variant="outline">{b.pricing_status}</Badge></TableCell>
-                      <TableCell className="space-x-1">
+                      <TableCell className="font-medium whitespace-nowrap">{b.vendor?.company_name || '—'}</TableCell>
+                      <TableCell className="tabular-nums whitespace-nowrap">{money(b.currency, b.quoted_price)}</TableCell>
+                      <TableCell className="tabular-nums whitespace-nowrap">{money(b.currency, b.mrp_price)}</TableCell>
+                      <TableCell className="tabular-nums whitespace-nowrap">
+                        {b.discount_pct != null ? `${b.discount_pct}%` : '—'}
+                        {b.discount_amount != null && (
+                          <span className="block text-[10px] text-muted-foreground">
+                            {money(b.currency, b.discount_amount)} off
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="tabular-nums whitespace-nowrap">{money(b.currency, b.shipping_fee)}</TableCell>
+                      <TableCell className="tabular-nums whitespace-nowrap">{money(b.currency, b.tax_fee)}</TableCell>
+                      <TableCell className="tabular-nums whitespace-nowrap">{money(b.currency, b.other_fees)}</TableCell>
+                      <TableCell className="tabular-nums font-semibold whitespace-nowrap">{money(b.currency, b.total_landed)}</TableCell>
+                      <TableCell className="whitespace-nowrap">{b.lead_time_days != null ? `${b.lead_time_days}d` : '—'}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {b.submitted_at ? new Date(b.submitted_at).toLocaleString() : '—'}
+                      </TableCell>
+                      <TableCell className="text-xs max-w-[200px]">
+                        {b.notes ? (
+                          <span className="line-clamp-3" title={b.notes}>{b.notes}</span>
+                        ) : '—'}
+                        {b.revision_note && (
+                          <span className="block text-amber-600 mt-1" title={b.revision_note}>
+                            Revision: {b.revision_note}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {b.quotation_file_path ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-auto px-1 py-0.5 text-xs max-w-[140px]"
+                            onClick={() => openQuotation(b)}
+                            title={b.quotation_file_name || 'Open quotation'}
+                          >
+                            <FileText className="h-3.5 w-3.5 mr-1 shrink-0" />
+                            <span className="truncate">{b.quotation_file_name || 'Open file'}</span>
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{b.pricing_status}</Badge>
+                        {b.award_status === 'won' && <Badge className="bg-emerald-600 ml-1">Won</Badge>}
+                        {b.award_status === 'lost' && <Badge variant="secondary" className="ml-1">Lost</Badge>}
+                      </TableCell>
+                      <TableCell className="space-x-1 whitespace-nowrap">
                         {rfq.status !== 'awarded' && (
                           <>
                             <Button size="sm" variant="ghost" onClick={() => requestRevision(b)} title="Ask vendor to revise on the same link">Revise</Button>
@@ -465,14 +491,12 @@ export default function RfqDetail() {
                             </Button>
                           </>
                         )}
-                        {b.award_status === 'won' && <Badge className="bg-emerald-600">Won</Badge>}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-              </>
-            )}
+            </div>
           </TabsContent>
 
           <TabsContent value="emails" className="mt-3 space-y-3">
@@ -547,8 +571,9 @@ export default function RfqDetail() {
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              This marks the vendor as winner, accepts pricing, updates the client request, and emails winner + losers
-              (with you on CC). Their magic links will show Won or Not selected.
+              This marks the vendor as winner, accepts pricing, updates the client request, and emails
+              the winner plus every other partner who was invited — with a warm note that we went with
+              someone else on price, and the finalized amount we locked in.
             </p>
             <Label>Award rationale (required for audit)</Label>
             <Textarea

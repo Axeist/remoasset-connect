@@ -440,22 +440,35 @@ Deno.serve(async (req) => {
       if (action === 'award_emails') {
         const { data: recipients } = await sb
           .from('rfq_recipients')
-          .select('*, vendor:leads!vendor_id(company_name)')
+          .select('*, vendor:leads!vendor_id(company_name, contact_name)')
           .eq('rfq_id', rfqId)
         const winnerId = body.winner_vendor_id as string
         const winTpl = body.winner
         const loseTpl = body.loser
+        let sent = 0
         for (const r of recipients || []) {
           const won = r.vendor_id === winnerId
+          // Only notify partners who were actually emailed (or the winner)
+          if (!won && r.status === 'pending_send') continue
           const tpl = won ? winTpl : loseTpl
           if (!tpl?.subject || !tpl?.body_html) continue
           const magic = `${APP_URL}/rfq/respond/${r.token}`
-          const html = tpl.body_html.replaceAll('{{magic_link}}', magic)
+          const company = (r as any).vendor?.company_name || 'Partner'
+          const contact = (r as any).vendor?.contact_name || company
+          const first = String(contact).trim().split(/\s+/)[0] || company
+          const html = String(tpl.body_html)
+            .replaceAll('{{magic_link}}', magic)
+            .replaceAll('{{vendor_name}}', company)
+            .replaceAll('{{contact_name}}', first)
+          const text = String(tpl.body_text || magic)
+            .replaceAll('{{magic_link}}', magic)
+            .replaceAll('{{vendor_name}}', company)
+            .replaceAll('{{contact_name}}', first)
           const { message_id } = await sendViaResend({
             to: r.email,
             subject: tpl.subject,
             html,
-            text: tpl.body_text || magic,
+            text,
             cc: cc.filter((e) => e !== r.email.toLowerCase()),
           })
           await sb.from('rfq_emails').insert({
@@ -466,12 +479,13 @@ Deno.serve(async (req) => {
             cc_emails: cc,
             subject: tpl.subject,
             body_html: html,
-            body_text: tpl.body_text || null,
+            body_text: text,
             resend_message_id: message_id,
             sent_by: user.id,
           })
+          sent++
         }
-        return json({ ok: true })
+        return json({ ok: true, sent })
       }
     }
 

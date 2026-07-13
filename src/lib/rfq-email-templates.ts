@@ -14,6 +14,10 @@ export type RfqEmailTemplateVars = {
   qty: string | number;
   owner_name: string;
   rfq_type_label: string;
+  /** Display string e.g. "USD 1,250" — used in not-selected emails */
+  finalized_price?: string;
+  /** Optional all-in landed total display */
+  finalized_landed?: string;
 };
 
 const BRAND = {
@@ -55,7 +59,9 @@ function applyVars(template: string, vars: RfqEmailTemplateVars): string {
     .replaceAll('{{scope_summary}}', esc(vars.scope_summary))
     .replaceAll('{{qty}}', esc(String(vars.qty)))
     .replaceAll('{{owner_name}}', esc(vars.owner_name))
-    .replaceAll('{{rfq_type_label}}', esc(vars.rfq_type_label));
+    .replaceAll('{{rfq_type_label}}', esc(vars.rfq_type_label))
+    .replaceAll('{{finalized_price}}', esc(vars.finalized_price || ''))
+    .replaceAll('{{finalized_landed}}', esc(vars.finalized_landed || vars.finalized_price || ''));
 }
 
 function firstName(vars: RfqEmailTemplateVars): string {
@@ -281,13 +287,20 @@ export function buildRemindEmail(vars: RfqEmailTemplateVars) {
 export function buildAwardEmail(vars: RfqEmailTemplateVars, won: boolean) {
   const name = firstName(vars);
   const signOff = vars.owner_name || 'RemoAsset team';
+  const priceLine = vars.finalized_landed && vars.finalized_landed !== vars.finalized_price
+    ? `${vars.finalized_price} (all-in landed ${vars.finalized_landed})`
+    : (vars.finalized_price || vars.finalized_landed || '');
 
   if (won) {
+    const priceNote = priceLine
+      ? `<p style="margin:0 0 16px;">We’re locking this in at <strong>${esc(priceLine)}</strong> as quoted — looks good on our side.</p>`
+      : `<p style="margin:0 0 16px;">Pricing looks good on our side.</p>`;
     const html = wrapRfqEmailHtml({
       eyebrow: 'Good news',
       title: 'You’re selected',
       bodyHtml: `<p style="margin:0 0 16px;">Hi ${esc(name)},</p>
-        <p style="margin:0 0 16px;">Thanks again for quoting — we’d like to move forward with you on the ${esc(vars.country)} request. Pricing looks good on our side.</p>
+        <p style="margin:0 0 16px;">Thanks again for quoting — we’d like to move forward with you on the ${esc(vars.country)} request.</p>
+        ${priceNote}
         <p style="margin:0;">I’ll follow up on next steps / PO shortly. You can also confirm status on the link below anytime.</p>`,
       ctaLabel: 'View confirmation',
       ctaUrl: vars.magic_link,
@@ -296,24 +309,58 @@ export function buildAwardEmail(vars: RfqEmailTemplateVars, won: boolean) {
     return {
       subject: `You’re on for ${vars.country} — thanks for quoting`,
       body_html: html,
-      body_text: `Hi ${name},\n\nWe’re moving forward with you on ${vars.country}. ${vars.magic_link}\n\nWarm regards,\n${signOff}`,
+      body_text: `Hi ${name},\n\nWe’re moving forward with you on ${vars.country}${priceLine ? ` at ${priceLine}` : ''}. ${vars.magic_link}\n\nWarm regards,\n${signOff}`,
     };
   }
 
+  const priceBlock = priceLine
+    ? `<div style="background:${BRAND.cream};border:1px solid ${BRAND.creamBorder};border-radius:12px;padding:14px 16px;margin:0 0 16px;">
+        <p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:${BRAND.muted};">Price we finalized this round</p>
+        <p style="margin:0;font-size:18px;font-weight:800;color:${BRAND.dark};font-family:${FONT_DISPLAY};">${esc(priceLine)}</p>
+      </div>`
+    : '';
+
   const html = wrapRfqEmailHtml({
-    eyebrow: 'Update',
-    title: 'Thank you — we went another way this time',
+    eyebrow: 'A warm thank-you',
+    title: 'We went with another partner this time',
+    introHtml: `Not a reflection on you — this one came down to <strong style="color:${BRAND.orangeSoft};">price for this job</strong>.`,
     bodyHtml: `<p style="margin:0 0 16px;">Hi ${esc(name)},</p>
-      <p style="margin:0 0 16px;">Appreciate you taking the time to quote for ${esc(vars.country)}. We ended up selecting another partner for this one.</p>
-      <p style="margin:0;">You’re still on our Closed partner list, and I’ll reach out again when something fits. Grateful either way.</p>`,
-    ctaLabel: 'View status',
+      <p style="margin:0 0 16px;">
+        Thank you so much for taking the time to quote on our ${esc(vars.country)} request.
+        We truly appreciate you showing up for us.
+      </p>
+      <p style="margin:0 0 16px;">
+        This time we went with a <strong>different vendor</strong> because we needed to land at a specific price point.
+        For transparency, here’s what we finalized with the other partner:
+      </p>
+      ${priceBlock}
+      <p style="margin:0 0 16px;">
+        You’re still very much on our Closed partner list, and <strong>we’d love to choose you next time</strong>
+        something lines up in your market. Please don’t read this as anything other than a pricing call for this one job.
+      </p>
+      <p style="margin:0;">Grateful for the partnership — talk soon.</p>`,
+    ctaLabel: 'View your status',
     ctaUrl: vars.magic_link,
     signOffName: signOff,
   });
   return {
-    subject: `Thanks for quoting — update on ${vars.country}`,
+    subject: `Thank you — update on ${vars.country} (and next time)`,
     body_html: html,
-    body_text: `Hi ${name},\n\nThanks for quoting on ${vars.country}. We went with another partner this round — you’re still on our Closed list.\n\nWarm regards,\n${signOff}`,
+    body_text: [
+      `Hi ${name},`,
+      '',
+      `Thank you so much for quoting on ${vars.country}. We really appreciate you.`,
+      '',
+      `This time we went with a different vendor for the price we needed.`,
+      priceLine ? `We finalized at ${priceLine} with another partner.` : '',
+      '',
+      `You’re still on our Closed partner list, and we’d love to choose you next time. This was purely a pricing call for this job — nothing more.`,
+      '',
+      `Warm regards,`,
+      signOff,
+      `RemoAsset · Procurement`,
+      vars.magic_link,
+    ].filter(Boolean).join('\n'),
   };
 }
 

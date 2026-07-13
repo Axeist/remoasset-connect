@@ -249,7 +249,7 @@ export default function RfqHub() {
         <InfoCallout title="Reading the campaign column" tone="blue">
           <p>
             <strong>Sent</strong> = invite emailed · <strong>Opened</strong> = partner opened the link ·
-            <strong> Quoted</strong> = valid bid + quotation file uploaded. Amounts stay sealed until you unseal or the deadline passes.
+            <strong> Quoted</strong> = valid bid + quotation file uploaded. Open a campaign to see full prices, fees, notes, and files.
           </p>
         </InfoCallout>
       </div>

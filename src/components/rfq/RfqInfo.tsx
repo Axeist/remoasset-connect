@@ -27,8 +27,8 @@ export const RFQ_HOW_IT_WORKS = [
 
 export const RFQ_STATUS_HELP: Record<string, string> = {
   draft: 'Campaign saved but not emailed yet. Review partners and click Send.',
-  sent: 'Invite emails are out. Waiting for opens and quotes. Amounts stay sealed.',
-  bidding: 'At least one quote received (or unsealed). Compare and award when ready.',
+  sent: 'Invite emails are out. Waiting for opens and quotes.',
+  bidding: 'At least one quote received. Compare full bid details and award when ready.',
   awarded: 'Winner selected and notified. Use the checklist to finish handoff to PO.',
   expired: 'Deadline passed without an award. Extend, re-raise, or cancel.',
   cancelled: 'Campaign stopped. Vendors will see this RFQ as closed.',
