@@ -30,6 +30,10 @@ import ApiDocs from "./pages/ApiDocs";
 import ApiTester from "./pages/ApiTester";
 import Developer from "./pages/Developer";
 import TransferLog from "./pages/TransferLog";
+import RfqHub from "./pages/RfqHub";
+import RfqNew from "./pages/RfqNew";
+import RfqDetail from "./pages/RfqDetail";
+import RfqRespond from "./pages/RfqRespond";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
@@ -75,6 +79,10 @@ const App = () => {
               <Route path="/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />
               <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
               <Route path="/clients/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
+              <Route path="/rfq" element={<ProtectedRoute><RfqHub /></ProtectedRoute>} />
+              <Route path="/rfq/new" element={<ProtectedRoute><RfqNew /></ProtectedRoute>} />
+              <Route path="/rfq/:id" element={<ProtectedRoute><RfqDetail /></ProtectedRoute>} />
+              <Route path="/rfq/respond/:token" element={<RfqRespond />} />
               <Route path="/vendor-agent" element={<AdminRoute><VendorAgent /></AdminRoute>} />
               <Route path="/leads/:id" element={<ProtectedRoute><LeadDetail /></ProtectedRoute>} />
               <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />

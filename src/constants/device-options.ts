@@ -133,8 +133,12 @@ export const OS_OPTIONS = [
 
 export const CLIENT_REQUEST_STATUSES: { value: string; label: string; color: string }[] = [
   { value: 'pending', label: 'Pending', color: '#F59E0B' },
+  { value: 'rfq_in_progress', label: 'RFQ In Progress', color: '#F97316' },
+  { value: 'quotes_received', label: 'Quotes Received', color: '#EA580C' },
+  { value: 'pricing_review', label: 'Pricing Review', color: '#D97706' },
   { value: 'vendor_allocated', label: 'Vendor Allocated', color: '#8B5CF6' },
   { value: 'ordered', label: 'Ordered', color: '#3B82F6' },
+  { value: 'po_sent', label: 'PO Sent', color: '#2563EB' },
   { value: 'in_transit', label: 'In Transit', color: '#6366F1' },
   { value: 'fulfilled', label: 'Fulfilled', color: '#10B981' },
   { value: 'cancelled', label: 'Cancelled', color: '#EF4444' },

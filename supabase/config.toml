@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.api]
 verify_jwt = false
+
+[functions.rfq-campaign]
+verify_jwt = false
