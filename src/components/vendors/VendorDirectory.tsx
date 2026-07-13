@@ -274,10 +274,15 @@ export function VendorDirectory() {
     (v: VendorLead, opts: { includeCountry: boolean }) => {
       if (search) {
         const q = search.toLowerCase();
-        const match = [v.company_name, v.contact_name, v.email, v.owner?.full_name]
+        const textFields = [v.company_name, v.contact_name, v.email, v.owner?.full_name]
           .filter(Boolean)
           .some((f) => f!.toLowerCase().includes(q));
-        if (!match) return false;
+        const geoFields = mergeVendorCountries(v.countries, v.hq_country).some(
+          (c) =>
+            (c.name && c.name.toLowerCase().includes(q))
+            || (c.code && c.code.toLowerCase().includes(q)),
+        );
+        if (!textFields && !geoFields) return false;
       }
       const operatingCodes = mergeVendorCountries(v.countries, v.hq_country).map((c) => c.code);
       if (regionFilters.length > 0 && !vendorMatchesRegionFilters(operatingCodes, regionFilters, codeToRegion)) {
@@ -631,7 +636,7 @@ export function VendorDirectory() {
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search vendors..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-10" />
+              <Input placeholder="Search company, contact, email, or country…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-10" />
             </div>
             <FilterMultiSelect
               emptyLabel="All Regions"
