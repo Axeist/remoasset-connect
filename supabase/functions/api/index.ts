@@ -17,6 +17,54 @@ async function hashKey(key: string): Promise<string> {
   return toHex(hash)
 }
 
+type LeadRow = Record<string, unknown> & {
+  hq_country_id?: string | null
+  country_ids?: string[] | null
+}
+
+/** Attach `country` / `countryId` / `countries` names resolved from `hq_country_id` and `country_ids`. */
+async function enrichLeadsWithCountries(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  leads: LeadRow | LeadRow[] | null
+): Promise<LeadRow | LeadRow[] | null> {
+  if (!leads) return leads
+  const list = Array.isArray(leads) ? leads : [leads]
+  if (list.length === 0) return leads
+
+  const ids = new Set<string>()
+  for (const lead of list) {
+    if (lead.hq_country_id) ids.add(lead.hq_country_id)
+    for (const cid of lead.country_ids ?? []) {
+      if (cid) ids.add(cid)
+    }
+  }
+
+  const nameById: Record<string, string> = {}
+  if (ids.size > 0) {
+    const { data: countries } = await supabase
+      .from('countries')
+      .select('id, name')
+      .in('id', [...ids])
+    for (const c of countries ?? []) {
+      nameById[c.id] = c.name
+    }
+  }
+
+  const enriched = list.map((lead) => {
+    const hqId = lead.hq_country_id ?? null
+    const servedIds = Array.isArray(lead.country_ids) ? lead.country_ids : []
+    return {
+      ...lead,
+      countryId: hqId,
+      country: hqId ? nameById[hqId] ?? null : null,
+      countries: servedIds.map((cid) => nameById[cid]).filter(Boolean),
+    }
+  })
+
+  return Array.isArray(leads) ? enriched : enriched[0]
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -83,7 +131,8 @@ Deno.serve(async (req) => {
               return err('Body must include lead_ids (array) and at least one of status_id, owner_id, country_ids', 400)
             const { data, error } = await supabaseAdmin.from('leads').update(updates).in('id', leadIds).select()
             if (error) return err(error.message, 400)
-            return json({ updated: data?.length ?? 0, leads: data ?? [] })
+            const enriched = await enrichLeadsWithCountries(supabaseAdmin, data ?? [])
+            return json({ updated: Array.isArray(enriched) ? enriched.length : 0, leads: enriched ?? [] })
           }
           break
         }
@@ -91,13 +140,13 @@ Deno.serve(async (req) => {
           if (req.method === 'GET') {
             const { data, error } = await supabaseAdmin.from('leads').select('*').eq('id', id).single()
             if (error || !data) return err(error?.message ?? 'Not found', 404)
-            return json(data)
+            return json(await enrichLeadsWithCountries(supabaseAdmin, data))
           }
           if (req.method === 'PATCH') {
             const body = await req.json().catch(() => ({}))
             const { data, error } = await supabaseAdmin.from('leads').update(body).eq('id', id).select().single()
             if (error) return err(error.message, 400)
-            return json(data)
+            return json(await enrichLeadsWithCountries(supabaseAdmin, data))
           }
           if (req.method === 'DELETE') {
             const { error } = await supabaseAdmin.from('leads').delete().eq('id', id)
@@ -120,13 +169,14 @@ Deno.serve(async (req) => {
             }
             const { data, error, count } = await q
             if (error) return err(error.message, 400)
-            return json({ data: data ?? [], total: count ?? 0 })
+            const enriched = await enrichLeadsWithCountries(supabaseAdmin, data ?? [])
+            return json({ data: enriched ?? [], total: count ?? 0 })
           }
           if (req.method === 'POST') {
             const body = await req.json().catch(() => ({}))
             const { data, error } = await supabaseAdmin.from('leads').insert(body).select().single()
             if (error) return err(error.message, 400)
-            return json(data, 201)
+            return json(await enrichLeadsWithCountries(supabaseAdmin, data), 201)
           }
         }
         break
