@@ -173,9 +173,11 @@ Deno.serve(async (req) => {
             if (ownerId) q = q.eq('owner_id', ownerId)
             if (countryIds.length) {
               // Match headquarters country OR countries-served array (many leads only set hq_country_id).
-              const hqIn = `hq_country_id.in.(${countryIds.join(',')})`
-              const servedOv = `country_ids.ov.{${countryIds.join(',')}}`
-              q = q.or(`${hqIn},${servedOv}`)
+              // Use per-id eq/cs clauses so PostgREST does not mis-parse commas inside in.()/ov.{}.
+              const countryOr = countryIds
+                .flatMap((cid) => [`hq_country_id.eq.${cid}`, `country_ids.cs.{${cid}}`])
+                .join(',')
+              q = q.or(countryOr)
             }
             if (search.trim()) {
               const term = `%${search.trim().replace(/%/g, '')}%`
