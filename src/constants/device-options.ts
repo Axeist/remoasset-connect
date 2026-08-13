@@ -6,7 +6,9 @@ export const BRANDS = [
 
 export const MODELS_BY_BRAND: Record<string, string[]> = {
   Apple: [
-    'MacBook Pro 14', 'MacBook Pro 16', 'MacBook Air 13', 'MacBook Air 15',
+    'MacBook Air 13', 'MacBook Air 15', 'MacBook Air 13 M4', 'MacBook Air 15 M4',
+    'MacBook Air 13 M5', 'MacBook Air 15 M5',
+    'MacBook Pro 14', 'MacBook Pro 16', 'MacBook Pro 14 M4', 'MacBook Pro 16 M4',
     'Mac Mini', 'Mac Studio', 'Mac Pro', 'iMac 24',
   ],
   Lenovo: [

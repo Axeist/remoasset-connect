@@ -118,6 +118,90 @@ export function formatPriceRange(
   return only != null ? formatPublicPrice(only, currency, countryCode) : 'No public prices found';
 }
 
+const MARKETPLACE_HINTS = [
+  'amazon', 'flipkart', 'croma', 'reliance digital', 'reliancedigital',
+  'best buy', 'bestbuy', 'apple', 'dell', 'lenovo', 'hp.com', 'hp ',
+  'walmart', 'costco', 'b&h', 'bhphotovideo', 'newegg', 'currys',
+  'mediamarkt', 'media markt', 'vijay sales', 'tatacliq', 'tata cliq',
+  'official', 'store.google', 'microsoft',
+];
+
+export function isMajorMarketplace(hit: PublicPriceHit): boolean {
+  const hay = `${hit.retailer} ${hit.url}`.toLowerCase();
+  return MARKETPLACE_HINTS.some((hint) => hay.includes(hint));
+}
+
+export function splitPublicPriceHits(hits: PublicPriceHit[]): {
+  marketplaces: PublicPriceHit[];
+  others: PublicPriceHit[];
+} {
+  const marketplaces: PublicPriceHit[] = [];
+  const others: PublicPriceHit[] = [];
+  for (const hit of hits) {
+    (isMajorMarketplace(hit) ? marketplaces : others).push(hit);
+  }
+  return { marketplaces, others };
+}
+
+export function rangeFromHits(hits: PublicPriceHit[]): { from: number | null; to: number | null; currency: string | null } {
+  if (!hits.length) return { from: null, to: null, currency: null };
+  const prices = hits.map((h) => h.price);
+  return {
+    from: Math.min(...prices),
+    to: Math.max(...prices),
+    currency: hits[0]?.currency || null,
+  };
+}
+
+export interface MrpLookupHistoryRow {
+  id: string;
+  user_id: string;
+  query: MrpLookupRequest;
+  summary: MrpLookupSummary;
+  results: PublicPriceHit[];
+  token_usage: MrpLookupResponse['token_usage'] | null;
+  created_at: string;
+}
+
+const HISTORY_TABLE = 'mrp_lookup_history';
+const HISTORY_LIMIT = 30;
+
+export async function loadLookupHistory(): Promise<MrpLookupHistoryRow[]> {
+  const { data, error } = await supabase
+    .from(HISTORY_TABLE as any)
+    .select('id, user_id, query, summary, results, token_usage, created_at')
+    .order('created_at', { ascending: false })
+    .limit(HISTORY_LIMIT);
+  if (error) throw new Error(error.message);
+  return (data as MrpLookupHistoryRow[]) || [];
+}
+
+export async function saveLookupHistory(
+  userId: string,
+  query: MrpLookupRequest,
+  response: MrpLookupResponse,
+): Promise<void> {
+  const { error } = await supabase.from(HISTORY_TABLE as any).insert({
+    user_id: userId,
+    query,
+    summary: response.summary,
+    results: response.results,
+    token_usage: response.token_usage ?? null,
+  });
+  if (error) throw new Error(error.message);
+
+  const { data: extra } = await supabase
+    .from(HISTORY_TABLE as any)
+    .select('id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .range(HISTORY_LIMIT, HISTORY_LIMIT + 50);
+  const ids = ((extra as { id: string }[]) || []).map((r) => r.id);
+  if (ids.length) {
+    await supabase.from(HISTORY_TABLE as any).delete().in('id', ids);
+  }
+}
+
 export const PRICE_TYPE_LABEL: Record<PublicPriceType, string> = {
   mrp: 'MRP',
   msrp: 'MSRP',

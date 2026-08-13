@@ -1,16 +1,16 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { Check, ChevronsUpDown, Trash2, Plus, ChevronDown, ChevronUp, HelpCircle, Search, Package } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, ChevronUp, Package } from 'lucide-react';
+import { SpecCombobox } from '@/components/shared/SpecCombobox';
 import {
   BRANDS, MODELS_BY_BRAND, ALL_PROCESSORS, PROCESSORS_BY_BRAND,
   DISPLAY_SIZES, RAM_OPTIONS, STORAGE_OPTIONS, ADDON_TYPES, OS_OPTIONS,
@@ -21,7 +21,6 @@ import {
 } from '@/constants/device-categories';
 import type { CustomSpecField, DeviceAddon } from '@/types/procurement';
 import { createEmptyDeviceSpec } from '@/lib/device-spec-utils';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export interface DeviceSpecValues {
   id: string;
@@ -61,138 +60,6 @@ interface MultiDeviceSpecFormProps {
   onChange: (devices: DeviceSpecValues[]) => void;
   sectionNumberStart?: number;
   hideNotes?: boolean;
-}
-
-function ComboboxField({
-  label,
-  value,
-  onChange,
-  options,
-  placeholder,
-  required,
-  tooltip,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-  placeholder: string;
-  required?: boolean;
-  tooltip?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const filtered = search
-    ? options.filter((o) => o.toLowerCase().includes(search.toLowerCase()))
-    : options;
-
-  useEffect(() => {
-    if (open) {
-      setSearch('');
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [open]);
-
-  const selectOption = (opt: string) => {
-    onChange(opt);
-    setOpen(false);
-    setSearch('');
-  };
-
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-sm font-medium flex items-center gap-1">
-        {label}
-        {required && <span className="text-destructive">*</span>}
-        {tooltip && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-            </TooltipTrigger>
-            <TooltipContent><p className="text-xs">{tooltip}</p></TooltipContent>
-          </Tooltip>
-        )}
-      </Label>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            role="combobox"
-            aria-expanded={open}
-            className={cn(
-              "flex h-10 w-full items-center justify-between rounded-[10px] border-[1.5px] border-input bg-background px-3 py-2 text-sm ring-offset-background",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-              !value && "text-muted-foreground"
-            )}
-          >
-            <span className="truncate">{value || placeholder}</span>
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          className="w-[--radix-popover-trigger-width] p-0"
-          align="start"
-          onOpenAutoFocus={(e) => e.preventDefault()}
-        >
-          <div className="flex items-center border-b px-3">
-            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-            <input
-              ref={inputRef}
-              className="flex h-10 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
-              placeholder="Search or type..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && search) {
-                  if (filtered.length > 0) {
-                    selectOption(filtered[0]);
-                  } else {
-                    selectOption(search);
-                  }
-                }
-                if (e.key === 'Escape') {
-                  setOpen(false);
-                }
-              }}
-            />
-          </div>
-          <ScrollArea className="max-h-[200px]">
-            {filtered.length === 0 && search ? (
-              <button
-                className="w-full px-3 py-2 text-sm text-left hover:bg-accent rounded cursor-pointer"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => selectOption(search)}
-              >
-                Use &ldquo;<span className="font-medium">{search}</span>&rdquo;
-              </button>
-            ) : filtered.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">No options</p>
-            ) : (
-              <div className="p-1">
-                {filtered.map((opt) => (
-                  <button
-                    key={opt}
-                    className={cn(
-                      "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
-                      value === opt && "bg-accent/50"
-                    )}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => selectOption(opt)}
-                  >
-                    <Check className={cn('mr-2 h-4 w-4 shrink-0', value === opt ? 'opacity-100' : 'opacity-0')} />
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
 }
 
 function AddonsInline({
@@ -493,7 +360,7 @@ export function DeviceSpecForm({
 
     if (fieldKey === 'processor') {
       return (
-        <ComboboxField
+        <SpecCombobox
           key={fieldKey}
           label={meta.label}
           value={val}
@@ -507,7 +374,7 @@ export function DeviceSpecForm({
 
     if (fieldKey === 'display_size') {
       return (
-        <ComboboxField
+        <SpecCombobox
           key={fieldKey}
           label={meta.label}
           value={val}
@@ -520,7 +387,7 @@ export function DeviceSpecForm({
 
     if (fieldKey === 'os') {
       return (
-        <ComboboxField
+        <SpecCombobox
           key={fieldKey}
           label={meta.label}
           value={val}
@@ -607,7 +474,7 @@ export function DeviceSpecForm({
           <SectionHeader number={sn + 1} title="Product details" />
         )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <ComboboxField
+          <SpecCombobox
             label="Brand / Manufacturer"
             value={values.brand}
             onChange={handleBrandChange}
@@ -615,7 +482,7 @@ export function DeviceSpecForm({
             placeholder={categoryCfg.brandPlaceholder}
             required
           />
-          <ComboboxField
+          <SpecCombobox
             label={categoryCfg.modelLabel}
             value={values.device_model}
             onChange={(v) => update('device_model', v)}
