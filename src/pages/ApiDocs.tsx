@@ -207,7 +207,7 @@ List leads. Ordered by \`updated_at\` descending.
 | offset    | number | Pagination offset |
 | status_id | uuid   | Filter by pipeline stage |
 | owner_id  | uuid   | Filter by assigned team member |
-| country_ids | uuid[] | Filter by countries served — comma-separated or repeated (\`country_ids=id1,id2\` or \`country_ids=id1&country_ids=id2\`). Returns leads whose \`country_ids\` overlap any of the given IDs. Get IDs from GET /countries |
+| country_id / country_ids | uuid / uuid[] | Filter by country — singular \`country_id\` or plural \`country_ids\` (comma-separated or repeated). Returns leads whose \`hq_country_id\` matches OR \`country_ids\` overlaps any given ID. Get IDs from GET /countries |
 | search / q | string | Full-text search on company name, contact name, and email |
 
 **Example response:**
@@ -718,7 +718,8 @@ curl "${BASE_URL}/leads?limit=25&offset=25" -H "Authorization: Bearer <key>"`} /
                     { name: 'offset', type: 'number', description: 'Pagination offset' },
                     { name: 'status_id', type: 'uuid', description: 'Filter by pipeline stage' },
                     { name: 'owner_id', type: 'uuid', description: 'Filter by assigned team member' },
-                    { name: 'country_ids', type: 'uuid[]', description: 'Filter by countries served — comma-separated or repeated. Returns leads whose country_ids overlap any given ID. Get IDs from GET /countries' },
+                    { name: 'country_id', type: 'uuid', description: 'Filter by a single country ID (alias of country_ids). Matches hq_country_id or countries served.' },
+                    { name: 'country_ids', type: 'uuid[]', description: 'Filter by country — comma-separated or repeated. Returns leads whose hq_country_id matches OR country_ids overlaps any given ID. Get IDs from GET /countries' },
                     { name: 'search / q', type: 'string', description: 'Full-text search on company name, contact name, and email' },
                   ]}
                   responseExample={`{ "data": [ { "id": "uuid", "company_name": "Acme Corp", ... } ], "total": 42 }`}

@@ -159,7 +159,11 @@ Deno.serve(async (req) => {
             const offset = Number(url.searchParams.get('offset')) || 0
             const statusId = url.searchParams.get('status_id') || undefined
             const ownerId = url.searchParams.get('owner_id') || undefined
-            const countryIds = url.searchParams.getAll('country_ids')
+            // Accept singular country_id (common in automations) and plural country_ids.
+            const countryIds = [
+              ...url.searchParams.getAll('country_id'),
+              ...url.searchParams.getAll('country_ids'),
+            ]
               .flatMap((v) => v.split(','))
               .map((v) => v.trim())
               .filter(Boolean)
@@ -167,7 +171,12 @@ Deno.serve(async (req) => {
             let q = supabaseAdmin.from('leads').select('*', { count: 'exact' }).order('updated_at', { ascending: false }).range(offset, offset + limit - 1)
             if (statusId) q = q.eq('status_id', statusId)
             if (ownerId) q = q.eq('owner_id', ownerId)
-            if (countryIds.length) q = q.overlaps('country_ids', countryIds)
+            if (countryIds.length) {
+              // Match headquarters country OR countries-served array (many leads only set hq_country_id).
+              const hqIn = `hq_country_id.in.(${countryIds.join(',')})`
+              const servedOv = `country_ids.ov.{${countryIds.join(',')}}`
+              q = q.or(`${hqIn},${servedOv}`)
+            }
             if (search.trim()) {
               const term = `%${search.trim().replace(/%/g, '')}%`
               q = q.or(`company_name.ilike.${term},contact_name.ilike.${term},email.ilike.${term}`)
@@ -636,7 +645,7 @@ Deno.serve(async (req) => {
             base_url: baseUrl,
             auth: 'Authorization: Bearer <your_api_key>',
             endpoints: {
-              leads: { list: 'GET /leads', create: 'POST /leads', get: 'GET /leads/:id', update: 'PATCH /leads/:id', delete: 'DELETE /leads/:id', bulk_update: 'PATCH /leads/bulk (body: lead_ids, status_id|owner_id|country_ids)', search: 'GET /leads?search= or q=', filters: 'status_id, owner_id, country_ids' },
+              leads: { list: 'GET /leads', create: 'POST /leads', get: 'GET /leads/:id', update: 'PATCH /leads/:id', delete: 'DELETE /leads/:id', bulk_update: 'PATCH /leads/bulk (body: lead_ids, status_id|owner_id|country_ids)', search: 'GET /leads?search= or q=', filters: 'status_id, owner_id, country_id, country_ids (matches hq_country_id or country_ids)' },
               tasks: { list: 'GET /tasks', create: 'POST /tasks', get: 'GET /tasks/:id', update: 'PATCH /tasks/:id', delete: 'DELETE /tasks/:id' },
               follow_ups: { list: 'GET /follow_ups', create: 'POST /follow_ups', get: 'GET /follow_ups/:id', update: 'PATCH /follow_ups/:id', delete: 'DELETE /follow_ups/:id' },
               activities: { list: 'GET /activities', create: 'POST /activities', get: 'GET /activities/:id', update: 'PATCH /activities/:id', delete: 'DELETE /activities/:id' },
