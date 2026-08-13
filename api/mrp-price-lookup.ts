@@ -1,18 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 import {
-  classifyRetailerHit,
   isOffMarketListing,
   marketplaceNamesForCountry,
-  marketplaceRetailersForCountry,
   officialStoreForBrand,
   retailerNameFromUrl,
-  searchSitesForCountry,
+  topMarketplaceHostsForCountry,
 } from '../src/lib/reputable-retailers';
 
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
+const THIN_MODEL = 'claude-sonnet-4-5-20250929';
 
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5-20251001': { input: 0.80, output: 4.00 },
+  'claude-sonnet-4-5-20250929': { input: 3.00, output: 15.00 },
   'claude-3-5-sonnet-20241022': { input: 3.00, output: 15.00 },
 };
 
@@ -94,7 +94,8 @@ function detectCurrency(text: string, fallback: string): string {
 
 function familyQuery(brand: string, model: string, specs: Record<string, string>): string {
   const parts = [brand, model];
-  if (specs.processor?.trim()) parts.push(specs.processor.trim());
+  const chip = specs.processor?.trim();
+  if (chip && !model.toLowerCase().includes(chip.toLowerCase())) parts.push(chip);
   return parts.join(' ').replace(/\s+/g, ' ').trim();
 }
 
@@ -113,6 +114,19 @@ function listPriceQuery(base: string, countryCode: string): string {
 }
 
 const ACCESSORY_NEG = ' -case -cover -sleeve';
+
+const GOOGLE_DOMAINS: Record<string, string> = {
+  in: 'google.co.in', gb: 'google.co.uk', ae: 'google.ae', sg: 'google.com.sg',
+  au: 'google.com.au', ca: 'google.ca', de: 'google.de', fr: 'google.fr',
+  nl: 'google.nl', jp: 'google.co.jp', kr: 'google.co.kr', ph: 'google.com.ph',
+  my: 'google.com.my', id: 'google.co.id', th: 'google.co.th', vn: 'google.com.vn',
+  br: 'google.com.br', mx: 'google.com.mx', za: 'google.co.za', sa: 'google.com.sa',
+  co: 'google.com.co',
+};
+
+function googleDomain(countryCode: string): string {
+  return GOOGLE_DOMAINS[countryCode] || 'google.com';
+}
 
 function looksLikeComputer(text: string): boolean {
   const ram = /\b(8|12|16|18|24|32|36|48|64)\s*gb\b/i.test(text);
@@ -148,8 +162,107 @@ function minDevicePrice(currency: string, category: string): number {
   return floors[currency] ?? 200;
 }
 
-function isMajorHit(hit: PriceHit, countryCode: string): boolean {
-  return classifyRetailerHit(hit, countryCode) !== 'other';
+function isRefurbished(text: string): boolean {
+  return /refurb|renewed|used|pre-?owned|open[\s-]?box|certified pre/i.test(text);
+}
+
+function normalizeChip(text: string): string | null {
+  const m = text.match(/\b(m[1-5])(?:\s*(pro|max|ultra))?\b/i)
+    || text.match(/\b(core ultra)\s*([579])\b/i)
+    || text.match(/\b(i[3579])(?:-\d+)?\b/i)
+    || text.match(/\b(ryzen)\s*([579])\b/i);
+  if (!m) return null;
+  return m.slice(1).filter(Boolean).join(' ').toLowerCase();
+}
+
+function ramGb(text: string): number | null {
+  const m = text.match(/\b(8|12|16|18|24|32|36|48|64)\s*gb\b/i);
+  return m ? Number(m[1]) : null;
+}
+
+function storageToken(text: string): string | null {
+  const tb = text.match(/\b([1-8])\s*tb\b/i);
+  if (tb) return `${tb[1]}tb`;
+  const gb = text.match(/\b(128|256|512)\s*gb\b/i);
+  return gb ? `${gb[1]}gb` : null;
+}
+
+function screenInch(text: string): number | null {
+  const inch = text.match(/\b(13|14|15|16)(?:\.\d)?\s*-?\s*(?:inch|"|''|″)\b/i);
+  if (inch) return Number(inch[1]);
+  const named = text.match(/\b(?:macbook(?:\s+air|\s+pro)?|air|pro)\s+(13|14|15|16)\b/i);
+  if (named) return Number(named[1]);
+  return null;
+}
+
+function specMatch(hit: PriceHit, specs: Record<string, string>, brand: string, model: string): 'exact' | 'near' | 'reject' {
+  const hay = `${hit.title} ${hit.notes || ''} ${hit.retailer}`.toLowerCase();
+  if (isRefurbished(hay)) return 'reject';
+  if (isAccessoryListing(`${hit.title} ${hit.retailer}`)) return 'reject';
+  const brandTok = brand.toLowerCase();
+  if (brandTok && !hay.includes(brandTok) && !hit.url.toLowerCase().includes(brandTok.replace(/\s+/g, ''))) {
+    if (!/apple|macbook|imac|mac mini|mac studio/i.test(hay) && brandTok === 'apple') return 'reject';
+    if (brandTok !== 'apple' && !hay.includes(brandTok)) return 'reject';
+  }
+
+  const wantChip = normalizeChip(`${specs.processor || ''} ${model}`);
+  const gotChip = normalizeChip(hay);
+  const chipDiffers = !!(wantChip && gotChip && wantChip.split(' ')[0] !== gotChip.split(' ')[0]);
+  const wantScreen = screenInch(`${specs.display_size || ''} ${model}`);
+  const gotScreen = screenInch(hay);
+  const screenDiffers = !!(wantScreen && gotScreen && wantScreen !== gotScreen);
+  const wantRam = ramGb(specs.ram || '');
+  const gotRam = ramGb(hay);
+  const ramDiffers = !!(wantRam && gotRam && wantRam !== gotRam);
+  const ramMissingCto = !!(wantRam && wantRam >= 32 && !gotRam);
+  const wantStore = storageToken(specs.storage || '');
+  const gotStore = storageToken(hay);
+  const storeDiffers = !!(wantStore && gotStore && wantStore !== gotStore);
+  if (ramDiffers || storeDiffers || ramMissingCto || screenDiffers || chipDiffers) return 'near';
+  return 'exact';
+}
+
+function harvestCleanHits(
+  hits: PriceHit[],
+  countryCode: string,
+  expectedCurrency: string,
+  category: string,
+): PriceHit[] {
+  const floor = minDevicePrice(expectedCurrency, category);
+  return hits.filter((h) => {
+    if (isOffMarketListing(h, countryCode, expectedCurrency)) return false;
+    if (h.currency && h.currency !== expectedCurrency) return false;
+    if (isRefurbished(`${h.title} ${h.notes || ''}`)) return false;
+    if (isAccessoryListing(`${h.title} ${h.retailer}`)) return false;
+    if (h.price < floor) return false;
+    return true;
+  });
+}
+
+function filterReliableHits(
+  hits: PriceHit[],
+  specs: Record<string, string>,
+  brand: string,
+  model: string,
+  countryCode: string,
+  expectedCurrency: string,
+  category = 'laptop',
+): PriceHit[] {
+  const local = hits.filter((h) => !isOffMarketListing(h, countryCode, expectedCurrency));
+  const tagged = local
+    .map((h) => {
+      const match = specMatch(h, specs, brand, model);
+      if (match === 'reject') return null;
+      const nearNote = 'Nearby config — chip, screen size, RAM, or storage differs from the request';
+      const notes = match === 'near'
+        ? (h.notes?.includes('Nearby config') ? h.notes : [h.notes, nearNote].filter(Boolean).join(' · '))
+        : h.notes;
+      return { ...h, match_quality: match, notes };
+    })
+    .filter((h): h is PriceHit => h != null);
+  const floor = minDevicePrice(expectedCurrency, category);
+  const pool = tagged.filter((h) => h.price >= floor);
+  return pool;
 }
 
 function organicToHits(items: any[], fallbackCurrency: string, countryCode: string): PriceHit[] {
@@ -158,6 +271,9 @@ function organicToHits(items: any[], fallbackCurrency: string, countryCode: stri
     const title = String(item.title || '').trim();
     const url = String(item.link || item.url || '').trim();
     const snippet = String(item.snippet || item.price || '');
+    const priceRaw = typeof item.price === 'string' ? item.price : snippet;
+    const detected = detectCurrency(priceRaw, fallbackCurrency);
+    if (detected !== fallbackCurrency) continue;
     const price = parseMoney(item.price) ?? parseMoney(snippet.match(/(?:₹|Rs\.?|INR|\$|USD|£|€)\s*[\d,.]+/i)?.[0]);
     if (!title || !url || price == null) continue;
     hits.push({
@@ -203,7 +319,10 @@ async function serperPost(path: 'shopping' | 'search', body: Record<string, unkn
 function shoppingToHits(items: any[], fallbackCurrency: string, countryCode: string): PriceHit[] {
   const hits: PriceHit[] = [];
   for (const item of items || []) {
-    const price = parseMoney(item.price);
+    const rawPrice = item.price ?? item.priceStr ?? item.oldPrice;
+    const detected = typeof rawPrice === 'string' ? detectCurrency(rawPrice, fallbackCurrency) : fallbackCurrency;
+    if (detected !== fallbackCurrency) continue;
+    const price = parseMoney(item.price) ?? parseMoney(item.extracted_price) ?? parseMoney(item.priceStr);
     if (price == null) continue;
     const title = String(item.title || '').trim();
     const url = String(item.link || item.url || '').trim();
@@ -239,7 +358,7 @@ async function refineWithClaude(opts: {
   fallbackCurrency: string;
 }) {
   const emptyUsage = {
-    model: DEFAULT_MODEL,
+    model: THIN_MODEL,
     input_tokens: 0,
     output_tokens: 0,
     input_cost_usd: 0,
@@ -267,10 +386,10 @@ async function refineWithClaude(opts: {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: DEFAULT_MODEL,
+      model: THIN_MODEL,
       max_tokens: 2048,
       temperature: 0,
-      system: 'You normalize public IT-asset prices for RemoAsset procurement. Keep listings that match the requested brand and model as the computer itself. Drop cases, sleeves, covers, bags, stands, hubs, chargers sold separately, and any accessory. Drop refurbished/used/renewed unless asked. Prefer the country\'s reputed national retailers and official brand stores. Return JSON only.',
+      system: 'You label public IT-asset prices for RemoAsset procurement. Keep every shopping row that is the computer itself. Drop cases, sleeves, covers, bags, stands, hubs, and chargers sold separately. Mark exact vs nearby (chip, screen, RAM, or storage may differ). Set price_type. You may add MRP/list rows from snippets. Never invent a store that is not in the shopping list or snippets. Return JSON only.',
       messages: [{
         role: 'user',
         content: `Device: ${opts.query}
@@ -296,6 +415,7 @@ Return ONLY this JSON object:
       "currency": "${opts.fallbackCurrency}",
       "price": 72990,
       "price_type": "mrp" | "msrp" | "list" | "street" | "unknown",
+      "match_quality": "exact" | "near",
       "notes": "optional short match note"
     }
   ]
@@ -326,10 +446,10 @@ Rules:
   const inputTokens = message.usage?.input_tokens ?? 0;
   const outputTokens = message.usage?.output_tokens ?? 0;
   const token_usage = {
-    model: DEFAULT_MODEL,
+    model: THIN_MODEL,
     input_tokens: inputTokens,
     output_tokens: outputTokens,
-    ...calculateCost(DEFAULT_MODEL, inputTokens, outputTokens),
+    ...calculateCost(THIN_MODEL, inputTokens, outputTokens),
   };
   const text = message.content?.[0]?.type === 'text' ? (message.content[0].text || '').trim() : '';
   const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -355,6 +475,7 @@ Rules:
         currency: String(row.currency || opts.fallbackCurrency).toUpperCase(),
         price,
         price_type: priceType,
+        match_quality: row.match_quality === 'near' ? 'near' : row.match_quality === 'exact' ? 'exact' : undefined,
         notes: row.notes ? String(row.notes) : undefined,
       });
     }
@@ -417,19 +538,17 @@ export default async function handler(req: { method?: string; headers: Record<st
     const query = buildQuery(brand, model, specs);
     const broadQuery = familyQuery(brand, model, specs);
     const fallbackCurrency = CURRENCY_BY_GL[countryCode] || 'USD';
-    const marketplaceSites = marketplaceRetailersForCountry(countryCode);
-    const allSites = searchSitesForCountry(countryCode);
+    const topHosts = topMarketplaceHostsForCountry(countryCode, 3);
     const official = officialStoreForBrand(brand);
-    const siteOr = allSites.map((s) => `site:${s.host}`).join(' OR ');
-    const retailerOr = marketplaceSites.map((s) => `"${s.name}"`).join(' OR ');
-    const intent = (category === 'laptop' || category === 'desktop_server') ? ' laptop' : '';
-    const namesQ = `${broadQuery}${intent} (${retailerOr})${ACCESSORY_NEG}`;
-    const webQuery = `${listPriceQuery(broadQuery + intent, countryCode)} (${siteOr}) -case -sleeve -cover`;
-    const officialQ = official ? `${broadQuery}${intent} site:${official.hosts[0]}` : null;
-    const familyQ = `${broadQuery}${intent}${ACCESSORY_NEG}`;
+    const siteOr = topHosts.map((h) => `site:${h}`).join(' OR ');
+    const familyQ = `${broadQuery}${ACCESSORY_NEG}`;
+    const sitesQ = siteOr ? `${broadQuery} (${siteOr})${ACCESSORY_NEG}` : null;
+    const officialQ = official ? `${broadQuery} site:${official.hosts[0]}` : null;
+    const webQuery = siteOr
+      ? `${listPriceQuery(broadQuery, countryCode)} (${siteOr}) -case -sleeve -cover`
+      : `${listPriceQuery(broadQuery, countryCode)} -case -sleeve -cover`;
     const searchQueriesUsed: string[] = [`shopping: ${familyQ}`];
-    if (query !== broadQuery) searchQueriesUsed.push(`shopping: ${query}${ACCESSORY_NEG}`);
-    searchQueriesUsed.push(`shopping: ${namesQ}`);
+    if (sitesQ) searchQueriesUsed.push(`shopping: ${sitesQ}`);
     if (officialQ) searchQueriesUsed.push(`shopping: ${officialQ}`);
     searchQueriesUsed.push(`search: ${webQuery}`);
 
@@ -438,15 +557,20 @@ export default async function handler(req: { method?: string; headers: Record<st
     const calls: { q: string; path: 'shopping' | 'search' }[] = [
       { path: 'shopping', q: familyQ },
     ];
-    if (query !== broadQuery) calls.push({ path: 'shopping', q: `${query}${ACCESSORY_NEG}` });
-    calls.push({ path: 'shopping', q: namesQ });
+    if (sitesQ) calls.push({ path: 'shopping', q: sitesQ });
     if (officialQ) calls.push({ path: 'shopping', q: officialQ });
     calls.push({ path: 'search', q: webQuery });
 
     for (let i = 0; i < calls.length; i += 3) {
       const chunk = calls.slice(i, i + 3);
       const settled = await Promise.allSettled(
-        chunk.map((c) => serperPost(c.path, { q: c.q, gl: countryCode, hl: 'en', num: c.path === 'search' ? 20 : 40 })),
+        chunk.map((c) => serperPost(c.path, {
+          q: c.q,
+          gl: countryCode,
+          hl: 'en',
+          google_domain: googleDomain(countryCode),
+          num: c.path === 'search' ? 15 : c.q.includes('site:') && officialQ && c.q === officialQ ? 8 : 40,
+        })),
       );
       settled.forEach((item, idx) => {
         if (item.status !== 'fulfilled') {
@@ -459,34 +583,59 @@ export default async function handler(req: { method?: string; headers: Record<st
       if (i + 3 < calls.length) await new Promise((r) => setTimeout(r, 280));
     }
 
-    const floor = minDevicePrice(fallbackCurrency, category);
-    const shoppingHits = dedupeHits([
-      ...shoppingToHits(shoppingBags, fallbackCurrency, countryCode),
-      ...organicToHits(organic, fallbackCurrency, countryCode),
-    ]).filter((h) =>
-      !isOffMarketListing(h, countryCode, fallbackCurrency) &&
-      !isAccessoryListing(`${h.title} ${h.retailer}`) &&
-      h.price >= floor
-    );
-    const { hits, confidence, token_usage } = await refineWithClaude({
-      query,
-      country,
+    const harvested = harvestCleanHits(
+      dedupeHits([
+        ...shoppingToHits(shoppingBags, fallbackCurrency, countryCode),
+        ...organicToHits(organic, fallbackCurrency, countryCode),
+      ]),
       countryCode,
-      category,
-      specs,
-      shoppingHits,
-      organicText: organicHints(organic),
       fallbackCurrency,
-    });
+      category,
+    );
+    const emptyUsage = {
+      model: DEFAULT_MODEL,
+      input_tokens: 0,
+      output_tokens: 0,
+      input_cost_usd: 0,
+      output_cost_usd: 0,
+      total_cost_usd: 0,
+    };
+    let refined = {
+      hits: harvested,
+      confidence: harvested.length >= 8 ? 7 : harvested.length >= 3 ? 5 : 3,
+      token_usage: emptyUsage,
+    };
+    if (harvested.length < 5) {
+      try {
+        refined = await refineWithClaude({
+          query,
+          country,
+          countryCode,
+          category,
+          specs,
+          shoppingHits: harvested,
+          organicText: organicHints(organic),
+          fallbackCurrency,
+        });
+      } catch (err) {
+        console.error('Claude refine failed:', err);
+      }
+    }
 
-    const results = mergeKeepCoverage(shoppingHits, hits)
-      .filter((h) => !isAccessoryListing(`${h.title} ${h.retailer}`) && h.price >= floor)
-      .sort((a, b) => a.price - b.price);
+    const results = filterReliableHits(
+      mergeKeepCoverage(harvested, refined.hits),
+      specs,
+      brand,
+      model,
+      countryCode,
+      fallbackCurrency,
+      category,
+    ).sort((a, b) => a.price - b.price);
     return json(res, 200, {
-      summary: summarize(results, fallbackCurrency, confidence),
+      summary: summarize(results, fallbackCurrency, refined.confidence),
       results,
       search_queries_used: searchQueriesUsed,
-      token_usage,
+      token_usage: refined.token_usage,
     });
   } catch (err) {
     console.error('mrp-price-lookup error:', err);

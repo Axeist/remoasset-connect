@@ -140,6 +140,10 @@ export function splitPublicPriceHits(hits: PublicPriceHit[], countryCode: string
     else if (tier === 'official') official.push(hit);
     else others.push(hit);
   }
+  const byPrice = (a: PublicPriceHit, b: PublicPriceHit) => a.price - b.price;
+  marketplaces.sort(byPrice);
+  official.sort(byPrice);
+  others.sort(byPrice);
   return { marketplaces, official, others };
 }
 

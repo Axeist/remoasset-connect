@@ -220,9 +220,47 @@ export const RETAILERS_BY_COUNTRY: Record<string, ReputableRetailer[]> = {
   id: ID, th: TH, vn: VN, br: BR, mx: MX, za: ZA, sa: SA, co: CO,
 };
 
-const FALLBACK: ReputableRetailer[] = [
-  { name: 'Amazon', hosts: ['amazon.'], aliases: ['amazon'], tier: 'marketplace' },
+const FALLBACK: ReputableRetailer[] = [];
+
+const AFRICA = new Set(['ng', 'ke', 'gh', 'ug', 'tz', 'et', 'ci', 'sn', 'cm', 'rw', 'zm', 'ao', 'mz', 'ma', 'dz', 'tn', 'eg']);
+const SOUTH_ASIA = new Set(['bd', 'pk', 'lk', 'np', 'af']);
+const SEA_TAIL = new Set(['mm', 'kh', 'la', 'bn']);
+const LATAM = new Set(['ar', 'cl', 'pe', 'ec', 'uy', 'py', 'bo', 'gt', 'cr', 'pa', 'do', 've']);
+const MENA = new Set(['eg', 'jo', 'kw', 'qa', 'bh', 'om', 'iq', 'lb', 'ma']);
+
+const GLOBAL_MAJOR_NEEDLES = [
+  'amazon.', 'flipkart.', 'bestbuy.', 'walmart.', 'jumia.', 'daraz.',
+  'lazada.', 'shopee.', 'noon.com', 'mercadolibre.', 'mercadolivre.',
+  'takealot.', 'tokopedia.', 'croma.com', 'currys.', 'mediamarkt.',
+  'johnlewis.', 'costco.', 'newegg.', 'reliancedigital.',
 ];
+
+export function hasRetailerCatalog(countryCode: string): boolean {
+  return Boolean(RETAILERS_BY_COUNTRY[countryCode.toLowerCase()]);
+}
+
+export function regionalMajorHosts(countryCode: string): string[] {
+  const code = countryCode.toLowerCase();
+  if (AFRICA.has(code)) return ['jumia.com'];
+  if (SOUTH_ASIA.has(code)) return ['daraz.com'];
+  if (SEA_TAIL.has(code)) return ['lazada.com', 'shopee.com'];
+  if (LATAM.has(code)) return ['mercadolibre.com'];
+  if (MENA.has(code)) return ['noon.com'];
+  return [];
+}
+
+export function topMarketplaceHostsForCountry(countryCode: string, limit = 3): string[] {
+  const code = countryCode.toLowerCase();
+  if (RETAILERS_BY_COUNTRY[code]) {
+    return marketplaceRetailersForCountry(code).slice(0, limit).map((r) => r.hosts[0]);
+  }
+  return regionalMajorHosts(code);
+}
+
+function hostLooksMajor(hostOrName: string): boolean {
+  const hay = hostOrName.toLowerCase();
+  return GLOBAL_MAJOR_NEEDLES.some((n) => hay.includes(n));
+}
 
 function mergeOfficial(local: ReputableRetailer[]): ReputableRetailer[] {
   const hostSet = new Set(local.flatMap((r) => r.hosts));
@@ -232,7 +270,14 @@ function mergeOfficial(local: ReputableRetailer[]): ReputableRetailer[] {
 
 export function retailersForCountry(countryCode: string): ReputableRetailer[] {
   const code = countryCode.toLowerCase();
-  return mergeOfficial(RETAILERS_BY_COUNTRY[code] || FALLBACK);
+  const local = RETAILERS_BY_COUNTRY[code];
+  if (local) return mergeOfficial(local);
+  const regional = regionalMajorHosts(code).map((host) => ({
+    name: host.replace(/\.(com|net|org).*$/i, ''),
+    hosts: [host],
+    tier: 'marketplace' as const,
+  }));
+  return mergeOfficial(regional.length ? regional : FALLBACK);
 }
 
 export function marketplaceRetailersForCountry(countryCode: string): ReputableRetailer[] {
@@ -304,7 +349,14 @@ export function classifyRetailerHit(
   hit: { retailer: string; url: string },
   countryCode: string,
 ): RetailerTier | 'other' {
-  return matchRetailer(hit, countryCode)?.tier || 'other';
+  const matched = matchRetailer(hit, countryCode);
+  if (matched) return matched.tier;
+  const host = hostnameOf(hit.url);
+  if (GLOBAL_OFFICIAL.some((s) => s.hosts.some((h) => host === h || host.endsWith(`.${h}`)))) {
+    return 'official';
+  }
+  if (hostLooksMajor(host) || hostLooksMajor(hit.retailer || '')) return 'marketplace';
+  return 'other';
 }
 
 const FOREIGN_TLDS: Record<string, string[]> = {
