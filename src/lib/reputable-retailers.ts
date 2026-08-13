@@ -148,6 +148,8 @@ const MY: ReputableRetailer[] = [
   { name: 'Senheng', hosts: ['senheng.com.my'], tier: 'marketplace' },
   { name: 'Courts', hosts: ['courts.com.my'], tier: 'marketplace' },
   { name: 'Harvey Norman', hosts: ['harveynorman.com.my'], aliases: ['harvey norman'], tier: 'marketplace' },
+  { name: 'Machines', hosts: ['machines.com.my'], aliases: ['machines'], tier: 'marketplace' },
+  { name: 'iStudio', hosts: ['istudio.com.my'], aliases: ['istudio'], tier: 'marketplace' },
 ];
 
 const ID: ReputableRetailer[] = [
@@ -264,23 +266,38 @@ export function formatStoreList(names: string[], limit = 8): string {
   return `${names.slice(0, limit).join(', ')}, and others`;
 }
 
-function haystack(hit: { retailer: string; url: string }): string {
-  return `${hit.retailer} ${hit.url}`.toLowerCase();
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return '';
+  }
 }
 
-function storeMatches(hay: string, store: ReputableRetailer): boolean {
-  if (store.hosts.some((h) => hay.includes(h))) return true;
-  if ((store.aliases || []).some((a) => hay.includes(a.toLowerCase()))) return true;
+function retailerNameMatches(store: ReputableRetailer, retailer: string): boolean {
   const name = store.name.toLowerCase();
-  return name.length >= 4 && hay.includes(name);
+  if (name.length >= 4 && retailer.includes(name)) return true;
+  return (store.aliases || []).some((a) => {
+    const al = a.toLowerCase();
+    return al.length >= 4 && retailer.includes(al);
+  });
+}
+
+function storeMatches(hit: { retailer: string; url: string }, store: ReputableRetailer): boolean {
+  const host = hostnameOf(hit.url);
+  const retailer = (hit.retailer || '').toLowerCase();
+  if (store.hosts.some((h) => {
+    const needle = h.toLowerCase();
+    return host === needle || host.endsWith(`.${needle}`) || (needle.endsWith('.') && host.includes(needle));
+  })) return true;
+  return retailerNameMatches(store, retailer);
 }
 
 export function matchRetailer(
   hit: { retailer: string; url: string },
   countryCode: string,
 ): ReputableRetailer | null {
-  const hay = haystack(hit);
-  return retailersForCountry(countryCode).find((store) => storeMatches(hay, store)) || null;
+  return retailersForCountry(countryCode).find((store) => storeMatches(hit, store)) || null;
 }
 
 export function classifyRetailerHit(

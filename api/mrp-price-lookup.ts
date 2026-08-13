@@ -112,7 +112,7 @@ function listPriceQuery(base: string, countryCode: string): string {
   return `${base} MSRP OR "list price" OR MRP`;
 }
 
-const ACCESSORY_NEG = ' -case -cover -sleeve -skin -pouch -bag -stand -hub -charger -accessory';
+const ACCESSORY_NEG = ' -case -cover -sleeve';
 
 function looksLikeComputer(text: string): boolean {
   const ram = /\b(8|12|16|18|24|32|36|48|64)\s*gb\b/i.test(text);
@@ -130,20 +130,22 @@ function isAccessoryListing(text: string): boolean {
   if (/\b(for|compatible with)\b.{0,56}\b(macbook|imac|ipad|iphone|laptop|thinkpad|xps|surface)\b/i.test(text)) {
     return true;
   }
+  if (/\b(leather|suede|nubuck|wallet|handbag|clutch|satchel|tote bag|briefcase)\b/i.test(text) && !looksLikeComputer(text)) {
+    return true;
+  }
   if (looksLikeComputer(text)) return false;
   return /\b(case|cases|cover|sleeve|skin|pouch|bag|backpack|folio|protector|keyboard cover|laptop stand|stand for|riser|usb[-\s]?c hub|dongle|sticker|decal|accessories?)\b/i.test(text);
 }
 
 function minDevicePrice(currency: string, category: string): number {
   if (category !== 'laptop' && category !== 'desktop_server') return 0;
-  if (currency === 'INR') return 25_000;
-  if (currency === 'JPY') return 40_000;
-  if (currency === 'KRW') return 400_000;
-  if (currency === 'VND') return 8_000_000;
-  if (currency === 'IDR') return 4_000_000;
-  if (currency === 'COP') return 1_500_000;
-  if (currency === 'PHP') return 15_000;
-  return 200;
+  const floors: Record<string, number> = {
+    INR: 25_000, JPY: 40_000, KRW: 400_000, VND: 8_000_000, IDR: 4_000_000,
+    COP: 1_500_000, PHP: 15_000, MYR: 1_200, SGD: 400, AED: 1_000, SAR: 1_000,
+    GBP: 400, EUR: 400, AUD: 500, CAD: 450, THB: 12_000, ZAR: 4_000,
+    BRL: 2_000, MXN: 6_000, USD: 250,
+  };
+  return floors[currency] ?? 200;
 }
 
 function isMajorHit(hit: PriceHit, countryCode: string): boolean {
@@ -420,10 +422,11 @@ export default async function handler(req: { method?: string; headers: Record<st
     const official = officialStoreForBrand(brand);
     const siteOr = allSites.map((s) => `site:${s.host}`).join(' OR ');
     const retailerOr = marketplaceSites.map((s) => `"${s.name}"`).join(' OR ');
-    const namesQ = `${broadQuery} (${retailerOr})${ACCESSORY_NEG}`;
-    const webQuery = `${listPriceQuery(broadQuery, countryCode)} (${siteOr}) -case -sleeve -cover`;
-    const officialQ = official ? `${broadQuery} site:${official.hosts[0]}` : null;
-    const familyQ = `${broadQuery}${ACCESSORY_NEG}`;
+    const intent = (category === 'laptop' || category === 'desktop_server') ? ' laptop' : '';
+    const namesQ = `${broadQuery}${intent} (${retailerOr})${ACCESSORY_NEG}`;
+    const webQuery = `${listPriceQuery(broadQuery + intent, countryCode)} (${siteOr}) -case -sleeve -cover`;
+    const officialQ = official ? `${broadQuery}${intent} site:${official.hosts[0]}` : null;
+    const familyQ = `${broadQuery}${intent}${ACCESSORY_NEG}`;
     const searchQueriesUsed: string[] = [`shopping: ${familyQ}`];
     if (query !== broadQuery) searchQueriesUsed.push(`shopping: ${query}${ACCESSORY_NEG}`);
     searchQueriesUsed.push(`shopping: ${namesQ}`);

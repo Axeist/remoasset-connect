@@ -152,7 +152,6 @@ function looksLikeComputer(text: string): boolean {
 }
 
 function isAccessoryListing(text: string): boolean {
-  // The sold item is a case/sleeve/etc. even if the title also lists RAM/storage.
   if (/\b((hard|soft)\s*shell(\s*case)?|hardshell|protective\s*case|clear\s*case|laptop\s*(case|sleeve|bag|cover|stand)|keyboard\s*cover|screen\s*protector|tempered\s*glass|folio\s*case)\b/i.test(text)) {
     return true
   }
@@ -162,31 +161,35 @@ function isAccessoryListing(text: string): boolean {
   if (/\b(for|compatible with)\b.{0,56}\b(macbook|imac|ipad|iphone|laptop|thinkpad|xps|surface)\b/i.test(text)) {
     return true
   }
+  if (/\b(leather|suede|nubuck|wallet|handbag|clutch|satchel|tote bag|briefcase)\b/i.test(text) && !looksLikeComputer(text)) {
+    return true
+  }
   if (looksLikeComputer(text)) return false
   return /\b(case|cases|cover|sleeve|skin|pouch|bag|backpack|folio|protector|keyboard cover|laptop stand|stand for|riser|usb[-\s]?c hub|dongle|sticker|decal|accessories?)\b/i.test(text)
 }
 
 function minDevicePrice(currency: string, category: string): number {
   if (category !== 'laptop' && category !== 'desktop_server') return 0
-  if (currency === 'INR') return 25_000
-  if (currency === 'JPY') return 40_000
-  if (currency === 'KRW') return 400_000
-  if (currency === 'VND') return 8_000_000
-  if (currency === 'IDR') return 4_000_000
-  if (currency === 'COP') return 1_500_000
-  if (currency === 'PHP') return 15_000
-  return 200
+  const floors: Record<string, number> = {
+    INR: 25_000, JPY: 40_000, KRW: 400_000, VND: 8_000_000, IDR: 4_000_000,
+    COP: 1_500_000, PHP: 15_000, MYR: 1_200, SGD: 400, AED: 1_000, SAR: 1_000,
+    GBP: 400, EUR: 400, AUD: 500, CAD: 450, THB: 12_000, ZAR: 4_000,
+    BRL: 2_000, MXN: 6_000, USD: 250,
+  }
+  return floors[currency] ?? 200
 }
 
-const ACCESSORY_NEG = ' -case -cover -sleeve -skin -pouch -bag -stand -hub -charger -accessory'
+const ACCESSORY_NEG = ' -case -cover -sleeve'
 
 function screenInch(text: string): number | null {
-  const m = text.match(/\b(13|14|15|16)(?:\.\d)?\s*(?:-?inch|"|''|″)\b/i)
-    || text.match(/\b(13|14|15|16)-inch\b/i)
-  return m ? Number(m[1]) : null
+  const inch = text.match(/\b(13|14|15|16)(?:\.\d)?\s*-?\s*(?:inch|"|''|″)\b/i)
+  if (inch) return Number(inch[1])
+  const named = text.match(/\b(?:macbook(?:\s+air|\s+pro)?|air|pro)\s+(13|14|15|16)\b/i)
+  if (named) return Number(named[1])
+  return null
 }
 
-function specMatch(hit: PriceHit, specs: Record<string, string>, brand: string, model: string): 'exact' | 'near' | 'reject' {
+function specMatch(hit: PriceHit, specs: Record<string, string>, brand: string, model: string, _category: string): 'exact' | 'near' | 'reject' {
   const hay = `${hit.title} ${hit.notes || ''} ${hit.retailer}`.toLowerCase()
   if (isRefurbished(hay)) return 'reject'
   if (isAccessoryListing(`${hit.title} ${hit.retailer}`)) return 'reject'
@@ -202,7 +205,7 @@ function specMatch(hit: PriceHit, specs: Record<string, string>, brand: string, 
 
   const wantScreen = screenInch(`${specs.display_size || ''} ${model}`)
   const gotScreen = screenInch(hay)
-  if (wantScreen && gotScreen && wantScreen !== gotScreen) return 'reject'
+  const screenDiffers = !!(wantScreen && gotScreen && wantScreen !== gotScreen)
 
   const wantRam = ramGb(specs.ram || '')
   const gotRam = ramGb(hay)
@@ -213,7 +216,7 @@ function specMatch(hit: PriceHit, specs: Record<string, string>, brand: string, 
   const gotStore = storageToken(hay)
   const storeDiffers = !!(wantStore && gotStore && wantStore !== gotStore)
 
-  if (ramDiffers || storeDiffers || ramMissingCto) return 'near'
+  if (ramDiffers || storeDiffers || ramMissingCto || screenDiffers) return 'near'
   return 'exact'
 }
 
@@ -236,9 +239,9 @@ function filterReliableHits(
   const local = hits.filter((h) => !isOffMarketListing(h, countryCode, expectedCurrency))
   const tagged = local
     .map((h) => {
-      const match = specMatch(h, specs, brand, model)
+      const match = specMatch(h, specs, brand, model, category)
       if (match === 'reject') return null
-      const nearNote = 'Nearby config — RAM or storage differs from the request'
+      const nearNote = 'Nearby config — screen size, RAM, or storage differs from the request'
       const notes = match === 'near'
         ? (h.notes?.includes('Nearby config') ? h.notes : [h.notes, nearNote].filter(Boolean).join(' · '))
         : h.notes
@@ -246,17 +249,10 @@ function filterReliableHits(
     })
     .filter((h): h is PriceHit => h != null)
   const floor = minDevicePrice(expectedCurrency, category)
-  const priced = tagged.filter((h) => h.price >= floor)
-  const pool = priced.length
-    ? priced
-    : local.filter((h) =>
-      !isRefurbished(`${h.title} ${h.notes || ''}`) &&
-      !isAccessoryListing(`${h.title} ${h.notes || ''}`) &&
-      h.price >= floor
-    )
+  const pool = tagged.filter((h) => h.price >= floor)
   const mid = median(pool.map((h) => h.price))
-  if (!mid) return pool
-  return pool.filter((h) => h.price >= mid * 0.2 && h.price <= mid * 4)
+  if (!mid || pool.length < 4) return pool
+  return pool.filter((h) => h.price >= mid * 0.25 && h.price <= mid * 5)
 }
 
 function detectCurrency(text: string, fallback: string): string {
@@ -623,10 +619,11 @@ Deno.serve(async (req) => {
     const siteOr = allSites.map((s) => `site:${s.host}`).join(' OR ')
     const retailerOr = marketplaceSites.map((s) => `"${s.name}"`).join(' OR ')
 
-    const familyQ = `${broadQuery}${ACCESSORY_NEG}`
-    const namesQ = `${broadQuery} (${retailerOr})${ACCESSORY_NEG}`
-    const webQuery = `${listPriceQuery(broadQuery, countryCode)} (${siteOr}) -case -sleeve -cover`
-    const officialQ = official ? `${broadQuery} site:${official.hosts[0]}` : null
+    const intent = (category === 'laptop' || category === 'desktop_server') ? ' laptop' : ''
+    const familyQ = `${broadQuery}${intent}${ACCESSORY_NEG}`
+    const namesQ = `${broadQuery}${intent} (${retailerOr})${ACCESSORY_NEG}`
+    const webQuery = `${listPriceQuery(broadQuery + intent, countryCode)} (${siteOr}) -case -sleeve -cover`
+    const officialQ = official ? `${broadQuery}${intent} site:${official.hosts[0]}` : null
 
     const tasks: { label: string; run: () => Promise<any> }[] = [
       { label: `shopping: ${familyQ}`, run: () => serperPost('shopping', { q: familyQ, ...serperBase, num: 40 }) },
