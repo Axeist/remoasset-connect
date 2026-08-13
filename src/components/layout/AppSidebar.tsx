@@ -20,6 +20,7 @@ import {
   Building2,
   ArrowRightLeft,
   Megaphone,
+  Tag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,6 +39,7 @@ const navItems = [
   { title: 'Vendors', url: '/vendors', icon: Globe2, roles: ['admin', 'employee'] },
   { title: 'Clients', url: '/clients', icon: Building2, roles: ['admin', 'employee'] },
   { title: 'RFQ', url: '/rfq', icon: Megaphone, roles: ['admin', 'employee'] },
+  { title: 'Price Lookup', url: '/mrp-lookup', icon: Tag, roles: ['admin', 'employee'] },
   { title: 'Vendor Agent', url: '/vendor-agent', icon: Sparkles, roles: ['admin'] },
   { title: 'My Pipeline', url: '/pipeline', icon: Kanban, roles: ['employee'] },
   { title: 'Pipeline Overview', url: '/admin/pipeline', icon: Kanban, roles: ['admin'] },

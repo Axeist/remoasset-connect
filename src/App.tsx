@@ -39,6 +39,7 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Clients from "./pages/Clients";
 import ClientDetail from "./pages/ClientDetail";
+import MrpLookup from "./pages/MrpLookup";
 
 const queryClient = new QueryClient();
 
@@ -79,6 +80,7 @@ const App = () => {
               <Route path="/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />
               <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
               <Route path="/clients/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
+              <Route path="/mrp-lookup" element={<ProtectedRoute><MrpLookup /></ProtectedRoute>} />
               <Route path="/rfq" element={<ProtectedRoute><RfqHub /></ProtectedRoute>} />
               <Route path="/rfq/new" element={<ProtectedRoute><RfqNew /></ProtectedRoute>} />
               <Route path="/rfq/:id" element={<ProtectedRoute><RfqDetail /></ProtectedRoute>} />
