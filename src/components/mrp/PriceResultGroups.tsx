@@ -6,6 +6,8 @@ import {
   formatPriceRange,
   formatPublicPrice,
   rangeFromHits,
+  splitExactNearby,
+  splitPublicPriceHits,
   type PublicPriceHit,
   type PublicPriceType,
 } from '@/lib/mrp-lookup';
@@ -42,6 +44,11 @@ function HitList({ hits, countryCode }: { hits: PublicPriceHit[]; countryCode: s
               <Badge variant="outline" className={cn('rounded-md text-[10px] uppercase', PRICE_BADGE[hit.price_type])}>
                 {PRICE_TYPE_LABEL[hit.price_type]}
               </Badge>
+              {hit.match_quality === 'near' && (
+                <Badge variant="outline" className="rounded-md text-[10px] uppercase bg-amber-500/10 text-amber-800 border-amber-500/25 dark:text-amber-300">
+                  Nearby config
+                </Badge>
+              )}
             </div>
             <p className="text-sm text-muted-foreground truncate mt-0.5">{hit.title}</p>
             {hit.notes && <p className="text-xs text-muted-foreground mt-1">{hit.notes}</p>}
@@ -69,21 +76,19 @@ function GroupSection({
   subtitle,
   hits,
   countryCode,
-  delay,
 }: {
   title: string;
   subtitle: string;
   hits: PublicPriceHit[];
   countryCode: string;
-  delay?: boolean;
 }) {
   if (!hits.length) return null;
   const range = rangeFromHits(hits);
   return (
-    <section className={cn('space-y-2 animate-fade-in-up', delay && 'animate-fade-in-up-delay-1')}>
+    <section className="space-y-2">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h3 className="font-display font-semibold">{title}</h3>
+          <h4 className="text-sm font-semibold">{title}</h4>
           <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
         <p className="text-sm font-semibold tabular-nums">
@@ -96,18 +101,49 @@ function GroupSection({
   );
 }
 
-export function PriceResultGroups({
-  marketplaces,
-  official,
-  others,
+function StoreGroups({
+  hits,
   countryCode,
 }: {
-  marketplaces: PublicPriceHit[];
-  official: PublicPriceHit[];
-  others: PublicPriceHit[];
+  hits: PublicPriceHit[];
   countryCode: string;
 }) {
-  if (marketplaces.length === 0 && official.length === 0 && others.length === 0) {
+  const split = splitPublicPriceHits(hits, countryCode);
+  const country = countryLabel(countryCode);
+  const storeNames = formatStoreList(marketplaceNamesForCountry(countryCode), 12);
+  return (
+    <div className="space-y-4">
+      <GroupSection
+        title={`Reputed stores in ${country}`}
+        subtitle={storeNames}
+        hits={split.marketplaces}
+        countryCode={countryCode}
+      />
+      <GroupSection
+        title="Official brand stores"
+        subtitle="Manufacturer list / street prices"
+        hits={split.official}
+        countryCode={countryCode}
+      />
+      <GroupSection
+        title="Other listings"
+        subtitle="Smaller shops and aggregators — confirm the config before quoting"
+        hits={split.others}
+        countryCode={countryCode}
+      />
+    </div>
+  );
+}
+
+export function PriceResultGroups({
+  results,
+  countryCode,
+}: {
+  results: PublicPriceHit[];
+  countryCode: string;
+}) {
+  const { exact, nearby } = splitExactNearby(results);
+  if (exact.length === 0 && nearby.length === 0) {
     return (
       <p className="text-sm text-muted-foreground rounded-xl border border-dashed px-4 py-10 text-center">
         No matching listings. Add more specs or try another country.
@@ -115,31 +151,30 @@ export function PriceResultGroups({
     );
   }
 
-  const country = countryLabel(countryCode);
-  const storeNames = formatStoreList(marketplaceNamesForCountry(countryCode), 12);
-
   return (
-    <div className="space-y-5">
-      <GroupSection
-        title={`Reputed stores in ${country}`}
-        subtitle={storeNames}
-        hits={marketplaces}
-        countryCode={countryCode}
-      />
-      <GroupSection
-        title="Official brand stores"
-        subtitle="Manufacturer list / street prices from Apple, Dell, Lenovo, HP, and similar"
-        hits={official}
-        countryCode={countryCode}
-        delay
-      />
-      <GroupSection
-        title="Other listings"
-        subtitle="Smaller shops and aggregators — confirm the exact config before quoting"
-        hits={others}
-        countryCode={countryCode}
-        delay
-      />
+    <div className="space-y-8">
+      {exact.length > 0 && (
+        <div className="space-y-3 animate-fade-in-up">
+          <div>
+            <h3 className="font-display font-semibold">Exact config</h3>
+            <p className="text-xs text-muted-foreground">
+              Same chip, size, RAM, and storage — use this for the margin floor and ceiling
+            </p>
+          </div>
+          <StoreGroups hits={exact} countryCode={countryCode} />
+        </div>
+      )}
+      {nearby.length > 0 && (
+        <div className="space-y-3 animate-fade-in-up animate-fade-in-up-delay-1">
+          <div>
+            <h3 className="font-display font-semibold">Nearby same model</h3>
+            <p className="text-xs text-muted-foreground">
+              Same model family with different RAM or storage — do not quote these as the requested config
+            </p>
+          </div>
+          <StoreGroups hits={nearby} countryCode={countryCode} />
+        </div>
+      )}
     </div>
   );
 }

@@ -289,21 +289,20 @@ const FOREIGN_TLDS: Record<string, string[]> = {
 };
 
 export function isOffMarketListing(
-  hit: { url: string; currency?: string },
+  hit: { url: string; retailer?: string; currency?: string },
   countryCode: string,
-  expectedCurrency: string,
+  _expectedCurrency?: string,
 ): boolean {
-  if (classifyRetailerHit({ retailer: '', url: hit.url }, countryCode) !== 'other') return false;
+  if (classifyRetailerHit({ retailer: hit.retailer || '', url: hit.url }, countryCode) !== 'other') return false;
   let host = '';
   try {
     host = new URL(hit.url).hostname.replace(/^www\./, '').toLowerCase();
   } catch {
     return false;
   }
+  if (host.includes('google.') || host.includes('shopping.google')) return false;
   const foreign = FOREIGN_TLDS[countryCode.toLowerCase()] || [];
-  if (foreign.some((tld) => host.endsWith(tld))) return true;
-  if (hit.currency && hit.currency !== expectedCurrency && !host.includes('apple.com')) return true;
-  return false;
+  return foreign.some((tld) => host.endsWith(tld));
 }
 
 export function retailerNameFromUrl(url: string, fallback: string, countryCode: string): string {

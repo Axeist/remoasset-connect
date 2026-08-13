@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import {
   classifyRetailerHit,
+  isOffMarketListing,
   marketplaceNamesForCountry,
   marketplaceRetailersForCountry,
+  officialStoreForBrand,
   retailerNameFromUrl,
   searchSitesForCountry,
 } from '../src/lib/reputable-retailers';
@@ -30,6 +32,7 @@ interface PriceHit {
   price: number;
   price_type: PriceType;
   notes?: string;
+  match_quality?: 'exact' | 'near';
 }
 
 function json(res: { status: (n: number) => { json: (b: unknown) => void } }, status: number, body: unknown) {
@@ -88,9 +91,15 @@ function detectCurrency(text: string, fallback: string): string {
   return fallback;
 }
 
-function buildQuery(brand: string, model: string, specs: Record<string, string>): string {
+function familyQuery(brand: string, model: string, specs: Record<string, string>): string {
   const parts = [brand, model];
-  for (const key of ['processor', 'display_size', 'ram', 'storage', 'gpu', 'os', 'spec_description']) {
+  if (specs.processor?.trim()) parts.push(specs.processor.trim());
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function buildQuery(brand: string, model: string, specs: Record<string, string>): string {
+  const parts = [familyQuery(brand, model, specs)];
+  for (const key of ['ram', 'storage']) {
     const v = specs[key]?.trim();
     if (v) parts.push(v);
   }
@@ -118,7 +127,7 @@ function organicToHits(items: any[], fallbackCurrency: string, countryCode: stri
       retailer: retailerNameFromUrl(url, String(item.source || 'Retailer'), countryCode),
       title,
       url,
-      currency: detectCurrency(`${item.price || ''} ${snippet}`, fallbackCurrency),
+      currency: fallbackCurrency,
       price,
       price_type: /mrp|msrp|list price/i.test(snippet) ? 'list' : 'street',
     });
@@ -138,8 +147,8 @@ function dedupeHits(hits: PriceHit[]): PriceHit[] {
   return out;
 }
 
-function mergeKeepMajors(refined: PriceHit[], raw: PriceHit[], countryCode: string): PriceHit[] {
-  return dedupeHits([...refined, ...raw.filter((h) => isMajorHit(h, countryCode))]);
+function mergeKeepCoverage(refined: PriceHit[], raw: PriceHit[]): PriceHit[] {
+  return dedupeHits([...refined, ...raw]);
 }
 
 async function serperPost(path: 'shopping' | 'search', body: Record<string, unknown>) {
@@ -166,7 +175,7 @@ function shoppingToHits(items: any[], fallbackCurrency: string, countryCode: str
       retailer: retailerNameFromUrl(url, String(item.source || item.merchant || 'Retailer').trim() || 'Retailer', countryCode),
       title,
       url,
-      currency: detectCurrency(String(item.price || ''), fallbackCurrency),
+      currency: fallbackCurrency,
       price,
       price_type: 'street',
       notes: item.delivery ? String(item.delivery) : undefined,
@@ -314,7 +323,7 @@ Rules:
     }
     const confidence = Number(parsed.confidence);
     return {
-      hits: mergeKeepMajors(results.length ? results : opts.shoppingHits, opts.shoppingHits, opts.countryCode),
+      hits: mergeKeepCoverage(opts.shoppingHits, results),
       confidence: Number.isFinite(confidence) ? Math.min(10, Math.max(1, confidence)) : (results.length ? 6 : 3),
       token_usage,
     };
@@ -325,16 +334,18 @@ Rules:
 
 function summarize(hits: PriceHit[], fallbackCurrency: string, confidence: number) {
   if (hits.length === 0) {
-    return { currency: fallbackCurrency, range_from: null, range_to: null, listing_count: 0, confidence };
+    return { currency: fallbackCurrency, range_from: null, range_to: null, listing_count: 0, confidence, range_basis: 'exact' as const };
   }
-  const prices = hits.map((h) => h.price);
-  const listish = hits.filter((h) => h.price_type === 'mrp' || h.price_type === 'msrp' || h.price_type === 'list');
+  const exact = hits.filter((h) => h.match_quality !== 'near');
+  const floorHits = exact.length ? exact : hits;
+  const listish = floorHits.filter((h) => h.price_type === 'mrp' || h.price_type === 'msrp' || h.price_type === 'list');
   return {
-    currency: hits[0]?.currency || fallbackCurrency,
-    range_from: Math.min(...prices),
-    range_to: listish.length ? Math.max(...listish.map((h) => h.price), ...prices) : Math.max(...prices),
+    currency: floorHits[0]?.currency || fallbackCurrency,
+    range_from: Math.min(...floorHits.map((h) => h.price)),
+    range_to: listish.length ? Math.max(...listish.map((h) => h.price)) : Math.max(...floorHits.map((h) => h.price)),
     listing_count: hits.length,
     confidence,
+    range_basis: exact.length ? 'exact' as const : 'nearby' as const,
   };
 }
 
@@ -367,42 +378,52 @@ export default async function handler(req: { method?: string; headers: Record<st
     }
 
     const query = buildQuery(brand, model, specs);
+    const broadQuery = familyQuery(brand, model, specs);
     const fallbackCurrency = CURRENCY_BY_GL[countryCode] || 'USD';
     const marketplaceSites = marketplaceRetailersForCountry(countryCode);
     const allSites = searchSitesForCountry(countryCode);
+    const official = officialStoreForBrand(brand);
     const siteOr = allSites.map((s) => `site:${s.host}`).join(' OR ');
     const retailerOr = marketplaceSites.map((s) => `"${s.name}"`).join(' OR ');
-    const searchQueriesUsed: string[] = [`shopping: ${query}`];
-
-    const shoppingData = await serperPost('shopping', { q: query, gl: countryCode, hl: 'en', num: 20 });
-    await new Promise((r) => setTimeout(r, 350));
-
-    const marketplaceQuery = `${query} (${retailerOr})`;
-    searchQueriesUsed.push(`shopping: ${marketplaceQuery}`);
-    let marketplaceShopping: any[] = [];
-    try {
-      const extra = await serperPost('shopping', { q: marketplaceQuery, gl: countryCode, hl: 'en', num: 20 });
-      marketplaceShopping = extra.shopping || [];
-    } catch (err) {
-      console.error('Marketplace shopping failed:', err);
-    }
-
-    await new Promise((r) => setTimeout(r, 350));
-    const webQuery = `${listPriceQuery(query, countryCode)} (${siteOr})`;
+    const namesQ = `${broadQuery} (${retailerOr})`;
+    const webQuery = `${listPriceQuery(broadQuery, countryCode)} (${siteOr})`;
+    const officialQ = official ? `${broadQuery} site:${official.hosts[0]}` : null;
+    const searchQueriesUsed: string[] = [`shopping: ${broadQuery}`];
+    if (query !== broadQuery) searchQueriesUsed.push(`shopping: ${query}`);
+    searchQueriesUsed.push(`shopping: ${namesQ}`);
+    if (officialQ) searchQueriesUsed.push(`shopping: ${officialQ}`);
     searchQueriesUsed.push(`search: ${webQuery}`);
+
+    const shoppingBags: any[] = [];
     let organic: any[] = [];
-    try {
-      const searchData = await serperPost('search', { q: webQuery, gl: countryCode, hl: 'en', num: 15 });
-      organic = searchData.organic || [];
-    } catch (err) {
-      console.error('Serper search failed:', err);
+    const calls: { q: string; path: 'shopping' | 'search' }[] = [
+      { path: 'shopping', q: broadQuery },
+    ];
+    if (query !== broadQuery) calls.push({ path: 'shopping', q: query });
+    calls.push({ path: 'shopping', q: namesQ });
+    if (officialQ) calls.push({ path: 'shopping', q: officialQ });
+    calls.push({ path: 'search', q: webQuery });
+
+    for (let i = 0; i < calls.length; i += 3) {
+      const chunk = calls.slice(i, i + 3);
+      const settled = await Promise.allSettled(
+        chunk.map((c) => serperPost(c.path, { q: c.q, gl: countryCode, hl: 'en', num: c.path === 'search' ? 20 : 40 })),
+      );
+      settled.forEach((item, idx) => {
+        if (item.status !== 'fulfilled') {
+          console.error('Serper call failed:', item.reason);
+          return;
+        }
+        shoppingBags.push(...(item.value.shopping || []));
+        if (chunk[idx].path === 'search') organic = item.value.organic || [];
+      });
+      if (i + 3 < calls.length) await new Promise((r) => setTimeout(r, 280));
     }
 
     const shoppingHits = dedupeHits([
-      ...shoppingToHits(shoppingData.shopping || [], fallbackCurrency, countryCode),
-      ...shoppingToHits(marketplaceShopping, fallbackCurrency, countryCode),
+      ...shoppingToHits(shoppingBags, fallbackCurrency, countryCode),
       ...organicToHits(organic, fallbackCurrency, countryCode),
-    ]);
+    ]).filter((h) => !isOffMarketListing(h, countryCode, fallbackCurrency));
     const { hits, confidence, token_usage } = await refineWithClaude({
       query,
       country,
@@ -414,7 +435,7 @@ export default async function handler(req: { method?: string; headers: Record<st
       fallbackCurrency,
     });
 
-    const results = [...hits].sort((a, b) => a.price - b.price);
+    const results = mergeKeepCoverage(shoppingHits, hits).sort((a, b) => a.price - b.price);
     return json(res, 200, {
       summary: summarize(results, fallbackCurrency, confidence),
       results,

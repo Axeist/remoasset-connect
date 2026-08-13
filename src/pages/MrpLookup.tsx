@@ -30,6 +30,7 @@ import { parseDeviceLine, parsedSummary } from '@/lib/parse-device-line';
 import {
   LOOKUP_MARKETS,
   formatPriceRange,
+  formatPublicPrice,
   formatTokenCount,
   formatUsdCost,
   invokeMrpLookup,
@@ -37,7 +38,7 @@ import {
   deleteLookupHistory,
   loadLookupHistory,
   saveLookupHistory,
-  splitPublicPriceHits,
+  rangeHitsForBanner,
   type MrpLookupHistoryRow,
   type MrpLookupRequest,
   type MrpLookupResponse,
@@ -287,10 +288,11 @@ export default function MrpLookup() {
     );
   }, [result, countryCode]);
 
-  const split = useMemo(
-    () => (result ? splitPublicPriceHits(result.results, countryCode) : { marketplaces: [], official: [], others: [] }),
-    [result, countryCode],
+  const bannerHits = useMemo(
+    () => (result ? rangeHitsForBanner(result.results) : []),
+    [result],
   );
+  const lowestIsNearby = result?.summary.range_basis === 'nearby';
 
   const usage = result?.token_usage;
   const totalTokens = (usage?.input_tokens || 0) + (usage?.output_tokens || 0);
@@ -298,7 +300,7 @@ export default function MrpLookup() {
   const copyRange = async () => {
     if (!rangeText) return;
     try {
-      await navigator.clipboard.writeText(`${brand} ${model} public price range (${countryName}): ${rangeText}`);
+      await navigator.clipboard.writeText(`${brand} ${model} public low–high (${countryName}): ${rangeText}`);
       toast({ title: 'Copied price range' });
     } catch {
       toast({ title: 'Could not copy', variant: 'destructive' });
@@ -526,28 +528,49 @@ export default function MrpLookup() {
               <div className="space-y-4">
                 <div className="relative overflow-hidden rounded-2xl p-6 text-white card-shadow-lg gradient-primary animate-fade-in-up">
                   <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-                  <div className="relative z-10">
-                    <p className="text-xs uppercase tracking-wider text-white/80 font-semibold">Suggested public range</p>
-                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mt-2">
-                      <p className="text-3xl sm:text-4xl font-display font-bold tracking-tight tabular-nums">{rangeText}</p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-white/20">
-                          {result.summary.listing_count} listing{result.summary.listing_count === 1 ? '' : 's'}
-                        </span>
-                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-white/20">
-                          Confidence {result.summary.confidence}/10
-                        </span>
-                        {result.summary.range_from != null && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="rounded-lg h-8 bg-white/20 hover:bg-white/30 text-white border-0"
-                            onClick={copyRange}
-                          >
-                            <Copy className="h-3.5 w-3.5 mr-1.5" /> Copy
-                          </Button>
-                        )}
+                  <div className="relative z-10 space-y-4">
+                    <p className="text-xs uppercase tracking-wider text-white/80 font-semibold">
+                      Public prices in {countryName}
+                      {lowestIsNearby ? ' · nearby configs (no exact match)' : ''}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-white/75 font-medium">Lowest a buyer can find</p>
+                        <p className="text-3xl sm:text-4xl font-display font-bold tracking-tight tabular-nums mt-1">
+                          {result.summary.range_from != null
+                            ? formatPublicPrice(result.summary.range_from, result.summary.currency, countryCode)
+                            : '—'}
+                        </p>
                       </div>
+                      <div>
+                        <p className="text-xs text-white/75 font-medium">Highest public / list</p>
+                        <p className="text-3xl sm:text-4xl font-display font-bold tracking-tight tabular-nums mt-1">
+                          {result.summary.range_to != null
+                            ? formatPublicPrice(result.summary.range_to, result.summary.currency, countryCode)
+                            : '—'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-white/20">
+                        {result.summary.listing_count} listing{result.summary.listing_count === 1 ? '' : 's'}
+                      </span>
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-white/20">
+                        {bannerHits.length} used for range
+                      </span>
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-white/20">
+                        Confidence {result.summary.confidence}/10
+                      </span>
+                      {result.summary.range_from != null && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="rounded-lg h-8 bg-white/20 hover:bg-white/30 text-white border-0"
+                          onClick={copyRange}
+                        >
+                          <Copy className="h-3.5 w-3.5 mr-1.5" /> Copy
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -575,9 +598,7 @@ export default function MrpLookup() {
                 </div>
 
                 <PriceResultGroups
-                  marketplaces={split.marketplaces}
-                  official={split.official}
-                  others={split.others}
+                  results={result.results}
                   countryCode={countryCode}
                 />
               </div>

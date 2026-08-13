@@ -45,6 +45,7 @@ interface PriceHit {
   price: number
   price_type: PriceType
   notes?: string
+  match_quality?: 'exact' | 'near'
 }
 
 function calculateCost(model: string, inputTokens: number, outputTokens: number) {
@@ -102,9 +103,16 @@ function googleDomain(countryCode: string): string {
   return GOOGLE_DOMAINS[countryCode] || 'google.com'
 }
 
-function coreQuery(brand: string, model: string, specs: Record<string, string>): string {
+function familyQuery(brand: string, model: string, specs: Record<string, string>): string {
   const parts = [brand, model]
-  for (const key of ['processor', 'ram', 'storage']) {
+  const chip = specs.processor?.trim()
+  if (chip) parts.push(chip)
+  return parts.join(' ').replace(/\s+/g, ' ').trim()
+}
+
+function coreQuery(brand: string, model: string, specs: Record<string, string>): string {
+  const parts = [familyQuery(brand, model, specs)]
+  for (const key of ['ram', 'storage']) {
     const v = specs[key]?.trim()
     if (v) parts.push(v)
   }
@@ -136,32 +144,40 @@ function isRefurbished(text: string): boolean {
   return /refurb|renewed|used|pre-?owned|open[\s-]?box|certified pre/i.test(text)
 }
 
-function hitConflictsSpecs(hit: PriceHit, specs: Record<string, string>, brand: string, model: string): boolean {
+function screenInch(text: string): number | null {
+  const m = text.match(/\b(13|14|15|16)(?:\.\d)?\s*(?:-?inch|"|''|″)\b/i)
+    || text.match(/\b(13|14|15|16)-inch\b/i)
+  return m ? Number(m[1]) : null
+}
+
+function specMatch(hit: PriceHit, specs: Record<string, string>, brand: string, model: string): 'exact' | 'near' | 'reject' {
   const hay = `${hit.title} ${hit.notes || ''}`.toLowerCase()
-  if (isRefurbished(hay)) return true
+  if (isRefurbished(hay)) return 'reject'
   const brandTok = brand.toLowerCase()
   if (brandTok && !hay.includes(brandTok) && !hit.url.toLowerCase().includes(brandTok.replace(/\s+/g, ''))) {
-    if (!/apple|macbook|imac|mac mini|mac studio/i.test(hay) && brandTok === 'apple') return true
-  }
-  const modelCore = model.toLowerCase().replace(/\s+m[1-5].*$/i, '').trim()
-  if (modelCore.length >= 6 && !hay.includes(modelCore) && !hay.includes(modelCore.replace(/\s+/g, ''))) {
-    const words = modelCore.split(/\s+/).filter((w) => w.length > 2)
-    if (words.length && !words.every((w) => hay.includes(w))) return false
+    if (!/apple|macbook|imac|mac mini|mac studio/i.test(hay) && brandTok === 'apple') return 'reject'
+    if (brandTok !== 'apple' && !hay.includes(brandTok)) return 'reject'
   }
 
   const wantChip = normalizeChip(`${specs.processor || ''} ${model}`)
   const gotChip = normalizeChip(hay)
-  if (wantChip && gotChip && wantChip.split(' ')[0] !== gotChip.split(' ')[0]) return true
+  if (wantChip && gotChip && wantChip.split(' ')[0] !== gotChip.split(' ')[0]) return 'reject'
+
+  const wantScreen = screenInch(`${specs.display_size || ''} ${model}`)
+  const gotScreen = screenInch(hay)
+  if (wantScreen && gotScreen && wantScreen !== gotScreen) return 'reject'
 
   const wantRam = ramGb(specs.ram || '')
   const gotRam = ramGb(hay)
-  if (wantRam && gotRam && wantRam !== gotRam) return true
+  const ramDiffers = !!(wantRam && gotRam && wantRam !== gotRam)
+  const ramMissingCto = !!(wantRam && wantRam >= 32 && !gotRam)
 
   const wantStore = storageToken(specs.storage || '')
   const gotStore = storageToken(hay)
-  if (wantStore && gotStore && wantStore !== gotStore) return true
+  const storeDiffers = !!(wantStore && gotStore && wantStore !== gotStore)
 
-  return false
+  if (ramDiffers || storeDiffers || ramMissingCto) return 'near'
+  return 'exact'
 }
 
 function median(values: number[]): number | null {
@@ -180,14 +196,23 @@ function filterReliableHits(
   expectedCurrency: string,
 ): PriceHit[] {
   const local = hits.filter((h) => !isOffMarketListing(h, countryCode, expectedCurrency))
-  const matched = local.filter((h) => !hitConflictsSpecs(h, specs, brand, model))
-  const pool = matched.length ? matched : local.filter((h) => !isRefurbished(`${h.title} ${h.notes || ''}`))
+  const tagged = local
+    .map((h) => {
+      const match = specMatch(h, specs, brand, model)
+      if (match === 'reject') return null
+      const nearNote = 'Nearby config — RAM or storage differs from the request'
+      const notes = match === 'near'
+        ? (h.notes?.includes('Nearby config') ? h.notes : [h.notes, nearNote].filter(Boolean).join(' · '))
+        : h.notes
+      return { ...h, match_quality: match, notes }
+    })
+    .filter((h): h is PriceHit => h != null)
+  const pool = tagged.length
+    ? tagged
+    : local.filter((h) => !isRefurbished(`${h.title} ${h.notes || ''}`))
   const mid = median(pool.map((h) => h.price))
   if (!mid) return pool
-  return pool.filter((h) => {
-    if (classifyRetailerHit(h, countryCode) !== 'other') return h.price > mid * 0.3 && h.price < mid * 3
-    return h.price >= mid * 0.4 && h.price <= mid * 2.6
-  })
+  return pool.filter((h) => h.price >= mid * 0.2 && h.price <= mid * 4)
 }
 
 function detectCurrency(text: string, fallback: string): string {
@@ -233,7 +258,7 @@ function organicToHits(items: any[], fallbackCurrency: string, countryCode: stri
       retailer: retailerNameFromUrl(url, String(item.source || 'Retailer'), countryCode),
       title,
       url,
-      currency: detectCurrency(`${item.price || ''} ${snippet}`, fallbackCurrency),
+      currency: fallbackCurrency,
       price,
       price_type: /mrp|msrp|list price/i.test(snippet) ? 'list' : 'street',
     })
@@ -245,7 +270,13 @@ function dedupeHits(hits: PriceHit[]): PriceHit[] {
   const seen = new Set<string>()
   const out: PriceHit[] = []
   for (const hit of hits) {
-    const key = hit.url.replace(/[?#].*$/, '').toLowerCase()
+    const host = (() => {
+      try { return new URL(hit.url).hostname.replace(/^www\./, '') } catch { return hit.url }
+    })()
+    const titleKey = hit.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 80)
+    const key = host.includes('google.')
+      ? `${hit.retailer.toLowerCase()}|${hit.price}|${titleKey}`
+      : hit.url.replace(/[?#].*$/, '').toLowerCase()
     if (seen.has(key)) continue
     seen.add(key)
     out.push(hit)
@@ -275,21 +306,28 @@ async function serperPost(path: 'shopping' | 'search', body: Record<string, unkn
   return res.json()
 }
 
+function shoppingPrice(item: any): number | null {
+  return parseMoney(item.price)
+    ?? parseMoney(item.extracted_price)
+    ?? parseMoney(item.priceStr)
+    ?? parseMoney(item.oldPrice)
+}
+
 function shoppingToHits(items: any[], fallbackCurrency: string, countryCode: string): PriceHit[] {
   const hits: PriceHit[] = []
   for (const item of items || []) {
-    const price = parseMoney(item.price)
+    const price = shoppingPrice(item)
     if (price == null) continue
     const title = String(item.title || '').trim()
-    const source = String(item.source || item.merchant || 'Retailer').trim() || 'Retailer'
-    const url = String(item.link || item.url || '').trim()
+    const source = String(item.source || item.merchant || item.seller || 'Retailer').trim() || 'Retailer'
+    const url = String(item.link || item.url || item.productLink || '').trim()
       || `https://www.google.com/search?q=${encodeURIComponent(`${source} ${title}`)}`
     if (!title) continue
     hits.push({
       retailer: retailerNameFromUrl(url, source, countryCode),
       title,
       url,
-      currency: detectCurrency(String(item.price || ''), fallbackCurrency),
+      currency: fallbackCurrency,
       price,
       price_type: 'street',
       notes: item.delivery ? String(item.delivery) : undefined,
@@ -345,7 +383,7 @@ async function refineWithClaude(opts: {
     model: DEFAULT_MODEL,
     max_tokens: 4096,
     temperature: 0,
-    system: `You normalize public IT-asset prices for RemoAsset procurement. Keep every new-device buying option that matches brand, model, chip, RAM, and storage — national chains, official stores, and local authorized dealers. Drop refurbished/used/renewed, wrong configs, and foreign-market listings. Do not shrink the list to a few majors. Return JSON only.`,
+    system: `You label public IT-asset prices for RemoAsset procurement. You do not shrink the list. Keep every shopping row. Mark exact vs nearby (same model, different RAM/storage). Set price_type. You may add MRP/list rows from snippets. Never invent a store that is not in the shopping list or snippets. Return JSON only.`,
     messages: [{
       role: 'user',
       content: `Device: ${opts.query}
@@ -371,6 +409,7 @@ Return ONLY this JSON object:
       "currency": "${opts.fallbackCurrency}",
       "price": 72990,
       "price_type": "mrp" | "msrp" | "list" | "street" | "unknown",
+      "match_quality": "exact" | "near",
       "notes": "optional short match note"
     }
   ]
@@ -383,10 +422,9 @@ Rules:
 - Use "street" for current selling / offer price
 - Include url for every row so ops can open the site
 - If a snippet has MRP and a different street price, you may emit two rows for the same URL
-- Keep the full buying-options set for ${opts.country}, including ${marketplaceNamesForCountry(opts.countryCode).join(', ')}, official brand stores, and other local authorized dealers
-- Do not drop a matching in-country listing just to shorten the list
-- Drop foreign-market shops (wrong country / converted currency)
-- Max 40 results. Sort cheapest first.`,
+- Return every shopping listing. Label match_quality exact when chip/size/RAM/storage match, near when only RAM or storage differs
+- Do not invent retailers
+- Max 50 results. Sort cheapest first.`,
     }],
   })
 
@@ -423,11 +461,12 @@ Rules:
         price,
         price_type: priceType,
         notes: row.notes ? String(row.notes) : undefined,
+        match_quality: row.match_quality === 'near' ? 'near' : 'exact',
       })
     }
     const confidence = Number(parsed.confidence)
     return {
-      hits: mergeKeepCoverage(results.length ? results : opts.shoppingHits, opts.shoppingHits),
+      hits: mergeKeepCoverage(opts.shoppingHits, results),
       confidence: Number.isFinite(confidence) ? Math.min(10, Math.max(1, confidence)) : (results.length ? 6 : 3),
       token_usage,
     }
@@ -444,24 +483,57 @@ function summarize(hits: PriceHit[], fallbackCurrency: string, confidence: numbe
       range_to: null,
       listing_count: 0,
       confidence,
+      range_basis: 'exact' as const,
     }
   }
-  const prices = hits.map((h) => h.price)
-  const listish = hits.filter((h) => h.price_type === 'mrp' || h.price_type === 'msrp' || h.price_type === 'list')
-  const rangeFrom = Math.min(...prices)
-  const rangeTo = listish.length ? Math.max(...listish.map((h) => h.price), ...prices) : Math.max(...prices)
-  const currency = hits[0]?.currency || fallbackCurrency
+  const exact = hits.filter((h) => h.match_quality !== 'near')
+  const floorHits = exact.length ? exact : hits
+  const listish = floorHits.filter((h) => h.price_type === 'mrp' || h.price_type === 'msrp' || h.price_type === 'list')
+  const rangeFrom = Math.min(...floorHits.map((h) => h.price))
+  const rangeTo = listish.length
+    ? Math.max(...listish.map((h) => h.price))
+    : Math.max(...floorHits.map((h) => h.price))
+  const currency = floorHits[0]?.currency || fallbackCurrency
+  const confidenceBoost = hits.length >= 8 ? 2 : hits.length >= 3 ? 1 : 0
   return {
     currency,
     range_from: rangeFrom,
     range_to: rangeTo,
     listing_count: hits.length,
-    confidence,
+    confidence: Math.min(10, confidence + confidenceBoost),
+    range_basis: exact.length ? 'exact' as const : 'nearby' as const,
   }
 }
 
 function sortHits(hits: PriceHit[]): PriceHit[] {
-  return [...hits].sort((a, b) => a.price - b.price)
+  return [...hits].sort((a, b) => {
+    if (a.match_quality === 'near' && b.match_quality !== 'near') return 1
+    if (a.match_quality !== 'near' && b.match_quality === 'near') return -1
+    return a.price - b.price
+  })
+}
+
+async function runSerperBatches(
+  tasks: { label: string; run: () => Promise<any> }[],
+  batchSize = 3,
+): Promise<{ label: string; value: any | null }[]> {
+  const out: { label: string; value: any | null }[] = []
+  for (let i = 0; i < tasks.length; i += batchSize) {
+    const chunk = tasks.slice(i, i + batchSize)
+    const settled = await Promise.allSettled(chunk.map((t) => t.run()))
+    settled.forEach((item, idx) => {
+      if (item.status === 'fulfilled') {
+        out.push({ label: chunk[idx].label, value: item.value })
+      } else {
+        console.error(`Serper ${chunk[idx].label} failed:`, item.reason)
+        out.push({ label: chunk[idx].label, value: null })
+      }
+    })
+    if (i + batchSize < tasks.length) {
+      await new Promise((r) => setTimeout(r, 280))
+    }
+  }
+  return out
 }
 
 Deno.serve(async (req) => {
@@ -486,52 +558,49 @@ Deno.serve(async (req) => {
     }
 
     const query = coreQuery(brand, model, specs)
+    const broadQuery = familyQuery(brand, model, specs)
     const fallbackCurrency = CURRENCY_BY_GL[countryCode] || 'USD'
     const hl = 'en'
     const domain = googleDomain(countryCode)
     const searchQueriesUsed: string[] = []
     const serperBase = { gl: countryCode, hl, google_domain: domain }
 
-    const marketplaceSites = marketplaceRetailersForCountry(countryCode).slice(0, 8)
+    const marketplaceSites = marketplaceRetailersForCountry(countryCode)
     const allSites = searchSitesForCountry(countryCode)
     const official = officialStoreForBrand(brand)
     const siteOr = allSites.map((s) => `site:${s.host}`).join(' OR ')
     const retailerOr = marketplaceSites.map((s) => `"${s.name}"`).join(' OR ')
 
-    const generalQ = query
-    const namesQ = `${query} (${retailerOr})`
-    const webQuery = `${listPriceQuery(query, countryCode)} (${siteOr})`
-    const siteQueries = marketplaceSites.map((site) => `${query} site:${site.host}`)
-    const officialQ = official ? `${query} site:${official.hosts[0]}` : null
+    const familyQ = broadQuery
+    const exactQ = query
+    const namesQ = `${broadQuery} (${retailerOr})`
+    const buyQ = `${broadQuery} price`
+    const webQuery = `${listPriceQuery(broadQuery, countryCode)} (${siteOr})`
+    const officialQ = official ? `${broadQuery} site:${official.hosts[0]}` : null
 
-    searchQueriesUsed.push(`shopping: ${generalQ}`)
-    searchQueriesUsed.push(`shopping: ${namesQ}`)
-    for (const q of siteQueries) searchQueriesUsed.push(`shopping: ${q}`)
-    if (officialQ) searchQueriesUsed.push(`shopping: ${officialQ}`)
-    searchQueriesUsed.push(`search: ${webQuery}`)
+    const tasks: { label: string; run: () => Promise<any> }[] = [
+      { label: `shopping: ${familyQ}`, run: () => serperPost('shopping', { q: familyQ, ...serperBase, num: 40 }) },
+    ]
+    if (exactQ !== familyQ) {
+      tasks.push({ label: `shopping: ${exactQ}`, run: () => serperPost('shopping', { q: exactQ, ...serperBase, num: 30 }) })
+    }
+    tasks.push({ label: `shopping: ${namesQ}`, run: () => serperPost('shopping', { q: namesQ, ...serperBase, num: 40 }) })
+    tasks.push({ label: `shopping: ${buyQ}`, run: () => serperPost('shopping', { q: buyQ, ...serperBase, num: 20 }) })
+    if (officialQ) {
+      tasks.push({ label: `shopping: ${officialQ}`, run: () => serperPost('shopping', { q: officialQ, ...serperBase, num: 10 }) })
+    }
+    tasks.push({ label: `search: ${webQuery}`, run: () => serperPost('search', { q: webQuery, ...serperBase, num: 20 }) })
 
-    const settled = await Promise.allSettled([
-      serperPost('shopping', { q: generalQ, ...serperBase, num: 40 }),
-      serperPost('shopping', { q: namesQ, ...serperBase, num: 30 }),
-      ...siteQueries.map((q) => serperPost('shopping', { q, ...serperBase, num: 10 })),
-      ...(officialQ ? [serperPost('shopping', { q: officialQ, ...serperBase, num: 10 })] : []),
-      serperPost('search', { q: webQuery, ...serperBase, num: 20 }),
-    ])
+    for (const t of tasks) searchQueriesUsed.push(t.label)
 
+    const settled = await runSerperBatches(tasks, 3)
     const shoppingBags: any[] = []
     let organic: any[] = []
-    settled.forEach((item, idx) => {
-      if (item.status !== 'fulfilled') {
-        console.error('Serper call failed:', item.reason)
-        return
-      }
-      const isLast = idx === settled.length - 1
-      if (isLast) {
-        organic = item.value.organic || []
-        return
-      }
+    for (const item of settled) {
+      if (!item.value) continue
       shoppingBags.push(...(item.value.shopping || []))
-    })
+      if (item.label.startsWith('search:')) organic = item.value.organic || []
+    }
 
     const shoppingHits = filterReliableHits(
       dedupeHits([
@@ -544,7 +613,8 @@ Deno.serve(async (req) => {
       countryCode,
       fallbackCurrency,
     )
-    const { hits, confidence, token_usage } = await refineWithClaude({
+
+    const refined = await refineWithClaude({
       query,
       country,
       countryCode,
@@ -554,9 +624,9 @@ Deno.serve(async (req) => {
       organicText: organicHints(organic),
       fallbackCurrency,
     })
-
+    const hits = mergeKeepCoverage(shoppingHits, refined.hits)
     const results = sortHits(filterReliableHits(hits, specs, brand, model, countryCode, fallbackCurrency))
-    const summary = summarize(results, fallbackCurrency, confidence)
+    const summary = summarize(results, fallbackCurrency, refined.confidence)
 
     return new Response(
       JSON.stringify({

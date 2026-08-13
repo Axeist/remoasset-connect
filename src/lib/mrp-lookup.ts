@@ -21,6 +21,7 @@ export interface PublicPriceHit {
   price: number;
   price_type: PublicPriceType;
   notes?: string;
+  match_quality?: 'exact' | 'near';
 }
 
 export interface MrpLookupSummary {
@@ -29,6 +30,7 @@ export interface MrpLookupSummary {
   range_to: number | null;
   listing_count: number;
   confidence: number;
+  range_basis?: 'exact' | 'nearby';
 }
 
 export interface MrpLookupResponse {
@@ -138,6 +140,23 @@ export function splitPublicPriceHits(hits: PublicPriceHit[], countryCode: string
     else others.push(hit);
   }
   return { marketplaces, official, others };
+}
+
+export function splitExactNearby(hits: PublicPriceHit[]): {
+  exact: PublicPriceHit[];
+  nearby: PublicPriceHit[];
+} {
+  const exact: PublicPriceHit[] = [];
+  const nearby: PublicPriceHit[] = [];
+  for (const hit of hits) {
+    (hit.match_quality === 'near' ? nearby : exact).push(hit);
+  }
+  return { exact, nearby };
+}
+
+export function rangeHitsForBanner(hits: PublicPriceHit[]): PublicPriceHit[] {
+  const { exact, nearby } = splitExactNearby(hits);
+  return exact.length ? exact : nearby;
 }
 
 export function rangeFromHits(hits: PublicPriceHit[]): { from: number | null; to: number | null; currency: string | null } {
