@@ -33,6 +33,7 @@ const CURRENCY_BY_GL: Record<string, string> = {
   in: 'INR', us: 'USD', gb: 'GBP', ae: 'AED', sg: 'SGD', au: 'AUD', ca: 'CAD',
   de: 'EUR', fr: 'EUR', nl: 'EUR', jp: 'JPY', kr: 'KRW', ph: 'PHP', my: 'MYR',
   id: 'IDR', th: 'THB', vn: 'VND', br: 'BRL', mx: 'MXN', za: 'ZAR', sa: 'SAR',
+  co: 'COP',
 }
 
 type PriceType = 'mrp' | 'msrp' | 'list' | 'street' | 'unknown'
@@ -97,6 +98,7 @@ const GOOGLE_DOMAINS: Record<string, string> = {
   nl: 'google.nl', jp: 'google.co.jp', kr: 'google.co.kr', ph: 'google.com.ph',
   my: 'google.com.my', id: 'google.co.id', th: 'google.co.th', vn: 'google.com.vn',
   br: 'google.com.br', mx: 'google.com.mx', za: 'google.co.za', sa: 'google.com.sa',
+  co: 'google.com.co',
 }
 
 function googleDomain(countryCode: string): string {
@@ -614,16 +616,33 @@ Deno.serve(async (req) => {
       fallbackCurrency,
     )
 
-    const refined = await refineWithClaude({
-      query,
-      country,
-      countryCode,
-      category,
-      specs,
-      shoppingHits,
-      organicText: organicHints(organic),
-      fallbackCurrency,
-    })
+    let refined: { hits: PriceHit[]; confidence: number; token_usage: any }
+    try {
+      refined = await refineWithClaude({
+        query,
+        country,
+        countryCode,
+        category,
+        specs,
+        shoppingHits,
+        organicText: organicHints(organic),
+        fallbackCurrency,
+      })
+    } catch (err) {
+      console.error('Claude refine failed:', err)
+      refined = {
+        hits: shoppingHits,
+        confidence: shoppingHits.length >= 3 ? 5 : 3,
+        token_usage: {
+          model: DEFAULT_MODEL,
+          input_tokens: 0,
+          output_tokens: 0,
+          input_cost_usd: 0,
+          output_cost_usd: 0,
+          total_cost_usd: 0,
+        },
+      }
+    }
     const hits = mergeKeepCoverage(shoppingHits, refined.hits)
     const results = sortHits(filterReliableHits(hits, specs, brand, model, countryCode, fallbackCurrency))
     const summary = summarize(results, fallbackCurrency, refined.confidence)
@@ -633,7 +652,7 @@ Deno.serve(async (req) => {
         summary,
         results,
         search_queries_used: searchQueriesUsed,
-        token_usage,
+        token_usage: refined.token_usage,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
     )

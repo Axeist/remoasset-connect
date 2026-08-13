@@ -70,6 +70,7 @@ export const LOOKUP_MARKETS: { name: string; code: string; currency: string }[] 
   { name: 'Mexico', code: 'mx', currency: 'MXN' },
   { name: 'South Africa', code: 'za', currency: 'ZAR' },
   { name: 'Saudi Arabia', code: 'sa', currency: 'SAR' },
+  { name: 'Colombia', code: 'co', currency: 'COP' },
 ];
 
 const CURRENCY_BY_GL: Record<string, string> = Object.fromEntries(

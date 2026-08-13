@@ -20,6 +20,7 @@ const CURRENCY_BY_GL: Record<string, string> = {
   in: 'INR', us: 'USD', gb: 'GBP', ae: 'AED', sg: 'SGD', au: 'AUD', ca: 'CAD',
   de: 'EUR', fr: 'EUR', nl: 'EUR', jp: 'JPY', kr: 'KRW', ph: 'PHP', my: 'MYR',
   id: 'IDR', th: 'THB', vn: 'VND', br: 'BRL', mx: 'MXN', za: 'ZAR', sa: 'SAR',
+  co: 'COP',
 };
 
 type PriceType = 'mrp' | 'msrp' | 'list' | 'street' | 'unknown';

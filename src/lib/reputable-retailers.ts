@@ -204,10 +204,18 @@ const SA: ReputableRetailer[] = [
   { name: 'Amazon.sa', hosts: ['amazon.sa'], aliases: ['amazon'], tier: 'marketplace' },
 ];
 
+const CO: ReputableRetailer[] = [
+  { name: 'Mercado Libre', hosts: ['mercadolibre.com.co'], aliases: ['mercado libre'], tier: 'marketplace' },
+  { name: 'Alkosto', hosts: ['alkosto.com'], tier: 'marketplace' },
+  { name: 'Falabella', hosts: ['falabella.com.co'], aliases: ['falabella'], tier: 'marketplace' },
+  { name: 'Éxito', hosts: ['exito.com'], aliases: ['exito'], tier: 'marketplace' },
+  { name: 'Ktronix', hosts: ['ktronix.com'], tier: 'marketplace' },
+];
+
 export const RETAILERS_BY_COUNTRY: Record<string, ReputableRetailer[]> = {
   in: IN, us: US, gb: GB, ae: AE, sg: SG, au: AU, ca: CA,
   de: DE, fr: FR, nl: NL, jp: JP, kr: KR, ph: PH, my: MY,
-  id: ID, th: TH, vn: VN, br: BR, mx: MX, za: ZA, sa: SA,
+  id: ID, th: TH, vn: VN, br: BR, mx: MX, za: ZA, sa: SA, co: CO,
 };
 
 const FALLBACK: ReputableRetailer[] = [
