@@ -271,7 +271,18 @@ export async function invokeMrpLookup(body: MrpLookupRequest): Promise<MrpLookup
     return fallback as MrpLookupResponse;
   }
 
+  const ctx = error && typeof error === 'object' && 'context' in error
+    ? (error as { context?: { json?: () => Promise<unknown>; body?: unknown } }).context
+    : null;
+  let contextError: string | null = null;
+  if (ctx && typeof ctx.json === 'function') {
+    try {
+      const body = await ctx.json();
+      if (body && typeof body === 'object' && 'error' in body) contextError = String((body as { error: unknown }).error);
+    } catch { /* ignore */ }
+  }
   const supabaseMessage = data?.error
+    || contextError
     || (error as { message?: string })?.message
     || (fallback && typeof fallback === 'object' && 'error' in fallback ? String(fallback.error) : null);
   throw new Error(supabaseMessage || 'Price lookup failed');

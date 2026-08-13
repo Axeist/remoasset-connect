@@ -10,7 +10,6 @@ import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
 import {
   classifyRetailerHit,
   isOffMarketListing,
-  marketplaceNamesForCountry,
   marketplaceRetailersForCountry,
   officialStoreForBrand,
   retailerNameFromUrl,
@@ -293,19 +292,26 @@ function mergeKeepCoverage(refined: PriceHit[], raw: PriceHit[]): PriceHit[] {
 async function serperPost(path: 'shopping' | 'search', body: Record<string, unknown>): Promise<any> {
   const apiKey = Deno.env.get('SERPER_API_KEY')
   if (!apiKey) throw new Error('SERPER_API_KEY not configured')
-  const res = await fetch(`https://google.serper.dev/${path}`, {
-    method: 'POST',
-    headers: {
-      'X-API-KEY': apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Serper ${path} error ${res.status}: ${text}`)
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), 12_000)
+  try {
+    const res = await fetch(`https://google.serper.dev/${path}`, {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: ac.signal,
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`Serper ${path} error ${res.status}: ${text}`)
+    }
+    return await res.json()
+  } finally {
+    clearTimeout(timer)
   }
-  return res.json()
 }
 
 function shoppingPrice(item: any): number | null {
@@ -574,28 +580,22 @@ Deno.serve(async (req) => {
     const retailerOr = marketplaceSites.map((s) => `"${s.name}"`).join(' OR ')
 
     const familyQ = broadQuery
-    const exactQ = query
     const namesQ = `${broadQuery} (${retailerOr})`
-    const buyQ = `${broadQuery} price`
     const webQuery = `${listPriceQuery(broadQuery, countryCode)} (${siteOr})`
     const officialQ = official ? `${broadQuery} site:${official.hosts[0]}` : null
 
     const tasks: { label: string; run: () => Promise<any> }[] = [
       { label: `shopping: ${familyQ}`, run: () => serperPost('shopping', { q: familyQ, ...serperBase, num: 40 }) },
+      { label: `shopping: ${namesQ}`, run: () => serperPost('shopping', { q: namesQ, ...serperBase, num: 30 }) },
     ]
-    if (exactQ !== familyQ) {
-      tasks.push({ label: `shopping: ${exactQ}`, run: () => serperPost('shopping', { q: exactQ, ...serperBase, num: 30 }) })
-    }
-    tasks.push({ label: `shopping: ${namesQ}`, run: () => serperPost('shopping', { q: namesQ, ...serperBase, num: 40 }) })
-    tasks.push({ label: `shopping: ${buyQ}`, run: () => serperPost('shopping', { q: buyQ, ...serperBase, num: 20 }) })
     if (officialQ) {
-      tasks.push({ label: `shopping: ${officialQ}`, run: () => serperPost('shopping', { q: officialQ, ...serperBase, num: 10 }) })
+      tasks.push({ label: `shopping: ${officialQ}`, run: () => serperPost('shopping', { q: officialQ, ...serperBase, num: 8 }) })
     }
-    tasks.push({ label: `search: ${webQuery}`, run: () => serperPost('search', { q: webQuery, ...serperBase, num: 20 }) })
+    tasks.push({ label: `search: ${webQuery}`, run: () => serperPost('search', { q: webQuery, ...serperBase, num: 15 }) })
 
     for (const t of tasks) searchQueriesUsed.push(t.label)
 
-    const settled = await runSerperBatches(tasks, 3)
+    const settled = await runSerperBatches(tasks, 4)
     const shoppingBags: any[] = []
     let organic: any[] = []
     for (const item of settled) {
@@ -616,31 +616,33 @@ Deno.serve(async (req) => {
       fallbackCurrency,
     )
 
-    let refined: { hits: PriceHit[]; confidence: number; token_usage: any }
-    try {
-      refined = await refineWithClaude({
-        query,
-        country,
-        countryCode,
-        category,
-        specs,
-        shoppingHits,
-        organicText: organicHints(organic),
-        fallbackCurrency,
-      })
-    } catch (err) {
-      console.error('Claude refine failed:', err)
-      refined = {
-        hits: shoppingHits,
-        confidence: shoppingHits.length >= 3 ? 5 : 3,
-        token_usage: {
-          model: DEFAULT_MODEL,
-          input_tokens: 0,
-          output_tokens: 0,
-          input_cost_usd: 0,
-          output_cost_usd: 0,
-          total_cost_usd: 0,
-        },
+    const emptyUsage = {
+      model: DEFAULT_MODEL,
+      input_tokens: 0,
+      output_tokens: 0,
+      input_cost_usd: 0,
+      output_cost_usd: 0,
+      total_cost_usd: 0,
+    }
+    let refined: { hits: PriceHit[]; confidence: number; token_usage: any } = {
+      hits: shoppingHits,
+      confidence: shoppingHits.length >= 8 ? 7 : shoppingHits.length >= 3 ? 5 : 3,
+      token_usage: emptyUsage,
+    }
+    if (shoppingHits.length < 3) {
+      try {
+        refined = await refineWithClaude({
+          query,
+          country,
+          countryCode,
+          category,
+          specs,
+          shoppingHits,
+          organicText: organicHints(organic),
+          fallbackCurrency,
+        })
+      } catch (err) {
+        console.error('Claude refine failed:', err)
       }
     }
     const hits = mergeKeepCoverage(shoppingHits, refined.hits)
