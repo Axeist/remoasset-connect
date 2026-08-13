@@ -139,6 +139,14 @@ export async function invokeMrpLookup(body: MrpLookupRequest): Promise<MrpLookup
     throw new Error('Not signed in — refresh the page and try again.');
   }
 
+  const { data, error } = await supabase.functions.invoke('mrp-price-lookup', {
+    body,
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!error && data && !data.error) {
+    return data as MrpLookupResponse;
+  }
+
   const res = await fetch('/api/mrp-price-lookup', {
     method: 'POST',
     headers: {
@@ -147,13 +155,13 @@ export async function invokeMrpLookup(body: MrpLookupRequest): Promise<MrpLookup
     },
     body: JSON.stringify(body),
   });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    const message = (data && typeof data === 'object' && 'error' in data && data.error)
-      ? String(data.error)
-      : `Price lookup failed (${res.status})`;
-    throw new Error(message);
+  const fallback = await res.json().catch(() => null);
+  if (res.ok && fallback && !fallback.error) {
+    return fallback as MrpLookupResponse;
   }
-  if (data?.error) throw new Error(String(data.error));
-  return data as MrpLookupResponse;
+
+  const supabaseMessage = data?.error
+    || (error as { message?: string })?.message
+    || (fallback && typeof fallback === 'object' && 'error' in fallback ? String(fallback.error) : null);
+  throw new Error(supabaseMessage || 'Price lookup failed');
 }
