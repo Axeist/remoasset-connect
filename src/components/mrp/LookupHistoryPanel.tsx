@@ -4,7 +4,7 @@ import {
   formatPriceRange,
   type MrpLookupHistoryRow,
 } from '@/lib/mrp-lookup';
-import { Clock, RotateCcw } from 'lucide-react';
+import { Clock, RotateCcw, Trash2 } from 'lucide-react';
 
 function relativeTime(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -19,11 +19,15 @@ export function LookupHistoryPanel({
   loading,
   onRestore,
   onRerun,
+  onDelete,
+  onClearAll,
 }: {
   rows: MrpLookupHistoryRow[];
   loading?: boolean;
   onRestore: (row: MrpLookupHistoryRow) => void;
   onRerun: (row: MrpLookupHistoryRow) => void;
+  onDelete: (row: MrpLookupHistoryRow) => void;
+  onClearAll: () => void;
 }) {
   return (
     <Card className="rounded-xl border-border/80 card-shadow animate-fade-in-up animate-fade-in-up-delay-2">
@@ -31,6 +35,17 @@ export function LookupHistoryPanel({
         <div className="flex items-center gap-2 mb-3">
           <Clock className="h-4 w-4 text-primary" />
           <h3 className="font-display font-semibold text-sm">Recent searches</h3>
+          {rows.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 ml-auto text-xs text-muted-foreground hover:text-destructive"
+              onClick={onClearAll}
+            >
+              Clear all
+            </Button>
+          )}
         </div>
         {loading ? (
           <p className="text-xs text-muted-foreground py-6 text-center">Loading history…</p>
@@ -62,15 +77,27 @@ export function LookupHistoryPanel({
                       )}
                     </p>
                   </button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 mt-1 text-xs"
-                    onClick={() => onRerun(row)}
-                  >
-                    <RotateCcw className="h-3 w-3 mr-1" /> Search again
-                  </Button>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => onRerun(row)}
+                    >
+                      <RotateCcw className="h-3 w-3 mr-1" /> Search again
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive ml-auto"
+                      onClick={() => onDelete(row)}
+                      aria-label={`Delete ${title}`}
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" /> Delete
+                    </Button>
+                  </div>
                 </div>
               );
             })}

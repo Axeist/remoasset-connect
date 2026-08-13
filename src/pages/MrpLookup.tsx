@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,12 +26,15 @@ import {
   sanitizeSpec,
   specOptions,
 } from '@/lib/lookup-catalog';
+import { parseDeviceLine, parsedSummary } from '@/lib/parse-device-line';
 import {
   LOOKUP_MARKETS,
   formatPriceRange,
   formatTokenCount,
   formatUsdCost,
   invokeMrpLookup,
+  clearLookupHistory,
+  deleteLookupHistory,
   loadLookupHistory,
   saveLookupHistory,
   splitPublicPriceHits,
@@ -60,6 +65,9 @@ export default function MrpLookup() {
   const [result, setResult] = useState<MrpLookupResponse | null>(null);
   const [history, setHistory] = useState<MrpLookupHistoryRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [entryMode, setEntryMode] = useState<'paste' | 'manual'>('paste');
+  const [pasteText, setPasteText] = useState('');
+  const [parsePreview, setParsePreview] = useState('');
 
   const categoryCfg = DEVICE_CATEGORY_CONFIG[category];
   const modelOptions = modelsForBrand(brand);
@@ -111,6 +119,17 @@ export default function MrpLookup() {
     setCountryName(q.country);
     setCountryCode(q.country_code);
     setSpecs(q.specs || {});
+  };
+
+  const applyParsedLine = (raw: string) => {
+    const parsed = parseDeviceLine(raw);
+    if (!parsed) return null;
+    setCategory(parsed.category);
+    setBrand(parsed.brand);
+    setModel(parsed.model);
+    setSpecs(parsed.specs);
+    setParsePreview(parsedSummary(parsed));
+    return parsed;
   };
 
   const handleCategoryChange = (next: DeviceCategory) => {
@@ -195,6 +214,26 @@ export default function MrpLookup() {
 
   const handleSearch = () => runLookup(buildRequest());
 
+  const handlePasteSearch = () => {
+    const parsed = applyParsedLine(pasteText);
+    if (!parsed) {
+      toast({
+        title: 'Could not read that line',
+        description: 'Include a brand and model, e.g. Lenovo ThinkPad E16 — 16" · 16GB · 256GB',
+        variant: 'destructive',
+      });
+      return;
+    }
+    runLookup({
+      category: parsed.category,
+      brand: parsed.brand,
+      model: parsed.model,
+      country: countryName,
+      country_code: countryCode,
+      specs: parsed.specs,
+    });
+  };
+
   const restoreHistory = (row: MrpLookupHistoryRow) => {
     applyQuery(row.query);
     setResult({
@@ -210,6 +249,34 @@ export default function MrpLookup() {
     runLookup(row.query);
   };
 
+  const deleteHistory = async (row: MrpLookupHistoryRow) => {
+    try {
+      await deleteLookupHistory(row.id);
+      setHistory((prev) => prev.filter((r) => r.id !== row.id));
+    } catch (err) {
+      toast({
+        title: 'Could not delete search',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const clearHistory = async () => {
+    if (!user?.id || !history.length) return;
+    if (!window.confirm(`Delete all ${history.length} recent searches?`)) return;
+    try {
+      await clearLookupHistory(user.id);
+      setHistory([]);
+    } catch (err) {
+      toast({
+        title: 'Could not clear history',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    }
+  };
+
   const rangeText = useMemo(() => {
     if (!result) return '';
     return formatPriceRange(
@@ -221,8 +288,8 @@ export default function MrpLookup() {
   }, [result, countryCode]);
 
   const split = useMemo(
-    () => (result ? splitPublicPriceHits(result.results) : { marketplaces: [], others: [] }),
-    [result],
+    () => (result ? splitPublicPriceHits(result.results, countryCode) : { marketplaces: [], official: [], others: [] }),
+    [result, countryCode],
   );
 
   const usage = result?.token_usage;
@@ -251,8 +318,8 @@ export default function MrpLookup() {
             <div>
               <h1 className="text-2xl font-display font-bold tracking-tight">Public price lookup</h1>
               <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
-                Pick a recent model to autofill specs, then tweak CTO options.
-                Apple stays on Apple Silicon / macOS; Windows brands stay on Intel, AMD, or Snapdragon.
+                Paste a client spec line as-is, or build the device with dropdowns.
+                Country still controls which stores we search.
               </p>
             </div>
           </div>
@@ -262,101 +329,164 @@ export default function MrpLookup() {
           <div className="space-y-6 min-w-0">
             <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover animate-fade-in-up animate-fade-in-up-delay-1">
               <CardContent className="p-6">
-                <form
-                  className="space-y-5"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSearch();
-                  }}
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Device category</Label>
-                      <Select value={category} onValueChange={(v) => handleCategoryChange(v as DeviceCategory)}>
-                        <SelectTrigger className="h-10 rounded-xl"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {DEVICE_CATEGORIES.map((c) => (
-                            <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Country</Label>
-                      <Select value={countryCode} onValueChange={handleCountryChange}>
-                        <SelectTrigger className="h-10 rounded-xl"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {markets.map((m) => (
-                            <SelectItem key={`${m.code}-${m.name}`} value={m.code}>{m.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <SpecCombobox
-                      label="Brand"
-                      required
-                      value={brand}
-                      onChange={handleBrandChange}
-                      options={LOOKUP_BRANDS}
-                      placeholder="e.g. Apple, Dell, Lenovo"
-                    />
-                    <SpecCombobox
-                      label={categoryCfg.modelLabel}
-                      required
-                      value={model}
-                      onChange={handleModelChange}
-                      options={modelOptions}
-                      placeholder={categoryCfg.modelPlaceholder}
-                      tooltip="Recent models for this brand. Selecting one autofills current default specs."
-                    />
+                <div className="space-y-5">
+                  <div className="space-y-1.5 max-w-sm">
+                    <Label>Country</Label>
+                    <Select value={countryCode} onValueChange={handleCountryChange}>
+                      <SelectTrigger className="h-10 rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {markets.map((m) => (
+                          <SelectItem key={`${m.code}-${m.name}`} value={m.code}>{m.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {categoryCfg.fields.length > 0 && (
-                    <div className="space-y-3 animate-in fade-in-0 slide-in-from-top-2 duration-300">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Specs · {categoryCfg.specSubtitle} · CTO options stay in-family
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                        {categoryCfg.fields.map((key) => {
-                          const meta = DEVICE_FIELD_LABELS[key];
-                          const options = specOptions(key, brand);
-                          if (options.length === 0) {
-                            return (
-                              <div key={key} className="space-y-1.5">
-                                <Label>{meta.label}</Label>
-                                <input
-                                  className="flex h-10 w-full rounded-[10px] border-[1.5px] border-input bg-background px-3 text-sm"
-                                  value={specs[key] || ''}
-                                  onChange={(e) => handleSpecChange(key, e.target.value)}
-                                  placeholder={meta.placeholder}
-                                />
-                              </div>
-                            );
-                          }
-                          return (
-                            <SpecCombobox
-                              key={key}
-                              label={meta.label}
-                              value={specs[key] || ''}
-                              onChange={(v) => handleSpecChange(key, v)}
-                              options={options}
-                              placeholder={meta.placeholder}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  <Tabs value={entryMode} onValueChange={(v) => setEntryMode(v as 'paste' | 'manual')}>
+                    <TabsList className="grid w-full grid-cols-2 h-11 bg-muted/50 p-1 rounded-xl">
+                      <TabsTrigger value="paste" className="rounded-lg">Paste from client</TabsTrigger>
+                      <TabsTrigger value="manual" className="rounded-lg">Build manually</TabsTrigger>
+                    </TabsList>
 
-                  <Button
-                    type="submit"
-                    className="rounded-xl h-11 px-5 gradient-primary border-0 shadow-md shadow-primary/25 hover:scale-[1.02] transition-transform"
-                    disabled={loading}
-                  >
-                    {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                    {loading ? 'Searching the web…' : 'Find public prices'}
-                  </Button>
-                </form>
+                    <TabsContent value="paste" className="mt-4 space-y-4">
+                      <div className="space-y-1.5">
+                        <Label>Device line</Label>
+                        <Textarea
+                          value={pasteText}
+                          onChange={(e) => {
+                            setPasteText(e.target.value);
+                            const parsed = parseDeviceLine(e.target.value);
+                            setParsePreview(parsed ? parsedSummary(parsed) : '');
+                          }}
+                          placeholder={'Lenovo ThinkPad E16 — 16" · Intel Core Ultra 5 · 16GB · 256GB · Integrated graphics\nApple MacBook Air M5 — 15" · M5 · 32GB · 512GB · Silver'}
+                          className="min-h-[110px] rounded-xl text-sm"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Paste the line the client sent. We read brand, model, screen, chip, RAM, and storage.
+                        </p>
+                      </div>
+                      {parsePreview && (
+                        <p className="text-xs rounded-lg border border-border/70 bg-muted/40 px-3 py-2">
+                          <span className="text-muted-foreground">Read as </span>
+                          <span className="font-medium">{parsePreview}</span>
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          className="rounded-xl h-11 px-5 gradient-primary border-0 shadow-md shadow-primary/25 hover:scale-[1.02] transition-transform"
+                          disabled={loading}
+                          onClick={handlePasteSearch}
+                        >
+                          {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                          {loading ? 'Searching the web…' : 'Find public prices'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="rounded-xl h-11"
+                          disabled={!pasteText.trim()}
+                          onClick={() => {
+                            if (!applyParsedLine(pasteText)) {
+                              toast({ title: 'Could not read that line', variant: 'destructive' });
+                              return;
+                            }
+                            setEntryMode('manual');
+                          }}
+                        >
+                          Fill manual form
+                        </Button>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="manual" className="mt-4">
+                      <form
+                        className="space-y-5"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleSearch();
+                        }}
+                      >
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label>Device category</Label>
+                            <Select value={category} onValueChange={(v) => handleCategoryChange(v as DeviceCategory)}>
+                              <SelectTrigger className="h-10 rounded-xl"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {DEVICE_CATEGORIES.map((c) => (
+                                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <SpecCombobox
+                            label="Brand"
+                            required
+                            value={brand}
+                            onChange={handleBrandChange}
+                            options={LOOKUP_BRANDS}
+                            placeholder="e.g. Apple, Dell, Lenovo"
+                          />
+                          <SpecCombobox
+                            label={categoryCfg.modelLabel}
+                            required
+                            value={model}
+                            onChange={handleModelChange}
+                            options={modelOptions}
+                            placeholder={categoryCfg.modelPlaceholder}
+                            tooltip="Recent models for this brand. Selecting one autofills current default specs."
+                          />
+                        </div>
+
+                        {categoryCfg.fields.length > 0 && (
+                          <div className="space-y-3 animate-in fade-in-0 slide-in-from-top-2 duration-300">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              Specs · {categoryCfg.specSubtitle} · CTO options stay in-family
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                              {categoryCfg.fields.map((key) => {
+                                const meta = DEVICE_FIELD_LABELS[key];
+                                const options = specOptions(key, brand);
+                                if (options.length === 0) {
+                                  return (
+                                    <div key={key} className="space-y-1.5">
+                                      <Label>{meta.label}</Label>
+                                      <input
+                                        className="flex h-10 w-full rounded-[10px] border-[1.5px] border-input bg-background px-3 text-sm"
+                                        value={specs[key] || ''}
+                                        onChange={(e) => handleSpecChange(key, e.target.value)}
+                                        placeholder={meta.placeholder}
+                                      />
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <SpecCombobox
+                                    key={key}
+                                    label={meta.label}
+                                    value={specs[key] || ''}
+                                    onChange={(v) => handleSpecChange(key, v)}
+                                    options={options}
+                                    placeholder={meta.placeholder}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        <Button
+                          type="submit"
+                          className="rounded-xl h-11 px-5 gradient-primary border-0 shadow-md shadow-primary/25 hover:scale-[1.02] transition-transform"
+                          disabled={loading}
+                        >
+                          {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                          {loading ? 'Searching the web…' : 'Find public prices'}
+                        </Button>
+                      </form>
+                    </TabsContent>
+                  </Tabs>
+                </div>
               </CardContent>
             </Card>
 
@@ -446,6 +576,7 @@ export default function MrpLookup() {
 
                 <PriceResultGroups
                   marketplaces={split.marketplaces}
+                  official={split.official}
                   others={split.others}
                   countryCode={countryCode}
                 />
@@ -458,6 +589,8 @@ export default function MrpLookup() {
             loading={historyLoading}
             onRestore={restoreHistory}
             onRerun={rerunHistory}
+            onDelete={deleteHistory}
+            onClearAll={clearHistory}
           />
         </div>
       </div>

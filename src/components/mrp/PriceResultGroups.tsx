@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  LOOKUP_MARKETS,
   PRICE_TYPE_LABEL,
   formatPriceRange,
   formatPublicPrice,
@@ -8,6 +9,10 @@ import {
   type PublicPriceHit,
   type PublicPriceType,
 } from '@/lib/mrp-lookup';
+import {
+  formatStoreList,
+  marketplaceNamesForCountry,
+} from '@/lib/reputable-retailers';
 import { cn } from '@/lib/utils';
 import { ArrowRight, ExternalLink } from 'lucide-react';
 
@@ -18,6 +23,10 @@ const PRICE_BADGE: Record<PublicPriceType, string> = {
   street: 'bg-amber-500/15 text-amber-800 border-amber-500/25 dark:text-amber-300',
   unknown: 'bg-muted text-muted-foreground border-border',
 };
+
+function countryLabel(countryCode: string): string {
+  return LOOKUP_MARKETS.find((m) => m.code === countryCode.toLowerCase())?.name || countryCode.toUpperCase();
+}
 
 function HitList({ hits, countryCode }: { hits: PublicPriceHit[]; countryCode: string }) {
   return (
@@ -55,16 +64,50 @@ function HitList({ hits, countryCode }: { hits: PublicPriceHit[]; countryCode: s
   );
 }
 
+function GroupSection({
+  title,
+  subtitle,
+  hits,
+  countryCode,
+  delay,
+}: {
+  title: string;
+  subtitle: string;
+  hits: PublicPriceHit[];
+  countryCode: string;
+  delay?: boolean;
+}) {
+  if (!hits.length) return null;
+  const range = rangeFromHits(hits);
+  return (
+    <section className={cn('space-y-2 animate-fade-in-up', delay && 'animate-fade-in-up-delay-1')}>
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h3 className="font-display font-semibold">{title}</h3>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
+        </div>
+        <p className="text-sm font-semibold tabular-nums">
+          {formatPriceRange(range.from, range.to, range.currency, countryCode)}
+          <span className="text-muted-foreground font-normal ml-2">{hits.length} sites</span>
+        </p>
+      </div>
+      <HitList hits={hits} countryCode={countryCode} />
+    </section>
+  );
+}
+
 export function PriceResultGroups({
   marketplaces,
+  official,
   others,
   countryCode,
 }: {
   marketplaces: PublicPriceHit[];
+  official: PublicPriceHit[];
   others: PublicPriceHit[];
   countryCode: string;
 }) {
-  if (marketplaces.length === 0 && others.length === 0) {
+  if (marketplaces.length === 0 && official.length === 0 && others.length === 0) {
     return (
       <p className="text-sm text-muted-foreground rounded-xl border border-dashed px-4 py-10 text-center">
         No matching listings. Add more specs or try another country.
@@ -72,48 +115,31 @@ export function PriceResultGroups({
     );
   }
 
+  const country = countryLabel(countryCode);
+  const storeNames = formatStoreList(marketplaceNamesForCountry(countryCode), 12);
+
   return (
     <div className="space-y-5">
-      {marketplaces.length > 0 && (
-        <section className="space-y-2 animate-fade-in-up">
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h3 className="font-display font-semibold">Major marketplaces</h3>
-              <p className="text-xs text-muted-foreground">Amazon, Flipkart, Croma, official stores, and other high-confidence retailers</p>
-            </div>
-            <p className="text-sm font-semibold tabular-nums">
-              {formatPriceRange(
-                rangeFromHits(marketplaces).from,
-                rangeFromHits(marketplaces).to,
-                rangeFromHits(marketplaces).currency,
-                countryCode,
-              )}
-              <span className="text-muted-foreground font-normal ml-2">{marketplaces.length} sites</span>
-            </p>
-          </div>
-          <HitList hits={marketplaces} countryCode={countryCode} />
-        </section>
-      )}
-      {others.length > 0 && (
-        <section className="space-y-2 animate-fade-in-up animate-fade-in-up-delay-1">
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h3 className="font-display font-semibold">Other listings</h3>
-              <p className="text-xs text-muted-foreground">Smaller shops and aggregators — confirm the exact config before quoting</p>
-            </div>
-            <p className="text-sm font-semibold tabular-nums">
-              {formatPriceRange(
-                rangeFromHits(others).from,
-                rangeFromHits(others).to,
-                rangeFromHits(others).currency,
-                countryCode,
-              )}
-              <span className="text-muted-foreground font-normal ml-2">{others.length} sites</span>
-            </p>
-          </div>
-          <HitList hits={others} countryCode={countryCode} />
-        </section>
-      )}
+      <GroupSection
+        title={`Reputed stores in ${country}`}
+        subtitle={storeNames}
+        hits={marketplaces}
+        countryCode={countryCode}
+      />
+      <GroupSection
+        title="Official brand stores"
+        subtitle="Manufacturer list / street prices from Apple, Dell, Lenovo, HP, and similar"
+        hits={official}
+        countryCode={countryCode}
+        delay
+      />
+      <GroupSection
+        title="Other listings"
+        subtitle="Smaller shops and aggregators — confirm the exact config before quoting"
+        hits={others}
+        countryCode={countryCode}
+        delay
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { DeviceCategory, DeviceSpecFieldKey } from '@/constants/device-categories';
+import { classifyRetailerHit } from '@/lib/reputable-retailers';
 
 export type PublicPriceType = 'mrp' | 'msrp' | 'list' | 'street' | 'unknown';
 
@@ -118,29 +119,25 @@ export function formatPriceRange(
   return only != null ? formatPublicPrice(only, currency, countryCode) : 'No public prices found';
 }
 
-const MARKETPLACE_HINTS = [
-  'amazon', 'flipkart', 'croma', 'reliance digital', 'reliancedigital',
-  'best buy', 'bestbuy', 'apple', 'dell', 'lenovo', 'hp.com', 'hp ',
-  'walmart', 'costco', 'b&h', 'bhphotovideo', 'newegg', 'currys',
-  'mediamarkt', 'media markt', 'vijay sales', 'tatacliq', 'tata cliq',
-  'official', 'store.google', 'microsoft',
-];
-
-export function isMajorMarketplace(hit: PublicPriceHit): boolean {
-  const hay = `${hit.retailer} ${hit.url}`.toLowerCase();
-  return MARKETPLACE_HINTS.some((hint) => hay.includes(hint));
+export function isMajorMarketplace(hit: PublicPriceHit, countryCode = 'us'): boolean {
+  return classifyRetailerHit(hit, countryCode) !== 'other';
 }
 
-export function splitPublicPriceHits(hits: PublicPriceHit[]): {
+export function splitPublicPriceHits(hits: PublicPriceHit[], countryCode: string): {
   marketplaces: PublicPriceHit[];
+  official: PublicPriceHit[];
   others: PublicPriceHit[];
 } {
   const marketplaces: PublicPriceHit[] = [];
+  const official: PublicPriceHit[] = [];
   const others: PublicPriceHit[] = [];
   for (const hit of hits) {
-    (isMajorMarketplace(hit) ? marketplaces : others).push(hit);
+    const tier = classifyRetailerHit(hit, countryCode);
+    if (tier === 'marketplace') marketplaces.push(hit);
+    else if (tier === 'official') official.push(hit);
+    else others.push(hit);
   }
-  return { marketplaces, others };
+  return { marketplaces, official, others };
 }
 
 export function rangeFromHits(hits: PublicPriceHit[]): { from: number | null; to: number | null; currency: string | null } {
@@ -200,6 +197,16 @@ export async function saveLookupHistory(
   if (ids.length) {
     await supabase.from(HISTORY_TABLE as any).delete().in('id', ids);
   }
+}
+
+export async function deleteLookupHistory(id: string): Promise<void> {
+  const { error } = await supabase.from(HISTORY_TABLE as any).delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function clearLookupHistory(userId: string): Promise<void> {
+  const { error } = await supabase.from(HISTORY_TABLE as any).delete().eq('user_id', userId);
+  if (error) throw new Error(error.message);
 }
 
 export const PRICE_TYPE_LABEL: Record<PublicPriceType, string> = {

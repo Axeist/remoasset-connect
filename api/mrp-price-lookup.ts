@@ -1,4 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
+import {
+  classifyRetailerHit,
+  marketplaceNamesForCountry,
+  marketplaceRetailersForCountry,
+  retailerNameFromUrl,
+  searchSitesForCountry,
+} from '../src/lib/reputable-retailers';
 
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 
@@ -95,6 +102,46 @@ function listPriceQuery(base: string, countryCode: string): string {
   return `${base} MSRP OR "list price" OR MRP`;
 }
 
+function isMajorHit(hit: PriceHit, countryCode: string): boolean {
+  return classifyRetailerHit(hit, countryCode) !== 'other';
+}
+
+function organicToHits(items: any[], fallbackCurrency: string, countryCode: string): PriceHit[] {
+  const hits: PriceHit[] = [];
+  for (const item of items || []) {
+    const title = String(item.title || '').trim();
+    const url = String(item.link || item.url || '').trim();
+    const snippet = String(item.snippet || item.price || '');
+    const price = parseMoney(item.price) ?? parseMoney(snippet.match(/(?:₹|Rs\.?|INR|\$|USD|£|€)\s*[\d,.]+/i)?.[0]);
+    if (!title || !url || price == null) continue;
+    hits.push({
+      retailer: retailerNameFromUrl(url, String(item.source || 'Retailer'), countryCode),
+      title,
+      url,
+      currency: detectCurrency(`${item.price || ''} ${snippet}`, fallbackCurrency),
+      price,
+      price_type: /mrp|msrp|list price/i.test(snippet) ? 'list' : 'street',
+    });
+  }
+  return hits;
+}
+
+function dedupeHits(hits: PriceHit[]): PriceHit[] {
+  const seen = new Set<string>();
+  const out: PriceHit[] = [];
+  for (const hit of hits) {
+    const key = hit.url.replace(/[?#].*$/, '').toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(hit);
+  }
+  return out;
+}
+
+function mergeKeepMajors(refined: PriceHit[], raw: PriceHit[], countryCode: string): PriceHit[] {
+  return dedupeHits([...refined, ...raw.filter((h) => isMajorHit(h, countryCode))]);
+}
+
 async function serperPost(path: 'shopping' | 'search', body: Record<string, unknown>) {
   const apiKey = process.env.SERPER_API_KEY;
   if (!apiKey) throw new Error('SERPER_API_KEY not configured');
@@ -107,7 +154,7 @@ async function serperPost(path: 'shopping' | 'search', body: Record<string, unkn
   return res.json();
 }
 
-function shoppingToHits(items: any[], fallbackCurrency: string): PriceHit[] {
+function shoppingToHits(items: any[], fallbackCurrency: string, countryCode: string): PriceHit[] {
   const hits: PriceHit[] = [];
   for (const item of items || []) {
     const price = parseMoney(item.price);
@@ -116,7 +163,7 @@ function shoppingToHits(items: any[], fallbackCurrency: string): PriceHit[] {
     const url = String(item.link || item.url || '').trim();
     if (!title || !url) continue;
     hits.push({
-      retailer: String(item.source || item.merchant || 'Retailer').trim() || 'Retailer',
+      retailer: retailerNameFromUrl(url, String(item.source || item.merchant || 'Retailer').trim() || 'Retailer', countryCode),
       title,
       url,
       currency: detectCurrency(String(item.price || ''), fallbackCurrency),
@@ -177,7 +224,7 @@ async function refineWithClaude(opts: {
       model: DEFAULT_MODEL,
       max_tokens: 2048,
       temperature: 0,
-      system: 'You normalize public IT-asset prices for RemoAsset procurement. Keep only listings that match the requested brand, model, and specs. Drop refurbished/used/renewed unless the query asks for them. Drop wrong RAM, storage, chip, or screen size. Prefer official retailers and major marketplaces. Return JSON only.',
+      system: 'You normalize public IT-asset prices for RemoAsset procurement. Keep listings that match the requested brand and model. Drop refurbished/used/renewed unless asked. Prefer the country\'s reputed national retailers and official brand stores. Return JSON only.',
       messages: [{
         role: 'user',
         content: `Device: ${opts.query}
@@ -215,7 +262,8 @@ Rules:
 - Use "street" for current selling / offer price
 - Include url for every row so ops can open the site
 - If a snippet has MRP and a different street price, you may emit two rows for the same URL
-- Max 15 results. Sort cheapest first.`,
+- NEVER drop these ${opts.country} retailers just to reduce the list: ${marketplaceNamesForCountry(opts.countryCode).join(', ')}, plus official brand stores (Apple, Dell, Lenovo, HP, Microsoft, Samsung)
+- Max 25 results. Sort cheapest first.`,
       }],
     }),
   });
@@ -266,7 +314,7 @@ Rules:
     }
     const confidence = Number(parsed.confidence);
     return {
-      hits: results.length ? results : opts.shoppingHits,
+      hits: mergeKeepMajors(results.length ? results : opts.shoppingHits, opts.shoppingHits, opts.countryCode),
       confidence: Number.isFinite(confidence) ? Math.min(10, Math.max(1, confidence)) : (results.length ? 6 : 3),
       token_usage,
     };
@@ -320,22 +368,41 @@ export default async function handler(req: { method?: string; headers: Record<st
 
     const query = buildQuery(brand, model, specs);
     const fallbackCurrency = CURRENCY_BY_GL[countryCode] || 'USD';
+    const marketplaceSites = marketplaceRetailersForCountry(countryCode);
+    const allSites = searchSitesForCountry(countryCode);
+    const siteOr = allSites.map((s) => `site:${s.host}`).join(' OR ');
+    const retailerOr = marketplaceSites.map((s) => `"${s.name}"`).join(' OR ');
     const searchQueriesUsed: string[] = [`shopping: ${query}`];
 
     const shoppingData = await serperPost('shopping', { q: query, gl: countryCode, hl: 'en', num: 20 });
-    await new Promise((r) => setTimeout(r, 400));
+    await new Promise((r) => setTimeout(r, 350));
 
-    const webQuery = listPriceQuery(query, countryCode);
+    const marketplaceQuery = `${query} (${retailerOr})`;
+    searchQueriesUsed.push(`shopping: ${marketplaceQuery}`);
+    let marketplaceShopping: any[] = [];
+    try {
+      const extra = await serperPost('shopping', { q: marketplaceQuery, gl: countryCode, hl: 'en', num: 20 });
+      marketplaceShopping = extra.shopping || [];
+    } catch (err) {
+      console.error('Marketplace shopping failed:', err);
+    }
+
+    await new Promise((r) => setTimeout(r, 350));
+    const webQuery = `${listPriceQuery(query, countryCode)} (${siteOr})`;
     searchQueriesUsed.push(`search: ${webQuery}`);
     let organic: any[] = [];
     try {
-      const searchData = await serperPost('search', { q: webQuery, gl: countryCode, hl: 'en', num: 10 });
+      const searchData = await serperPost('search', { q: webQuery, gl: countryCode, hl: 'en', num: 15 });
       organic = searchData.organic || [];
     } catch (err) {
       console.error('Serper search failed:', err);
     }
 
-    const shoppingHits = shoppingToHits(shoppingData.shopping || [], fallbackCurrency);
+    const shoppingHits = dedupeHits([
+      ...shoppingToHits(shoppingData.shopping || [], fallbackCurrency, countryCode),
+      ...shoppingToHits(marketplaceShopping, fallbackCurrency, countryCode),
+      ...organicToHits(organic, fallbackCurrency, countryCode),
+    ]);
     const { hits, confidence, token_usage } = await refineWithClaude({
       query,
       country,

@@ -7,6 +7,15 @@
  */
 
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
+import {
+  classifyRetailerHit,
+  isOffMarketListing,
+  marketplaceNamesForCountry,
+  marketplaceRetailersForCountry,
+  officialStoreForBrand,
+  retailerNameFromUrl,
+  searchSitesForCountry,
+} from './retailers.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -66,6 +75,10 @@ function parseMoney(raw: unknown): number | null {
   if (cleaned.includes(',') && !cleaned.includes('.')) {
     const parts = cleaned.split(',')
     const last = parts[parts.length - 1]
+    if (last.length === 3) {
+      const n = parseFloat(cleaned.replace(/,/g, ''))
+      return Number.isFinite(n) && n > 0 ? n : null
+    }
     if (last.length === 2 && parts.length === 2) {
       const n = parseFloat(cleaned.replace(',', '.'))
       return Number.isFinite(n) && n > 0 ? n : null
@@ -75,6 +88,106 @@ function parseMoney(raw: unknown): number | null {
   }
   const n = parseFloat(cleaned)
   return Number.isFinite(n) && n > 0 ? n : null
+}
+
+const GOOGLE_DOMAINS: Record<string, string> = {
+  in: 'google.co.in', gb: 'google.co.uk', ae: 'google.ae', sg: 'google.com.sg',
+  au: 'google.com.au', ca: 'google.ca', de: 'google.de', fr: 'google.fr',
+  nl: 'google.nl', jp: 'google.co.jp', kr: 'google.co.kr', ph: 'google.com.ph',
+  my: 'google.com.my', id: 'google.co.id', th: 'google.co.th', vn: 'google.com.vn',
+  br: 'google.com.br', mx: 'google.com.mx', za: 'google.co.za', sa: 'google.com.sa',
+}
+
+function googleDomain(countryCode: string): string {
+  return GOOGLE_DOMAINS[countryCode] || 'google.com'
+}
+
+function coreQuery(brand: string, model: string, specs: Record<string, string>): string {
+  const parts = [brand, model]
+  for (const key of ['processor', 'ram', 'storage']) {
+    const v = specs[key]?.trim()
+    if (v) parts.push(v)
+  }
+  return parts.join(' ').replace(/\s+/g, ' ').trim()
+}
+
+function normalizeChip(text: string): string | null {
+  const m = text.match(/\b(m[1-5])(?:\s*(pro|max|ultra))?\b/i)
+    || text.match(/\b(core ultra)\s*([579])\b/i)
+    || text.match(/\b(i[3579])(?:-\d+)?\b/i)
+    || text.match(/\b(ryzen)\s*([579])\b/i)
+  if (!m) return null
+  return m.slice(1).filter(Boolean).join(' ').toLowerCase()
+}
+
+function ramGb(text: string): number | null {
+  const m = text.match(/\b(8|12|16|18|24|32|36|48|64)\s*gb\b/i)
+  return m ? Number(m[1]) : null
+}
+
+function storageToken(text: string): string | null {
+  const tb = text.match(/\b([1-8])\s*tb\b/i)
+  if (tb) return `${tb[1]}tb`
+  const gb = text.match(/\b(128|256|512)\s*gb\b/i)
+  return gb ? `${gb[1]}gb` : null
+}
+
+function isRefurbished(text: string): boolean {
+  return /refurb|renewed|used|pre-?owned|open[\s-]?box|certified pre/i.test(text)
+}
+
+function hitConflictsSpecs(hit: PriceHit, specs: Record<string, string>, brand: string, model: string): boolean {
+  const hay = `${hit.title} ${hit.notes || ''}`.toLowerCase()
+  if (isRefurbished(hay)) return true
+  const brandTok = brand.toLowerCase()
+  if (brandTok && !hay.includes(brandTok) && !hit.url.toLowerCase().includes(brandTok.replace(/\s+/g, ''))) {
+    if (!/apple|macbook|imac|mac mini|mac studio/i.test(hay) && brandTok === 'apple') return true
+  }
+  const modelCore = model.toLowerCase().replace(/\s+m[1-5].*$/i, '').trim()
+  if (modelCore.length >= 6 && !hay.includes(modelCore) && !hay.includes(modelCore.replace(/\s+/g, ''))) {
+    const words = modelCore.split(/\s+/).filter((w) => w.length > 2)
+    if (words.length && !words.every((w) => hay.includes(w))) return false
+  }
+
+  const wantChip = normalizeChip(`${specs.processor || ''} ${model}`)
+  const gotChip = normalizeChip(hay)
+  if (wantChip && gotChip && wantChip.split(' ')[0] !== gotChip.split(' ')[0]) return true
+
+  const wantRam = ramGb(specs.ram || '')
+  const gotRam = ramGb(hay)
+  if (wantRam && gotRam && wantRam !== gotRam) return true
+
+  const wantStore = storageToken(specs.storage || '')
+  const gotStore = storageToken(hay)
+  if (wantStore && gotStore && wantStore !== gotStore) return true
+
+  return false
+}
+
+function median(values: number[]): number | null {
+  if (!values.length) return null
+  const s = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(s.length / 2)
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2
+}
+
+function filterReliableHits(
+  hits: PriceHit[],
+  specs: Record<string, string>,
+  brand: string,
+  model: string,
+  countryCode: string,
+  expectedCurrency: string,
+): PriceHit[] {
+  const local = hits.filter((h) => !isOffMarketListing(h, countryCode, expectedCurrency))
+  const matched = local.filter((h) => !hitConflictsSpecs(h, specs, brand, model))
+  const pool = matched.length ? matched : local.filter((h) => !isRefurbished(`${h.title} ${h.notes || ''}`))
+  const mid = median(pool.map((h) => h.price))
+  if (!mid) return pool
+  return pool.filter((h) => {
+    if (classifyRetailerHit(h, countryCode) !== 'other') return h.price > mid * 0.3 && h.price < mid * 3
+    return h.price >= mid * 0.4 && h.price <= mid * 2.6
+  })
 }
 
 function detectCurrency(text: string, fallback: string): string {
@@ -104,6 +217,46 @@ function listPriceQuery(base: string, countryCode: string): string {
   return `${base} MSRP OR "list price" OR MRP`
 }
 
+function isMajorHit(hit: PriceHit, countryCode: string): boolean {
+  return classifyRetailerHit(hit, countryCode) !== 'other'
+}
+
+function organicToHits(items: any[], fallbackCurrency: string, countryCode: string): PriceHit[] {
+  const hits: PriceHit[] = []
+  for (const item of items || []) {
+    const title = String(item.title || '').trim()
+    const url = String(item.link || item.url || '').trim()
+    const snippet = String(item.snippet || item.price || '')
+    const price = parseMoney(item.price) ?? parseMoney(snippet.match(/(?:₹|Rs\.?|INR|\$|USD|£|€)\s*[\d,.]+/i)?.[0])
+    if (!title || !url || price == null) continue
+    hits.push({
+      retailer: retailerNameFromUrl(url, String(item.source || 'Retailer'), countryCode),
+      title,
+      url,
+      currency: detectCurrency(`${item.price || ''} ${snippet}`, fallbackCurrency),
+      price,
+      price_type: /mrp|msrp|list price/i.test(snippet) ? 'list' : 'street',
+    })
+  }
+  return hits
+}
+
+function dedupeHits(hits: PriceHit[]): PriceHit[] {
+  const seen = new Set<string>()
+  const out: PriceHit[] = []
+  for (const hit of hits) {
+    const key = hit.url.replace(/[?#].*$/, '').toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(hit)
+  }
+  return out
+}
+
+function mergeKeepCoverage(refined: PriceHit[], raw: PriceHit[]): PriceHit[] {
+  return dedupeHits([...refined, ...raw])
+}
+
 async function serperPost(path: 'shopping' | 'search', body: Record<string, unknown>): Promise<any> {
   const apiKey = Deno.env.get('SERPER_API_KEY')
   if (!apiKey) throw new Error('SERPER_API_KEY not configured')
@@ -122,16 +275,18 @@ async function serperPost(path: 'shopping' | 'search', body: Record<string, unkn
   return res.json()
 }
 
-function shoppingToHits(items: any[], fallbackCurrency: string): PriceHit[] {
+function shoppingToHits(items: any[], fallbackCurrency: string, countryCode: string): PriceHit[] {
   const hits: PriceHit[] = []
   for (const item of items || []) {
     const price = parseMoney(item.price)
     if (price == null) continue
     const title = String(item.title || '').trim()
+    const source = String(item.source || item.merchant || 'Retailer').trim() || 'Retailer'
     const url = String(item.link || item.url || '').trim()
-    if (!title || !url) continue
+      || `https://www.google.com/search?q=${encodeURIComponent(`${source} ${title}`)}`
+    if (!title) continue
     hits.push({
-      retailer: String(item.source || item.merchant || 'Retailer').trim() || 'Retailer',
+      retailer: retailerNameFromUrl(url, source, countryCode),
       title,
       url,
       currency: detectCurrency(String(item.price || ''), fallbackCurrency),
@@ -188,9 +343,9 @@ async function refineWithClaude(opts: {
 
   const message = await anthropic.messages.create({
     model: DEFAULT_MODEL,
-    max_tokens: 2048,
+    max_tokens: 4096,
     temperature: 0,
-    system: `You normalize public IT-asset prices for RemoAsset procurement. Keep only listings that match the requested brand, model, and specs. Drop refurbished/used/renewed unless the query asks for them. Drop wrong RAM, storage, chip, or screen size. Prefer official retailers and major marketplaces. Return JSON only.`,
+    system: `You normalize public IT-asset prices for RemoAsset procurement. Keep every new-device buying option that matches brand, model, chip, RAM, and storage — national chains, official stores, and local authorized dealers. Drop refurbished/used/renewed, wrong configs, and foreign-market listings. Do not shrink the list to a few majors. Return JSON only.`,
     messages: [{
       role: 'user',
       content: `Device: ${opts.query}
@@ -228,7 +383,10 @@ Rules:
 - Use "street" for current selling / offer price
 - Include url for every row so ops can open the site
 - If a snippet has MRP and a different street price, you may emit two rows for the same URL
-- Max 15 results. Sort cheapest first.`,
+- Keep the full buying-options set for ${opts.country}, including ${marketplaceNamesForCountry(opts.countryCode).join(', ')}, official brand stores, and other local authorized dealers
+- Do not drop a matching in-country listing just to shorten the list
+- Drop foreign-market shops (wrong country / converted currency)
+- Max 40 results. Sort cheapest first.`,
     }],
   })
 
@@ -269,7 +427,7 @@ Rules:
     }
     const confidence = Number(parsed.confidence)
     return {
-      hits: results.length ? results : opts.shoppingHits,
+      hits: mergeKeepCoverage(results.length ? results : opts.shoppingHits, opts.shoppingHits),
       confidence: Number.isFinite(confidence) ? Math.min(10, Math.max(1, confidence)) : (results.length ? 6 : 3),
       token_usage,
     }
@@ -327,38 +485,65 @@ Deno.serve(async (req) => {
       )
     }
 
-    const query = buildQuery(brand, model, specs)
+    const query = coreQuery(brand, model, specs)
     const fallbackCurrency = CURRENCY_BY_GL[countryCode] || 'USD'
-    const hl = countryCode === 'in' ? 'en' : 'en'
+    const hl = 'en'
+    const domain = googleDomain(countryCode)
     const searchQueriesUsed: string[] = []
+    const serperBase = { gl: countryCode, hl, google_domain: domain }
 
-    const shoppingQuery = query
-    searchQueriesUsed.push(`shopping: ${shoppingQuery}`)
-    const shoppingData = await serperPost('shopping', {
-      q: shoppingQuery,
-      gl: countryCode,
-      hl,
-      num: 20,
+    const marketplaceSites = marketplaceRetailersForCountry(countryCode).slice(0, 8)
+    const allSites = searchSitesForCountry(countryCode)
+    const official = officialStoreForBrand(brand)
+    const siteOr = allSites.map((s) => `site:${s.host}`).join(' OR ')
+    const retailerOr = marketplaceSites.map((s) => `"${s.name}"`).join(' OR ')
+
+    const generalQ = query
+    const namesQ = `${query} (${retailerOr})`
+    const webQuery = `${listPriceQuery(query, countryCode)} (${siteOr})`
+    const siteQueries = marketplaceSites.map((site) => `${query} site:${site.host}`)
+    const officialQ = official ? `${query} site:${official.hosts[0]}` : null
+
+    searchQueriesUsed.push(`shopping: ${generalQ}`)
+    searchQueriesUsed.push(`shopping: ${namesQ}`)
+    for (const q of siteQueries) searchQueriesUsed.push(`shopping: ${q}`)
+    if (officialQ) searchQueriesUsed.push(`shopping: ${officialQ}`)
+    searchQueriesUsed.push(`search: ${webQuery}`)
+
+    const settled = await Promise.allSettled([
+      serperPost('shopping', { q: generalQ, ...serperBase, num: 40 }),
+      serperPost('shopping', { q: namesQ, ...serperBase, num: 30 }),
+      ...siteQueries.map((q) => serperPost('shopping', { q, ...serperBase, num: 10 })),
+      ...(officialQ ? [serperPost('shopping', { q: officialQ, ...serperBase, num: 10 })] : []),
+      serperPost('search', { q: webQuery, ...serperBase, num: 20 }),
+    ])
+
+    const shoppingBags: any[] = []
+    let organic: any[] = []
+    settled.forEach((item, idx) => {
+      if (item.status !== 'fulfilled') {
+        console.error('Serper call failed:', item.reason)
+        return
+      }
+      const isLast = idx === settled.length - 1
+      if (isLast) {
+        organic = item.value.organic || []
+        return
+      }
+      shoppingBags.push(...(item.value.shopping || []))
     })
 
-    await new Promise((r) => setTimeout(r, 400))
-
-    const webQuery = listPriceQuery(query, countryCode)
-    searchQueriesUsed.push(`search: ${webQuery}`)
-    let organic: any[] = []
-    try {
-      const searchData = await serperPost('search', {
-        q: webQuery,
-        gl: countryCode,
-        hl,
-        num: 10,
-      })
-      organic = searchData.organic || []
-    } catch (err) {
-      console.error('Serper search failed:', err)
-    }
-
-    const shoppingHits = shoppingToHits(shoppingData.shopping || [], fallbackCurrency)
+    const shoppingHits = filterReliableHits(
+      dedupeHits([
+        ...shoppingToHits(shoppingBags, fallbackCurrency, countryCode),
+        ...organicToHits(organic, fallbackCurrency, countryCode),
+      ]),
+      specs,
+      brand,
+      model,
+      countryCode,
+      fallbackCurrency,
+    )
     const { hits, confidence, token_usage } = await refineWithClaude({
       query,
       country,
@@ -370,7 +555,7 @@ Deno.serve(async (req) => {
       fallbackCurrency,
     })
 
-    const results = sortHits(hits)
+    const results = sortHits(filterReliableHits(hits, specs, brand, model, countryCode, fallbackCurrency))
     const summary = summarize(results, fallbackCurrency, confidence)
 
     return new Response(
