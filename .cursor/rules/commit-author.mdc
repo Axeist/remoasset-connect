@@ -1,0 +1,21 @@
+---
+description: Require cuephoriatech@gmail.com as the Git commit author for this repo
+alwaysApply: true
+---
+
+# Commit author
+
+Every Git commit in this repository must be authored as:
+
+- **Name:** `cuephoriatech`
+- **Email:** `cuephoriatech@gmail.com`
+
+Never commit as `axeist`, `ranjithkirloskar@gmail.com`, or a GitHub noreply address.
+
+When creating a commit, pass the author explicitly:
+
+```bash
+git -c user.name="cuephoriatech" -c user.email="cuephoriatech@gmail.com" commit ...
+```
+
+If the latest commit used a different author, do not leave it that way — amend only when amend rules allow; otherwise create a new commit with this author.
