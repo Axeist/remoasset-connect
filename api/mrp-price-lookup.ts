@@ -112,6 +112,40 @@ function listPriceQuery(base: string, countryCode: string): string {
   return `${base} MSRP OR "list price" OR MRP`;
 }
 
+const ACCESSORY_NEG = ' -case -cover -sleeve -skin -pouch -bag -stand -hub -charger -accessory';
+
+function looksLikeComputer(text: string): boolean {
+  const ram = /\b(8|12|16|18|24|32|36|48|64)\s*gb\b/i.test(text);
+  const storage = /\b(128|256|512)\s*gb\b|\b[1-8]\s*tb\b/i.test(text);
+  return ram && storage;
+}
+
+function isAccessoryListing(text: string): boolean {
+  if (/\b((hard|soft)\s*shell(\s*case)?|hardshell|protective\s*case|clear\s*case|laptop\s*(case|sleeve|bag|cover|stand)|keyboard\s*cover|screen\s*protector|tempered\s*glass|folio\s*case)\b/i.test(text)) {
+    return true;
+  }
+  if (/\b(case|cases|cover|sleeve|skin|pouch|bag|backpack|folio|sticker|decal|dongle)\b.{0,48}\b(for|compatible)\b/i.test(text)) {
+    return true;
+  }
+  if (/\b(for|compatible with)\b.{0,56}\b(macbook|imac|ipad|iphone|laptop|thinkpad|xps|surface)\b/i.test(text)) {
+    return true;
+  }
+  if (looksLikeComputer(text)) return false;
+  return /\b(case|cases|cover|sleeve|skin|pouch|bag|backpack|folio|protector|keyboard cover|laptop stand|stand for|riser|usb[-\s]?c hub|dongle|sticker|decal|accessories?)\b/i.test(text);
+}
+
+function minDevicePrice(currency: string, category: string): number {
+  if (category !== 'laptop' && category !== 'desktop_server') return 0;
+  if (currency === 'INR') return 25_000;
+  if (currency === 'JPY') return 40_000;
+  if (currency === 'KRW') return 400_000;
+  if (currency === 'VND') return 8_000_000;
+  if (currency === 'IDR') return 4_000_000;
+  if (currency === 'COP') return 1_500_000;
+  if (currency === 'PHP') return 15_000;
+  return 200;
+}
+
 function isMajorHit(hit: PriceHit, countryCode: string): boolean {
   return classifyRetailerHit(hit, countryCode) !== 'other';
 }
@@ -234,7 +268,7 @@ async function refineWithClaude(opts: {
       model: DEFAULT_MODEL,
       max_tokens: 2048,
       temperature: 0,
-      system: 'You normalize public IT-asset prices for RemoAsset procurement. Keep listings that match the requested brand and model. Drop refurbished/used/renewed unless asked. Prefer the country\'s reputed national retailers and official brand stores. Return JSON only.',
+      system: 'You normalize public IT-asset prices for RemoAsset procurement. Keep listings that match the requested brand and model as the computer itself. Drop cases, sleeves, covers, bags, stands, hubs, chargers sold separately, and any accessory. Drop refurbished/used/renewed unless asked. Prefer the country\'s reputed national retailers and official brand stores. Return JSON only.',
       messages: [{
         role: 'user',
         content: `Device: ${opts.query}
@@ -386,11 +420,12 @@ export default async function handler(req: { method?: string; headers: Record<st
     const official = officialStoreForBrand(brand);
     const siteOr = allSites.map((s) => `site:${s.host}`).join(' OR ');
     const retailerOr = marketplaceSites.map((s) => `"${s.name}"`).join(' OR ');
-    const namesQ = `${broadQuery} (${retailerOr})`;
-    const webQuery = `${listPriceQuery(broadQuery, countryCode)} (${siteOr})`;
+    const namesQ = `${broadQuery} (${retailerOr})${ACCESSORY_NEG}`;
+    const webQuery = `${listPriceQuery(broadQuery, countryCode)} (${siteOr}) -case -sleeve -cover`;
     const officialQ = official ? `${broadQuery} site:${official.hosts[0]}` : null;
-    const searchQueriesUsed: string[] = [`shopping: ${broadQuery}`];
-    if (query !== broadQuery) searchQueriesUsed.push(`shopping: ${query}`);
+    const familyQ = `${broadQuery}${ACCESSORY_NEG}`;
+    const searchQueriesUsed: string[] = [`shopping: ${familyQ}`];
+    if (query !== broadQuery) searchQueriesUsed.push(`shopping: ${query}${ACCESSORY_NEG}`);
     searchQueriesUsed.push(`shopping: ${namesQ}`);
     if (officialQ) searchQueriesUsed.push(`shopping: ${officialQ}`);
     searchQueriesUsed.push(`search: ${webQuery}`);
@@ -398,9 +433,9 @@ export default async function handler(req: { method?: string; headers: Record<st
     const shoppingBags: any[] = [];
     let organic: any[] = [];
     const calls: { q: string; path: 'shopping' | 'search' }[] = [
-      { path: 'shopping', q: broadQuery },
+      { path: 'shopping', q: familyQ },
     ];
-    if (query !== broadQuery) calls.push({ path: 'shopping', q: query });
+    if (query !== broadQuery) calls.push({ path: 'shopping', q: `${query}${ACCESSORY_NEG}` });
     calls.push({ path: 'shopping', q: namesQ });
     if (officialQ) calls.push({ path: 'shopping', q: officialQ });
     calls.push({ path: 'search', q: webQuery });
@@ -421,10 +456,15 @@ export default async function handler(req: { method?: string; headers: Record<st
       if (i + 3 < calls.length) await new Promise((r) => setTimeout(r, 280));
     }
 
+    const floor = minDevicePrice(fallbackCurrency, category);
     const shoppingHits = dedupeHits([
       ...shoppingToHits(shoppingBags, fallbackCurrency, countryCode),
       ...organicToHits(organic, fallbackCurrency, countryCode),
-    ]).filter((h) => !isOffMarketListing(h, countryCode, fallbackCurrency));
+    ]).filter((h) =>
+      !isOffMarketListing(h, countryCode, fallbackCurrency) &&
+      !isAccessoryListing(`${h.title} ${h.retailer}`) &&
+      h.price >= floor
+    );
     const { hits, confidence, token_usage } = await refineWithClaude({
       query,
       country,
@@ -436,7 +476,9 @@ export default async function handler(req: { method?: string; headers: Record<st
       fallbackCurrency,
     });
 
-    const results = mergeKeepCoverage(shoppingHits, hits).sort((a, b) => a.price - b.price);
+    const results = mergeKeepCoverage(shoppingHits, hits)
+      .filter((h) => !isAccessoryListing(`${h.title} ${h.retailer}`) && h.price >= floor)
+      .sort((a, b) => a.price - b.price);
     return json(res, 200, {
       summary: summarize(results, fallbackCurrency, confidence),
       results,

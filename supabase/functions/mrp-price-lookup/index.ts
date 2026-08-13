@@ -145,6 +145,41 @@ function isRefurbished(text: string): boolean {
   return /refurb|renewed|used|pre-?owned|open[\s-]?box|certified pre/i.test(text)
 }
 
+function looksLikeComputer(text: string): boolean {
+  const ram = /\b(8|12|16|18|24|32|36|48|64)\s*gb\b/i.test(text)
+  const storage = /\b(128|256|512)\s*gb\b|\b[1-8]\s*tb\b/i.test(text)
+  return ram && storage
+}
+
+function isAccessoryListing(text: string): boolean {
+  // The sold item is a case/sleeve/etc. even if the title also lists RAM/storage.
+  if (/\b((hard|soft)\s*shell(\s*case)?|hardshell|protective\s*case|clear\s*case|laptop\s*(case|sleeve|bag|cover|stand)|keyboard\s*cover|screen\s*protector|tempered\s*glass|folio\s*case)\b/i.test(text)) {
+    return true
+  }
+  if (/\b(case|cases|cover|sleeve|skin|pouch|bag|backpack|folio|sticker|decal|dongle)\b.{0,48}\b(for|compatible)\b/i.test(text)) {
+    return true
+  }
+  if (/\b(for|compatible with)\b.{0,56}\b(macbook|imac|ipad|iphone|laptop|thinkpad|xps|surface)\b/i.test(text)) {
+    return true
+  }
+  if (looksLikeComputer(text)) return false
+  return /\b(case|cases|cover|sleeve|skin|pouch|bag|backpack|folio|protector|keyboard cover|laptop stand|stand for|riser|usb[-\s]?c hub|dongle|sticker|decal|accessories?)\b/i.test(text)
+}
+
+function minDevicePrice(currency: string, category: string): number {
+  if (category !== 'laptop' && category !== 'desktop_server') return 0
+  if (currency === 'INR') return 25_000
+  if (currency === 'JPY') return 40_000
+  if (currency === 'KRW') return 400_000
+  if (currency === 'VND') return 8_000_000
+  if (currency === 'IDR') return 4_000_000
+  if (currency === 'COP') return 1_500_000
+  if (currency === 'PHP') return 15_000
+  return 200
+}
+
+const ACCESSORY_NEG = ' -case -cover -sleeve -skin -pouch -bag -stand -hub -charger -accessory'
+
 function screenInch(text: string): number | null {
   const m = text.match(/\b(13|14|15|16)(?:\.\d)?\s*(?:-?inch|"|''|″)\b/i)
     || text.match(/\b(13|14|15|16)-inch\b/i)
@@ -152,8 +187,9 @@ function screenInch(text: string): number | null {
 }
 
 function specMatch(hit: PriceHit, specs: Record<string, string>, brand: string, model: string): 'exact' | 'near' | 'reject' {
-  const hay = `${hit.title} ${hit.notes || ''}`.toLowerCase()
+  const hay = `${hit.title} ${hit.notes || ''} ${hit.retailer}`.toLowerCase()
   if (isRefurbished(hay)) return 'reject'
+  if (isAccessoryListing(`${hit.title} ${hit.retailer}`)) return 'reject'
   const brandTok = brand.toLowerCase()
   if (brandTok && !hay.includes(brandTok) && !hit.url.toLowerCase().includes(brandTok.replace(/\s+/g, ''))) {
     if (!/apple|macbook|imac|mac mini|mac studio/i.test(hay) && brandTok === 'apple') return 'reject'
@@ -195,6 +231,7 @@ function filterReliableHits(
   model: string,
   countryCode: string,
   expectedCurrency: string,
+  category = 'laptop',
 ): PriceHit[] {
   const local = hits.filter((h) => !isOffMarketListing(h, countryCode, expectedCurrency))
   const tagged = local
@@ -208,9 +245,15 @@ function filterReliableHits(
       return { ...h, match_quality: match, notes }
     })
     .filter((h): h is PriceHit => h != null)
-  const pool = tagged.length
-    ? tagged
-    : local.filter((h) => !isRefurbished(`${h.title} ${h.notes || ''}`))
+  const floor = minDevicePrice(expectedCurrency, category)
+  const priced = tagged.filter((h) => h.price >= floor)
+  const pool = priced.length
+    ? priced
+    : local.filter((h) =>
+      !isRefurbished(`${h.title} ${h.notes || ''}`) &&
+      !isAccessoryListing(`${h.title} ${h.notes || ''}`) &&
+      h.price >= floor
+    )
   const mid = median(pool.map((h) => h.price))
   if (!mid) return pool
   return pool.filter((h) => h.price >= mid * 0.2 && h.price <= mid * 4)
@@ -391,7 +434,7 @@ async function refineWithClaude(opts: {
     model: DEFAULT_MODEL,
     max_tokens: 4096,
     temperature: 0,
-    system: `You label public IT-asset prices for RemoAsset procurement. You do not shrink the list. Keep every shopping row. Mark exact vs nearby (same model, different RAM/storage). Set price_type. You may add MRP/list rows from snippets. Never invent a store that is not in the shopping list or snippets. Return JSON only.`,
+    system: `You label public IT-asset prices for RemoAsset procurement. You do not shrink the list of actual computers. Keep every shopping row that is the device itself. Drop cases, sleeves, covers, bags, stands, hubs, chargers sold separately, and any accessory. Mark exact vs nearby (same model, different RAM/storage). Set price_type. You may add MRP/list rows from snippets. Never invent a store that is not in the shopping list or snippets. Return JSON only.`,
     messages: [{
       role: 'user',
       content: `Device: ${opts.query}
@@ -430,7 +473,8 @@ Rules:
 - Use "street" for current selling / offer price
 - Include url for every row so ops can open the site
 - If a snippet has MRP and a different street price, you may emit two rows for the same URL
-- Return every shopping listing. Label match_quality exact when chip/size/RAM/storage match, near when only RAM or storage differs
+- Return every shopping listing that is the computer itself. Drop accessories (cases, sleeves, covers, bags, stands, hubs, chargers)
+- Label match_quality exact when chip/size/RAM/storage match, near when only RAM or storage differs
 - Do not invent retailers
 - Max 50 results. Sort cheapest first.`,
     }],
@@ -579,9 +623,9 @@ Deno.serve(async (req) => {
     const siteOr = allSites.map((s) => `site:${s.host}`).join(' OR ')
     const retailerOr = marketplaceSites.map((s) => `"${s.name}"`).join(' OR ')
 
-    const familyQ = broadQuery
-    const namesQ = `${broadQuery} (${retailerOr})`
-    const webQuery = `${listPriceQuery(broadQuery, countryCode)} (${siteOr})`
+    const familyQ = `${broadQuery}${ACCESSORY_NEG}`
+    const namesQ = `${broadQuery} (${retailerOr})${ACCESSORY_NEG}`
+    const webQuery = `${listPriceQuery(broadQuery, countryCode)} (${siteOr}) -case -sleeve -cover`
     const officialQ = official ? `${broadQuery} site:${official.hosts[0]}` : null
 
     const tasks: { label: string; run: () => Promise<any> }[] = [
@@ -614,6 +658,7 @@ Deno.serve(async (req) => {
       model,
       countryCode,
       fallbackCurrency,
+      category,
     )
 
     const emptyUsage = {
@@ -646,7 +691,7 @@ Deno.serve(async (req) => {
       }
     }
     const hits = mergeKeepCoverage(shoppingHits, refined.hits)
-    const results = sortHits(filterReliableHits(hits, specs, brand, model, countryCode, fallbackCurrency))
+    const results = sortHits(filterReliableHits(hits, specs, brand, model, countryCode, fallbackCurrency, category))
     const summary = summarize(results, fallbackCurrency, refined.confidence)
 
     return new Response(
