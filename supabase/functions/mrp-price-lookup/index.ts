@@ -142,7 +142,7 @@ function storageToken(text: string): string | null {
 }
 
 function isRefurbished(text: string): boolean {
-  return /refurb|renewed|used|pre-?owned|open[\s-]?box|certified pre/i.test(text)
+  return /\brefurb|\brenewed|\bused\b|\bpre-?owned\b|\bopen[\s-]?box\b|\bcertified pre/i.test(text)
 }
 
 function looksLikeComputer(text: string): boolean {
@@ -156,9 +156,6 @@ function isAccessoryListing(text: string): boolean {
     return true
   }
   if (/\b(case|cases|cover|sleeve|skin|pouch|bag|backpack|folio|sticker|decal|dongle)\b.{0,48}\b(for|compatible)\b/i.test(text)) {
-    return true
-  }
-  if (/\b(for|compatible with)\b.{0,56}\b(macbook|imac|ipad|iphone|laptop|thinkpad|xps|surface)\b/i.test(text)) {
     return true
   }
   if (/\b(leather|suede|nubuck|wallet|handbag|clutch|satchel|tote bag|briefcase)\b/i.test(text) && !looksLikeComputer(text)) {
@@ -179,7 +176,11 @@ function minDevicePrice(currency: string, category: string): number {
   return floors[currency] ?? 200
 }
 
-const ACCESSORY_NEG = ' -case -cover -sleeve'
+function deviceBias(category: string): string {
+  if (category === 'laptop') return ' laptop'
+  if (category === 'desktop_server') return ' desktop'
+  return ''
+}
 
 function screenInch(text: string): number | null {
   const inch = text.match(/\b(13|14|15|16)(?:\.\d)?\s*-?\s*(?:inch|"|''|″)\b/i)
@@ -635,45 +636,55 @@ Deno.serve(async (req) => {
     const topHosts = topMarketplaceHostsForCountry(countryCode, 3)
     const official = officialStoreForBrand(brand)
     const siteOr = topHosts.map((h) => `site:${h}`).join(' OR ')
+    const bias = deviceBias(category)
 
-    const familyQ = `${broadQuery}${ACCESSORY_NEG}`
-    const sitesQ = siteOr ? `${broadQuery} (${siteOr})${ACCESSORY_NEG}` : null
+    // Google Shopping does not honor site: or -keyword operators — those queries
+    // return empty and Claude then labels an empty list. Keep Shopping as a
+    // plain product query and put site: on web search only.
+    const shoppingQ = `${broadQuery}${bias}`
+    const webQuery = listPriceQuery(broadQuery, countryCode)
     const officialQ = official ? `${broadQuery} site:${official.hosts[0]}` : null
-    const webQuery = siteOr
-      ? `${listPriceQuery(broadQuery, countryCode)} (${siteOr}) -case -sleeve -cover`
-      : `${listPriceQuery(broadQuery, countryCode)} -case -sleeve -cover`
+    const majorsQ = siteOr ? `${broadQuery} (${siteOr})` : null
 
     const tasks: { label: string; run: () => Promise<any> }[] = [
-      { label: `shopping: ${familyQ}`, run: () => serperPost('shopping', { q: familyQ, ...serperBase, num: 40 }) },
+      { label: `shopping: ${shoppingQ}`, run: () => serperPost('shopping', { q: shoppingQ, ...serperBase, num: 40 }) },
+      { label: `search: ${webQuery}`, run: () => serperPost('search', { q: webQuery, ...serperBase, num: 15 }) },
     ]
-    if (sitesQ) {
-      tasks.push({ label: `shopping: ${sitesQ}`, run: () => serperPost('shopping', { q: sitesQ, ...serperBase, num: 30 }) })
-    }
     if (officialQ) {
-      tasks.push({ label: `shopping: ${officialQ}`, run: () => serperPost('shopping', { q: officialQ, ...serperBase, num: 8 }) })
+      tasks.push({ label: `search: ${officialQ}`, run: () => serperPost('search', { q: officialQ, ...serperBase, num: 10 }) })
     }
-    tasks.push({ label: `search: ${webQuery}`, run: () => serperPost('search', { q: webQuery, ...serperBase, num: 15 }) })
+    if (majorsQ) {
+      tasks.push({ label: `search: ${majorsQ}`, run: () => serperPost('search', { q: majorsQ, ...serperBase, num: 10 }) })
+    }
 
     for (const t of tasks) searchQueriesUsed.push(t.label)
 
-    const settled = await runSerperBatches(tasks, 4)
+    const settled = await runSerperBatches(tasks, 2)
     const shoppingBags: any[] = []
-    let organic: any[] = []
+    const organic: any[] = []
     for (const item of settled) {
       if (!item.value) continue
       shoppingBags.push(...(item.value.shopping || []))
-      if (item.label.startsWith('search:')) organic = item.value.organic || []
+      if (item.label.startsWith('search:')) organic.push(...(item.value.organic || []))
     }
 
-    const harvested = harvestCleanHits(
-      dedupeHits([
-        ...shoppingToHits(shoppingBags, fallbackCurrency, countryCode),
-        ...organicToHits(organic, fallbackCurrency, countryCode),
-      ]),
-      countryCode,
-      fallbackCurrency,
-      category,
-    )
+    let rawHits = dedupeHits([
+      ...shoppingToHits(shoppingBags, fallbackCurrency, countryCode),
+      ...organicToHits(organic, fallbackCurrency, countryCode),
+    ])
+
+    if (rawHits.length === 0) {
+      const retryQ = broadQuery
+      searchQueriesUsed.push(`shopping: ${retryQ}`)
+      try {
+        const retry = await serperPost('shopping', { q: retryQ, gl: countryCode, hl, num: 40 })
+        rawHits = shoppingToHits(retry.shopping || [], fallbackCurrency, countryCode)
+      } catch (err) {
+        console.error('Serper shopping retry failed:', err)
+      }
+    }
+
+    const harvested = harvestCleanHits(rawHits, countryCode, fallbackCurrency, category)
 
     const emptyUsage = {
       model: DEFAULT_MODEL,
@@ -688,7 +699,8 @@ Deno.serve(async (req) => {
       confidence: harvested.length >= 8 ? 7 : harvested.length >= 3 ? 5 : 3,
       token_usage: emptyUsage,
     }
-    if (harvested.length < 5) {
+    const claudePool = harvested.length ? harvested : rawHits.slice(0, 40)
+    if (harvested.length < 5 && claudePool.length > 0) {
       try {
         refined = await refineWithClaude({
           query,
@@ -696,7 +708,7 @@ Deno.serve(async (req) => {
           countryCode,
           category,
           specs,
-          shoppingHits: harvested,
+          shoppingHits: claudePool,
           organicText: organicHints(organic),
           fallbackCurrency,
         })

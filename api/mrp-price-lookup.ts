@@ -113,7 +113,11 @@ function listPriceQuery(base: string, countryCode: string): string {
   return `${base} MSRP OR "list price" OR MRP`;
 }
 
-const ACCESSORY_NEG = ' -case -cover -sleeve';
+function deviceBias(category: string): string {
+  if (category === 'laptop') return ' laptop';
+  if (category === 'desktop_server') return ' desktop';
+  return '';
+}
 
 const GOOGLE_DOMAINS: Record<string, string> = {
   in: 'google.co.in', gb: 'google.co.uk', ae: 'google.ae', sg: 'google.com.sg',
@@ -141,9 +145,6 @@ function isAccessoryListing(text: string): boolean {
   if (/\b(case|cases|cover|sleeve|skin|pouch|bag|backpack|folio|sticker|decal|dongle)\b.{0,48}\b(for|compatible)\b/i.test(text)) {
     return true;
   }
-  if (/\b(for|compatible with)\b.{0,56}\b(macbook|imac|ipad|iphone|laptop|thinkpad|xps|surface)\b/i.test(text)) {
-    return true;
-  }
   if (/\b(leather|suede|nubuck|wallet|handbag|clutch|satchel|tote bag|briefcase)\b/i.test(text) && !looksLikeComputer(text)) {
     return true;
   }
@@ -163,7 +164,7 @@ function minDevicePrice(currency: string, category: string): number {
 }
 
 function isRefurbished(text: string): boolean {
-  return /refurb|renewed|used|pre-?owned|open[\s-]?box|certified pre/i.test(text);
+  return /\brefurb|\brenewed|\bused\b|\bpre-?owned\b|\bopen[\s-]?box\b|\bcertified pre/i.test(text);
 }
 
 function normalizeChip(text: string): string | null {
@@ -541,35 +542,33 @@ export default async function handler(req: { method?: string; headers: Record<st
     const topHosts = topMarketplaceHostsForCountry(countryCode, 3);
     const official = officialStoreForBrand(brand);
     const siteOr = topHosts.map((h) => `site:${h}`).join(' OR ');
-    const familyQ = `${broadQuery}${ACCESSORY_NEG}`;
-    const sitesQ = siteOr ? `${broadQuery} (${siteOr})${ACCESSORY_NEG}` : null;
+    const bias = deviceBias(category);
+    const shoppingQ = `${broadQuery}${bias}`;
+    const webQuery = listPriceQuery(broadQuery, countryCode);
     const officialQ = official ? `${broadQuery} site:${official.hosts[0]}` : null;
-    const webQuery = siteOr
-      ? `${listPriceQuery(broadQuery, countryCode)} (${siteOr}) -case -sleeve -cover`
-      : `${listPriceQuery(broadQuery, countryCode)} -case -sleeve -cover`;
-    const searchQueriesUsed: string[] = [`shopping: ${familyQ}`];
-    if (sitesQ) searchQueriesUsed.push(`shopping: ${sitesQ}`);
-    if (officialQ) searchQueriesUsed.push(`shopping: ${officialQ}`);
-    searchQueriesUsed.push(`search: ${webQuery}`);
+    const majorsQ = siteOr ? `${broadQuery} (${siteOr})` : null;
+    const searchQueriesUsed: string[] = [`shopping: ${shoppingQ}`, `search: ${webQuery}`];
+    if (officialQ) searchQueriesUsed.push(`search: ${officialQ}`);
+    if (majorsQ) searchQueriesUsed.push(`search: ${majorsQ}`);
 
     const shoppingBags: any[] = [];
-    let organic: any[] = [];
-    const calls: { q: string; path: 'shopping' | 'search' }[] = [
-      { path: 'shopping', q: familyQ },
+    const organic: any[] = [];
+    const calls: { q: string; path: 'shopping' | 'search'; num: number }[] = [
+      { path: 'shopping', q: shoppingQ, num: 40 },
+      { path: 'search', q: webQuery, num: 15 },
     ];
-    if (sitesQ) calls.push({ path: 'shopping', q: sitesQ });
-    if (officialQ) calls.push({ path: 'shopping', q: officialQ });
-    calls.push({ path: 'search', q: webQuery });
+    if (officialQ) calls.push({ path: 'search', q: officialQ, num: 10 });
+    if (majorsQ) calls.push({ path: 'search', q: majorsQ, num: 10 });
 
-    for (let i = 0; i < calls.length; i += 3) {
-      const chunk = calls.slice(i, i + 3);
+    for (let i = 0; i < calls.length; i += 2) {
+      const chunk = calls.slice(i, i + 2);
       const settled = await Promise.allSettled(
         chunk.map((c) => serperPost(c.path, {
           q: c.q,
           gl: countryCode,
           hl: 'en',
           google_domain: googleDomain(countryCode),
-          num: c.path === 'search' ? 15 : c.q.includes('site:') && officialQ && c.q === officialQ ? 8 : 40,
+          num: c.num,
         })),
       );
       settled.forEach((item, idx) => {
@@ -578,16 +577,33 @@ export default async function handler(req: { method?: string; headers: Record<st
           return;
         }
         shoppingBags.push(...(item.value.shopping || []));
-        if (chunk[idx].path === 'search') organic = item.value.organic || [];
+        if (chunk[idx].path === 'search') organic.push(...(item.value.organic || []));
       });
-      if (i + 3 < calls.length) await new Promise((r) => setTimeout(r, 280));
+      if (i + 2 < calls.length) await new Promise((r) => setTimeout(r, 280));
+    }
+
+    let rawHits = dedupeHits([
+      ...shoppingToHits(shoppingBags, fallbackCurrency, countryCode),
+      ...organicToHits(organic, fallbackCurrency, countryCode),
+    ]);
+    if (rawHits.length === 0) {
+      searchQueriesUsed.push(`shopping: ${broadQuery}`);
+      try {
+        const retry = await serperPost('shopping', {
+          q: broadQuery,
+          gl: countryCode,
+          hl: 'en',
+          google_domain: googleDomain(countryCode),
+          num: 40,
+        });
+        rawHits = shoppingToHits(retry.shopping || [], fallbackCurrency, countryCode);
+      } catch (err) {
+        console.error('Serper shopping retry failed:', err);
+      }
     }
 
     const harvested = harvestCleanHits(
-      dedupeHits([
-        ...shoppingToHits(shoppingBags, fallbackCurrency, countryCode),
-        ...organicToHits(organic, fallbackCurrency, countryCode),
-      ]),
+      rawHits,
       countryCode,
       fallbackCurrency,
       category,
@@ -605,7 +621,8 @@ export default async function handler(req: { method?: string; headers: Record<st
       confidence: harvested.length >= 8 ? 7 : harvested.length >= 3 ? 5 : 3,
       token_usage: emptyUsage,
     };
-    if (harvested.length < 5) {
+    const claudePool = harvested.length ? harvested : rawHits.slice(0, 40);
+    if (harvested.length < 5 && claudePool.length > 0) {
       try {
         refined = await refineWithClaude({
           query,
@@ -613,7 +630,7 @@ export default async function handler(req: { method?: string; headers: Record<st
           countryCode,
           category,
           specs,
-          shoppingHits: harvested,
+          shoppingHits: claudePool,
           organicText: organicHints(organic),
           fallbackCurrency,
         });
