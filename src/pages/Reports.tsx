@@ -23,9 +23,6 @@ import { format, subDays, startOfDay, endOfDay, differenceInDays, startOfMonth, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProductivityReport } from '@/components/reports/ProductivityReport';
 import { LeadProductivityReport } from '@/components/reports/LeadProductivityReport';
-import { ReportDateFilter, type ReportDateFilterValue } from '@/components/reports/ReportDateFilter';
-import { getPresetRange, getPreviousPeriodRange, formatDateRangeSubtitle } from '@/lib/datePresets';
-import { formatCountDelta } from '@/lib/leadDuplicates';
 
 type TimeRange = 'hourly' | 'weekly' | 'monthly' | 'yearly';
 
@@ -42,7 +39,7 @@ export default function Reports() {
   const availableYears = Array.from({ length: 5 }, (_, i) => currentYear - i);
   
   // Existing state
-  const [byStatus, setByStatus] = useState<{ name: string; value: number; color: string; sort_order?: number }[]>([]);
+  const [byStatus, setByStatus] = useState<{ name: string; value: number; color: string }[]>([]);
   const [byCountry, setByCountry] = useState<{ name: string; leads: number }[]>([]);
   const [teamActivity, setTeamActivity] = useState<{ name: string; activities: number }[]>([]);
   const [leadScoreDistribution, setLeadScoreDistribution] = useState<{ range: string; count: number }[]>([]);
@@ -76,16 +73,6 @@ export default function Reports() {
   }[]>([]);
   const [leadVelocity, setLeadVelocity] = useState<{ stage: string; avgDays: number }[]>([]);
   const [activityHeatmap, setActivityHeatmap] = useState<{ name: string; value: number }[]>([]);
-  const [overviewDate, setOverviewDate] = useState<ReportDateFilterValue>(() => {
-    const range = getPresetRange('this_month')!;
-    return { preset: 'this_month', from: range.from, to: range.to };
-  });
-  const [periodCompare, setPeriodCompare] = useState<{
-    leads: string;
-    activities: string;
-    followUps: string;
-    label: string;
-  }>({ leads: '', activities: '', followUps: '', label: '' });
 
   // Helper function to generate productivity data based on time range
   const generateProductivityData = (
@@ -175,35 +162,30 @@ export default function Reports() {
     (async () => {
       try {
         // Batch 1: Fetch basic data in parallel
-        const leadsQuery = supabase.from('leads').select('id, status_id, country_ids, owner_id, lead_score, created_at, status_changed_at');
+        const leadsQuery = supabase.from('leads').select('id, status_id, country_ids, owner_id, lead_score, created_at');
         if (!isAdmin) {
           leadsQuery.eq('owner_id', user.id);
         }
 
         const [leadsRes, statusRows, countryRows] = await Promise.all([
           leadsQuery,
-          supabase.from('lead_statuses').select('id, name, color, sort_order'),
+          supabase.from('lead_statuses').select('id, name, color'),
           supabase.from('countries').select('id, code, name'),
         ]);
 
         const leadList = leadsRes.data ?? [];
 
         // Process status data
-        const statusMap = (statusRows.data ?? []).reduce((acc, s) => { acc[s.id] = { name: s.name, color: s.color, sort_order: s.sort_order ?? 0 }; return acc; }, {} as Record<string, { name: string; color: string; sort_order: number }>);
-        const statusCounts: Record<string, { count: number; color: string; sort_order: number }> = {};
+        const statusMap = (statusRows.data ?? []).reduce((acc, s) => { acc[s.id] = { name: s.name, color: s.color }; return acc; }, {} as Record<string, { name: string; color: string }>);
+        const statusCounts: Record<string, { count: number; color: string }> = {};
         leadList.forEach((l: { status_id: string | null }) => {
           const s = l.status_id ? statusMap[l.status_id] : null;
           const name = s?.name ?? 'Unassigned';
           const color = s?.color ?? '#6E7180';
-          const sort_order = s?.sort_order ?? 99;
-          if (!statusCounts[name]) statusCounts[name] = { count: 0, color, sort_order };
+          if (!statusCounts[name]) statusCounts[name] = { count: 0, color };
           statusCounts[name].count++;
         });
-        setByStatus(
-          Object.entries(statusCounts)
-            .map(([name, { count, color, sort_order }]) => ({ name, value: count, color, sort_order }))
-            .sort((a, b) => a.sort_order - b.sort_order)
-        );
+        setByStatus(Object.entries(statusCounts).map(([name, { count, color }]) => ({ name, value: count, color })));
 
         // Process country data
         const countryMap = (countryRows.data ?? []).reduce((acc, c) => { acc[c.id] = c.code; return acc; }, {} as Record<string, string>);
@@ -221,30 +203,6 @@ export default function Reports() {
         });
         setByCountry(Object.entries(countryCounts).map(([name, leads]) => ({ name, leads })));
 
-        if (overviewDate.from && overviewDate.to) {
-          const prevR = getPreviousPeriodRange(overviewDate.from, overviewDate.to);
-          const inRange = (iso: string, from: string, to: string) => {
-            const d = new Date(iso).getTime();
-            return d >= new Date(from).getTime() && d <= new Date(to).getTime();
-          };
-          const leadsCur = leadList.filter((l: { created_at: string }) => inRange(l.created_at, overviewDate.from!, overviewDate.to!)).length;
-          const leadsPrev = leadList.filter((l: { created_at: string }) => inRange(l.created_at, prevR.from, prevR.to)).length;
-          let actCurQ = supabase.from('lead_activities').select('id', { count: 'exact', head: true }).gte('created_at', overviewDate.from).lte('created_at', overviewDate.to);
-          let actPrevQ = supabase.from('lead_activities').select('id', { count: 'exact', head: true }).gte('created_at', prevR.from).lte('created_at', prevR.to);
-          let fuCurQ = supabase.from('follow_ups').select('id', { count: 'exact', head: true }).eq('is_completed', true).gte('completed_at', overviewDate.from).lte('completed_at', overviewDate.to);
-          let fuPrevQ = supabase.from('follow_ups').select('id', { count: 'exact', head: true }).eq('is_completed', true).gte('completed_at', prevR.from).lte('completed_at', prevR.to);
-          if (!isAdmin) {
-            actCurQ = actCurQ; // activities filtered later if needed
-          }
-          const [actCur, actPrev, fuCur, fuPrev] = await Promise.all([actCurQ, actPrevQ, fuCurQ, fuPrevQ]);
-          setPeriodCompare({
-            leads: formatCountDelta(leadsCur, leadsPrev),
-            activities: formatCountDelta(actCur.count ?? 0, actPrev.count ?? 0),
-            followUps: formatCountDelta(fuCur.count ?? 0, fuPrev.count ?? 0),
-            label: formatDateRangeSubtitle(overviewDate.preset, overviewDate.from, overviewDate.to),
-          });
-        }
-
         // Show initial charts immediately
         setLoading(false);
 
@@ -253,7 +211,7 @@ export default function Reports() {
           // Admin: Fetch comprehensive team productivity data
           const [activitiesRes, allLeadsForConv, statusesForConv, tasksRes, followUpsRes] = await Promise.all([
             supabase.from('lead_activities').select('user_id, activity_type, created_at, lead_id'),
-            supabase.from('leads').select('id, owner_id, status_id, created_at, status_changed_at'),
+            supabase.from('leads').select('id, owner_id, status_id, created_at'),
             supabase.from('lead_statuses').select('id, name'),
             supabase.from('tasks').select('assignee_id, is_completed, created_at, due_date, updated_at'),
             supabase.from('follow_ups').select('user_id, is_completed, scheduled_at, created_at, completed_at'),
@@ -412,10 +370,10 @@ export default function Reports() {
 
           // NEW: Lead velocity (avg days in each stage)
           const stageVelocity: Record<string, { total: number; count: number }> = {};
-          (allLeadsForConv.data ?? []).forEach((l: { status_id: string | null; created_at: string; status_changed_at?: string | null }) => {
+          (allLeadsForConv.data ?? []).forEach((l: { status_id: string | null; created_at: string }) => {
             if (!l.status_id) return;
             const stageName = statusNames[l.status_id] ?? 'Unknown';
-            const daysInStage = differenceInDays(new Date(), new Date(l.status_changed_at || l.created_at));
+            const daysInStage = differenceInDays(new Date(), new Date(l.created_at));
             if (!stageVelocity[stageName]) stageVelocity[stageName] = { total: 0, count: 0 };
             stageVelocity[stageName].total += daysInStage;
             stageVelocity[stageName].count++;
@@ -525,7 +483,7 @@ export default function Reports() {
         setLoading(false);
       }
     })();
-  }, [user?.id, isAdmin, timeRange, selectedYear, overviewDate.from, overviewDate.to, overviewDate.preset]);
+  }, [user?.id, isAdmin, timeRange, selectedYear]);
 
   const exportReport = () => {
     const rows = [
@@ -571,25 +529,10 @@ export default function Reports() {
             </p>
           </div>
           {activeTab === 'overview' && (
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-              <ReportDateFilter
-                value={overviewDate}
-                compact
-                className="space-y-0 w-full sm:w-56"
-                onChange={(v) => {
-                  if (v.preset !== overviewDate.preset && v.preset !== 'custom') {
-                    const range = getPresetRange(v.preset);
-                    setOverviewDate({ preset: v.preset, from: range?.from ?? null, to: range?.to ?? null });
-                  } else {
-                    setOverviewDate(v);
-                  }
-                }}
-              />
-              <Button variant="outline" size="sm" onClick={exportReport} className="gap-2">
-                <Download className="h-4 w-4" />
-                Export Report
-              </Button>
-            </div>
+            <Button variant="outline" size="sm" onClick={exportReport} className="gap-2">
+              <Download className="h-4 w-4" />
+              Export Report
+            </Button>
           )}
         </div>
 
@@ -623,21 +566,6 @@ export default function Reports() {
           <Skeleton className="h-80 w-full rounded-xl animate-fade-in-up animate-fade-in-up-delay-1" />
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-3 mb-6 animate-fade-in-up">
-              {[
-                periodCompare.label
-                  ? `Vs previous period (${periodCompare.label}): leads ${periodCompare.leads || '—'}, activities ${periodCompare.activities || '—'}, completed follow-ups ${periodCompare.followUps || '—'}.`
-                  : 'Pick a date range to compare with the previous period.',
-                leadVelocity.length
-                  ? `Slowest stage: ${[...leadVelocity].sort((a, b) => b.avgDays - a.avgDays)[0]?.stage ?? '—'} (${[...leadVelocity].sort((a, b) => b.avgDays - a.avgDays)[0]?.avgDays ?? 0}d avg)`
-                  : 'Lead velocity will appear as stages move.',
-                `Follow-up completion is ${productivityMetrics.followUpCompletionRate}%. Task completion is ${productivityMetrics.taskCompletionRate}%.`,
-              ].map((text) => (
-                <Card key={text} className="card-shadow rounded-xl border-border/80">
-                  <CardContent className="p-4 text-sm text-muted-foreground leading-relaxed">{text}</CardContent>
-                </Card>
-              ))}
-            </div>
             {/* Productivity KPI Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 animate-fade-in-up animate-fade-in-up-delay-2">
               {[
@@ -788,52 +716,28 @@ export default function Reports() {
                 </Card>
               )}
 
-              {/* Pipeline funnel */}
+              {/* Leads by Status */}
               <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover animate-fade-in-up animate-fade-in-up-delay-6">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 font-display">
                     <PieChart className="h-5 w-5" />
-                    Pipeline funnel
+                    Leads by Status
                   </CardTitle>
-                  <CardDescription>Current stock by stage, with conversion vs the previous stage</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {byStatus.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-8 text-center">No data</p>
                   ) : (
-                    <>
                     <ResponsiveContainer width="100%" height={260}>
-                      <BarChart
-                        data={byStatus.map((row, i, arr) => ({
-                          ...row,
-                          conv: i === 0 || arr[i - 1].value === 0 ? null : Math.round((row.value / arr[i - 1].value) * 100),
-                        }))}
-                        layout="vertical"
-                        margin={{ left: 80 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis type="number" />
-                        <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 11 }} />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', color: 'hsl(var(--popover-foreground))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} />
-                        <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                      <RechartsPie>
+                        <Pie data={byStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name}: ${value}`}>
                           {byStatus.map((entry, i) => (
                             <Cell key={i} fill={entry.color} />
                           ))}
-                        </Bar>
-                      </BarChart>
+                        </Pie>
+                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', color: 'hsl(var(--popover-foreground))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} labelStyle={{ color: 'hsl(var(--popover-foreground))' }} />
+                      </RechartsPie>
                     </ResponsiveContainer>
-                    <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-                      {byStatus.map((row, i, arr) => {
-                        const conv = i === 0 || arr[i - 1].value === 0 ? null : Math.round((row.value / arr[i - 1].value) * 100);
-                        return (
-                          <li key={row.name} className="flex justify-between gap-2">
-                            <span>{row.name}</span>
-                            <span className="tabular-nums">{row.value}{conv != null ? ` · ${conv}% of ${arr[i - 1].name}` : ''}</span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    </>
                   )}
                 </CardContent>
               </Card>

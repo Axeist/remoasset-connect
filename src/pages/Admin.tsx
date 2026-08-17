@@ -52,9 +52,6 @@ interface Status {
   name: string;
   color: string;
   sort_order: number;
-  sla_idle_days?: number | null;
-  sla_stage_days?: number | null;
-  sla_followup_intent?: string | null;
 }
 
 interface Country {
@@ -1371,11 +1368,6 @@ curl -X POST ${baseUrl}/notifications \\
                           <div key={status.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors group">
                             <div className="h-3 w-3 rounded-full shrink-0 ring-2 ring-white/10" style={{ backgroundColor: status.color }} />
                             <span className="text-sm flex-1 font-medium">{status.name}</span>
-                            <span className="text-[11px] text-muted-foreground">
-                              {status.sla_idle_days || status.sla_stage_days
-                                ? `Idle ${status.sla_idle_days ?? '—'}d · Stage ${status.sla_stage_days ?? '—'}d`
-                                : 'No SLA'}
-                            </span>
                             <span className="text-xs text-muted-foreground/50 font-mono">#{status.sort_order}</span>
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button onClick={() => { setEditingStatus(status); setStatusFormOpen(true); }} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">

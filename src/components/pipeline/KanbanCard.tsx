@@ -2,7 +2,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 import { Building2, User, Star, GripVertical, ExternalLink, Plus } from 'lucide-react';
-import { evaluateLeadSla } from '@/lib/leadSla';
+import type { Lead } from '@/types/lead';
 
 interface KanbanCardContentProps {
   lead: Lead;
@@ -20,7 +20,6 @@ function scoreColor(score: number | null): string {
 }
 
 function CardContent({ lead, onClick, onAddActivity, isDragOverlay, showGrip }: KanbanCardContentProps) {
-  const sla = evaluateLeadSla(lead);
   return (
     <>
       {showGrip && (
@@ -51,19 +50,6 @@ function CardContent({ lead, onClick, onAddActivity, isDragOverlay, showGrip }: 
           <Star className="h-2.5 w-2.5" />
           {lead.lead_score ?? 0}
         </span>
-        {sla.badge && (
-          <span
-            className={cn(
-              'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold',
-              sla.breached
-                ? 'text-amber-800 bg-amber-100 dark:text-amber-300 dark:bg-amber-500/15'
-                : 'text-muted-foreground bg-muted'
-            )}
-            title={sla.tooltip}
-          >
-            {sla.badge}
-          </span>
-        )}
         {((lead as any).hq_country?.code || (lead.countries && lead.countries.length > 0)) && (
           <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
             {(lead as any).hq_country?.code
@@ -142,7 +128,6 @@ export function KanbanCard({ lead, onClick, onAddActivity, isDragOverlay, disabl
         disableDrag ? 'cursor-default' : 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-30 scale-95',
         isDragOverlay && 'shadow-xl shadow-black/15 ring-2 ring-primary/30 rotate-[2deg] scale-105 z-50',
-        evaluateLeadSla(lead).breached && 'border-l-2 border-l-amber-500',
       )}
     >
       <CardContent
@@ -171,7 +156,6 @@ export function StaticKanbanCard({ lead, onClick, onAddActivity }: StaticKanbanC
         'group relative rounded-lg border bg-card p-3 select-none',
         'transition-all duration-200 hover:shadow-md hover:border-border',
         'hover:-translate-y-0.5 cursor-default',
-        evaluateLeadSla(lead).breached && 'border-l-2 border-l-amber-500',
       )}
     >
       <CardContent

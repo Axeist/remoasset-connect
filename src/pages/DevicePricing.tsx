@@ -16,7 +16,7 @@ import {
   Search, Plus, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronRight,
   DollarSign, Globe2, Building2, Laptop, X, Filter, CalendarClock,
 } from 'lucide-react';
-import { discountVsMrp } from '@/lib/mrp-insights';
+import { AddDevicePricingDialog } from '@/components/device-pricing/AddDevicePricingDialog';
 import type { VendorDevicePricing } from '@/types/procurement';
 
 type SortKey = 'brand' | 'device_model' | 'price_usd' | 'country' | 'vendor' | 'quote_validity_date';
@@ -161,22 +161,11 @@ export default function DevicePricing() {
     const avgPrice = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
     const countriesSet = new Set(filtered.map((d) => d.country_id));
     const vendorsSet = new Set(filtered.map((d) => d.vendor_id));
-    const withMrp = filtered.filter((d) => d.mrp_usd && d.mrp_usd > 0);
-    const pcts = withMrp.map((d) => discountVsMrp(Number(d.mrp_usd), Number(d.price_usd))).filter(Boolean) as { pctOffMrp: number }[];
-    const avgPctOff = pcts.length ? pcts.reduce((a, b) => a + b.pctOffMrp, 0) / pcts.length : null;
-    const outlier = pcts.length
-      ? withMrp
-          .map((d) => ({ d, ins: discountVsMrp(Number(d.mrp_usd), Number(d.price_usd)) }))
-          .filter((x) => x.ins)
-          .sort((a, b) => (b.ins!.pctOffMrp) - (a.ins!.pctOffMrp))[0]
-      : null;
     return {
       total: filtered.length,
       avgPrice: avgPrice.toFixed(2),
       countries: countriesSet.size,
       vendors: vendorsSet.size,
-      avgPctOff,
-      outlierLabel: outlier ? `${outlier.d.brand} ${outlier.d.device_model} (${outlier.ins!.pctOffMrp.toFixed(0)}% off MRP)` : null,
     };
   }, [filtered]);
 
@@ -211,7 +200,7 @@ export default function DevicePricing() {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Card className="p-3">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">
               <Laptop className="h-3.5 w-3.5" /> Devices
@@ -226,12 +215,6 @@ export default function DevicePricing() {
           </Card>
           <Card className="p-3">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">
-              <DollarSign className="h-3.5 w-3.5" /> Avg % off MRP
-            </div>
-            <p className="text-xl font-bold">{stats.avgPctOff != null ? `${stats.avgPctOff.toFixed(0)}%` : '—'}</p>
-          </Card>
-          <Card className="p-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">
               <Globe2 className="h-3.5 w-3.5" /> Countries
             </div>
             <p className="text-xl font-bold">{stats.countries}</p>
@@ -243,9 +226,6 @@ export default function DevicePricing() {
             <p className="text-xl font-bold">{stats.vendors}</p>
           </Card>
         </div>
-        {stats.outlierLabel && (
-          <p className="text-xs text-muted-foreground">Largest discount vs list: {stats.outlierLabel}</p>
-        )}
 
         {/* Filter Bar */}
         <div className="flex items-center gap-2 flex-wrap">

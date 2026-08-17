@@ -16,13 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
-type BulkAction = 'status' | 'owner' | 'followup';
+type BulkAction = 'status' | 'owner';
 
 interface BulkActionsDialogProps {
   open: boolean;
@@ -43,11 +41,8 @@ export function BulkActionsDialog({
   const [owners, setOwners] = useState<{ id: string; full_name: string | null }[]>([]);
   const [selectedStatusId, setSelectedStatusId] = useState('');
   const [selectedOwnerId, setSelectedOwnerId] = useState('');
-  const [followUpAt, setFollowUpAt] = useState('');
-  const [followUpNotes, setFollowUpNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
 
   useEffect(() => {
     if (!open) return;
@@ -74,32 +69,6 @@ export function BulkActionsDialog({
     }
     if (action === 'owner' && !selectedOwnerId) {
       toast({ variant: 'destructive', title: 'Select an owner' });
-      return;
-    }
-    if (action === 'followup') {
-      if (!followUpAt) {
-        toast({ variant: 'destructive', title: 'Pick a date and time' });
-        return;
-      }
-      if (!user?.id) return;
-      setSubmitting(true);
-      const rows = leadIds.map((lead_id) => ({
-        lead_id,
-        user_id: user.id,
-        scheduled_at: new Date(followUpAt).toISOString(),
-        reminder_type: 'one-time',
-        notes: followUpNotes.trim() || null,
-        is_completed: false,
-      }));
-      const { error } = await supabase.from('follow_ups').insert(rows);
-      setSubmitting(false);
-      if (error) {
-        toast({ variant: 'destructive', title: 'Error', description: error.message });
-        return;
-      }
-      toast({ title: 'Follow-ups scheduled', description: `${leadIds.length} lead(s).` });
-      onOpenChange(false);
-      onSuccess();
       return;
     }
     setSubmitting(true);
@@ -147,12 +116,10 @@ export function BulkActionsDialog({
     onSuccess();
   };
 
-  const title = action === 'status' ? 'Update status' : action === 'owner' ? 'Assign owner' : 'Schedule follow-up';
+  const title = action === 'status' ? 'Update status' : 'Assign owner';
   const description = action === 'status'
     ? `Set status for ${leadIds.length} selected lead(s).`
-    : action === 'owner'
-      ? `Assign owner for ${leadIds.length} selected lead(s).`
-      : `Same date for ${leadIds.length} selected lead(s).`;
+    : `Assign owner for ${leadIds.length} selected lead(s).`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -182,18 +149,6 @@ export function BulkActionsDialog({
               </Select>
             </div>
           )}
-          {action === 'followup' && (
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label>When</Label>
-                <Input type="datetime-local" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Input value={followUpNotes} onChange={(e) => setFollowUpNotes(e.target.value)} placeholder="Optional" />
-              </div>
-            </div>
-          )}
           {action === 'owner' && (
             <div className="space-y-2">
               <Label>Owner</Label>
@@ -221,8 +176,7 @@ export function BulkActionsDialog({
             disabled={
               submitting ||
               (action === 'status' && !selectedStatusId) ||
-              (action === 'owner' && !selectedOwnerId) ||
-              (action === 'followup' && !followUpAt)
+              (action === 'owner' && !selectedOwnerId)
             }
             className="gradient-primary"
           >

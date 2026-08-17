@@ -14,15 +14,8 @@ import type { Lead } from '@/types/lead';
 import { safeFormat } from '@/lib/date';
 import { ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { evaluateLeadSla } from '@/lib/leadSla';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
-export type SortField = 'company_name' | 'created_at' | 'lead_score' | 'contact_name' | 'last_activity_at';
+type SortField = 'company_name' | 'created_at' | 'lead_score' | 'contact_name';
 type SortOrder = 'asc' | 'desc';
 
 interface LeadsTableProps {
@@ -38,9 +31,10 @@ interface LeadsTableProps {
   pageSize?: number;
   totalCount?: number;
   onPageChange?: (page: number) => void;
+  /** When provided, clicking a row calls this instead of navigating to the detail page */
   onLeadClick?: (lead: Lead) => void;
+  /** ID of the currently selected/active lead (highlights the row) */
   activeleadId?: string;
-  emptyMessage?: string;
 }
 
 export function LeadsTable({
@@ -57,7 +51,6 @@ export function LeadsTable({
   onPageChange,
   onLeadClick,
   activeleadId,
-  emptyMessage = 'No leads found. Add your first lead to get started!',
 }: LeadsTableProps) {
   const navigate = useNavigate();
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -69,6 +62,12 @@ export function LeadsTable({
     if (next.has(leadId)) next.delete(leadId);
     else next.add(leadId);
     onSelectionChange?.(next);
+  };
+
+  const toggleAll = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (allSelected) onSelectionChange?.(new Set());
+    else onSelectionChange?.(new Set(leads.map((l) => l.id)));
   };
 
   const SortHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => {
@@ -104,21 +103,20 @@ export function LeadsTable({
     return (
       <Card className="card-shadow">
         <CardContent className="py-12 text-center">
-          <p className="text-muted-foreground">{emptyMessage}</p>
+          <p className="text-muted-foreground">No leads found. Add your first lead to get started!</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <TooltipProvider delayDuration={200}>
     <Card className="card-shadow overflow-hidden rounded-xl border-border/80 animate-inner-card-hover">
       <CardContent className="p-0">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
               {onSelectionChange && (
-                <TableHead className="w-10">
+                <TableHead className="w-10" onClick={toggleAll}>
                   <Checkbox
                     checked={allSelected}
                     onCheckedChange={() => (allSelected ? onSelectionChange(new Set()) : onSelectionChange(new Set(leads.map((l) => l.id))))}
@@ -132,28 +130,18 @@ export function LeadsTable({
               <SortHeader field="lead_score">Score</SortHeader>
               <TableHead>Owner</TableHead>
               <TableHead>HQ / Served</TableHead>
-              <SortHeader field="last_activity_at">Last Activity</SortHeader>
-              <TableHead>Next</TableHead>
+              <TableHead>Last Activity</TableHead>
               <SortHeader field="created_at">Created</SortHeader>
               <TableHead className="w-8" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {leads.map((lead) => {
-              const sla = evaluateLeadSla(lead);
-              const nextLabel = lead.next_follow_up_at
-                ? safeFormat(lead.next_follow_up_at, 'MMM d')
-                : lead.next_task_due
-                  ? safeFormat(lead.next_task_due, 'MMM d')
-                  : 'None';
-              return (
+            {leads.map((lead) => (
               <TableRow
                 key={lead.id}
                 className={cn(
                   'cursor-pointer hover:bg-muted/30 transition-colors',
-                  activeleadId === lead.id && 'bg-primary/5 border-l-2 border-l-primary',
-                  sla.breached && 'bg-amber-500/10 border-l-2 border-l-amber-500',
-                  !sla.breached && sla.approaching && 'border-l-2 border-l-amber-400/70'
+                  activeleadId === lead.id && 'bg-primary/5 border-l-2 border-l-primary'
                 )}
                 onClick={() => onLeadClick ? onLeadClick(lead) : navigate(`/leads/${lead.id}`)}
               >
@@ -203,10 +191,10 @@ export function LeadsTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-0.5">
-                    {lead.hq_country && (
+                    {(lead as any).hq_country && (
                       <span className="flex items-center gap-1">
                         <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-primary/10 text-primary rounded">HQ</span>
-                        <span className="text-xs font-medium px-2 py-0.5 bg-muted rounded">{lead.hq_country.code}</span>
+                        <span className="text-xs font-medium px-2 py-0.5 bg-muted rounded">{(lead as any).hq_country.code}</span>
                       </span>
                     )}
                     {lead.countries && lead.countries.length > 0 && (
@@ -221,28 +209,13 @@ export function LeadsTable({
                         )}
                       </span>
                     )}
-                    {!lead.hq_country && (!lead.countries || lead.countries.length === 0) && '-'}
+                    {!(lead as any).hq_country && (!lead.countries || lead.countries.length === 0) && '-'}
                   </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground text-sm tabular-nums">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span>{safeFormat(lead.last_activity_at || lead.created_at, 'MMM d, yyyy')}</span>
-                    {sla.badge && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Badge variant={sla.breached ? 'destructive' : 'secondary'} className="text-[10px] h-5 px-1.5">
-                            {sla.breached ? 'SLA' : sla.badge}
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs text-xs">{sla.tooltip}</TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
+                <TableCell className="text-muted-foreground text-sm">
+                  {safeFormat(lead.updated_at, 'MMM d, yyyy')}
                 </TableCell>
-                <TableCell className={cn('text-sm tabular-nums', nextLabel === 'None' && 'text-amber-600 dark:text-amber-400')}>
-                  {nextLabel}
-                </TableCell>
-                <TableCell className="text-muted-foreground text-sm tabular-nums">
+                <TableCell className="text-muted-foreground text-sm">
                   {safeFormat(lead.created_at, 'MMM d, yyyy')}
                 </TableCell>
                 <TableCell className="w-8 p-1" onClick={(e) => e.stopPropagation()}>
@@ -258,8 +231,7 @@ export function LeadsTable({
                   </a>
                 </TableCell>
               </TableRow>
-            );
-            })}
+            ))}
           </TableBody>
         </Table>
         {onPageChange && totalCount > pageSize && (
@@ -302,6 +274,5 @@ export function LeadsTable({
         )}
       </CardContent>
     </Card>
-    </TooltipProvider>
   );
 }

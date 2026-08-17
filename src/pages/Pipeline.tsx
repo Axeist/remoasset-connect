@@ -155,7 +155,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     setLoading(true);
     let query = supabase
       .from('leads')
-      .select('id, company_name, contact_name, email, phone, lead_score, status_id, owner_id, hq_country_id, country_ids, created_at, updated_at, last_activity_at, status_changed_at, website, contact_designation, notes, status:lead_statuses(name, color, sla_idle_days, sla_stage_days)')
+      .select('id, company_name, contact_name, email, phone, lead_score, status_id, owner_id, hq_country_id, country_ids, created_at, updated_at, website, contact_designation, notes, status:lead_statuses(name, color)')
       .order('lead_score', { ascending: false });
 
     if (role === 'employee' && user) {

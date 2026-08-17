@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { KPICard } from '@/components/dashboard/KPICard';
@@ -12,14 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
-import { ReportDateFilter, type ReportDateFilterValue } from '@/components/reports/ReportDateFilter';
-import { getPresetRange } from '@/lib/datePresets';
 
 export default function Dashboard() {
-  const [dateFilter, setDateFilter] = useState<ReportDateFilterValue>(() => {
-    const range = getPresetRange('this_month')!;
-    return { preset: 'this_month', from: range.from, to: range.to };
-  });
   const {
     kpis,
     statusData,
@@ -35,24 +28,22 @@ export default function Dashboard() {
     myTasksCompleted,
     myTasksTotal,
     worldDemographics,
-    attentionItems,
-    bottleneck,
     loading,
     isAdmin,
-  } = useDashboardData({ from: dateFilter.from, to: dateFilter.to });
+  } = useDashboardData();
 
   const kpiCards = isAdmin
     ? [
-        { title: 'Total Leads', value: String(kpis.totalLeads), change: kpis.totalLeadsChange, icon: Users, variant: 'primary' as const },
-        { title: 'Conversion Rate', value: kpis.conversionRate, change: kpis.conversionChange, icon: Target, variant: 'success' as const },
-        { title: 'Hot Leads', value: String(kpis.hotLeads), change: kpis.hotLeadsChange, icon: Flame, variant: 'accent' as const },
-        { title: 'Tasks Due', value: String(kpis.tasksDue), change: kpis.tasksDueChange, icon: CheckSquare, variant: 'warning' as const },
+        { title: 'Total Leads', value: String(kpis.totalLeads), change: '', icon: Users, variant: 'primary' as const },
+        { title: 'Conversion Rate', value: kpis.conversionRate, change: '', icon: Target, variant: 'success' as const },
+        { title: 'Hot Leads', value: String(kpis.hotLeads), change: '', icon: Flame, variant: 'accent' as const },
+        { title: 'Tasks Due', value: String(kpis.tasksDue), change: '', icon: CheckSquare, variant: 'warning' as const },
       ]
     : [
-        { title: 'My Leads', value: String(kpis.totalLeads), change: kpis.totalLeadsChange, icon: Users, variant: 'primary' as const },
-        { title: 'Tasks Due Today', value: String(kpis.tasksDue), change: kpis.tasksDueChange, icon: CheckSquare, variant: 'accent' as const },
+        { title: 'My Leads', value: String(kpis.totalLeads), change: '', icon: Users, variant: 'primary' as const },
+        { title: 'Tasks Due Today', value: String(kpis.tasksDue), change: '', icon: CheckSquare, variant: 'accent' as const },
         { title: 'Follow-ups', value: String(kpis.followUps ?? 0), change: '', icon: Target, variant: 'success' as const },
-        { title: 'Hot Leads', value: String(kpis.hotLeads), change: kpis.hotLeadsChange, icon: Flame, variant: 'warning' as const },
+        { title: 'Hot Leads', value: String(kpis.hotLeads), change: '', icon: Flame, variant: 'warning' as const },
       ];
 
   return (
@@ -61,81 +52,15 @@ export default function Dashboard() {
         {/* Header with subtle gradient glow (login theme) */}
         <div className="relative rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm px-6 py-5 animate-fade-in-up">
           <div className="absolute inset-0 rounded-2xl bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,hsl(var(--primary)/0.08),transparent)] pointer-events-none" />
-          <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div>
+          <div className="relative">
             <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
               {isAdmin ? 'Admin Dashboard' : 'My Dashboard'}
             </h1>
             <p className="text-muted-foreground mt-1.5">
-              {isAdmin ? 'Overview of all team activities and leads. KPI change is vs the previous period.' : 'Your personal performance overview. KPI change is vs the previous period.'}
+              {isAdmin ? 'Overview of all team activities and leads' : 'Your personal performance overview'}
             </p>
-            </div>
-          <ReportDateFilter
-            value={dateFilter}
-            compact
-            className="relative w-full sm:w-56 space-y-0"
-            onChange={(v) => {
-              if (v.preset !== dateFilter.preset && v.preset !== 'custom') {
-                const range = getPresetRange(v.preset);
-                setDateFilter({ preset: v.preset, from: range?.from ?? null, to: range?.to ?? null });
-              } else {
-                setDateFilter(v);
-              }
-            }}
-          />
           </div>
         </div>
-
-        {(
-          <Card className="card-shadow rounded-xl border-border/80 animate-fade-in-up">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="font-display">Needs attention</CardTitle>
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/notifications" className="gap-1">
-                  Open Alerts
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {bottleneck && <p className="text-sm text-muted-foreground">{bottleneck}</p>}
-              {attentionItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nothing overdue or past SLA.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {attentionItems.map((item) => (
-                    <li key={item.id}>
-                      <Link
-                        to={item.href}
-                        className="flex items-center justify-between text-sm hover:bg-muted/50 rounded-lg px-2 py-1.5 -mx-2"
-                      >
-                        <span className="font-medium truncate">{item.company}</span>
-                        <span className="text-xs text-muted-foreground shrink-0 ml-2">
-                          {item.reason}
-                          {item.owner ? ` · ${item.owner}` : ''}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="flex flex-wrap gap-2">
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/leads?view=sla_breach">SLA breaches</Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/leads?view=overdue_followup">Overdue follow-ups</Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/leads?view=overdue_task">Overdue tasks</Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/leads?view=no_next_step">No next step</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -251,6 +176,61 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Admin: Quick Access leads table */}
+        {isAdmin && (
+          <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover animate-fade-in-up animate-fade-in-up-delay-4">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="font-display">Quick Access — Leads</CardTitle>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/leads" className="gap-1">
+                  View all
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-32 w-full" />
+              ) : quickAccessLeads.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No leads yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 font-medium">Company</th>
+                        <th className="text-left py-2 font-medium">Status</th>
+                        <th className="text-right py-2 font-medium">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quickAccessLeads.map((l) => (
+                        <tr key={l.id} className="border-b last:border-0">
+                          <td className="py-2 font-medium">{l.company_name}</td>
+                          <td className="py-2">
+                            {l.status ? (
+                              <Badge style={{ backgroundColor: l.status.color }} className="text-white border-0 text-xs">
+                                {l.status.name}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="py-2 text-right">
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link to={`/leads/${l.id}`}>View</Link>
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Admin: Top Performers */}

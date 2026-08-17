@@ -47,7 +47,7 @@ const navItems = [
   { title: 'Follow-ups', url: '/follow-ups', icon: CalendarCheck, roles: ['admin', 'employee'] },
   { title: 'Activity Monitor', url: '/admin/team-activity', icon: Activity, roles: ['admin'] },
   { title: 'Transfer Log', url: '/admin/transfer-log', icon: ArrowRightLeft, roles: ['admin'] },
-  { title: 'Alerts', url: '/notifications', icon: Bell, roles: ['admin', 'employee'] },
+  { title: 'Notifications', url: '/notifications', icon: Bell, roles: ['admin', 'employee'] },
   { title: 'Reports', url: '/reports', icon: BarChart3, roles: ['admin', 'employee'] },
   { title: 'Help', url: '/help', icon: HelpCircle, roles: ['admin', 'employee'] },
   { title: 'Settings', url: '/settings', icon: Settings, roles: ['employee'] },

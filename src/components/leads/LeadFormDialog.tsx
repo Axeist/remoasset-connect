@@ -387,9 +387,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
                   <ul className="mt-1 space-y-0.5">
                     {similarLeads.map((l) => (
                       <li key={l.id} className="text-xs text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                        <a href={`/leads/${l.id}`} target="_blank" rel="noreferrer" className="font-medium truncate hover:underline">
-                          {l.company_name}
-                        </a>
+                        <span className="font-medium truncate">{l.company_name}</span>
                         {l.website && <span className="text-amber-600 dark:text-amber-400 truncate">— {l.website}</span>}
                       </li>
                     ))}

@@ -2,18 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchAllPaginated } from '@/lib/supabasePaginate';
-import { format, subDays, startOfDay, endOfDay, differenceInDays } from 'date-fns';
-import { formatCountDelta } from '@/lib/leadDuplicates';
-import { getPreviousPeriodRange } from '@/lib/datePresets';
-import { leadIdsWithNoNextStep, isTerminalStatusName } from '@/lib/leadWorkQueue';
-
-export interface AttentionItem {
-  id: string;
-  reason: string;
-  company: string;
-  owner?: string;
-  href: string;
-}
+import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 
 export interface DashboardKpis {
   totalLeads: number;
@@ -21,10 +10,6 @@ export interface DashboardKpis {
   hotLeads: number;
   tasksDue: number;
   followUps?: number;
-  totalLeadsChange: string;
-  conversionChange: string;
-  hotLeadsChange: string;
-  tasksDueChange: string;
 }
 
 export interface StatusChartItem {
@@ -100,7 +85,7 @@ export interface WorldDemographicsCountry {
   statusBreakdown: { statusName: string; count: number; color: string }[];
 }
 
-export function useDashboardData(range?: { from: string | null; to: string | null }) {
+export function useDashboardData() {
   const { user, role } = useAuth();
   const isAdmin = role === 'admin';
 
@@ -110,10 +95,6 @@ export function useDashboardData(range?: { from: string | null; to: string | nul
     hotLeads: 0,
     tasksDue: 0,
     followUps: 0,
-    totalLeadsChange: '',
-    conversionChange: '',
-    hotLeadsChange: '',
-    tasksDueChange: '',
   });
   const [statusData, setStatusData] = useState<StatusChartItem[]>([]);
   const [countryData, setCountryData] = useState<CountryChartItem[]>([]);
@@ -128,8 +109,6 @@ export function useDashboardData(range?: { from: string | null; to: string | nul
   const [myTasksCompleted, setMyTasksCompleted] = useState(0);
   const [myTasksTotal, setMyTasksTotal] = useState(0);
   const [worldDemographics, setWorldDemographics] = useState<WorldDemographicsCountry[]>([]);
-  const [attentionItems, setAttentionItems] = useState<AttentionItem[]>([]);
-  const [bottleneck, setBottleneck] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -167,19 +146,9 @@ export function useDashboardData(range?: { from: string | null; to: string | nul
               .gte('scheduled_at', now)
           : Promise.resolve({ count: 0 });
 
-        const statusesRes = await supabase.from('lead_statuses').select('id, name, color, sort_order');
+        const statusesRes = await supabase.from('lead_statuses').select('id, name, color');
         const statuses = (statusesRes.data ?? []) as LeadStatusRow[];
         const wonStatus = statuses.find((s) => s.name.toLowerCase() === 'won');
-
-        const periodFrom = range?.from ?? subDays(new Date(), 7).toISOString();
-        const periodTo = range?.to ?? new Date().toISOString();
-        const prev = getPreviousPeriodRange(periodFrom, periodTo);
-
-        const countLeadsCreated = async (from: string, to: string, extra?: (q: any) => any) => {
-          let q = applyOwnerFilter(supabase.from('leads').select('id', { count: 'exact', head: true }).gte('created_at', from).lte('created_at', to) as any);
-          if (extra) q = extra(q);
-          return (await q).count ?? 0;
-        };
 
         const [
           totalLeadsRes,
@@ -191,15 +160,6 @@ export function useDashboardData(range?: { from: string | null; to: string | nul
           unassignedRes,
           countryRowsData,
           demoData,
-          leadsThis,
-          leadsPrev,
-          wonThis,
-          wonPrev,
-          hotThis,
-          hotPrev,
-          slaBreachRes,
-          overdueFuRes,
-          overdueTaskRes,
         ] = await Promise.all([
           applyOwnerFilter(supabase.from('leads').select('id', { count: 'exact', head: true }) as any),
           applyOwnerFilter(supabase.from('leads').select('id', { count: 'exact', head: true }).gte('lead_score', 70) as any),
@@ -230,45 +190,13 @@ export function useDashboardData(range?: { from: string | null; to: string | nul
             if (!isAdmin) q = q.eq('owner_id', user.id);
             return q;
           }),
-          countLeadsCreated(periodFrom, periodTo),
-          countLeadsCreated(prev.from, prev.to),
-          wonStatus
-            ? countLeadsCreated(periodFrom, periodTo, (q) => q.eq('status_id', wonStatus.id))
-            : Promise.resolve(0),
-          wonStatus
-            ? countLeadsCreated(prev.from, prev.to, (q) => q.eq('status_id', wonStatus.id))
-            : Promise.resolve(0),
-          countLeadsCreated(periodFrom, periodTo, (q) => q.gte('lead_score', 70)),
-          countLeadsCreated(prev.from, prev.to, (q) => q.gte('lead_score', 70)),
-          supabase.rpc('leads_matching_sla', { p_mode: 'breach' }),
-          (() => {
-            let q = supabase.from('follow_ups').select('id, lead_id, notes, scheduled_at').eq('is_completed', false).lt('scheduled_at', now).order('scheduled_at', { ascending: true }).limit(8);
-            if (!isAdmin) q = q.eq('user_id', user.id);
-            return q;
-          })(),
-          (() => {
-            let q = supabase.from('tasks').select('id, lead_id, title, due_date').eq('is_completed', false).lt('due_date', now).order('due_date', { ascending: true }).limit(8);
-            if (!isAdmin) q = q.eq('assignee_id', user.id);
-            return q;
-          })(),
         ]);
 
         const totalLeads = totalLeadsRes.count ?? 0;
         const wonCount = wonCountRes.count ?? 0;
-        const conversionRateNum = totalLeads > 0 ? (wonCount / totalLeads) * 100 : 0;
-        const conversionRate = conversionRateNum.toFixed(1) + '%';
+        const conversionRate = totalLeads > 0 ? ((wonCount / totalLeads) * 100).toFixed(1) + '%' : '0%';
         const hotLeads = hotLeadsRes.count ?? 0;
         const followUps = !isAdmin && followUpsRes.count != null ? followUpsRes.count : 0;
-
-        const convThis = leadsThis > 0 ? (wonThis / leadsThis) * 100 : 0;
-        const convPrevN = leadsPrev > 0 ? (wonPrev / leadsPrev) * 100 : 0;
-
-        const tasksDueThisQ = supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('is_completed', false).gte('due_date', periodFrom).lte('due_date', periodTo);
-        const tasksDuePrevQ = supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('is_completed', false).gte('due_date', prev.from).lte('due_date', prev.to);
-        const [tasksDueThis, tasksDuePrev] = await Promise.all([
-          isAdmin ? tasksDueThisQ : tasksDueThisQ.eq('assignee_id', user.id),
-          isAdmin ? tasksDuePrevQ : tasksDuePrevQ.eq('assignee_id', user.id),
-        ]);
 
         setKpis({
           totalLeads,
@@ -276,10 +204,6 @@ export function useDashboardData(range?: { from: string | null; to: string | nul
           hotLeads,
           tasksDue: tasksRes.count ?? 0,
           followUps,
-          totalLeadsChange: formatCountDelta(leadsThis, leadsPrev),
-          conversionChange: formatCountDelta(Math.round(convThis), Math.round(convPrevN)),
-          hotLeadsChange: formatCountDelta(hotThis, hotPrev),
-          tasksDueChange: formatCountDelta(tasksDueThis.count ?? 0, tasksDuePrev.count ?? 0),
         });
 
         const statusChartData = [...statusCountResults];
@@ -354,117 +278,6 @@ export function useDashboardData(range?: { from: string | null; to: string | nul
         }));
         
         setWorldDemographics(worldDemoArray);
-
-        const attention: AttentionItem[] = [];
-        const breachIds = ((slaBreachRes.data ?? []) as { lead_id: string }[]).map((r) => r.lead_id);
-        if (breachIds.length > 0) {
-          let attQ = supabase
-            .from('leads')
-            .select('id, company_name, owner_id, status:lead_statuses(name), last_activity_at, created_at')
-            .in('id', breachIds.slice(0, 6));
-          if (!isAdmin) attQ = attQ.eq('owner_id', user.id);
-          const { data: attLeads } = await attQ;
-          const ownerIdsAtt = [...new Set((attLeads ?? []).map((l) => l.owner_id).filter(Boolean))] as string[];
-          let names: Record<string, string> = {};
-          if (ownerIdsAtt.length) {
-            const { data: pr } = await supabase.from('profiles').select('user_id, full_name').in('user_id', ownerIdsAtt);
-            names = (pr ?? []).reduce((acc, p) => {
-              acc[p.user_id] = p.full_name ?? '';
-              return acc;
-            }, {} as Record<string, string>);
-          }
-          for (const l of attLeads ?? []) {
-            const st = Array.isArray(l.status) ? l.status[0] : l.status;
-            attention.push({
-              id: `sla-${l.id}`,
-              company: l.company_name,
-              reason: `${st?.name ?? 'Lead'} idle / SLA`,
-              owner: l.owner_id ? names[l.owner_id] : undefined,
-              href: `/leads/${l.id}`,
-            });
-          }
-        }
-
-        const extraLeadIds = [
-          ...(overdueFuRes.data ?? []).map((f) => f.lead_id).filter(Boolean),
-          ...(overdueTaskRes.data ?? []).map((t) => t.lead_id).filter(Boolean),
-        ] as string[];
-        let extraNames: Record<string, string> = {};
-        if (extraLeadIds.length) {
-          const { data: extraLeads } = await supabase.from('leads').select('id, company_name').in('id', extraLeadIds.slice(0, 40));
-          extraNames = (extraLeads ?? []).reduce((acc, l) => {
-            acc[l.id] = l.company_name;
-            return acc;
-          }, {} as Record<string, string>);
-        }
-        for (const f of overdueFuRes.data ?? []) {
-          attention.push({
-            id: `fu-${f.id}`,
-            company: (f.lead_id && extraNames[f.lead_id]) || 'Follow-up',
-            reason: 'Overdue follow-up',
-            href: '/leads?view=overdue_followup',
-          });
-        }
-        for (const t of overdueTaskRes.data ?? []) {
-          attention.push({
-            id: `task-${t.id}`,
-            company: (t.lead_id && extraNames[t.lead_id]) || t.title,
-            reason: 'Overdue task',
-            href: '/leads?view=overdue_task',
-          });
-        }
-
-        const noNextIds = await leadIdsWithNoNextStep();
-        if (noNextIds.length) {
-          let hotQ = supabase
-            .from('leads')
-            .select('id, company_name, owner_id')
-            .gte('lead_score', 70)
-            .in('id', noNextIds.slice(0, 80))
-            .limit(4);
-          if (!isAdmin) hotQ = hotQ.eq('owner_id', user.id);
-          const { data: hotNone } = await hotQ;
-          for (const l of hotNone ?? []) {
-            attention.push({
-              id: `hot-${l.id}`,
-              company: l.company_name,
-              reason: 'Hot · no next step',
-              href: `/leads/${l.id}`,
-            });
-          }
-        }
-
-        setAttentionItems(attention.slice(0, 12));
-
-        const velLeads = await fetchAllPaginated<{
-          status_id: string | null;
-          status_changed_at: string | null;
-          created_at: string;
-        }>((from, to) => {
-          let q = supabase.from('leads').select('status_id, status_changed_at, created_at').range(from, to);
-          if (!isAdmin) q = q.eq('owner_id', user.id);
-          return q;
-        });
-        const statusById = Object.fromEntries(statuses.map((s) => [s.id, s]));
-        const stageDays: Record<string, { total: number; count: number }> = {};
-        const nowDate = new Date();
-        for (const l of velLeads) {
-          const st = l.status_id ? statusById[l.status_id] : null;
-          if (!st || isTerminalStatusName(st.name)) continue;
-          const start = new Date(l.status_changed_at || l.created_at);
-          const days = Math.max(0, differenceInDays(nowDate, start));
-          if (!stageDays[st.name]) stageDays[st.name] = { total: 0, count: 0 };
-          stageDays[st.name].total += days;
-          stageDays[st.name].count += 1;
-        }
-        const slowestVel = Object.entries(stageDays)
-          .map(([name, v]) => ({ name, avg: v.count ? v.total / v.count : 0, count: v.count }))
-          .sort((a, b) => b.avg - a.avg)[0];
-        setBottleneck(
-          slowestVel && slowestVel.avg > 0
-            ? `${slowestVel.name} is slowest (${slowestVel.avg.toFixed(0)}d avg in stage)`
-            : ''
-        );
 
         setLoading(false);
 
@@ -618,7 +431,7 @@ export function useDashboardData(range?: { from: string | null; to: string | nul
         setLoading(false);
       }
     })();
-  }, [user?.id, role, isAdmin, range?.from, range?.to]);
+  }, [user?.id, role, isAdmin]);
 
   return {
     kpis,
@@ -635,8 +448,6 @@ export function useDashboardData(range?: { from: string | null; to: string | nul
     myTasksCompleted,
     myTasksTotal,
     worldDemographics,
-    attentionItems,
-    bottleneck,
     loading,
     isAdmin,
   };

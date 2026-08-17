@@ -41,35 +41,3 @@ export const ACTIVITY_SCORE_MIN = 0;
 export function clampLeadScore(score: number): number {
   return Math.max(ACTIVITY_SCORE_MIN, Math.min(ACTIVITY_SCORE_MAX, Math.round(score)));
 }
-
-export interface ScoreWhyLine {
-  type: string;
-  count: number;
-  points: number;
-}
-
-/** Reconstruct score mix from logged activities (capped at 100). */
-export function explainLeadScore(
-  activities: { activity_type: string; description?: string | null }[],
-): { lines: ScoreWhyLine[]; rawTotal: number; capped: number; summary: string } {
-  const byType = new Map<string, { count: number; points: number }>();
-  let rawTotal = 0;
-  for (const a of activities) {
-    const type = (a.activity_type as ActivityType) in BASE_POINTS ? (a.activity_type as ActivityType) : 'note';
-    const pts = getActivityScorePoints(type, a.description ?? '');
-    rawTotal += pts;
-    const prev = byType.get(type) ?? { count: 0, points: 0 };
-    prev.count += 1;
-    prev.points += pts;
-    byType.set(type, prev);
-  }
-  const lines = [...byType.entries()]
-    .map(([type, v]) => ({ type, count: v.count, points: v.points }))
-    .sort((a, b) => b.points - a.points);
-  const capped = clampLeadScore(rawTotal);
-  const top = lines.slice(0, 3).map((l) => `${l.count} ${l.type}${l.count === 1 ? '' : 's'} (+${l.points})`);
-  const summary = lines.length
-    ? `${capped}/100 from ${activities.length} logged ${activities.length === 1 ? 'activity' : 'activities'}${top.length ? `: ${top.join(', ')}` : ''}.`
-    : 'No logged activities yet — score stays at the starting value.';
-  return { lines, rawTotal, capped, summary };
-}
