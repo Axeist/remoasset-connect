@@ -65,6 +65,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const { theme, setTheme } = useTheme();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [slaCount, setSlaCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -76,6 +77,8 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
         .order('created_at', { ascending: false })
         .limit(20);
       setNotifications((data as AppNotification[]) ?? []);
+      const { data: sla } = await supabase.rpc('leads_matching_sla', { p_mode: 'breach' });
+      setSlaCount((sla ?? []).length);
     };
     fetchNotifications();
     const channel = supabase
@@ -100,6 +103,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   }, [user?.id]);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const bellCount = unreadCount + slaCount;
   const isMobile = useIsMobile();
 
   const markAsRead = async (id: string) => {
@@ -155,18 +159,19 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="relative h-9 w-9">
             <Bell className="h-[19px] w-[19px]" />
-            {unreadCount > 0 && (
+            {bellCount > 0 && (
               <Badge 
                 className="absolute -top-0.5 -right-0.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] gradient-accent border-0"
               >
-                {unreadCount}
+                {bellCount > 9 ? '9+' : bellCount}
               </Badge>
             )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-80">
-          <div className="p-2 border-b border-border">
-            <h4 className="font-semibold text-sm">Notifications</h4>
+          <div className="p-2 border-b border-border flex items-center justify-between gap-2">
+            <h4 className="font-semibold text-sm">Alerts</h4>
+            <Link to="/notifications" className="text-xs text-primary hover:underline">Open actionables</Link>
           </div>
           {notifications.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">No notifications</div>

@@ -130,6 +130,9 @@ export type Database = {
           id: string
           name: string
           sort_order: number
+          sla_idle_days: number | null
+          sla_stage_days: number | null
+          sla_followup_intent: string | null
         }
         Insert: {
           color?: string
@@ -137,6 +140,9 @@ export type Database = {
           id?: string
           name: string
           sort_order?: number
+          sla_idle_days?: number | null
+          sla_stage_days?: number | null
+          sla_followup_intent?: string | null
         }
         Update: {
           color?: string
@@ -144,6 +150,9 @@ export type Database = {
           id?: string
           name?: string
           sort_order?: number
+          sla_idle_days?: number | null
+          sla_stage_days?: number | null
+          sla_followup_intent?: string | null
         }
         Relationships: []
       }
@@ -164,6 +173,8 @@ export type Database = {
           status_id: string | null
           updated_at: string
           website: string | null
+          last_activity_at: string | null
+          status_changed_at: string | null
         }
         Insert: {
           company_name: string
@@ -181,6 +192,8 @@ export type Database = {
           status_id?: string | null
           updated_at?: string
           website?: string | null
+          last_activity_at?: string | null
+          status_changed_at?: string | null
         }
         Update: {
           company_name?: string
@@ -198,6 +211,8 @@ export type Database = {
           status_id?: string | null
           updated_at?: string
           website?: string | null
+          last_activity_at?: string | null
+          status_changed_at?: string | null
         }
         Relationships: [
           {
@@ -361,6 +376,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      leads_matching_sla: {
+        Args: { p_mode?: string }
+        Returns: { lead_id: string }[]
       }
     }
     Enums: {

@@ -7,12 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, SlidersHorizontal, X, CalendarDays, RotateCcw } from 'lucide-react';
+import { Search, SlidersHorizontal, X, CalendarDays, RotateCcw, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatVendorTypeLabel, VENDOR_TYPE_OPTIONS } from '@/lib/vendorTypes';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { LEGACY_DATE_PRESETS as DATE_PRESETS, getPresetRange } from '@/lib/datePresets';
+import { Checkbox } from '@/components/ui/checkbox';
+import { parseStatusIds } from '@/lib/leadWorkQueue';
 
 /** Region codes for filtering (ANZ, MENA, LATAM, EU, NA, APAC) */
 export const REGIONS = [
@@ -93,7 +95,7 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
-    if (filters.status) count++;
+    if (parseStatusIds(filters.status).length) count++;
     if (filters.region) count++;
     if (filters.country) count++;
     if (filters.owner) count++;
@@ -183,25 +185,49 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
 
         {/* Row 2: Basic filters (always visible) */}
         <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-          <Select
-            value={filters.status || 'all'}
-            onValueChange={(v) => update({ status: v === 'all' ? '' : v })}
-          >
-            <SelectTrigger className="h-9 text-xs">
-              <SelectValue placeholder="All Statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              {statuses.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                    {s.name}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-9 text-xs justify-between font-normal px-3">
+                <span className="truncate">
+                  {(() => {
+                    const ids = parseStatusIds(filters.status);
+                    if (!ids.length) return 'All Statuses';
+                    if (ids.length === 1) return statuses.find((s) => s.id === ids[0])?.name ?? '1 status';
+                    return `${ids.length} statuses`;
+                  })()}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0 ml-1" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2" align="start">
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {statuses.map((s) => {
+                  const ids = parseStatusIds(filters.status);
+                  const checked = ids.includes(s.id);
+                  return (
+                    <label key={s.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted cursor-pointer">
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(v) => {
+                          const next = new Set(ids);
+                          if (v) next.add(s.id);
+                          else next.delete(s.id);
+                          update({ status: [...next].join(',') });
+                        }}
+                      />
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                      {s.name}
+                    </label>
+                  );
+                })}
+              </div>
+              {parseStatusIds(filters.status).length > 0 && (
+                <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => update({ status: '' })}>
+                  Clear statuses
+                </Button>
+              )}
+            </PopoverContent>
+          </Popover>
 
           <Select
             value={filters.region || 'all'}
@@ -381,12 +407,16 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
             {/* Active filter chips */}
             {activeFilterCount > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
-                {filters.status && (
+                {parseStatusIds(filters.status).map((id) => (
                   <FilterChip
-                    label={`Status: ${statuses.find((s) => s.id === filters.status)?.name ?? 'Unknown'}`}
-                    onRemove={() => update({ status: '' })}
+                    key={id}
+                    label={`Status: ${statuses.find((s) => s.id === id)?.name ?? 'Unknown'}`}
+                    onRemove={() => {
+                      const next = parseStatusIds(filters.status).filter((x) => x !== id);
+                      update({ status: next.join(',') });
+                    }}
                   />
-                )}
+                ))}
                 {filters.region && (
                   <FilterChip
                     label={`Region: ${filters.region}`}

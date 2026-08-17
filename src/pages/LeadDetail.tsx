@@ -21,7 +21,9 @@ import { TransferLeadDialog } from '@/components/leads/TransferLeadDialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { DraftFollowUpDialog } from '@/components/leads/DraftFollowUpDialog';
+import { evaluateLeadSla } from '@/lib/leadSla';
+import { explainLeadScore } from '@/lib/leadScore';
 import { safeFormat } from '@/lib/date';
 import { useSyncGoogleMeetingActivities } from '@/hooks/useSyncGoogleMeetingActivities';
 import {
@@ -141,6 +143,7 @@ export default function LeadDetail() {
   const [stageSubmitting, setStageSubmitting] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [draftOpen, setDraftOpen] = useState(false);
 
   const isAdmin = role === 'admin';
   const isOwner = lead?.owner_id === user?.id;
@@ -168,7 +171,7 @@ export default function LeadDetail() {
   useEffect(() => {
     // Fetch statuses for all users
     (async () => {
-      const { data } = await supabase.from('lead_statuses').select('id, name, color, sort_order').order('sort_order');
+      const { data } = await supabase.from('lead_statuses').select('id, name, color, sort_order, sla_idle_days, sla_stage_days, sla_followup_intent').order('sort_order');
       if (data) setStatusOptions(data);
     })();
 
@@ -194,7 +197,7 @@ export default function LeadDetail() {
       .from('leads')
       .select(`
         *,
-        status:lead_statuses(name, color)
+        status:lead_statuses(name, color, sla_idle_days, sla_stage_days, sla_followup_intent)
       `)
       .eq('id', id)
       .single();
@@ -379,6 +382,44 @@ export default function LeadDetail() {
           </div>
         </div>
 
+        {(() => {
+          const sla = evaluateLeadSla(lead);
+          const nextFu = followUps.find((f) => !f.is_completed);
+          const nextTask = tasks.find((t) => !t.is_completed);
+          const lastAct = [...activities].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+          const why = explainLeadScore(activities);
+          return (
+            <Card className="card-shadow rounded-xl border-border/80">
+              <CardContent className="py-4 flex flex-col lg:flex-row lg:items-center gap-4">
+                <div className="flex-1 min-w-0 space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next action</p>
+                  <p className="text-sm">
+                    {nextFu
+                      ? `Follow-up ${safeFormat(nextFu.scheduled_at, 'PPp')}`
+                      : nextTask
+                        ? `Task: ${nextTask.title}`
+                        : 'No follow-up or task scheduled'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Last activity {lastAct ? `${lastAct.activity_type} · ${safeFormat(lastAct.created_at, 'PP')}` : 'none'}
+                    {sla.badge ? ` · ${sla.tooltip}` : ''}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{why.summary}</p>
+                </div>
+                <Button
+                  className="gradient-primary gap-1.5 shrink-0"
+                  disabled={!lead.email}
+                  title={!lead.email ? 'Add an email on the lead first' : 'Draft follow-up'}
+                  onClick={() => setDraftOpen(true)}
+                >
+                  <Mail className="h-4 w-4" />
+                  Draft follow-up
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid">
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -501,6 +542,9 @@ export default function LeadDetail() {
                     </div>
                     <span className="font-medium">{lead.lead_score ?? 0}</span>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    {explainLeadScore(activities).summary} Last activity {lead.last_activity_at ? safeFormat(lead.last_activity_at, 'PP') : 'none'}.
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Lead Stage</p>
@@ -778,6 +822,12 @@ export default function LeadDetail() {
               : null
           }
           onSuccess={refreshAll}
+        />
+        <DraftFollowUpDialog
+          open={draftOpen}
+          onOpenChange={setDraftOpen}
+          lead={lead}
+          onSent={refreshAll}
         />
         <TaskFormDialog
           open={taskFormOpen}

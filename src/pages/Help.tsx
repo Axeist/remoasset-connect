@@ -189,15 +189,15 @@ export default function Help() {
 
                   <div className="grid sm:grid-cols-2 gap-3">
                     {[
-                      { icon: LayoutDashboard, title: 'Dashboard', desc: 'KPIs, charts, recent activity, lead distribution map. Admins see team-wide metrics; employees see their own pipeline.' },
-                      { icon: Users,           title: 'Leads',     desc: 'Full lead list with filters, search, bulk actions, and access to each lead\'s detail page.' },
+                      { icon: LayoutDashboard, title: 'Dashboard', desc: 'Needs-attention SLA queue, KPIs with week-over-week change, charts, and the lead map.' },
+                      { icon: Users,           title: 'Leads',     desc: 'Work-queue chips (SLA, overdue, no next step), Last Activity sort, filters including multi-status, Find duplicates, and bulk follow-up.' },
                       { icon: Kanban,          title: 'Pipeline',  desc: 'Kanban board view of your (or all team\'s) leads sorted by status column.' },
                       { icon: CheckSquare,     title: 'Tasks',     desc: 'Tasks assigned to you. List and Kanban views, overdue highlighting, priority labels.' },
                       { icon: CheckSquare,     title: 'Follow-ups',desc: 'Scheduled follow-up calls/meetings. Overdue alerts, mark done, link to lead.' },
                       { icon: Inbox,           title: 'Inbox',     desc: 'Gmail integration — all email threads with your leads in one place without leaving the app.' },
                       { icon: BarChart3,       title: 'Reports',   desc: 'Productivity charts, lead velocity, employee scorecards, and CSV export.' },
                       { icon: Activity,        title: 'Activity Monitor', desc: 'Admin-only: all team tasks and follow-ups with overdue filtering and workload view.' },
-                      { icon: Bell,            title: 'Notifications', desc: 'In-app alerts for assignments, overdue items, and configured events.' },
+                      { icon: Bell,            title: 'Alerts', desc: 'SLA actionables, one-click follow-up drafts, plus the old notification inbox.' },
                       { icon: Shield,          title: 'Admin Panel', desc: 'User management, pipeline statuses, countries, integrations, API keys, analytics.' },
                     ].map((item) => (
                       <div key={item.title} className="flex gap-3 rounded-xl border border-border/60 bg-card p-3.5">
@@ -235,8 +235,10 @@ export default function Help() {
                     <SubHeading><Filter className="h-4 w-4 text-primary" />Filtering & searching leads</SubHeading>
                     <div className="grid sm:grid-cols-2 gap-2">
                       {[
-                        ['Search box', 'Full-text search across company name, contact, email'],
+                        ['Search box', 'Company, contact, email, website, and phone'],
                         ['Status filter', 'Filter by one or more pipeline stages'],
+                        ['Work chips', 'SLA breached, due soon, unassigned, overdue follow-up/task, no next step — stored in the URL as ?view='],
+                        ['Last Activity', 'Click the Last Activity column header to sort all pages by last_activity_at (not last edit)'],
                         ['Country filter', 'Show leads from specific countries'],
                         ['Owner filter', 'See only leads assigned to a specific team member'],
                         ['Vendor type', 'Filter by the vendor category'],
@@ -273,6 +275,8 @@ export default function Help() {
                     <BulletList items={[
                       'Check the boxes on the left to select multiple leads.',
                       'Use Bulk actions → Change owner to reassign selected leads. The change is logged in each lead\'s activity feed.',
+                      'Bulk schedule follow-up applies the same datetime and notes to the selected leads.',
+                      'Find duplicates lists pairs that share a website host or company name. It does not merge records.',
                       'Admins can also bulk delete leads from the list page.',
                       'Bulk updates are recorded as system events in the activity log.',
                     ]} />
@@ -547,7 +551,7 @@ export default function Help() {
                     <BulletList items={[
                       <><strong className="text-foreground">Employee productivity scorecard</strong> — Response time, follow-up rate, task completion rate, and efficiency score per team member.</>,
                       <><strong className="text-foreground">Top performers</strong> — Ranked table of who has the most activities, completed tasks, and closed leads.</>,
-                      <><strong className="text-foreground">Lead velocity by stage</strong> — Average time a lead spends in each pipeline stage before moving on.</>,
+                      <><strong className="text-foreground">Lead velocity by stage</strong> — Average days since the lead entered that stage (status changed), not since created.</>,
                       <><strong className="text-foreground">Activity trends (14 days)</strong> — Day-by-day activity volume with team breakdown.</>,
                     ]} />
 
@@ -569,7 +573,7 @@ export default function Help() {
                     <div className="grid sm:grid-cols-2 gap-3">
                       {[
                         { icon: Users,       title: 'Users',         desc: 'Add, invite, and manage team members. Set roles (Admin/Employee), ban/unban accounts, resend invites to pending users.' },
-                        { icon: Settings,    title: 'Configuration', desc: 'Add and edit pipeline statuses (with colors and sort order) and countries. These are used across the entire app.' },
+                        { icon: Settings,    title: 'Configuration', desc: 'Pipeline statuses (colors, sort order, idle/stage SLA days, follow-up intent) and countries. SLA numbers apply on the next fetch.' },
                         { icon: Zap,         title: 'Integrations',  desc: 'Connect Google Workspace (Gmail + Calendar), configure Slack notifications (lead events, morning lead report, reminders).' },
                         { icon: Key,         title: 'API',           desc: 'Create and manage API keys for external integrations. View full API documentation.' },
                         { icon: BarChart3,   title: 'Analytics',     desc: 'Admin-level reports, sample data generation, and bulk data management tools.' },
@@ -648,22 +652,22 @@ export default function Help() {
               {/* NOTIFICATIONS */}
               <AccordionItem value="notifications" id="notifications" className="border rounded-xl overflow-hidden bg-card/50 scroll-mt-4">
                 <AccordionTrigger className="hover:no-underline px-5 py-4 hover:bg-muted/20 transition-colors [&>svg]:text-muted-foreground">
-                  <SectionHeading icon={Bell} title="Notifications" />
+                  <SectionHeading icon={Bell} title="Alerts" />
                 </AccordionTrigger>
                 <AccordionContent className="px-5 pb-6 space-y-4 border-t border-border/60 bg-muted/5">
                   <div className="pt-4 space-y-3">
                     <p className="text-sm text-muted-foreground leading-relaxed">
-                      In-app notifications keep you updated on new assignments, overdue items, and other events configured by your admin.
+                      Alerts is the action center. Actionables lists SLA breaches, approaching SLAs, overdue follow-ups, and overdue tasks. Draft follow-up writes a short Haiku email for review — it never sends by itself. The Inbox tab is the older assignment feed.
                     </p>
                     <BulletList items={[
-                      <>Click the <strong className="text-foreground">bell icon</strong> in the top-right header for a quick dropdown of recent notifications.</>,
-                      <>Go to <strong className="text-foreground">Notifications</strong> in the sidebar for the full history with type badges (info, warning, success, task, lead, email).</>,
-                      'Click an individual notification to mark it as read.',
-                      'Use "Mark all as read" to clear the entire list.',
-                      'Notification count badge on the bell updates in real time.',
+                      <>Click the <strong className="text-foreground">bell icon</strong> in the header for a count of actionables plus unread inbox items.</>,
+                      <>Go to <strong className="text-foreground">Alerts</strong> for SLA breaches. Press <strong className="text-foreground">Enter</strong> on a focused row to draft the follow-up.</>,
+                      <>Admins can filter Actionables by <strong className="text-foreground">All / Mine / Owner</strong>.</>,
+                      'Click an individual Inbox notification to mark it as read.',
+                      'Use "Mark all as read" to clear the Inbox tab.',
                       'Admins can also send notifications to team members via the API.',
                     ]} />
-                    <Tip>Check the Notifications page at the start of each day to catch any new lead assignments or overdue alerts you may have missed.</Tip>
+                    <Tip>Start the day on Alerts, then sort Leads by Last Activity for anything still idle.</Tip>
                   </div>
                 </AccordionContent>
               </AccordionItem>
@@ -678,8 +682,8 @@ export default function Help() {
                     <SubHeading><CheckCircle2 className="h-4 w-4 text-emerald-500" />Daily workflow</SubHeading>
                     <div className="grid sm:grid-cols-2 gap-2">
                       {[
-                        { n: '1', tip: 'Start with Dashboard — check hot leads and overdue tasks' },
-                        { n: '2', tip: 'Open Activity Monitor (admin) to rebalance team workload' },
+                        { n: '1', tip: 'Start with Alerts — draft follow-ups for SLA breaches' },
+                        { n: '2', tip: 'Dashboard Needs attention for overdue tasks and hot leads with no next step' },
                         { n: '3', tip: 'Check Notifications for new assignments or alerts' },
                         { n: '4', tip: 'Review Inbox for unread lead emails' },
                         { n: '5', tip: 'Log every call, email, or WhatsApp on the lead the same day' },
@@ -697,7 +701,7 @@ export default function Help() {
                     <SubHeading><Search className="h-4 w-4 text-primary" />Search tips</SubHeading>
                     <BulletList items={[
                       <>The <strong className="text-foreground">search bar</strong> at the top of any page searches globally — leads, tasks, and notes.</>,
-                      <>On the <strong className="text-foreground">Leads page</strong>, the search box queries company name, contact name, email, phone, and notes simultaneously.</>,
+                      <>On the <strong className="text-foreground">Leads page</strong>, search covers company, contact, email, website, and phone. Sort Last Activity from the column header.</>,
                       'Combine search with filters (status + country) to narrow results quickly.',
                     ]} />
 
@@ -753,7 +757,7 @@ export default function Help() {
                   { label: 'Inbox',      to: '/inbox' },
                   { label: 'Pipeline',   to: '/pipeline' },
                   { label: 'Reports',    to: '/reports' },
-                  { label: 'Notifications', to: '/notifications' },
+                  { label: 'Alerts', to: '/notifications' },
                   { label: 'Admin',      to: '/admin' },
                   { label: 'Settings',   to: '/settings' },
                 ].map(({ label, to }) => (

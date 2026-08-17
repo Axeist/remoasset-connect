@@ -3,6 +3,9 @@ export interface LeadStatusOption {
   name: string;
   color: string;
   sort_order?: number;
+  sla_idle_days?: number | null;
+  sla_stage_days?: number | null;
+  sla_followup_intent?: string | null;
 }
 
 export interface CountryOption {
@@ -41,6 +44,10 @@ export interface Lead {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  last_activity_at?: string | null;
+  status_changed_at?: string | null;
+  next_follow_up_at?: string | null;
+  next_task_due?: string | null;
 }
 
 export interface LeadRow extends Lead {

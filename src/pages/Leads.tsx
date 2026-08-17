@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { LeadsTable } from '@/components/leads/LeadsTable';
+import { LeadsTable, type SortField } from '@/components/leads/LeadsTable';
 import { LeadsFilters, type LeadsFiltersState } from '@/components/leads/LeadsFilters';
 import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
 import { LeadImportDialog } from '@/components/leads/LeadImportDialog';
 import { BulkActionsDialog } from '@/components/leads/BulkActionsDialog';
 import { LeadSidePanel } from '@/components/leads/LeadSidePanel';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Upload, UserPlus, Tag, Trash2, List, Loader2, ChevronDown, FileText, Filter, Database } from 'lucide-react';
+import { Plus, Download, Upload, UserPlus, Tag, Trash2, List, Loader2, ChevronDown, FileText, Filter, Database, Calendar, Copy } from 'lucide-react';
+import type { Lead } from '@/types/lead';
+import { applyStatusIdFilter, leadIdsWithNoNextStep } from '@/lib/leadWorkQueue';
+import { findDuplicatePairs, type DuplicatePair } from '@/lib/leadDuplicates';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +24,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { safeFormat } from '@/lib/date';
 import { fetchAllPaginated } from '@/lib/supabasePaginate';
-import type { Lead } from '@/types/lead';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   AlertDialog,
@@ -40,8 +43,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
-type SortField = 'company_name' | 'created_at' | 'lead_score' | 'contact_name';
 type SortOrder = 'asc' | 'desc';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -55,7 +64,7 @@ export default function Leads() {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [bulkAction, setBulkAction] = useState<'status' | 'owner' | null>(null);
+  const [bulkAction, setBulkAction] = useState<'status' | 'owner' | 'followup' | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [ownerOptions, setOwnerOptions] = useState<{ id: string; full_name: string | null }[]>([]);
   const [page, setPage] = useState(1);
@@ -67,6 +76,19 @@ export default function Leads() {
   const [exportingAll, setExportingAll] = useState(false);
   const [sidePanelLead, setSidePanelLead] = useState<Lead | null>(null);
   const defaultOwner = searchParams.get('owner') ?? (!isAdmin && user ? user.id : '');
+  const viewParam = searchParams.get('view') ?? '';
+  const [queueView, setQueueView] = useState(viewParam);
+  const [queueCounts, setQueueCounts] = useState({
+    breach: 0,
+    warning: 0,
+    unassigned: 0,
+    overdueFu: 0,
+    overdueTask: 0,
+    noNext: 0,
+  });
+  const [dupOpen, setDupOpen] = useState(false);
+  const [dupLoading, setDupLoading] = useState(false);
+  const [dupPairs, setDupPairs] = useState<DuplicatePair[]>([]);
   const [filters, setFilters] = useState<LeadsFiltersState>({
     search: searchParams.get('search') ?? '',
     status: '',
@@ -91,6 +113,8 @@ export default function Leads() {
   useEffect(() => {
     const search = searchParams.get('search');
     const owner = searchParams.get('owner');
+    const view = searchParams.get('view') ?? '';
+    setQueueView(view);
     setFilters((f) => ({
       ...f,
       ...(search != null ? { search: search ?? '' } : {}),
@@ -109,7 +133,29 @@ export default function Leads() {
 
   useEffect(() => {
     fetchLeads();
-  }, [filters, page, pageSize, sortBy, sortOrder]);
+  }, [filters, page, pageSize, sortBy, sortOrder, queueView]);
+
+  useEffect(() => {
+    (async () => {
+      const nowIso = new Date().toISOString();
+      const [breach, warn, unassigned, fu, tasks, noNext] = await Promise.all([
+        supabase.rpc('leads_matching_sla', { p_mode: 'breach' }),
+        supabase.rpc('leads_matching_sla', { p_mode: 'warning' }),
+        supabase.from('leads').select('id', { count: 'exact', head: true }).is('owner_id', null),
+        supabase.from('follow_ups').select('lead_id').eq('is_completed', false).lt('scheduled_at', nowIso),
+        supabase.from('tasks').select('lead_id').eq('is_completed', false).lt('due_date', nowIso).not('lead_id', 'is', null),
+        leadIdsWithNoNextStep(),
+      ]);
+      setQueueCounts({
+        breach: (breach.data ?? []).length,
+        warning: (warn.data ?? []).length,
+        unassigned: unassigned.count ?? 0,
+        overdueFu: [...new Set((fu.data ?? []).map((r) => r.lead_id))].length,
+        overdueTask: [...new Set((tasks.data ?? []).map((r) => r.lead_id))].length,
+        noNext: noNext.length,
+      });
+    })();
+  }, []);
 
   const handleFiltersChange = (newFilters: LeadsFiltersState) => {
     setFilters(newFilters);
@@ -183,8 +229,10 @@ export default function Leads() {
         country_ids,
         created_at,
         updated_at,
+        last_activity_at,
+        status_changed_at,
         owner_id,
-        status:lead_statuses(name, color)
+        status:lead_statuses(name, color, sla_idle_days, sla_stage_days, sla_followup_intent)
       `,
         { count: 'exact' }
       )
@@ -192,9 +240,9 @@ export default function Leads() {
       .range((page - 1) * pageSize, page * pageSize - 1);
 
     if (filters.search) {
-      query = query.or(`company_name.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
+      query = query.or(`company_name.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%,website.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`);
     }
-    if (filters.status) query = query.eq('status_id', filters.status);
+    query = applyStatusIdFilter(query, filters.status);
     if (filters.region) {
       const { data: regionCountries } = await supabase.from('countries').select('id').eq('region', filters.region);
       const regionCountryIds = (regionCountries ?? []).map((r) => r.id);
@@ -214,8 +262,38 @@ export default function Leads() {
 
     if (filters.createdFrom) query = query.gte('created_at', filters.createdFrom);
     if (filters.createdTo) query = query.lte('created_at', filters.createdTo);
-    if (filters.lastActivityFrom) query = query.gte('updated_at', filters.lastActivityFrom);
-    if (filters.lastActivityTo) query = query.lte('updated_at', filters.lastActivityTo);
+    if (filters.lastActivityFrom) query = query.gte('last_activity_at', filters.lastActivityFrom);
+    if (filters.lastActivityTo) query = query.lte('last_activity_at', filters.lastActivityTo);
+
+    if (queueView === 'sla_breach' || queueView === 'sla_warning') {
+      const { data: slaRows } = await supabase.rpc('leads_matching_sla', {
+        p_mode: queueView === 'sla_warning' ? 'warning' : 'breach',
+      });
+      const ids = (slaRows ?? []).map((r) => r.lead_id);
+      query = query.in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']);
+    } else if (queueView === 'unassigned') {
+      query = query.is('owner_id', null);
+    } else if (queueView === 'overdue_followup') {
+      const { data: fuRows } = await supabase
+        .from('follow_ups')
+        .select('lead_id')
+        .eq('is_completed', false)
+        .lt('scheduled_at', new Date().toISOString());
+      const ids = [...new Set((fuRows ?? []).map((r) => r.lead_id))];
+      query = query.in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']);
+    } else if (queueView === 'overdue_task') {
+      const { data: taskRows } = await supabase
+        .from('tasks')
+        .select('lead_id')
+        .eq('is_completed', false)
+        .lt('due_date', new Date().toISOString())
+        .not('lead_id', 'is', null);
+      const ids = [...new Set((taskRows ?? []).map((r) => r.lead_id).filter(Boolean))] as string[];
+      query = query.in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']);
+    } else if (queueView === 'no_next_step') {
+      const ids = await leadIdsWithNoNextStep();
+      query = query.in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']);
+    }
 
     // Apply NDA filter: include/exclude by lead IDs
     if (ndaLeadIds !== null && filters.ndaStatus !== 'no_nda') {
@@ -288,6 +366,28 @@ export default function Leads() {
       hq_country: (l as any).hq_country_id ? countryMap[(l as any).hq_country_id] ?? null : null,
       countries: ((l as any).country_ids ?? []).map((id: string) => countryMap[id]).filter(Boolean),
     }));
+
+    const pageIds = leadsWithOwner.map((l) => l.id);
+    if (pageIds.length > 0) {
+      const nowIso = new Date().toISOString();
+      const [fuRes, taskRes] = await Promise.all([
+        supabase.from('follow_ups').select('lead_id, scheduled_at').in('lead_id', pageIds).eq('is_completed', false).gte('scheduled_at', nowIso).order('scheduled_at', { ascending: true }),
+        supabase.from('tasks').select('lead_id, due_date').in('lead_id', pageIds).eq('is_completed', false).not('due_date', 'is', null).order('due_date', { ascending: true }),
+      ]);
+      const nextFu: Record<string, string> = {};
+      for (const row of fuRes.data ?? []) {
+        if (row.lead_id && !nextFu[row.lead_id]) nextFu[row.lead_id] = row.scheduled_at;
+      }
+      const nextTask: Record<string, string> = {};
+      for (const row of taskRes.data ?? []) {
+        if (row.lead_id && row.due_date && !nextTask[row.lead_id]) nextTask[row.lead_id] = row.due_date;
+      }
+      for (const l of leadsWithOwner) {
+        l.next_follow_up_at = nextFu[l.id] ?? null;
+        l.next_task_due = nextTask[l.id] ?? null;
+      }
+    }
+
     setLeads(leadsWithOwner);
     const usesClientSideExclusion = filters.ndaStatus === 'no_nda' || filters.linkedinOutreach === 'no_linkedin';
     setTotalCount(usesClientSideExclusion ? leadsWithOwner.length : (count ?? 0));
@@ -423,9 +523,9 @@ export default function Leads() {
 
       if (withFilters) {
         if (filters.search) {
-          query = query.or(`company_name.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
+          query = query.or(`company_name.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%,website.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`);
         }
-        if (filters.status) query = query.eq('status_id', filters.status);
+        query = applyStatusIdFilter(query, filters.status);
         if (filters.region) {
           const { data: regionCountries } = await supabase.from('countries').select('id').eq('region', filters.region);
           const regionCountryIds = (regionCountries ?? []).map((r) => r.id);
@@ -444,8 +544,8 @@ export default function Leads() {
         query = query.gte('lead_score', filters.scoreMin).lte('lead_score', filters.scoreMax);
         if (filters.createdFrom) query = query.gte('created_at', filters.createdFrom);
         if (filters.createdTo) query = query.lte('created_at', filters.createdTo);
-        if (filters.lastActivityFrom) query = query.gte('updated_at', filters.lastActivityFrom);
-        if (filters.lastActivityTo) query = query.lte('updated_at', filters.lastActivityTo);
+        if (filters.lastActivityFrom) query = query.gte('last_activity_at', filters.lastActivityFrom);
+        if (filters.lastActivityTo) query = query.lte('last_activity_at', filters.lastActivityTo);
 
         if (ndaLeadIds !== null && filters.ndaStatus !== 'no_nda') {
           query = ndaLeadIds.length > 0
@@ -543,9 +643,9 @@ export default function Leads() {
 
       if (withFilters) {
         if (filters.search) {
-          query = query.or(`company_name.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
+          query = query.or(`company_name.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%,website.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`);
         }
-        if (filters.status) query = query.eq('status_id', filters.status);
+        query = applyStatusIdFilter(query, filters.status);
         if (filters.region) {
           const { data: regionCountries } = await supabase.from('countries').select('id').eq('region', filters.region);
           const regionCountryIds = (regionCountries ?? []).map((r) => r.id);
@@ -564,8 +664,8 @@ export default function Leads() {
         query = query.gte('lead_score', filters.scoreMin).lte('lead_score', filters.scoreMax);
         if (filters.createdFrom) query = query.gte('created_at', filters.createdFrom);
         if (filters.createdTo) query = query.lte('created_at', filters.createdTo);
-        if (filters.lastActivityFrom) query = query.gte('updated_at', filters.lastActivityFrom);
-        if (filters.lastActivityTo) query = query.lte('updated_at', filters.lastActivityTo);
+        if (filters.lastActivityFrom) query = query.gte('last_activity_at', filters.lastActivityFrom);
+        if (filters.lastActivityTo) query = query.lte('last_activity_at', filters.lastActivityTo);
         if (ndaLeadIds !== null && filters.ndaStatus !== 'no_nda') {
           query = ndaLeadIds.length > 0
             ? query.in('id', ndaLeadIds)
@@ -777,6 +877,19 @@ export default function Leads() {
     fetchLeads();
   };
 
+  const scanDuplicates = async () => {
+    setDupOpen(true);
+    setDupLoading(true);
+    try {
+      const rows = await fetchAllPaginated<{ id: string; company_name: string; website: string | null }>((from, to) =>
+        supabase.from('leads').select('id, company_name, website').range(from, to)
+      );
+      setDupPairs(findDuplicatePairs(rows));
+    } finally {
+      setDupLoading(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className={`flex gap-0 min-h-0 ${sidePanelLead ? 'h-[calc(100vh-4rem)]' : ''}`}>
@@ -789,6 +902,10 @@ export default function Leads() {
               <p className="text-muted-foreground mt-1.5">Manage and track your sales leads</p>
             </div>
             <div className="flex gap-3">
+              <Button variant="outline" className="gap-2" onClick={() => void scanDuplicates()}>
+                <Copy className="h-4 w-4" />
+                Find duplicates
+              </Button>
               <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
                 <Upload className="h-4 w-4" />
                 Import
@@ -850,6 +967,38 @@ export default function Leads() {
             </div>
           </div>
 
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: '', label: 'All' },
+              { id: 'sla_breach', label: `SLA breached`, count: queueCounts.breach },
+              { id: 'sla_warning', label: `SLA due soon`, count: queueCounts.warning },
+              { id: 'unassigned', label: 'Unassigned', count: queueCounts.unassigned },
+              { id: 'overdue_followup', label: 'Overdue follow-up', count: queueCounts.overdueFu },
+              { id: 'overdue_task', label: 'Overdue task', count: queueCounts.overdueTask },
+              { id: 'no_next_step', label: 'No next step', count: queueCounts.noNext },
+            ].map((chip) => (
+              <Button
+                key={chip.id || 'all'}
+                size="sm"
+                variant={queueView === chip.id ? 'default' : 'outline'}
+                className={cn('h-8 rounded-full', queueView === chip.id && 'gradient-primary')}
+                onClick={() => {
+                  setQueueView(chip.id);
+                  setPage(1);
+                  const next = new URLSearchParams(searchParams);
+                  if (chip.id) next.set('view', chip.id);
+                  else next.delete('view');
+                  setSearchParams(next, { replace: true });
+                }}
+              >
+                {chip.label}
+                {'count' in chip && chip.count != null ? (
+                  <span className="ml-1.5 text-[11px] opacity-80">{chip.count}</span>
+                ) : null}
+              </Button>
+            ))}
+          </div>
+
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
             <div className="flex-1 w-full">
@@ -894,6 +1043,12 @@ export default function Leads() {
                   Assign owner
                 </Button>
               )}
+              {isAdmin && (
+                <Button size="sm" variant="outline" onClick={() => setBulkAction('followup')} className="gap-1">
+                  <Calendar className="h-4 w-4" />
+                  Schedule follow-up
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={() => exportCsv(true)} className="gap-1">
                 <Download className="h-4 w-4" />
                 Export selected
@@ -925,6 +1080,21 @@ export default function Leads() {
             totalCount={totalCount}
             onPageChange={setPage}
             onLeadClick={(lead) => setSidePanelLead((prev) => prev?.id === lead.id ? null : lead)}
+            emptyMessage={
+              queueView === 'sla_breach'
+                ? 'No SLA breaches.'
+                : queueView === 'sla_warning'
+                  ? 'No leads approaching SLA.'
+                  : queueView === 'no_next_step'
+                    ? 'Every open lead has a follow-up or task.'
+                    : queueView === 'overdue_followup'
+                      ? 'No overdue follow-ups.'
+                      : queueView === 'overdue_task'
+                        ? 'No overdue tasks on leads.'
+                        : queueView
+                          ? 'No leads match this view.'
+                          : 'No leads found. Add your first lead to get started!'
+            }
             activeleadId={sidePanelLead?.id}
           />
         </div>
@@ -970,6 +1140,35 @@ export default function Leads() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <Dialog open={dupOpen} onOpenChange={setDupOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display">Possible duplicates</DialogTitle>
+            <DialogDescription>
+              Same website host or company name. Open both records — this does not merge them.
+            </DialogDescription>
+          </DialogHeader>
+          {dupLoading ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">Scanning…</p>
+          ) : dupPairs.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">No matching pairs found.</p>
+          ) : (
+            <ul className="space-y-2">
+              {dupPairs.slice(0, 80).map((p) => (
+                <li key={`${p.a.id}-${p.b.id}`} className="rounded-lg border border-border/80 p-3 text-sm">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+                    {p.reason === 'website' ? `Website · ${p.key}` : `Company · ${p.key}`}
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    <Link to={`/leads/${p.a.id}`} className="text-primary hover:underline truncate">{p.a.company_name}</Link>
+                    <Link to={`/leads/${p.b.id}`} className="text-primary hover:underline truncate">{p.b.company_name}</Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

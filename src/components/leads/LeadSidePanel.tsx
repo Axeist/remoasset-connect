@@ -35,7 +35,9 @@ import {
   Clock,
   Users,
 } from 'lucide-react';
-import type { Lead } from '@/types/lead';
+import { DraftFollowUpDialog } from '@/components/leads/DraftFollowUpDialog';
+import { evaluateLeadSla } from '@/lib/leadSla';
+import { explainLeadScore } from '@/lib/leadScore';
 import { formatVendorTypeLabel } from '@/lib/vendorTypes';
 import { MeetingActivityCardCompact, hasMeetingData, extractMeetingMeta } from '@/components/leads/MeetingActivityCard';
 import { useSyncGoogleMeetingActivities } from '@/hooks/useSyncGoogleMeetingActivities';
@@ -82,6 +84,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
   const [loadingActivities, setLoadingActivities] = useState(true);
   const [addActivityOpen, setAddActivityOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [draftOpen, setDraftOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const googleSyncDoneRef = useRef<string | null>(null);
@@ -99,7 +102,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
   const fetchFullLead = async () => {
     const { data, error } = await supabase
       .from('leads')
-      .select(`*, status:lead_statuses(name, color)`)
+      .select(`*, status:lead_statuses(name, color, sla_idle_days, sla_stage_days)`)
       .eq('id', lead.id)
       .single();
     if (error || !data) return;
@@ -223,7 +226,13 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
               />
             </div>
             <span className="text-xs text-muted-foreground">Score {displayLead.lead_score ?? 0}</span>
+            {evaluateLeadSla(displayLead).badge && (
+              <Badge variant={evaluateLeadSla(displayLead).breached ? 'destructive' : 'secondary'} className="text-[10px]">
+                {evaluateLeadSla(displayLead).badge}
+              </Badge>
+            )}
           </div>
+          <p className="text-[11px] text-muted-foreground mt-1 ml-6 leading-snug">{explainLeadScore(activities).summary}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {canEdit && (
@@ -272,6 +281,15 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
             {displayLead.email}
           </a>
         )}
+        <Button
+          size="sm"
+          className="h-7 gradient-primary text-xs gap-1 ml-auto"
+          disabled={!displayLead.email}
+          onClick={() => setDraftOpen(true)}
+        >
+          <Mail className="h-3 w-3" />
+          Draft follow-up
+        </Button>
         {displayLead.phone && (
           <a
             href={`https://wa.me/${displayLead.phone.replace(/[^0-9]/g, '')}`}
@@ -572,6 +590,16 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
         leadCompanyName={displayLead.company_name}
         leadPhone={displayLead.phone}
         leadStatusName={displayLead.status?.name ?? null}
+      />
+      <DraftFollowUpDialog
+        open={draftOpen}
+        onOpenChange={setDraftOpen}
+        lead={displayLead}
+        onSent={() => {
+          fetchActivities();
+          fetchFullLead();
+          onLeadUpdated();
+        }}
       />
       <LeadFormDialog
         open={editOpen}

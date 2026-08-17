@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.mrp-price-lookup]
 verify_jwt = false
+
+[functions.draft-sla-followup]
+verify_jwt = false
