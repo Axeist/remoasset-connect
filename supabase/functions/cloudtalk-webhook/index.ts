@@ -110,14 +110,21 @@ function normalizeCdr(historyRow: Record<string, unknown> | null, details: unkno
   if (typeof notesRaw === 'string') notes = notesRaw
   else if (Array.isArray(notesRaw)) {
     notes = notesRaw
-      .map((n) => (typeof n === 'string' ? n : n && typeof n === 'object' && 'note' in n ? String((n as { note: unknown }).note) : ''))
+      .map((n) => {
+        if (typeof n === 'string') return n
+        if (n && typeof n === 'object' && 'note' in n) return String((n as { note: unknown }).note)
+        return ''
+      })
       .filter(Boolean)
       .join('\n')
   }
 
   const type = asString(cdr.type ?? det.direction) ?? 'outgoing'
   const direction = /in/i.test(type) ? 'inbound' : 'outbound'
-  const talking = parseSeconds(cdr.talking_time ?? det.call_times && (det.call_times as Record<string, unknown>).talking_time)
+  const talking = parseSeconds(
+    cdr.talking_time ??
+      (det.call_times ? (det.call_times as Record<string, unknown>).talking_time : undefined),
+  )
   const waiting = parseSeconds(cdr.waiting_time)
   const wrapup = parseSeconds(cdr.wrapup_time)
   const status = asString(cdr.status ?? det.status) ?? (talking && talking > 0 ? 'answered' : 'missed')
