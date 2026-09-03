@@ -56,7 +56,7 @@ export function AgentTablePicker({ agents, selectedIds, onChange, disabled, clas
           variant="outline"
           size="sm"
           disabled={disabled || agents.length === 0}
-          className={cn('h-9 w-full text-sm gap-2 font-normal justify-start', className)}
+          className={cn('h-9 w-[180px] max-w-full text-sm gap-2 font-normal justify-start shrink-0', className)}
         >
           <Users className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="truncate">{label}</span>

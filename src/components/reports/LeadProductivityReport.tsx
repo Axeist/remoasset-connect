@@ -1126,7 +1126,7 @@ function ReportFiltersBar({
           </FilterField>
 
           <FilterField label="Date range">
-            <ReportDateFilter value={dateFilter} onChange={onDateChange} compact className="space-y-0" />
+            <ReportDateFilter value={dateFilter} onChange={onDateChange} compact className="w-full" triggerClassName="w-full" />
           </FilterField>
 
           <FilterField label="Region">

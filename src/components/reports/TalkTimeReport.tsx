@@ -10,6 +10,7 @@ import {
   BarChart, Bar,
 } from 'recharts';
 import { Clock, Download, Phone, RotateCcw, Users, Voicemail } from 'lucide-react';
+import { ReportViewToolbar } from './ReportViewToolbar';
 import { eachDayOfInterval, format, startOfDay, endOfDay } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -238,28 +239,23 @@ export function TalkTimeReport() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
-        <div>
-          <h2 className="text-lg font-display font-semibold">Talk time</h2>
-          <p className="text-sm text-muted-foreground">
-            {formatDateRangeSubtitle(date.preset, date.from, date.to)} · credited to lead owner · 3 CloudTalk numbers
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ReportDateFilter value={date} onChange={(v) => { setDate(v); setDayFilter(null); }} compact />
-          {isAdmin && (
-            <AgentTablePicker agents={pickerAgents} selectedIds={selectedIds} onChange={setSelectedIds} />
-          )}
-          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={exportCsv}>
-            <Download className="h-3.5 w-3.5" /> CSV
+      <ReportViewToolbar
+        title="Talk time"
+        subtitle={`${formatDateRangeSubtitle(date.preset, date.from, date.to)} · credited to lead owner · 3 CloudTalk numbers`}
+      >
+        <ReportDateFilter value={date} onChange={(v) => { setDate(v); setDayFilter(null); }} compact />
+        {isAdmin && (
+          <AgentTablePicker agents={pickerAgents} selectedIds={selectedIds} onChange={setSelectedIds} />
+        )}
+        <Button variant="outline" size="sm" className="gap-1.5 h-9 shrink-0" onClick={exportCsv}>
+          <Download className="h-3.5 w-3.5" /> CSV
+        </Button>
+        {(lineFilter !== 'all' || dayFilter || selectedIds) && (
+          <Button variant="ghost" size="sm" className="gap-1.5 h-9 shrink-0" onClick={() => { setLineFilter('all'); setDayFilter(null); setSelectedIds(null); }}>
+            <RotateCcw className="h-3.5 w-3.5" /> Reset
           </Button>
-          {(lineFilter !== 'all' || dayFilter || selectedIds) && (
-            <Button variant="ghost" size="sm" className="gap-1.5 h-9" onClick={() => { setLineFilter('all'); setDayFilter(null); setSelectedIds(null); }}>
-              <RotateCcw className="h-3.5 w-3.5" /> Reset
-            </Button>
-          )}
-        </div>
-      </div>
+        )}
+      </ReportViewToolbar>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[

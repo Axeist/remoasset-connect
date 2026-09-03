@@ -20,6 +20,8 @@ interface ReportDateFilterProps {
   showAllTime?: boolean;
   className?: string;
   compact?: boolean;
+  /** Overrides trigger width. Compact toolbars default to a fixed width. */
+  triggerClassName?: string;
 }
 
 function DatePickerButton({
@@ -34,7 +36,7 @@ function DatePickerButton({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 text-sm gap-2 font-normal flex-1 justify-start">
+        <Button variant="outline" size="sm" className="h-9 text-sm gap-2 font-normal justify-start shrink-0">
           <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
           {value ? value.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : placeholder}
         </Button>
@@ -52,6 +54,7 @@ export function ReportDateFilter({
   showAllTime = true,
   className,
   compact = false,
+  triggerClassName,
 }: ReportDateFilterProps) {
   const presets = showAllTime
     ? DATE_PRESETS
@@ -62,15 +65,15 @@ export function ReportDateFilter({
   const customTo = value.to ? new Date(value.to) : undefined;
 
   return (
-    <div className={cn('space-y-1.5', className)}>
+    <div className={cn(compact ? 'flex shrink-0 items-center gap-2' : 'space-y-1.5', className)}>
       {!compact && <Label className="text-xs text-muted-foreground font-medium">Date range</Label>}
       <Select
         value={value.preset}
         onValueChange={(preset) => onChange({ ...value, preset })}
       >
-        <SelectTrigger className="h-9 text-sm w-full">
+        <SelectTrigger className={cn('h-9 text-sm', compact ? 'w-[168px] shrink-0' : 'w-full', triggerClassName)}>
           <div className="flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
             <SelectValue placeholder="Select period" />
           </div>
         </SelectTrigger>
@@ -105,7 +108,7 @@ export function ReportDateFilter({
         </p>
       )}
       {compact && value.preset === 'custom' && (
-        <div className="flex items-center gap-2 mt-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           <DatePickerButton
             value={customFrom}
             onChange={(d) => onChange({ ...value, from: d ? startOfDay(d).toISOString() : null })}

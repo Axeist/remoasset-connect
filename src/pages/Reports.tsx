@@ -538,47 +538,45 @@ export default function Reports() {
           )}
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="flex flex-wrap h-auto gap-1">
-            <TabsTrigger value="overview" className="gap-1.5">
-              <BarChart3 className="h-4 w-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="productivity" className="gap-1.5">
-              <Target className="h-4 w-4" />
-              Productivity
-            </TabsTrigger>
-            <TabsTrigger value="lead-report" className="gap-1.5">
-              <Users className="h-4 w-4" />
-              Lead Report
-            </TabsTrigger>
-            <TabsTrigger value="talk-time" className="gap-1.5">
-              <Clock className="h-4 w-4" />
-              Talk Time
-            </TabsTrigger>
-            <TabsTrigger value="calling" className="gap-1.5">
-              <Phone className="h-4 w-4" />
-              Calling
-            </TabsTrigger>
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
+          <div className="overflow-x-auto -mx-1 px-1">
+            <TabsList className="inline-flex h-auto min-w-full w-max justify-start gap-0 rounded-none bg-transparent p-0 text-muted-foreground border-b border-border">
+              {[
+                { value: 'overview', label: 'Overview', icon: BarChart3 },
+                { value: 'productivity', label: 'Productivity', icon: Target },
+                { value: 'lead-report', label: 'Lead Report', icon: Users },
+                { value: 'talk-time', label: 'Talk Time', icon: Clock },
+                { value: 'calling', label: 'Calling', icon: Phone },
+              ].map((tab) => (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className="relative cursor-pointer rounded-none bg-transparent px-3 sm:px-4 py-2.5 gap-1.5 text-sm font-medium shadow-none ring-offset-0 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent data-[state=active]:after:bg-primary"
+                >
+                  <tab.icon className="h-4 w-4 shrink-0" />
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
 
-          <TabsContent value="productivity" className="mt-6">
+          <TabsContent value="productivity" className="mt-0">
             <ProductivityReport />
           </TabsContent>
 
-          <TabsContent value="lead-report" className="mt-6">
+          <TabsContent value="lead-report" className="mt-0">
             <LeadProductivityReport />
           </TabsContent>
 
-          <TabsContent value="talk-time" className="mt-6">
+          <TabsContent value="talk-time" className="mt-0">
             <TalkTimeReport />
           </TabsContent>
 
-          <TabsContent value="calling" className="mt-6">
+          <TabsContent value="calling" className="mt-0">
             <CallingReport />
           </TabsContent>
 
-          <TabsContent value="overview" className="mt-6">
+          <TabsContent value="overview" className="mt-0">
 
         {loading ? (
           <Skeleton className="h-80 w-full rounded-xl animate-fade-in-up animate-fade-in-up-delay-1" />

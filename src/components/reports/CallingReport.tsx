@@ -10,6 +10,7 @@ import {
   PieChart, Pie, Cell,
 } from 'recharts';
 import { Download, PhoneIncoming, PhoneOutgoing, PhoneOff, RotateCcw, Phone } from 'lucide-react';
+import { ReportViewToolbar } from './ReportViewToolbar';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -220,43 +221,40 @@ export function CallingReport() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
-        <div>
-          <h2 className="text-lg font-display font-semibold">Calling</h2>
-          <p className="text-sm text-muted-foreground">
-            {formatDateRangeSubtitle(date.preset, date.from, date.to)} · volume by lead owner on US / SG / UK lines
-          </p>
+      <ReportViewToolbar
+        title="Calling"
+        subtitle={`${formatDateRangeSubtitle(date.preset, date.from, date.to)} · volume by lead owner on US / SG / UK lines`}
+      >
+        <ReportDateFilter value={date} onChange={setDate} compact />
+        {isAdmin && (
+          <AgentTablePicker agents={pickerAgents} selectedIds={selectedIds} onChange={setSelectedIds} />
+        )}
+        <div className="flex h-9 shrink-0 items-center rounded-md border border-input bg-background p-0.5">
+          {(['all', 'outbound', 'inbound'] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDirFilter(d)}
+              className={cn(
+                'flex h-full items-center rounded-[5px] px-3 text-sm font-medium capitalize transition-colors duration-200 cursor-pointer',
+                dirFilter === d
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {d}
+            </button>
+          ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ReportDateFilter value={date} onChange={setDate} compact />
-          {isAdmin && (
-            <AgentTablePicker agents={pickerAgents} selectedIds={selectedIds} onChange={setSelectedIds} />
-          )}
-          <div className="flex rounded-lg border overflow-hidden">
-            {(['all', 'outbound', 'inbound'] as const).map((d) => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => setDirFilter(d)}
-                className={cn(
-                  'px-2.5 py-1.5 text-[11px] font-medium capitalize',
-                  dirFilter === d ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
-                )}
-              >
-                {d}
-              </button>
-            ))}
-          </div>
-          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={exportCsv}>
-            <Download className="h-3.5 w-3.5" /> CSV
+        <Button variant="outline" size="sm" className="gap-1.5 h-9 shrink-0" onClick={exportCsv}>
+          <Download className="h-3.5 w-3.5" /> CSV
+        </Button>
+        {(lineFilter !== 'all' || selectedIds || dirFilter !== 'all') && (
+          <Button variant="ghost" size="sm" className="gap-1.5 h-9 shrink-0" onClick={() => { setLineFilter('all'); setSelectedIds(null); setDirFilter('all'); }}>
+            <RotateCcw className="h-3.5 w-3.5" /> Reset
           </Button>
-          {(lineFilter !== 'all' || selectedIds || dirFilter !== 'all') && (
-            <Button variant="ghost" size="sm" className="gap-1.5 h-9" onClick={() => { setLineFilter('all'); setSelectedIds(null); setDirFilter('all'); }}>
-              <RotateCcw className="h-3.5 w-3.5" /> Reset
-            </Button>
-          )}
-        </div>
-      </div>
+        )}
+      </ReportViewToolbar>
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         {[
