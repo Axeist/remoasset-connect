@@ -23,6 +23,8 @@ import { format, subDays, startOfDay, endOfDay, differenceInDays, startOfMonth, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProductivityReport } from '@/components/reports/ProductivityReport';
 import { LeadProductivityReport } from '@/components/reports/LeadProductivityReport';
+import { TalkTimeReport } from '@/components/reports/TalkTimeReport';
+import { CallingReport } from '@/components/reports/CallingReport';
 
 type TimeRange = 'hourly' | 'weekly' | 'monthly' | 'yearly';
 
@@ -537,7 +539,7 @@ export default function Reports() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
+          <TabsList className="flex flex-wrap h-auto gap-1">
             <TabsTrigger value="overview" className="gap-1.5">
               <BarChart3 className="h-4 w-4" />
               Overview
@@ -550,6 +552,14 @@ export default function Reports() {
               <Users className="h-4 w-4" />
               Lead Report
             </TabsTrigger>
+            <TabsTrigger value="talk-time" className="gap-1.5">
+              <Clock className="h-4 w-4" />
+              Talk Time
+            </TabsTrigger>
+            <TabsTrigger value="calling" className="gap-1.5">
+              <Phone className="h-4 w-4" />
+              Calling
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="productivity" className="mt-6">
@@ -558,6 +568,14 @@ export default function Reports() {
 
           <TabsContent value="lead-report" className="mt-6">
             <LeadProductivityReport />
+          </TabsContent>
+
+          <TabsContent value="talk-time" className="mt-6">
+            <TalkTimeReport />
+          </TabsContent>
+
+          <TabsContent value="calling" className="mt-6">
+            <CallingReport />
           </TabsContent>
 
           <TabsContent value="overview" className="mt-6">

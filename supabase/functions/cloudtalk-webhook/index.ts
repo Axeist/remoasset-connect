@@ -475,13 +475,21 @@ Deno.serve(async (req) => {
 
     const { data: existing } = await supabase
       .from('cloudtalk_calls')
-      .select('id, activity_id, lead_id, recording_link, ci_payload, notes')
+      .select('id, activity_id, lead_id, recording_link, ci_payload, notes, connect_user_id')
       .eq('cloudtalk_call_id', callId)
       .maybeSingle()
+
+    const ownerLeadId = leadId ?? existing?.lead_id ?? null
+    let ownerId: string | null = existing?.connect_user_id ?? null
+    if (ownerLeadId) {
+      const { data: leadRow } = await supabase.from('leads').select('owner_id').eq('id', ownerLeadId).maybeSingle()
+      if (leadRow?.owner_id) ownerId = leadRow.owner_id as string
+    }
 
     const callRow = {
       cloudtalk_call_id: callId,
       lead_id: leadId ?? existing?.lead_id ?? null,
+      connect_user_id: ownerId,
       direction: n.direction,
       status: n.status,
       from_number: n.from_number,
@@ -517,7 +525,10 @@ Deno.serve(async (req) => {
     }
 
     const { data: lead } = await supabase.from('leads').select('owner_id').eq('id', finalLeadId).single()
-    const userId = await resolveUserId(supabase, n.agent_id, n.agent_email, lead?.owner_id ?? null)
+    const userId = await resolveUserId(supabase, n.agent_id, n.agent_email, lead?.owner_id ?? ownerId ?? null)
+    if (lead?.owner_id && lead.owner_id !== ownerId) {
+      await supabase.from('cloudtalk_calls').update({ connect_user_id: lead.owner_id }).eq('cloudtalk_call_id', callId)
+    }
 
     const meta = buildMeta({
       ...n,
@@ -553,7 +564,11 @@ Deno.serve(async (req) => {
       }).select('id').single()
       if (actErr) return json({ error: actErr.message }, 500)
       activityId = activity.id
-      await supabase.from('cloudtalk_calls').update({ activity_id: activityId, lead_id: finalLeadId }).eq('cloudtalk_call_id', callId)
+      await supabase.from('cloudtalk_calls').update({
+        activity_id: activityId,
+        lead_id: finalLeadId,
+        connect_user_id: lead?.owner_id ?? ownerId,
+      }).eq('cloudtalk_call_id', callId)
     }
 
     return json({ ok: true, matched: true, call_id: callId, lead_id: finalLeadId, activity_id: activityId })

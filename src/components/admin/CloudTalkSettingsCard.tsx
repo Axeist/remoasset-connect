@@ -18,6 +18,9 @@ export function CloudTalkSettingsCard() {
   const { toast } = useToast();
   const [enabled, setEnabled] = useState(false);
   const [fromNumber, setFromNumber] = useState('');
+  const [didUs, setDidUs] = useState('');
+  const [didSg, setDidSg] = useState('');
+  const [didUk, setDidUk] = useState('');
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -33,14 +36,24 @@ export function CloudTalkSettingsCard() {
   const loadLocal = async () => {
     const { data } = await supabase
       .from('app_settings' as never)
-      .select('id, cloudtalk_enabled, cloudtalk_default_from_e164')
+      .select('id, cloudtalk_enabled, cloudtalk_default_from_e164, cloudtalk_did_us_e164, cloudtalk_did_sg_e164, cloudtalk_did_uk_e164')
       .limit(1)
       .maybeSingle();
-    const row = data as { id: string; cloudtalk_enabled?: boolean; cloudtalk_default_from_e164?: string | null } | null;
+    const row = data as {
+      id: string;
+      cloudtalk_enabled?: boolean;
+      cloudtalk_default_from_e164?: string | null;
+      cloudtalk_did_us_e164?: string | null;
+      cloudtalk_did_sg_e164?: string | null;
+      cloudtalk_did_uk_e164?: string | null;
+    } | null;
     if (row) {
       setSettingsId(row.id);
       setEnabled(Boolean(row.cloudtalk_enabled));
       setFromNumber(row.cloudtalk_default_from_e164 ?? '');
+      setDidUs(row.cloudtalk_did_us_e164 ?? '');
+      setDidSg(row.cloudtalk_did_sg_e164 ?? '');
+      setDidUk(row.cloudtalk_did_uk_e164 ?? '');
     }
   };
 
@@ -93,6 +106,9 @@ export function CloudTalkSettingsCard() {
     const payload = {
       cloudtalk_enabled: enabled,
       cloudtalk_default_from_e164: fromNumber.trim() || null,
+      cloudtalk_did_us_e164: didUs.trim() || null,
+      cloudtalk_did_sg_e164: didSg.trim() || null,
+      cloudtalk_did_uk_e164: didUk.trim() || null,
     };
     try {
       if (settingsId) {
@@ -209,6 +225,16 @@ export function CloudTalkSettingsCard() {
               <span className="text-xs text-muted-foreground self-center">
                 {apiConfigured ? 'API keys detected on the server.' : 'Add CLOUDTALK_API_KEY_ID and CLOUDTALK_API_KEY_SECRET to Edge Function secrets.'}
               </span>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Company numbers (US / Singapore / UK)</Label>
+              <div className="grid grid-cols-1 gap-2">
+                <Input value={didUs} onChange={(e) => setDidUs(e.target.value)} placeholder="🇺🇸 US  +1…" className="font-mono text-xs" />
+                <Input value={didSg} onChange={(e) => setDidSg(e.target.value)} placeholder="🇸🇬 Singapore  +65…" className="font-mono text-xs" />
+                <Input value={didUk} onChange={(e) => setDidUk(e.target.value)} placeholder="🇬🇧 UK  +44…" className="font-mono text-xs" />
+              </div>
+              <p className="text-[11px] text-muted-foreground">All calls go through these three lines. Talk Time and Calling reports bucket every call here.</p>
             </div>
 
             <div className="space-y-1.5">
