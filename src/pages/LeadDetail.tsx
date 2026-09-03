@@ -1129,7 +1129,7 @@ function LeadActivityTab({
                                   )}
                                 </div>
                               ) : isCloudTalk ? (
-                                <CloudTalkCallCard description={a.description} attachments={attachments} />
+                                <CloudTalkCallCard description={a.description} attachments={attachments} expanded={expanded} />
                               ) : (
                                 <p className={cn(
                                   'text-sm text-foreground',

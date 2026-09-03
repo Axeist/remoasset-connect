@@ -41,6 +41,28 @@ export function hasCloudTalkCall(attachments: { type: string; url: string; name?
   return attachments.some((a) => a.type === 'cloudtalk_call' || a.url === 'cloudtalk');
 }
 
+export async function fetchCloudTalkRecording(callId: string, download = false): Promise<Blob> {
+  const { supabase } = await import('@/integrations/supabase/client');
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '');
+  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!supabaseUrl || !session?.access_token) throw new Error('Sign in to play recordings');
+  const qs = new URLSearchParams({ call_id: callId });
+  if (download) qs.set('download', '1');
+  const res = await fetch(`${supabaseUrl}/functions/v1/cloudtalk-recording?${qs}`, {
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: anon ?? '',
+    },
+  });
+  const ct = res.headers.get('content-type') ?? '';
+  if (!res.ok || ct.includes('json')) {
+    const err = await res.json().catch(() => ({ error: 'Recording is not available yet' }));
+    throw new Error((err as { error?: string }).error || 'Recording is not available yet');
+  }
+  return res.blob();
+}
+
 export async function recordCloudTalkDialIntent(leadId: string, phone: string, userId: string) {
   const { supabase } = await import('@/integrations/supabase/client');
   const digits = phone.replace(/[^0-9]/g, '');

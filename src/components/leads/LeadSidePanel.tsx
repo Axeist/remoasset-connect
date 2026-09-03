@@ -473,7 +473,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                                     )}
                                   </div>
                                 ) : isCloudTalk ? (
-                                  <CloudTalkCallCardCompact description={a.description} attachments={attachments} />
+                                  <CloudTalkCallCardCompact description={a.description} attachments={attachments} expanded={expanded} />
                                 ) : (
                                   <p className={cn('text-xs text-foreground leading-relaxed', !expanded && 'line-clamp-2')}>
                                     {expanded ? a.description : descPreview}

@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   PhoneIncoming, PhoneOutgoing, Clock, User, Hash, Tags, StickyNote,
   ExternalLink, ChevronDown, Sparkles, AudioLines, Voicemail, ArrowRight,
+  Download, Loader2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { safeFormat } from '@/lib/date';
-import { extractCloudTalkMeta, type CloudTalkCallMeta } from '@/lib/cloudtalk';
+import { extractCloudTalkMeta, fetchCloudTalkRecording, type CloudTalkCallMeta } from '@/lib/cloudtalk';
+import { useToast } from '@/hooks/use-toast';
 
 function formatDuration(sec: number | null | undefined): string {
   if (sec == null || sec < 0) return '—';
@@ -83,11 +85,22 @@ interface Props {
   description: string;
   attachments: { type: string; url: string; name?: string }[];
   compact?: boolean;
+  expanded?: boolean;
 }
 
-export function CloudTalkCallCard({ description, attachments, compact }: Props) {
+export function CloudTalkCallCard({ description, attachments, compact, expanded = false }: Props) {
   const meta = extractCloudTalkMeta(attachments);
+  const { toast } = useToast();
   const [openTranscript, setOpenTranscript] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'listen' | 'download' | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
+
   if (!meta) {
     return <p className="text-sm text-foreground whitespace-pre-wrap">{description}</p>;
   }
@@ -96,9 +109,7 @@ export function CloudTalkCallCard({ description, attachments, compact }: Props) 
   const outcome = humanOutcome(meta);
   const storedAudio = [meta.recordingUrl, attachments.find((a) => a.name === 'Call recording')?.url]
     .find((u) => typeof u === 'string' && (u.includes('call-recordings') || u.includes('/storage/') || u.endsWith('.wav')));
-  const playUrl = meta.recordingLink || (meta.url !== 'cloudtalk' ? meta.url : null) || meta.recordingUrl
-    || attachments.find((a) => a.name === 'Call recording')?.url;
-  const cloudTalkPlay = playUrl && playUrl !== 'cloudtalk' && !storedAudio ? playUrl : null;
+  const hasRecording = Boolean(meta.callId || storedAudio || (meta.recordingLink && meta.recordingLink !== 'cloudtalk') || meta.recorded);
   const sent = sentimentTone(meta.ci?.sentiment ?? meta.ci?.['overall-sentiment']);
   const summary = ciText(meta.ci, ['summary']);
   const smart = meta.ci?.['smart-notes'] ?? meta.ci?.smartNotes;
@@ -107,6 +118,61 @@ export function CloudTalkCallCard({ description, attachments, compact }: Props) 
   const from = displayPhone(meta.fromNumber || (inbound ? meta.externalNumber : meta.internalNumber));
   const to = displayPhone(meta.toNumber || (inbound ? meta.internalNumber : meta.externalNumber));
   const agent = meta.agentName || meta.agentEmail;
+  const playerSrc = audioUrl || storedAudio || null;
+
+  async function loadBlob(download: boolean) {
+    if (storedAudio && !meta.callId) {
+      const res = await fetch(storedAudio);
+      if (!res.ok) throw new Error('Could not load recording');
+      return res.blob();
+    }
+    if (!meta.callId) throw new Error('No CloudTalk call id on this activity');
+    return fetchCloudTalkRecording(meta.callId, download);
+  }
+
+  async function listen(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (playerSrc) return;
+    setBusy('listen');
+    try {
+      const blob = await loadBlob(false);
+      const url = URL.createObjectURL(blob);
+      setAudioUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+    } catch (err) {
+      toast({
+        title: 'Could not play recording',
+        description: err instanceof Error ? err.message : 'Try again after CloudTalk finishes uploading.',
+        variant: 'destructive',
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function download(e: React.MouseEvent) {
+    e.stopPropagation();
+    setBusy('download');
+    try {
+      const blob = await loadBlob(true);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cloudtalk-${meta.callId || 'call'}.wav`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast({
+        title: 'Could not download recording',
+        description: err instanceof Error ? err.message : 'Recording is not ready yet.',
+        variant: 'destructive',
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <div
@@ -114,7 +180,6 @@ export function CloudTalkCallCard({ description, attachments, compact }: Props) 
         'rounded-xl border border-violet-500/20 overflow-hidden',
         'bg-gradient-to-br from-violet-500/[0.07] via-card to-indigo-500/[0.05]',
       )}
-      onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-2 px-3 py-2 bg-violet-500/10 border-b border-violet-500/15">
         <div className="flex h-6 w-6 items-center justify-center rounded-md bg-violet-600 text-white shadow-sm">
@@ -128,148 +193,172 @@ export function CloudTalkCallCard({ description, attachments, compact }: Props) 
         </Badge>
       </div>
 
-      <div className={cn('p-3 space-y-3', compact && 'p-2.5 space-y-2')}>
-        <p className="text-sm font-medium text-foreground">
+      <div className={cn(compact ? 'p-2.5 space-y-1.5' : 'p-3 space-y-3')}>
+        <p className={cn('font-medium text-foreground', compact ? 'text-xs' : 'text-sm')}>
           {outcome}
-          {meta.talkingSeconds != null ? ` · ${formatDuration(meta.talkingSeconds)} talk` : ''}
+          {meta.talkingSeconds != null ? ` · ${formatDuration(meta.talkingSeconds)}` : ''}
           {agent ? ` · ${agent}` : ''}
         </p>
 
-        {(from || to) && (
-          <div className="flex items-center gap-1.5 min-w-0 text-xs font-medium">
-            <Hash className="h-3.5 w-3.5 text-violet-500 shrink-0" />
-            <span className="truncate">{from || '—'}</span>
-            <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-            <span className="truncate">{to || '—'}</span>
-          </div>
-        )}
-
-        <div className={cn('grid gap-2', compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3')}>
-          <Stat icon={Clock} label="Talk time" value={formatDuration(meta.talkingSeconds)} />
-          {meta.waitingSeconds != null && meta.waitingSeconds > 0 && (
-            <Stat icon={Clock} label="Wait" value={formatDuration(meta.waitingSeconds)} muted />
-          )}
-          {meta.wrapupSeconds != null && meta.wrapupSeconds > 0 && (
-            <Stat icon={Clock} label="Wrap-up" value={formatDuration(meta.wrapupSeconds)} muted />
-          )}
-          {agent && <Stat icon={User} label="Agent" value={agent} />}
-          {meta.contactName && <Stat icon={User} label="Contact" value={meta.contactName} />}
-        </div>
-
-        {meta.startedAt && (
-          <p className="text-[11px] text-muted-foreground">
-            {safeFormat(meta.startedAt, 'EEE, MMM d · h:mm a')}
-            {meta.endedAt ? ` – ${safeFormat(meta.endedAt, 'h:mm a')}` : ''}
-          </p>
-        )}
-
-        {meta.tags && meta.tags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1">
-            <Tags className="h-3 w-3 text-violet-500" />
-            {meta.tags.map((t) => (
-              <span key={t} className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">
-                {t}
-              </span>
-            ))}
-          </div>
-        )}
-
         {meta.notes && (
-          <p className="text-xs text-muted-foreground flex gap-1.5">
+          <p className={cn('text-muted-foreground flex gap-1.5', compact ? 'text-[11px]' : 'text-xs', !expanded && 'line-clamp-1')}>
             <StickyNote className="h-3.5 w-3.5 text-violet-500 shrink-0 mt-0.5" />
             {meta.notes}
           </p>
         )}
 
-        {storedAudio ? (
-          <div className="rounded-lg border border-violet-500/15 bg-background/70 px-2.5 py-2">
-            <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-medium text-violet-700 dark:text-violet-300">
-              <AudioLines className="h-3.5 w-3.5" />
-              Recording
-            </div>
-            <audio controls preload="none" className="w-full h-8">
-              <source src={storedAudio} />
-            </audio>
-          </div>
-        ) : cloudTalkPlay ? (
-          <button
-            type="button"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-xs font-medium text-violet-800 dark:text-violet-200 hover:bg-violet-500/15"
-            onClick={() => {
-              window.open(cloudTalkPlay, 'cloudtalk-recording', 'popup=yes,width=720,height=480,noopener');
-            }}
-          >
-            <AudioLines className="h-3.5 w-3.5" />
-            Play recording
-          </button>
-        ) : meta.recorded ? (
-          <p className="text-[11px] text-muted-foreground italic flex items-center gap-1.5">
-            <Voicemail className="h-3.5 w-3.5" />
-            Recording is in CloudTalk (no play link on this event yet)
-          </p>
-        ) : null}
-
-        {(sent || summary || smart) && (
-          <div className="rounded-lg border border-border/60 bg-background/50 p-2.5 space-y-2">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-              Conversation intelligence
-              {sent && <Badge className={cn('ml-auto border-0 text-[10px] capitalize', sent.className)}>{sent.label}</Badge>}
-            </div>
-            {summary && <p className="text-xs text-foreground leading-relaxed">{summary}</p>}
-            {smart && typeof smart === 'object' && (
-              <pre className="text-[11px] text-muted-foreground whitespace-pre-wrap font-sans">
-                {JSON.stringify(smart, null, 2).slice(0, 800)}
-              </pre>
-            )}
-          </div>
+        {!expanded && (
+          <p className="text-[10px] text-muted-foreground">Expand for recording, numbers, and details</p>
         )}
 
-        {transcript && (
-          <div>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 dark:text-violet-300"
-              onClick={() => setOpenTranscript((v) => !v)}
-            >
-              <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', openTranscript && 'rotate-180')} />
-              Transcript
-            </button>
-            {openTranscript && (
-              <pre className="mt-1.5 max-h-48 overflow-auto rounded-md bg-muted/50 p-2 text-[11px] text-muted-foreground whitespace-pre-wrap font-sans">
-                {typeof transcript === 'string' ? transcript : JSON.stringify(transcript, null, 2)}
-              </pre>
+        {expanded && (
+          <>
+            {(from || to) && (
+              <div className="flex items-center gap-1.5 min-w-0 text-xs font-medium">
+                <Hash className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                <span className="truncate">{from || '—'}</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="truncate">{to || '—'}</span>
+              </div>
             )}
-          </div>
-        )}
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          {meta.recordingLink && (
-            <a
-              href={meta.recordingLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 hover:underline"
-            >
-              Open in CloudTalk <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-          {analytics && analytics.startsWith('http') && (
-            <a
-              href={analytics}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 hover:underline"
-            >
-              Analytics <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-          {meta.callId && (
-            <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[140px]" title={meta.callId}>
-              ID {meta.callId}
-            </span>
-          )}
-        </div>
+            <div className={cn('grid gap-2', compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3')}>
+              <Stat icon={Clock} label="Talk time" value={formatDuration(meta.talkingSeconds)} />
+              {meta.waitingSeconds != null && meta.waitingSeconds > 0 && (
+                <Stat icon={Clock} label="Wait" value={formatDuration(meta.waitingSeconds)} muted />
+              )}
+              {meta.wrapupSeconds != null && meta.wrapupSeconds > 0 && (
+                <Stat icon={Clock} label="Wrap-up" value={formatDuration(meta.wrapupSeconds)} muted />
+              )}
+              {agent && <Stat icon={User} label="Agent" value={agent} />}
+              {meta.contactName && <Stat icon={User} label="Contact" value={meta.contactName} />}
+            </div>
+
+            {meta.startedAt && (
+              <p className="text-[11px] text-muted-foreground">
+                {safeFormat(meta.startedAt, 'EEE, MMM d · h:mm a')}
+                {meta.endedAt ? ` – ${safeFormat(meta.endedAt, 'h:mm a')}` : ''}
+              </p>
+            )}
+
+            {meta.tags && meta.tags.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1">
+                <Tags className="h-3 w-3 text-violet-500" />
+                {meta.tags.map((t) => (
+                  <span key={t} className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {hasRecording ? (
+              <div className="rounded-lg border border-violet-500/15 bg-background/70 px-2.5 py-2 space-y-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-violet-700 dark:text-violet-300">
+                  <AudioLines className="h-3.5 w-3.5" />
+                  Recording
+                </div>
+                {playerSrc ? (
+                  <audio controls autoPlay={Boolean(audioUrl)} preload="metadata" className="w-full h-8" onClick={(e) => e.stopPropagation()}>
+                    <source src={playerSrc} type="audio/wav" />
+                  </audio>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-violet-500/20 bg-violet-500/10 px-2.5 py-1.5 text-[11px] font-medium text-violet-800 dark:text-violet-200 hover:bg-violet-500/15 disabled:opacity-50"
+                    disabled={busy !== null}
+                    onClick={listen}
+                  >
+                    {busy === 'listen' ? <Loader2 className="h-3 w-3 animate-spin" /> : <AudioLines className="h-3 w-3" />}
+                    {playerSrc ? 'Playing in browser' : 'Listen in browser'}
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                    disabled={busy !== null}
+                    onClick={download}
+                  >
+                    {busy === 'download' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                    Download
+                  </button>
+                </div>
+              </div>
+            ) : meta.recorded ? (
+              <p className="text-[11px] text-muted-foreground italic flex items-center gap-1.5">
+                <Voicemail className="h-3.5 w-3.5" />
+                Recording is still processing in CloudTalk
+              </p>
+            ) : null}
+
+            {(sent || summary || smart) && (
+              <div className="rounded-lg border border-border/60 bg-background/50 p-2.5 space-y-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
+                  <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                  Conversation intelligence
+                  {sent && <Badge className={cn('ml-auto border-0 text-[10px] capitalize', sent.className)}>{sent.label}</Badge>}
+                </div>
+                {summary && <p className="text-xs text-foreground leading-relaxed">{summary}</p>}
+                {smart && typeof smart === 'object' && (
+                  <pre className="text-[11px] text-muted-foreground whitespace-pre-wrap font-sans">
+                    {JSON.stringify(smart, null, 2).slice(0, 800)}
+                  </pre>
+                )}
+              </div>
+            )}
+
+            {transcript && (
+              <div>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 dark:text-violet-300"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenTranscript((v) => !v);
+                  }}
+                >
+                  <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', openTranscript && 'rotate-180')} />
+                  Transcript
+                </button>
+                {openTranscript && (
+                  <pre className="mt-1.5 max-h-48 overflow-auto rounded-md bg-muted/50 p-2 text-[11px] text-muted-foreground whitespace-pre-wrap font-sans">
+                    {typeof transcript === 'string' ? transcript : JSON.stringify(transcript, null, 2)}
+                  </pre>
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {meta.recordingLink && (
+                <a
+                  href={meta.recordingLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 hover:underline"
+                >
+                  Open in CloudTalk <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+              {analytics && analytics.startsWith('http') && (
+                <a
+                  href={analytics}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 hover:underline"
+                >
+                  Analytics <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+              {meta.callId && (
+                <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[140px]" title={meta.callId}>
+                  ID {meta.callId}
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

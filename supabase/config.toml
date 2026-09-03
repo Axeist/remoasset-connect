@@ -80,3 +80,6 @@ verify_jwt = false
 
 [functions.cloudtalk-admin]
 verify_jwt = false
+
+[functions.cloudtalk-recording]
+verify_jwt = false

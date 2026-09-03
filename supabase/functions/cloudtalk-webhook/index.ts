@@ -85,12 +85,72 @@ function firstDuration(...vals: unknown[]): number | null {
   return null
 }
 
+function extractNotesText(raw: unknown): string {
+  if (raw == null || raw === '') return ''
+  if (typeof raw === 'string') return raw.trim()
+  if (Array.isArray(raw)) return raw.map(extractNotesText).filter(Boolean).join('\n')
+  if (typeof raw === 'object') {
+    const o = raw as Record<string, unknown>
+    return extractNotesText(o.note ?? o.notes ?? o.text ?? o.content ?? o.message ?? o.body)
+  }
+  return String(raw).trim()
+}
+
+function payloadWrapupNotes(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return ''
+  const rec = payload as Record<string, unknown>
+  const event = rec.event && typeof rec.event === 'object' ? rec.event as Record<string, unknown> : null
+  const props =
+    (rec.properties && typeof rec.properties === 'object' ? rec.properties as Record<string, unknown> : null) ??
+    (event?.properties && typeof event.properties === 'object' ? event.properties as Record<string, unknown> : null) ??
+    rec
+  return extractNotesText(
+    props.notes ??
+      props.note ??
+      props.wrapup_notes ??
+      props.wrapup_note ??
+      props.call_notes ??
+      props.agent_note ??
+      rec.notes ??
+      rec.note,
+  )
+}
+
+async function fetchCallNotes(callId: string, auth: string): Promise<string> {
+  const urls = [
+    `${CORE}/notes/index.json?call_id=${encodeURIComponent(callId)}&limit=20`,
+    `${CORE}/calls/notes.json?call_id=${encodeURIComponent(callId)}`,
+  ]
+  for (const url of urls) {
+    const res = await ctGet(url, auth)
+    if (!res.ok || !res.json) continue
+    const envelope = res.json as { responseData?: { data?: unknown[] }; data?: unknown[] }
+    const rows = envelope.responseData?.data ?? envelope.data
+    if (Array.isArray(rows) && rows.length) {
+      const text = extractNotesText(rows)
+      if (text) return text
+    }
+    const direct = extractNotesText(res.json)
+    if (direct && direct.length < 4000) return direct
+  }
+  return ''
+}
+
 function firstString(...vals: unknown[]): string | null {
   for (const v of vals) {
     const s = asString(v)
     if (s) return s
   }
   return null
+}
+
+/** CloudTalk uses incoming/outgoing. Do not match the letters "in" inside "outgoing". */
+function parseCallDirection(raw: string | null): 'inbound' | 'outbound' {
+  const t = (raw ?? '').toLowerCase()
+  if (/\boutgoing\b|\boutbound\b|\bout\b/.test(t) || t === 'outgoing' || t === 'outbound') return 'outbound'
+  if (t.includes('outgoing') || t.includes('outbound')) return 'outbound'
+  if (t.includes('incoming') || t.includes('inbound')) return 'inbound'
+  return 'outbound'
 }
 
 function formatDuration(sec: number | null): string {
@@ -137,30 +197,18 @@ function normalizeCdr(historyRow: Record<string, unknown> | null, details: unkno
       else if (t && typeof t === 'object' && 'name' in t) tags.push(String((t as { name: unknown }).name))
     }
   }
-  const notesRaw = historyRow?.Notes ?? det.notes
-  let notes = ''
-  if (typeof notesRaw === 'string') notes = notesRaw
-  else if (Array.isArray(notesRaw)) {
-    notes = notesRaw
-      .map((n) => {
-        if (typeof n === 'string') return n
-        if (n && typeof n === 'object' && 'note' in n) return String((n as { note: unknown }).note)
-        return ''
-      })
-      .filter(Boolean)
-      .join('\n')
-  }
+  const notes = payloadWrapupNotes(payload) || extractNotesText(historyRow?.Notes ?? det.notes)
 
   const callTimes = (det.call_times && typeof det.call_times === 'object'
     ? det.call_times
     : {}) as Record<string, unknown>
 
   const type = firstString(
-    walkFind(payload, ['direction', 'type', 'call_type']),
+    walkFind(payload, ['direction', 'call_type']),
     cdr.type,
     det.direction,
   ) ?? 'outgoing'
-  const direction = /in/i.test(type) ? 'inbound' : 'outbound'
+  const direction = parseCallDirection(type)
 
   const talking = firstDuration(
     walkFind(payload, ['talking_time', 'talkingTime', 'talk_time', 'billsec', 'duration']),
@@ -399,8 +447,19 @@ Deno.serve(async (req) => {
     )
     if (!callId) return json({ error: 'call_id missing in payload' }, 400)
 
-    const { historyRow, details } = await fetchCallBundle(callId, auth)
-    const n = normalizeCdr(historyRow, details, payload)
+    let { historyRow, details } = await fetchCallBundle(callId, auth)
+    let n = normalizeCdr(historyRow, details, payload)
+    if (!n.notes) {
+      n = { ...n, notes: await fetchCallNotes(callId, auth) }
+    }
+    if (!n.notes) {
+      await new Promise((r) => setTimeout(r, 1200))
+      const retry = await fetchCallBundle(callId, auth)
+      historyRow = retry.historyRow
+      details = retry.details
+      n = normalizeCdr(historyRow, details, payload)
+      if (!n.notes) n = { ...n, notes: await fetchCallNotes(callId, auth) }
+    }
     const recordingEvent = isRecordingEvent(payload)
 
     const matchDigits = digits(n.external_number) || digits(n.to_number) || digits(n.from_number)
@@ -416,7 +475,7 @@ Deno.serve(async (req) => {
 
     const { data: existing } = await supabase
       .from('cloudtalk_calls')
-      .select('id, activity_id, lead_id, recording_link, ci_payload')
+      .select('id, activity_id, lead_id, recording_link, ci_payload, notes')
       .eq('cloudtalk_call_id', callId)
       .maybeSingle()
 
@@ -439,7 +498,7 @@ Deno.serve(async (req) => {
       is_voicemail: n.is_voicemail,
       recording_link: n.recording_link ?? existing?.recording_link ?? null,
       tags: n.tags,
-      notes: n.notes,
+      notes: n.notes || existing?.notes || '',
       ci_payload: Object.keys(ci).length > 0 ? ci : (existing?.ci_payload ?? {}),
       raw_payload: payload,
       updated_at: new Date().toISOString(),
@@ -463,6 +522,7 @@ Deno.serve(async (req) => {
     const meta = buildMeta({
       ...n,
       recording_link: n.recording_link ?? existing?.recording_link ?? null,
+      notes: n.notes || existing?.notes || '',
     }, {
       callId,
       insightsPending: recordingEvent && Object.keys(ci).length === 0,

@@ -181,8 +181,8 @@ export function CloudTalkSettingsCard() {
           {[
             'E.164 numbers so the Chrome Click-to-Call extension can detect them',
             'ct+tel deep links open CloudTalk Desktop from Connect',
-            'Call Ended + Recording Uploaded workflows log every call on the lead',
-            'Play recordings in CloudTalk (link / popup) — audio is not stored in Connect',
+            'Call Ended workflow logs the call, wrap-up notes, and recording link on the lead',
+            'Listen in the browser or download — audio is streamed, not stored in Connect',
           ].map((text) => (
             <div key={text} className="flex items-start gap-2 text-sm text-muted-foreground">
               <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-violet-500/10 mt-0.5">
