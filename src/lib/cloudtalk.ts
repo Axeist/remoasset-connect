@@ -9,8 +9,13 @@ export type CloudTalkCallMeta = {
   waitingSeconds?: number | null;
   wrapupSeconds?: number | null;
   agentName?: string | null;
+  agentEmail?: string | null;
+  contactName?: string | null;
   fromNumber?: string | null;
   toNumber?: string | null;
+  externalNumber?: string | null;
+  internalNumber?: string | null;
+  outcome?: string | null;
   startedAt?: string | null;
   answeredAt?: string | null;
   endedAt?: string | null;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
-  Phone, PhoneIncoming, PhoneOutgoing, Clock, User, Hash, Tags, StickyNote,
-  ExternalLink, ChevronDown, Sparkles, AudioLines, Voicemail,
+  PhoneIncoming, PhoneOutgoing, Clock, User, Hash, Tags, StickyNote,
+  ExternalLink, ChevronDown, Sparkles, AudioLines, Voicemail, ArrowRight,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -16,11 +16,35 @@ function formatDuration(sec: number | null | undefined): string {
   return `${m}m ${String(s).padStart(2, '0')}s`;
 }
 
-function statusTone(status?: string) {
-  const s = (status ?? '').toLowerCase();
+function displayPhone(raw?: string | null): string | null {
+  if (!raw?.trim()) return null;
+  const d = raw.replace(/[^0-9]/g, '');
+  if (!d) return raw;
+  return raw.startsWith('+') ? raw : `+${d}`;
+}
+
+function humanOutcome(meta: CloudTalkCallMeta): string {
+  if (meta.outcome) return meta.outcome;
+  if (meta.isVoicemail) return 'Voicemail';
+  const s = (meta.status ?? '').toLowerCase().replace(/[_-]+/g, ' ');
+  const talked = (meta.talkingSeconds ?? 0) > 0;
+  if (s.includes('voice')) return 'Voicemail';
+  if (s.includes('answer') || s === 'completed') return talked ? 'Answered' : 'Completed';
+  if (s.includes('miss') || s.includes('no answer')) return 'Missed';
+  if (s.includes('busy')) return 'Busy';
+  if (s.includes('cancel')) return 'Cancelled';
+  if (s.includes('fail')) return 'Failed';
+  if (s) return s.replace(/\b\w/g, (c) => c.toUpperCase());
+  return talked ? 'Answered' : 'Missed';
+}
+
+function statusTone(outcome: string) {
+  const s = outcome.toLowerCase();
   if (s.includes('answer') || s === 'completed') return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400';
   if (s.includes('voice')) return 'bg-sky-500/15 text-sky-700 dark:text-sky-400';
-  if (s.includes('miss') || s.includes('no_answer') || s.includes('busy')) return 'bg-amber-500/15 text-amber-700 dark:text-amber-400';
+  if (s.includes('miss') || s.includes('busy') || s.includes('cancel') || s.includes('fail')) {
+    return 'bg-amber-500/15 text-amber-700 dark:text-amber-400';
+  }
   return 'bg-muted text-muted-foreground';
 }
 
@@ -69,12 +93,20 @@ export function CloudTalkCallCard({ description, attachments, compact }: Props) 
   }
 
   const inbound = meta.direction === 'inbound';
-  const recording = meta.recordingUrl || attachments.find((a) => a.name === 'Call recording')?.url;
+  const outcome = humanOutcome(meta);
+  const storedAudio = [meta.recordingUrl, attachments.find((a) => a.name === 'Call recording')?.url]
+    .find((u) => typeof u === 'string' && (u.includes('call-recordings') || u.includes('/storage/') || u.endsWith('.wav')));
+  const playUrl = meta.recordingLink || (meta.url !== 'cloudtalk' ? meta.url : null) || meta.recordingUrl
+    || attachments.find((a) => a.name === 'Call recording')?.url;
+  const cloudTalkPlay = playUrl && playUrl !== 'cloudtalk' && !storedAudio ? playUrl : null;
   const sent = sentimentTone(meta.ci?.sentiment ?? meta.ci?.['overall-sentiment']);
   const summary = ciText(meta.ci, ['summary']);
   const smart = meta.ci?.['smart-notes'] ?? meta.ci?.smartNotes;
   const transcript = meta.ci?.transcription ?? meta.ci?.transcript;
   const analytics = ciText(meta.ci, ['details-link', 'link']);
+  const from = displayPhone(meta.fromNumber || (inbound ? meta.externalNumber : meta.internalNumber));
+  const to = displayPhone(meta.toNumber || (inbound ? meta.internalNumber : meta.externalNumber));
+  const agent = meta.agentName || meta.agentEmail;
 
   return (
     <div
@@ -89,21 +121,39 @@ export function CloudTalkCallCard({ description, attachments, compact }: Props) 
           {inbound ? <PhoneIncoming className="h-3.5 w-3.5" /> : <PhoneOutgoing className="h-3.5 w-3.5" />}
         </div>
         <span className="text-[11px] font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">
-          CloudTalk {inbound ? 'Inbound' : 'Outbound'}
+          {inbound ? 'Inbound call' : 'Outbound call'}
         </span>
-        <Badge className={cn('ml-auto border-0 text-[10px] font-semibold capitalize', statusTone(meta.status))}>
-          {meta.isVoicemail ? 'Voicemail' : (meta.status || 'call')}
+        <Badge className={cn('ml-auto border-0 text-[10px] font-semibold', statusTone(outcome))}>
+          {outcome}
         </Badge>
       </div>
 
       <div className={cn('p-3 space-y-3', compact && 'p-2.5 space-y-2')}>
-        <div className="grid grid-cols-2 gap-2">
-          <Stat icon={Clock} label="Talk" value={formatDuration(meta.talkingSeconds)} />
-          <Stat icon={Clock} label="Wait" value={formatDuration(meta.waitingSeconds)} muted />
-          {meta.agentName && <Stat icon={User} label="Agent" value={meta.agentName} />}
-          {(meta.toNumber || meta.fromNumber) && (
-            <Stat icon={Hash} label={inbound ? 'From' : 'To'} value={meta.toNumber || meta.fromNumber || '—'} />
+        <p className="text-sm font-medium text-foreground">
+          {outcome}
+          {meta.talkingSeconds != null ? ` · ${formatDuration(meta.talkingSeconds)} talk` : ''}
+          {agent ? ` · ${agent}` : ''}
+        </p>
+
+        {(from || to) && (
+          <div className="flex items-center gap-1.5 min-w-0 text-xs font-medium">
+            <Hash className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+            <span className="truncate">{from || '—'}</span>
+            <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+            <span className="truncate">{to || '—'}</span>
+          </div>
+        )}
+
+        <div className={cn('grid gap-2', compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3')}>
+          <Stat icon={Clock} label="Talk time" value={formatDuration(meta.talkingSeconds)} />
+          {meta.waitingSeconds != null && meta.waitingSeconds > 0 && (
+            <Stat icon={Clock} label="Wait" value={formatDuration(meta.waitingSeconds)} muted />
           )}
+          {meta.wrapupSeconds != null && meta.wrapupSeconds > 0 && (
+            <Stat icon={Clock} label="Wrap-up" value={formatDuration(meta.wrapupSeconds)} muted />
+          )}
+          {agent && <Stat icon={User} label="Agent" value={agent} />}
+          {meta.contactName && <Stat icon={User} label="Contact" value={meta.contactName} />}
         </div>
 
         {meta.startedAt && (
@@ -131,24 +181,33 @@ export function CloudTalkCallCard({ description, attachments, compact }: Props) 
           </p>
         )}
 
-        {recording ? (
+        {storedAudio ? (
           <div className="rounded-lg border border-violet-500/15 bg-background/70 px-2.5 py-2">
             <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-medium text-violet-700 dark:text-violet-300">
               <AudioLines className="h-3.5 w-3.5" />
               Recording
             </div>
             <audio controls preload="none" className="w-full h-8">
-              <source src={recording} />
+              <source src={storedAudio} />
             </audio>
           </div>
-        ) : meta.recorded || meta.insightsPending ? (
+        ) : cloudTalkPlay ? (
+          <button
+            type="button"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-xs font-medium text-violet-800 dark:text-violet-200 hover:bg-violet-500/15"
+            onClick={() => {
+              window.open(cloudTalkPlay, 'cloudtalk-recording', 'popup=yes,width=720,height=480,noopener');
+            }}
+          >
+            <AudioLines className="h-3.5 w-3.5" />
+            Play recording
+          </button>
+        ) : meta.recorded ? (
           <p className="text-[11px] text-muted-foreground italic flex items-center gap-1.5">
             <Voicemail className="h-3.5 w-3.5" />
-            Recording / insights processing…
+            Recording is in CloudTalk (no play link on this event yet)
           </p>
-        ) : (
-          <p className="text-[11px] text-muted-foreground">No recording for this call.</p>
-        )}
+        ) : null}
 
         {(sent || summary || smart) && (
           <div className="rounded-lg border border-border/60 bg-background/50 p-2.5 space-y-2">
@@ -184,7 +243,7 @@ export function CloudTalkCallCard({ description, attachments, compact }: Props) 
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {meta.recordingLink && (
             <a
               href={meta.recordingLink}
@@ -204,6 +263,11 @@ export function CloudTalkCallCard({ description, attachments, compact }: Props) 
             >
               Analytics <ExternalLink className="h-3 w-3" />
             </a>
+          )}
+          {meta.callId && (
+            <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[140px]" title={meta.callId}>
+              ID {meta.callId}
+            </span>
           )}
         </div>
       </div>

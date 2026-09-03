@@ -57,8 +57,40 @@ function digits(v: unknown): string {
 
 function parseSeconds(v: unknown): number | null {
   if (v == null || v === '') return null
+  if (typeof v === 'string') {
+    const t = v.trim()
+    if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(t)) {
+      const parts = t.split(':').map(Number)
+      if (parts.some((p) => !Number.isFinite(p))) return null
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
+      return parts[0] * 60 + parts[1]
+    }
+  }
   const n = Number(v)
   return Number.isFinite(n) ? Math.round(n) : null
+}
+
+function prettyPhone(v: string | null): string | null {
+  if (!v) return null
+  const d = digits(v)
+  if (!d) return v
+  return v.startsWith('+') ? v : `+${d}`
+}
+
+function firstDuration(...vals: unknown[]): number | null {
+  for (const v of vals) {
+    const n = parseSeconds(v)
+    if (n != null) return n
+  }
+  return null
+}
+
+function firstString(...vals: unknown[]): string | null {
+  for (const v of vals) {
+    const s = asString(v)
+    if (s) return s
+  }
+  return null
 }
 
 function formatDuration(sec: number | null): string {
@@ -119,20 +151,78 @@ function normalizeCdr(historyRow: Record<string, unknown> | null, details: unkno
       .join('\n')
   }
 
-  const type = asString(cdr.type ?? det.direction) ?? 'outgoing'
+  const callTimes = (det.call_times && typeof det.call_times === 'object'
+    ? det.call_times
+    : {}) as Record<string, unknown>
+
+  const type = firstString(
+    walkFind(payload, ['direction', 'type', 'call_type']),
+    cdr.type,
+    det.direction,
+  ) ?? 'outgoing'
   const direction = /in/i.test(type) ? 'inbound' : 'outbound'
-  const talking = parseSeconds(
-    cdr.talking_time ??
-      (det.call_times ? (det.call_times as Record<string, unknown>).talking_time : undefined),
+
+  const talking = firstDuration(
+    walkFind(payload, ['talking_time', 'talkingTime', 'talk_time', 'billsec', 'duration']),
+    cdr.talking_time,
+    callTimes.talking_time,
+    det.talking_time,
   )
-  const waiting = parseSeconds(cdr.waiting_time)
-  const wrapup = parseSeconds(cdr.wrapup_time)
-  const status = asString(cdr.status ?? det.status) ?? (talking && talking > 0 ? 'answered' : 'missed')
-  const publicExternal = asString(cdr.public_external ?? contact.number)
-  const publicInternal = asString(cdr.public_internal)
-  const recordingLink = asString(cdr.recording_link)
-  const recorded = Boolean(cdr.recorded ?? det.recorded)
-  const isVoicemail = Boolean(cdr.is_voicemail)
+  const waiting = firstDuration(
+    walkFind(payload, ['waiting_time', 'waitingTime']),
+    cdr.waiting_time,
+    callTimes.waiting_time,
+  )
+  const wrapup = firstDuration(
+    walkFind(payload, ['wrapup_time', 'wrapupTime', 'wrap_up_time']),
+    cdr.wrapup_time,
+    callTimes.wrapup_time,
+  )
+
+  const publicExternal = prettyPhone(firstString(
+    walkFind(payload, ['external_number', 'externalNumber', 'public_external', 'customer_number']),
+    cdr.public_external,
+    asString(contact.number),
+  ))
+  const publicInternal = prettyPhone(firstString(
+    walkFind(payload, ['internal_number', 'internalNumber', 'public_internal', 'agent_number']),
+    cdr.public_internal,
+  ))
+
+  const statusRaw = firstString(
+    walkFind(payload, ['status', 'call_status', 'hangup_cause']),
+    cdr.status,
+    det.status,
+  )
+  const talkingPositive = talking != null && talking > 0
+  const status = statusRaw ?? (talkingPositive ? 'answered' : 'missed')
+
+  const recordingLink = firstString(
+    walkFind(payload, ['recording_link', 'recording_url', 'recordingLink', 'recordingUrl']),
+    cdr.recording_link,
+    det.recording_link,
+    det.recording_url,
+  )
+  const recorded = Boolean(
+    walkFind(payload, ['recorded', 'is_recorded']) ?? cdr.recorded ?? det.recorded ?? recordingLink,
+  )
+  const isVoicemail = Boolean(
+    walkFind(payload, ['is_voicemail', 'voicemail']) ?? cdr.is_voicemail,
+  )
+
+  const agentName =
+    firstString(
+      walkFind(payload, ['agent_name', 'agentName', 'user_name', 'userName']),
+      agent.fullname,
+      agent.name,
+      [asString(agent.firstname), asString(agent.lastname)].filter(Boolean).join(' '),
+    ) || null
+
+  const contactName = firstString(
+    walkFind(payload, ['contact_name', 'contactName']),
+    contact.name,
+    contact.fullname,
+  )
 
   return {
     direction,
@@ -141,18 +231,16 @@ function normalizeCdr(historyRow: Record<string, unknown> | null, details: unkno
     to_number: direction === 'outbound' ? publicExternal : publicInternal,
     external_number: publicExternal,
     internal_number: publicInternal,
-    agent_id: asString(agent.id ?? cdr.user_id ?? det.agent_id),
-    agent_name:
-      asString(agent.fullname ?? agent.name) ||
-      [asString(agent.firstname), asString(agent.lastname)].filter(Boolean).join(' ') ||
-      null,
-    agent_email: asString(agent.email),
+    contact_name: contactName,
+    agent_id: firstString(walkFind(payload, ['agent_id', 'user_id']), agent.id, cdr.user_id, det.agent_id),
+    agent_name: agentName,
+    agent_email: firstString(walkFind(payload, ['agent_email', 'user_email']), agent.email),
     duration_seconds: talking,
     waiting_seconds: waiting,
     wrapup_seconds: wrapup,
-    started_at: asString(cdr.started_at ?? det.date),
-    answered_at: asString(cdr.answered_at),
-    ended_at: asString(cdr.ended_at),
+    started_at: firstString(walkFind(payload, ['started_at', 'start_time', 'date']), cdr.started_at, det.date),
+    answered_at: firstString(walkFind(payload, ['answered_at', 'answer_time']), cdr.answered_at),
+    ended_at: firstString(walkFind(payload, ['ended_at', 'end_time']), cdr.ended_at),
     recorded,
     is_voicemail: isVoicemail,
     recording_link: recordingLink,
@@ -164,7 +252,11 @@ function normalizeCdr(historyRow: Record<string, unknown> | null, details: unkno
 
 function isRecordingEvent(payload: unknown): boolean {
   const blob = JSON.stringify(payload).toLowerCase()
-  return blob.includes('recording') && (blob.includes('uploaded') || blob.includes('recording_url') || blob.includes('"object":"recording"'))
+  return blob.includes('recording') && (
+    blob.includes('uploaded') ||
+    blob.includes('"object":"recording"') ||
+    blob.includes('recording.uploaded')
+  )
 }
 
 async function fetchCi(callId: string, auth: string) {
@@ -189,17 +281,28 @@ async function fetchCi(callId: string, auth: string) {
   return out
 }
 
+function humanOutcome(n: ReturnType<typeof normalizeCdr>): string {
+  if (n.is_voicemail) return 'Voicemail'
+  const s = (n.status ?? '').toLowerCase().replace(/[_-]+/g, ' ')
+  if (s.includes('answer') || s === 'completed') return n.duration_seconds && n.duration_seconds > 0 ? 'Answered' : 'Completed'
+  if (s.includes('miss') || s.includes('no answer')) return 'Missed'
+  if (s.includes('busy')) return 'Busy'
+  if (s.includes('cancel')) return 'Cancelled'
+  if (s.includes('fail')) return 'Failed'
+  if (s) return s.replace(/\b\w/g, (c) => c.toUpperCase())
+  return n.duration_seconds && n.duration_seconds > 0 ? 'Answered' : 'Missed'
+}
+
 function buildDescription(n: ReturnType<typeof normalizeCdr>): string {
   const talk = formatDuration(n.duration_seconds)
-  const status = n.is_voicemail ? 'voicemail' : (n.status || 'completed')
-  const lines = [
-    `CloudTalk ${n.direction} · ${status} · ${talk}`,
-  ]
-  const meta: string[] = []
-  if (n.agent_name) meta.push(`Agent: ${n.agent_name}`)
-  const num = n.external_number ? (n.external_number.startsWith('+') ? n.external_number : `+${n.external_number}`) : null
-  if (num) meta.push(num)
-  if (meta.length) lines.push(meta.join(' · '))
+  const dir = n.direction === 'inbound' ? 'Inbound' : 'Outbound'
+  const lines = [`CloudTalk ${dir} · ${humanOutcome(n)} · ${talk}`]
+  const bits: string[] = []
+  if (n.agent_name) bits.push(n.agent_name)
+  if (n.contact_name) bits.push(n.contact_name)
+  if (n.external_number) bits.push(n.external_number)
+  if (bits.length) lines.push(bits.join(' · '))
+  if (n.from_number && n.to_number) lines.push(`${n.from_number} → ${n.to_number}`)
   if (n.notes) lines.push(n.notes)
   if (n.tags.length) lines.push(`Tags: ${n.tags.join(', ')}`)
   return lines.join('\n')
@@ -208,24 +311,29 @@ function buildDescription(n: ReturnType<typeof normalizeCdr>): string {
 function buildMeta(n: ReturnType<typeof normalizeCdr>, extras: Record<string, unknown>) {
   return {
     type: 'cloudtalk_call',
-    url: (extras.recordingUrl as string) || n.recording_link || 'cloudtalk',
+    url: n.recording_link || 'cloudtalk',
     name: 'CloudTalk call',
     callId: extras.callId,
     direction: n.direction,
     status: n.is_voicemail ? 'voicemail' : n.status,
+    outcome: humanOutcome(n),
     talkingSeconds: n.duration_seconds,
     waitingSeconds: n.waiting_seconds,
     wrapupSeconds: n.wrapup_seconds,
     agentName: n.agent_name,
+    agentEmail: n.agent_email,
+    contactName: n.contact_name,
     fromNumber: n.from_number,
     toNumber: n.to_number,
+    externalNumber: n.external_number,
+    internalNumber: n.internal_number,
     startedAt: n.started_at,
     answeredAt: n.answered_at,
     endedAt: n.ended_at,
     tags: n.tags,
     notes: n.notes,
     recordingLink: n.recording_link,
-    recordingUrl: extras.recordingUrl ?? null,
+    recordingUrl: null,
     recorded: n.recorded,
     isVoicemail: n.is_voicemail,
     insightsPending: extras.insightsPending ?? false,
@@ -293,7 +401,7 @@ Deno.serve(async (req) => {
 
     const { historyRow, details } = await fetchCallBundle(callId, auth)
     const n = normalizeCdr(historyRow, details, payload)
-    const wantRecording = isRecordingEvent(payload) || Boolean(n.recorded)
+    const recordingEvent = isRecordingEvent(payload)
 
     const matchDigits = digits(n.external_number) || digits(n.to_number) || digits(n.from_number)
     const { data: matchedLeadId } = await supabase.rpc('match_lead_id_by_phone_digits', {
@@ -301,29 +409,14 @@ Deno.serve(async (req) => {
     })
     const leadId = (matchedLeadId as string | null) ?? null
 
-    let recordingUrl: string | null = null
-    let recordingPath: string | null = null
     let ci: Record<string, unknown> = {}
-
-    if (wantRecording) {
-      const rec = await ctGet(`${CORE}/calls/recording/${encodeURIComponent(callId)}.json`, auth)
-      if (rec.ok && rec.buf && rec.buf.byteLength > 100) {
-        recordingPath = `${leadId ?? 'unmatched'}/${callId}.wav`
-        const { error: upErr } = await supabase.storage.from('call-recordings').upload(recordingPath, rec.buf, {
-          contentType: 'audio/wav',
-          upsert: true,
-        })
-        if (!upErr) {
-          const { data: pub } = supabase.storage.from('call-recordings').getPublicUrl(recordingPath)
-          recordingUrl = pub.publicUrl
-        }
-      }
+    if (recordingEvent) {
       ci = await fetchCi(callId, auth)
     }
 
     const { data: existing } = await supabase
       .from('cloudtalk_calls')
-      .select('id, activity_id, lead_id')
+      .select('id, activity_id, lead_id, recording_link, ci_payload')
       .eq('cloudtalk_call_id', callId)
       .maybeSingle()
 
@@ -344,11 +437,10 @@ Deno.serve(async (req) => {
       ended_at: n.ended_at,
       recorded: n.recorded,
       is_voicemail: n.is_voicemail,
-      recording_link: n.recording_link,
-      recording_storage_path: recordingPath,
+      recording_link: n.recording_link ?? existing?.recording_link ?? null,
       tags: n.tags,
       notes: n.notes,
-      ci_payload: ci,
+      ci_payload: Object.keys(ci).length > 0 ? ci : (existing?.ci_payload ?? {}),
       raw_payload: payload,
       updated_at: new Date().toISOString(),
     }
@@ -368,24 +460,25 @@ Deno.serve(async (req) => {
     const { data: lead } = await supabase.from('leads').select('owner_id').eq('id', finalLeadId).single()
     const userId = await resolveUserId(supabase, n.agent_id, n.agent_email, lead?.owner_id ?? null)
 
-    const meta = buildMeta(n, {
+    const meta = buildMeta({
+      ...n,
+      recording_link: n.recording_link ?? existing?.recording_link ?? null,
+    }, {
       callId,
-      recordingUrl,
-      insightsPending: wantRecording ? Object.keys(ci).length === 0 : true,
-      ci,
+      insightsPending: recordingEvent && Object.keys(ci).length === 0,
+      ci: Object.keys(ci).length > 0 ? ci : (existing?.ci_payload ?? {}),
     })
     const description = buildDescription(n)
     const source = { type: 'activity_source', url: 'cloudtalk', name: 'CloudTalk' }
     const attachments = [meta, source]
-    if (recordingUrl) {
-      attachments.push({ type: 'file', url: recordingUrl, name: 'Call recording' } as typeof meta)
-    }
 
     let activityId = saved?.activity_id ?? existing?.activity_id
     if (activityId) {
       const { data: prev } = await supabase.from('lead_activities').select('attachments').eq('id', activityId).maybeSingle()
       const prevAtt = Array.isArray(prev?.attachments) ? prev.attachments : []
-      const kept = (prevAtt as { type?: string }[]).filter((a) => a.type !== 'cloudtalk_call' && a.type !== 'activity_source' && a.name !== 'Call recording')
+      const kept = (prevAtt as { type?: string; name?: string }[]).filter(
+        (a) => a.type !== 'cloudtalk_call' && a.type !== 'activity_source' && a.name !== 'Call recording',
+      )
       await supabase.from('lead_activities').update({
         description,
         attachments: [...kept, ...attachments],
