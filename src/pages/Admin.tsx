@@ -1477,14 +1477,15 @@ curl -X POST ${baseUrl}/notifications \\
 
             {/* ── INTEGRATIONS ── */}
             {activeTab === 'integrations' && (
-              <div className="space-y-4 max-w-2xl">
+              <div className="space-y-4">
                 <div>
                   <h2 className="text-lg font-semibold">Integrations</h2>
                   <p className="text-sm text-muted-foreground">Connect external services to enhance your workflow</p>
                 </div>
 
+                <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
                 {/* Google Workspace card */}
-                <div className="relative overflow-hidden rounded-xl border border-border/60">
+                <div className="relative overflow-hidden rounded-xl border border-border/60 h-full">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-primary/[0.03] rounded-full -translate-y-1/3 translate-x-1/3" />
                   <div className="absolute bottom-0 left-0 w-44 h-44 bg-[#34A853]/[0.03] rounded-full translate-y-1/3 -translate-x-1/3" />
                   <div className="relative p-6">
@@ -1509,7 +1510,7 @@ curl -X POST ${baseUrl}/notifications \\
                       )}
                     </div>
 
-                    <div className="grid sm:grid-cols-2 gap-6">
+                    <div className="space-y-4">
                       <div className="space-y-2">
                         {[
                           { color: 'var(--color-primary)', text: 'Creates calendar events for meetings' },
@@ -1553,6 +1554,7 @@ curl -X POST ${baseUrl}/notifications \\
                 </div>
 
                 <CloudTalkSettingsCard />
+                </div>
 
                 {/* Slack integration card */}
                 <div className="rounded-xl border border-border/60 overflow-hidden">

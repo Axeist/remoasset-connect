@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Check, Copy, ExternalLink, Loader2, Phone, RefreshCw, Shield, Zap,
+  Check, Copy, ExternalLink, Loader2, Phone, RefreshCw,
 } from 'lucide-react';
 
 type Agent = { id: number; name: string; email: string | null; availability: string | null };
@@ -150,9 +150,9 @@ export function CloudTalkSettingsCard() {
   }
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-violet-500/20">
+    <div className="relative overflow-hidden rounded-xl border border-violet-500/20 h-full">
       <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/[0.06] rounded-full -translate-y-1/3 translate-x-1/3" />
-      <div className="relative p-6 space-y-5">
+      <div className="relative p-5 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md shadow-violet-600/25">
@@ -177,12 +177,11 @@ export function CloudTalkSettingsCard() {
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-2.5">
+        <div className="space-y-2">
           {[
-            'E.164 numbers so the Chrome Click-to-Call extension can detect them',
-            'ct+tel deep links open CloudTalk Desktop from Connect',
-            'Call Ended workflow logs the call, wrap-up notes, and recording link on the lead',
-            'Listen in the browser or download — audio is streamed, not stored in Connect',
+            'Click-to-call on lead phones (E.164 + Chrome extension)',
+            'Calls and wrap-up notes log on the lead',
+            'Listen or download recordings in the browser',
           ].map((text) => (
             <div key={text} className="flex items-start gap-2 text-sm text-muted-foreground">
               <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-violet-500/10 mt-0.5">
@@ -194,17 +193,13 @@ export function CloudTalkSettingsCard() {
         </div>
 
         {enabled && (
-          <div className="space-y-5 pt-2 border-t border-violet-500/15">
-            <div className="rounded-lg border border-violet-500/20 bg-violet-500/[0.04] p-3 flex items-start gap-2.5">
-              <Zap className="h-4 w-4 text-violet-600 mt-0.5 shrink-0" />
-              <p className="text-sm text-violet-900/80 dark:text-violet-200/80">
-                Install the{' '}
-                <a className="underline font-medium" href="https://chromewebstore.google.com/detail/cloudtalk-click-to-call/mbgbeafnenfaffpbpkincpgpepjhekbm" target="_blank" rel="noreferrer">
-                  Click to Call extension
-                </a>{' '}
-                and CloudTalk Desktop. Numbers must show a leading + country code.
-              </p>
-            </div>
+          <div className="space-y-3 pt-2 border-t border-violet-500/15">
+            <p className="text-xs text-muted-foreground">
+              <a className="underline font-medium text-violet-700 dark:text-violet-300" href="https://chromewebstore.google.com/detail/cloudtalk-click-to-call/mbgbeafnenfaffpbpkincpgpepjhekbm" target="_blank" rel="noreferrer">
+                Click to Call extension
+              </a>
+              {' '}and CloudTalk Desktop required. Numbers need a leading + country code.
+            </p>
 
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" size="sm" className="gap-2" onClick={testConnection} disabled={testing}>
@@ -235,21 +230,6 @@ export function CloudTalkSettingsCard() {
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-violet-600" />
-                <h4 className="text-sm font-semibold">Workflows (do this once in CloudTalk)</h4>
-              </div>
-              <ol className="text-sm text-muted-foreground space-y-2 list-decimal pl-5">
-                <li>
-                  Dashboard → Account →{' '}
-                  <a className="underline" href="https://help.cloudtalk.io/en/articles/5450779-configuring-workflow-automations" target="_blank" rel="noreferrer">
-                    Workflow Automations
-                  </a>
-                </li>
-                <li>Workflow 1: Trigger <strong className="text-foreground">Call → Ended</strong>, action <strong className="text-foreground">API Request</strong> POST to the URL below.</li>
-                <li>Workflow 2: Trigger <strong className="text-foreground">Recording → Uploaded</strong>, same URL and secret.</li>
-                <li>Header <code className="text-xs bg-muted px-1 rounded">X-CloudTalk-Secret</code> = the secret below. Include the call id in the JSON body.</li>
-              </ol>
               <CopyField label="Webhook URL" value={webhookUrl} copied={copied === 'url'} onCopy={() => copy('url', webhookUrl)} />
               <CopyField label="Webhook secret" value={webhookSecret} copied={copied === 'secret'} onCopy={() => copy('secret', webhookSecret)} secret />
             </div>
@@ -257,7 +237,7 @@ export function CloudTalkSettingsCard() {
             {agents.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-sm font-semibold">Map Connect users to CloudTalk agents</h4>
-                <div className="rounded-lg border overflow-hidden">
+                <div className="rounded-lg border overflow-hidden max-h-40 overflow-y-auto">
                   {members.map((m) => (
                     <div key={m.user_id} className="flex items-center gap-3 px-3 py-2 border-b last:border-0 bg-card">
                       <div className="min-w-0 flex-1">
