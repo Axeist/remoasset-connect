@@ -26,6 +26,7 @@ import { EmailSignaturesDialog } from '@/components/leads/EmailSignaturesDialog'
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { toE164Display, waMeUrl } from '@/lib/phone';
 import { getActivityScorePoints } from '@/lib/leadScore';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 import { useGmail, fileToEmailAttachment } from '@/hooks/useGmail';
@@ -209,9 +210,7 @@ export function AddActivityDialog({
       })()
     : null;
 
-  const whatsappUrl = leadPhone?.trim()
-    ? `https://wa.me/${leadPhone.trim().replace(/[^0-9]/g, '')}`
-    : null;
+  const whatsappUrl = waMeUrl(leadPhone);
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files ?? []);
@@ -773,7 +772,7 @@ export function AddActivityDialog({
               {whatsappUrl ? (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    Phone: <span className="font-medium text-foreground">{leadPhone}</span>
+                    Phone: <span className="font-medium text-foreground tabular-nums">{toE164Display(leadPhone)}</span>
                   </p>
                   <Button
                     type="button"

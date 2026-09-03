@@ -10,8 +10,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { formatVendorTypeLabel } from '@/lib/vendorTypes';
+import { CloudTalkPhoneLink } from '@/components/leads/CloudTalkPhoneLink';
 import {
-  Globe2, Search, Building2, User, Mail, Phone, FileText, ExternalLink,
+  Globe2, Search, Building2, User, Mail, FileText, ExternalLink,
   ShieldCheck, DollarSign, Star, X, ZoomIn, ZoomOut, RotateCcw,
   MapPin, ChevronRight, ChevronDown, Warehouse,
 } from 'lucide-react';
@@ -808,7 +809,11 @@ export function VendorDirectory() {
                           <td className="px-4 py-3 max-w-[220px]">
                             {v.contact_name && <p className="text-foreground text-xs font-medium truncate">{v.contact_name}</p>}
                             {v.email && <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5"><Mail className="h-3 w-3 shrink-0" />{v.email}</p>}
-                            {v.phone && <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5"><Phone className="h-3 w-3 shrink-0" />{v.phone}</p>}
+                            {v.phone && (
+                              <div className="mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                <CloudTalkPhoneLink phone={v.phone} leadId={v.id} compact className="text-xs text-muted-foreground" />
+                              </div>
+                            )}
                             {Array.isArray(v.additional_contacts) && v.additional_contacts.length > 0 && (
                               <p className="text-[10px] text-primary/70 mt-1 font-medium">+{v.additional_contacts.length} more contact{v.additional_contacts.length !== 1 ? 's' : ''}</p>
                             )}

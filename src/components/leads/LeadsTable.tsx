@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import type { Lead } from '@/types/lead';
 import { safeFormat } from '@/lib/date';
+import { CloudTalkPhoneLink } from '@/components/leads/CloudTalkPhoneLink';
 import { ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -163,7 +164,9 @@ export function LeadsTable({
                 <TableCell>
                   <div>
                     <p className="font-medium">{lead.contact_name || '-'}</p>
-                    <p className="text-sm text-muted-foreground">{lead.phone || '-'}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {lead.phone ? <CloudTalkPhoneLink phone={lead.phone} leadId={lead.id} compact /> : '—'}
+                    </p>
                   </div>
                 </TableCell>
                 <TableCell>

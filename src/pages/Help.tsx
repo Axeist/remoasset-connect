@@ -331,6 +331,7 @@ export default function Help() {
                         { icon: FileText,    color: 'bg-amber-500/10 text-amber-500', title: 'Quotation', desc: 'Upload quotation files (PDF, Word, Excel, images). Files save to the Documents tab automatically.' },
                         { icon: Linkedin,    color: 'bg-sky-500/10 text-sky-500',     title: 'LinkedIn',  desc: 'Enter the contact\'s LinkedIn URL and the message you sent. Opens the profile in a new tab.' },
                         { icon: MessageCircle, color:'bg-emerald-500/10 text-emerald-500', title: 'WhatsApp', desc: 'Log the conversation. If the lead has a phone number, opens WhatsApp chat directly.' },
+                        { icon: Phone, color:'bg-violet-500/10 text-violet-500', title: 'CloudTalk', desc: 'Lead phones are E.164 so Click-to-Call can detect them. Completed CloudTalk calls (with recording) land on the lead timeline automatically.' },
                       ].map(({ icon: Icon, color, title, desc }) => (
                         <div key={title} className="flex gap-3 rounded-xl border border-border/60 bg-card p-3.5">
                           <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg shrink-0 mt-0.5', color)}>

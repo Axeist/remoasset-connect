@@ -25,6 +25,7 @@ import { InviteUserDialog } from '@/components/admin/InviteUserDialog';
 import { UserManagementDialog } from '@/components/admin/UserManagementDialog';
 import { StatusFormDialog } from '@/components/admin/StatusFormDialog';
 import { CountryFormDialog } from '@/components/admin/CountryFormDialog';
+import { CloudTalkSettingsCard } from '@/components/admin/CloudTalkSettingsCard';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -1550,6 +1551,8 @@ curl -X POST ${baseUrl}/notifications \\
                     </div>
                   </div>
                 </div>
+
+                <CloudTalkSettingsCard />
 
                 {/* Slack integration card */}
                 <div className="rounded-xl border border-border/60 overflow-hidden">

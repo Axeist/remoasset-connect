@@ -38,6 +38,9 @@ import {
 import type { Lead } from '@/types/lead';
 import { formatVendorTypeLabel } from '@/lib/vendorTypes';
 import { MeetingActivityCardCompact, hasMeetingData, extractMeetingMeta } from '@/components/leads/MeetingActivityCard';
+import { CloudTalkCallCardCompact } from '@/components/leads/CloudTalkCallCard';
+import { CloudTalkPhoneLink } from '@/components/leads/CloudTalkPhoneLink';
+import { hasCloudTalkCall } from '@/lib/cloudtalk';
 import { useSyncGoogleMeetingActivities } from '@/hooks/useSyncGoogleMeetingActivities';
 
 interface LeadActivity {
@@ -255,13 +258,12 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
       {/* Quick-action links */}
       <div className="flex items-center gap-1 px-4 py-2 border-b bg-muted/10 shrink-0 flex-wrap">
         {displayLead.phone && (
-          <a
-            href={`tel:${displayLead.phone}`}
-            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-          >
-            <Phone className="h-3 w-3" />
-            {displayLead.phone}
-          </a>
+          <CloudTalkPhoneLink
+            phone={displayLead.phone}
+            leadId={lead.id}
+            compact
+            className="text-xs px-2 py-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
+          />
         )}
         {displayLead.email && (
           <a
@@ -318,7 +320,12 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
               <div className="space-y-3">
                 <InfoRow label="Company" value={displayLead.company_name} />
                 {displayLead.email && <InfoRow label="Email" value={displayLead.email} href={`mailto:${displayLead.email}`} />}
-                {displayLead.phone && <InfoRow label="Phone" value={displayLead.phone} href={`tel:${displayLead.phone}`} />}
+                {displayLead.phone && (
+                  <div className="flex items-start gap-3 py-1.5 border-b border-border/50">
+                    <span className="text-xs text-muted-foreground w-24 shrink-0 pt-0.5">Phone</span>
+                    <CloudTalkPhoneLink phone={displayLead.phone} leadId={lead.id} />
+                  </div>
+                )}
                 {(displayLead as any).website && (
                   <InfoRow label="Website" value={(displayLead as any).website} href={(displayLead as any).website} external />
                 )}
@@ -394,11 +401,12 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                     const isMeeting = a.activity_type === 'meeting';
                     const isMeetingWithCalendar = isMeeting && hasMeetingData(attachments);
                     const meetingMeta = isMeeting ? extractMeetingMeta(attachments) : null;
+                    const isCloudTalk = hasCloudTalkCall(attachments);
                     const isAutomation = attachments.some((att) => att.type === 'activity_source' && att.url === 'automation');
-                    const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.type !== 'gmail_ref' && att.type !== 'activity_source' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
+                    const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.type !== 'gmail_ref' && att.type !== 'activity_source' && att.type !== 'cloudtalk_call' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event' && att.name !== 'Call recording');
                     const expanded = expandedIds.has(a.id);
                     const descPreview = a.description?.length > 80 ? a.description.slice(0, 80) + '…' : a.description;
-                    const hasMore = (a.description?.length > 80) || nonMetaAttachments.length > 0 || isMeetingWithCalendar;
+                    const hasMore = (a.description?.length > 80) || nonMetaAttachments.length > 0 || isMeetingWithCalendar || isCloudTalk;
 
                     return (
                       <div
@@ -464,6 +472,8 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                                       <p className="text-[11px] text-muted-foreground line-clamp-2">{descPreview}</p>
                                     )}
                                   </div>
+                                ) : isCloudTalk ? (
+                                  <CloudTalkCallCardCompact description={a.description} attachments={attachments} />
                                 ) : (
                                   <p className={cn('text-xs text-foreground leading-relaxed', !expanded && 'line-clamp-2')}>
                                     {expanded ? a.description : descPreview}

@@ -30,6 +30,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Plus, Trash2, UserPlus, ChevronDown, X, AlertTriangle, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { VENDOR_TYPE_OPTIONS, VENDOR_TYPE_VALUES } from '@/lib/vendorTypes';
+import { normalizePhoneE164 } from '@/lib/phone';
 
 const WON_PATTERNS = ['won', 'closed won', 'closed-won'];
 
@@ -255,13 +256,19 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
       }
     }
 
-    const cleanContacts = additionalContacts.filter((c) => c.name.trim() || c.email.trim() || c.phone.trim());
+    const iso2 =
+      countries.find((c) => c.id === values.hq_country_id)?.code ??
+      countries.find((c) => c.id === values.country_ids[0])?.code ??
+      null;
+    const cleanContacts = additionalContacts
+      .filter((c) => c.name.trim() || c.email.trim() || c.phone.trim())
+      .map((c) => ({ ...c, phone: c.phone.trim() ? (normalizePhoneE164(c.phone, iso2) ?? c.phone.trim()) : c.phone }));
 
     const payload: Record<string, any> = {
       company_name: values.company_name,
       website: values.website,
       email: values.email?.trim() || null,
-      phone: values.phone || null,
+      phone: values.phone?.trim() ? normalizePhoneE164(values.phone, iso2) : null,
       contact_name: values.contact_name || null,
       contact_designation: values.contact_designation || null,
       hq_country_id: values.hq_country_id || null,

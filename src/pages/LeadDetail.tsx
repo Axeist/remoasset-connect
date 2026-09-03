@@ -11,6 +11,9 @@ import { UploadDocumentDialog } from '@/components/leads/UploadDocumentDialog';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
 import { ArrowLeft, Phone, Mail, Calendar, FileText, User, Building2, Link as LinkIcon, Paperclip, Trash2, FileUp, ExternalLink, Loader2, AlertTriangle, MessageCircle, ShieldCheck, Linkedin, Pencil, Check, X, Video, ChevronDown, Clock, Users, Sparkles, ArrowRightLeft } from 'lucide-react';
 import { MeetingActivityCard, hasMeetingData, extractMeetingMeta } from '@/components/leads/MeetingActivityCard';
+import { CloudTalkCallCard } from '@/components/leads/CloudTalkCallCard';
+import { CloudTalkPhoneLink } from '@/components/leads/CloudTalkPhoneLink';
+import { hasCloudTalkCall } from '@/lib/cloudtalk';
 import { LeadEmailTab } from '@/components/leads/LeadEmailTab';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -419,7 +422,11 @@ export default function LeadDetail() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Phone</p>
-                  <p className="font-medium">{lead.phone ?? '-'}</p>
+                  {lead.phone ? (
+                    <CloudTalkPhoneLink phone={lead.phone} leadId={lead.id} className="font-medium" />
+                  ) : (
+                    <p className="font-medium">-</p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Contact</p>
@@ -438,7 +445,9 @@ export default function LeadDetail() {
                           {c.name && <span className="font-medium">{c.name}</span>}
                           {c.designation && <span className="text-muted-foreground">({c.designation})</span>}
                           {c.email && <span className="text-muted-foreground">{c.email}</span>}
-                          {c.phone && <span className="text-muted-foreground">{c.phone}</span>}
+                          {c.phone && (
+                            <CloudTalkPhoneLink phone={c.phone} leadId={lead.id} className="text-muted-foreground" />
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1013,8 +1022,9 @@ function LeadActivityTab({
                 const isMeeting = a.activity_type === 'meeting';
                 const isMeetingWithCalendar = isMeeting && hasMeetingData(attachments);
                 const meetingMeta = isMeeting ? extractMeetingMeta(attachments) : null;
+                const isCloudTalk = hasCloudTalkCall(attachments);
                 const isAutomation = attachments.some((att) => att.type === 'activity_source' && att.url === 'automation');
-                const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.type !== 'gmail_ref' && att.type !== 'activity_source' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event');
+                const nonMetaAttachments = attachments.filter((att) => att.type !== 'meeting_meta' && att.type !== 'gmail_ref' && att.type !== 'activity_source' && att.type !== 'cloudtalk_call' && att.name !== 'Google Meet Link' && att.name !== 'Google Calendar Event' && att.name !== 'Call recording');
                 const expanded = expandedIds.has(a.id);
                 const isEmail = a.activity_type === 'email';
                 const emailParts = isEmail && a.description ? (() => {
@@ -1023,7 +1033,7 @@ function LeadActivityTab({
                   return { subject: a.description.slice(0, idx).trim(), body: a.description.slice(idx + 2).trim() };
                 })() : null;
                 const descriptionPreview = a.description?.length > 120 ? a.description.slice(0, 120) + '…' : a.description;
-                const hasMore = (a.description?.length > 120) || nonMetaAttachments.length > 0 || isMeetingWithCalendar;
+                const hasMore = (a.description?.length > 120) || nonMetaAttachments.length > 0 || isMeetingWithCalendar || isCloudTalk;
 
                 return (
                   <div key={a.id} className="relative flex items-start gap-3 group pb-6 last:pb-0">
@@ -1118,6 +1128,8 @@ function LeadActivityTab({
                                     </p>
                                   )}
                                 </div>
+                              ) : isCloudTalk ? (
+                                <CloudTalkCallCard description={a.description} attachments={attachments} />
                               ) : (
                                 <p className={cn(
                                   'text-sm text-foreground',

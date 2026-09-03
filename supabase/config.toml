@@ -74,3 +74,9 @@ verify_jwt = false
 
 [functions.mrp-price-lookup]
 verify_jwt = false
+
+[functions.cloudtalk-webhook]
+verify_jwt = false
+
+[functions.cloudtalk-admin]
+verify_jwt = false
