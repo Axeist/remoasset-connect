@@ -30,26 +30,73 @@ export function categoryLabel(category: DeviceCategory | string): string {
   return DEVICE_CATEGORIES.find((c) => c.value === category)?.label ?? category;
 }
 
-export function buildDeviceLineSummary(v: DeviceSpecValues): string {
-  const cfg = DEVICE_CATEGORY_CONFIG[v.category];
-  const head = `${categoryLabel(v.category)}: ${v.brand} ${v.device_model}`.trim();
-  const parts = [v.quantity > 1 ? `${head} ×${v.quantity}` : head];
-  if (v.serial_number.trim()) parts.push(`S/N ${v.serial_number.trim()}`);
+export type CartLineDescription = {
+  category: string;
+  title: string;
+  quantity: number;
+  specs: string[];
+  addons: string[];
+  notes: string | null;
+};
 
+export function describeCartLine(v: DeviceSpecValues): CartLineDescription {
+  const cfg = DEVICE_CATEGORY_CONFIG[v.category];
+  const title = `${v.brand || ''} ${v.device_model || ''}`.trim() || 'Item';
+  const specs: string[] = [];
+  if (v.serial_number?.trim()) specs.push(`S/N ${v.serial_number.trim()}`);
   for (const key of cfg?.fields ?? []) {
     const val = v[key];
-    if (typeof val === 'string' && val.trim()) parts.push(val.trim());
+    if (typeof val === 'string' && val.trim()) specs.push(val.trim());
   }
+  (v.custom_fields || [])
+    .filter((f) => f.label?.trim() && f.value?.trim())
+    .forEach((f) => specs.push(`${f.label.trim()}: ${f.value.trim()}`));
 
-  v.custom_fields
-    .filter((f) => f.label.trim() && f.value.trim())
-    .forEach((f) => parts.push(`${f.label.trim()}: ${f.value.trim()}`));
+  const addons = (v.addons || [])
+    .filter((a) => (a.type || a.model || '').trim())
+    .map((a) => {
+      const label = [a.type, a.model].filter((x) => x?.trim()).join(' — ');
+      const q = Number(a.qty) || 1;
+      return q > 1 ? `${label} ×${q}` : label;
+    });
 
-  return parts.filter(Boolean).join(', ');
+  return {
+    category: categoryLabel(v.category),
+    title,
+    quantity: Number(v.quantity) || 1,
+    specs,
+    addons,
+    notes: v.notes?.trim() || null,
+  };
+}
+
+export function buildDeviceLineSummary(v: DeviceSpecValues): string {
+  const d = describeCartLine(v);
+  const bits = [`${d.category}: ${d.title} ×${d.quantity}`];
+  if (d.specs.length) bits.push(d.specs.join(', '));
+  if (d.addons.length) bits.push(`Add-ons: ${d.addons.join('; ')}`);
+  if (d.notes) bits.push(d.notes);
+  return bits.filter(Boolean).join(' · ');
 }
 
 export function buildMultiDeviceSummary(devices: DeviceSpecValues[]): string {
-  return devices.map(buildDeviceLineSummary).filter(Boolean).join(' · ');
+  return devices.map((d, i) => `${i + 1}. ${buildDeviceLineSummary(d)}`).filter(Boolean).join('\n');
+}
+
+export function buildCartNeedPlain(devices: DeviceSpecValues[], extraNotes?: string): string {
+  const blocks = devices.map((v, i) => {
+    const d = describeCartLine(v);
+    const lines = [`${i + 1}. ${d.category} — ${d.title}  (qty ${d.quantity})`];
+    if (d.specs.length) lines.push(`   Specs: ${d.specs.join(', ')}`);
+    if (d.addons.length) {
+      lines.push('   Add-ons:');
+      d.addons.forEach((a) => lines.push(`     • ${a}`));
+    }
+    if (d.notes) lines.push(`   Notes: ${d.notes}`);
+    return lines.join('\n');
+  });
+  if (extraNotes?.trim()) blocks.push(`Delivery / notes: ${extraNotes.trim()}`);
+  return blocks.join('\n\n');
 }
 
 export function validateDeviceLine(v: DeviceSpecValues): string | null {

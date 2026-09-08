@@ -1,7 +1,5 @@
-/**
- * RFQ emails — RemoAsset brand (Outfit/Manrope, #30282B + #EA6E35)
- * Tone: human, short, conversational — not automated system copy.
- */
+import { describeCartLine } from '@/lib/device-spec-utils';
+import type { DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
 
 export type RfqEmailTemplateVars = {
   vendor_name: string;
@@ -12,6 +10,8 @@ export type RfqEmailTemplateVars = {
   magic_link: string;
   scope_summary: string;
   qty: string | number;
+  /** Structured cart HTML (devices + add-ons). When set, replaces the plain scope dump. */
+  need_html?: string;
   owner_name: string;
   rfq_type_label: string;
   /** Display string e.g. "USD 1,250" — used in not-selected emails */
@@ -40,12 +40,31 @@ const FONT =
 const FONT_DISPLAY =
   "'Outfit','Manrope',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
 
+const LOGO_SRC = 'https://connect.remoasset.in/logo.png';
+
 function esc(s: string): string {
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/** Title-case a staff name for email sign-off (e.g. ranjith → Ranjith). */
+export function formatSignOffName(raw: string | null | undefined): string {
+  const s = (raw || '').trim();
+  if (!s) return 'RemoAsset team';
+  const lower = s.toLowerCase();
+  if (lower === 'remoasset' || lower === 'remoasset team') return 'RemoAsset team';
+  return s
+    .replace(/[._]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => {
+      if (w.toLowerCase() === 'remoasset') return 'RemoAsset';
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    })
+    .join(' ');
 }
 
 function applyVars(template: string, vars: RfqEmailTemplateVars): string {
@@ -72,6 +91,52 @@ function firstName(vars: RfqEmailTemplateVars): string {
   return first || 'there';
 }
 
+export function buildCartNeedHtml(devices: DeviceSpecValues[], extraNotes?: string): string {
+  if (!devices.length) return '';
+  const rows = devices.map((v) => {
+    const d = describeCartLine(v);
+    const specs = d.specs.length
+      ? `<p style="margin:6px 0 0;font-size:13px;line-height:1.5;color:${BRAND.muted};">${esc(d.specs.join(' · '))}</p>`
+      : '';
+    const addons = d.addons.length
+      ? `<p style="margin:10px 0 0;font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:${BRAND.muted};">Add-ons</p>
+         <ul style="margin:4px 0 0;padding:0 0 0 18px;font-size:13px;line-height:1.55;color:${BRAND.text};">
+           ${d.addons.map((a) => `<li style="margin:0 0 3px;">${esc(a)}</li>`).join('')}
+         </ul>`
+      : '';
+    const notes = d.notes
+      ? `<p style="margin:6px 0 0;font-size:13px;color:${BRAND.muted};">${esc(d.notes)}</p>`
+      : '';
+    return `<tr>
+      <td style="padding:14px 0;border-bottom:1px solid #E8E4E6;vertical-align:top;">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
+          <td style="font-size:15px;font-weight:700;color:${BRAND.text};line-height:1.35;">
+            ${esc(d.title)}
+            <span style="display:inline-block;margin-left:8px;font-size:11px;font-weight:600;color:${BRAND.muted};background:#F0F0F5;border-radius:999px;padding:2px 8px;vertical-align:middle;">${esc(d.category)}</span>
+          </td>
+          <td align="right" style="white-space:nowrap;padding-left:12px;font-size:12px;font-weight:700;color:${BRAND.orange};">Qty ${d.quantity}</td>
+        </tr></table>
+        ${specs}${addons}${notes}
+      </td>
+    </tr>`;
+  }).join('');
+  const extra = extraNotes?.trim()
+    ? `<tr><td style="padding:14px 0 0;font-size:13px;line-height:1.5;color:${BRAND.muted};">${esc(extraNotes.trim()).replace(/\n/g, '<br/>')}</td></tr>`
+    : '';
+  return `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse;">${rows}${extra}</table>`;
+}
+
+function needBlock(vars: RfqEmailTemplateVars): string {
+  const inner = vars.need_html
+    || `<div style="white-space:pre-wrap;font-size:14px;line-height:1.6;color:${BRAND.text};">${esc(vars.scope_summary)}</div>
+        <p style="margin:12px 0 0;font-size:14px;color:${BRAND.muted};"><strong style="color:${BRAND.text};">Qty:</strong> ${esc(String(vars.qty))}</p>`;
+  return `
+    <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:${BRAND.muted};letter-spacing:0.02em;">Here’s what we need</p>
+    <div style="background:${BRAND.pageBg};border-radius:12px;padding:4px 18px 16px;margin:0 0 16px;border:1px solid #E8E4E6;">
+      ${inner}
+    </div>`;
+}
+
 /** Branded shell aligned with invite-user.html / Connect theme */
 export function wrapRfqEmailHtml(opts: {
   eyebrow?: string;
@@ -86,7 +151,7 @@ export function wrapRfqEmailHtml(opts: {
   signOffName: string;
 }): string {
   const urgency = opts.urgencyHtml
-    ? `<tr><td style="padding:0 36px 18px;">
+    ? `<tr><td style="padding:24px 36px 0;">
         <div style="background:${BRAND.cream};border:1px solid ${BRAND.creamBorder};border-radius:12px;padding:14px 16px;color:${BRAND.dark};font-family:${FONT};font-size:14px;font-weight:600;line-height:1.45;text-align:left;">
           ${opts.urgencyHtml}
         </div>
@@ -118,13 +183,7 @@ export function wrapRfqEmailHtml(opts: {
 
         <!-- Logo -->
         <tr><td style="padding:0 0 24px;text-align:center;">
-          <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto;">
-            <tr><td style="background-color:${BRAND.dark};border-radius:12px;padding:12px 22px;">
-              <span style="font-family:${FONT_DISPLAY};font-size:20px;font-weight:800;letter-spacing:-0.4px;color:#ffffff;">
-                Remo<span style="color:${BRAND.orange};">Asset</span>
-              </span>
-            </td></tr>
-          </table>
+          <img src="${LOGO_SRC}" alt="RemoAsset" width="180" height="40" style="height:40px;width:auto;max-width:180px;display:inline-block;border:0;outline:none;" />
         </td></tr>
 
         <!-- Card -->
@@ -160,7 +219,7 @@ export function wrapRfqEmailHtml(opts: {
 
             <tr><td style="padding:0 36px 32px;font-family:${FONT};font-size:14px;line-height:1.65;color:${BRAND.text};">
               <p style="margin:0 0 4px;">Warm regards,</p>
-              <p style="margin:0;font-weight:700;">${esc(opts.signOffName)}</p>
+              <p style="margin:0;font-weight:700;">${esc(formatSignOffName(opts.signOffName))}</p>
               <p style="margin:2px 0 0;color:${BRAND.muted};font-size:13px;">RemoAsset · Procurement</p>
             </td></tr>
 
@@ -184,7 +243,7 @@ export function buildInviteSubject(vars: RfqEmailTemplateVars, kind: 'fulfillmen
 
 export function buildInviteEmail(vars: RfqEmailTemplateVars, kind: 'fulfillment' | 'retrieval') {
   const name = firstName(vars);
-  const signOff = vars.owner_name || 'RemoAsset team';
+  const signOff = formatSignOffName(vars.owner_name);
 
   const title =
     kind === 'retrieval'
@@ -204,13 +263,9 @@ export function buildInviteEmail(vars: RfqEmailTemplateVars, kind: 'fulfillment'
   const bodyHtml = `
     <p style="margin:0 0 16px;">Hi ${esc(name)},</p>
     <p style="margin:0 0 16px;">${opener}</p>
-    <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:${BRAND.muted};letter-spacing:0.02em;">Here’s what we need</p>
-    <div style="background:${BRAND.pageBg};border-radius:12px;padding:16px 18px;margin:0 0 16px;border:1px solid #E8E4E6;">
-      <div style="white-space:pre-wrap;font-size:14px;line-height:1.6;color:${BRAND.text};">${esc(vars.scope_summary)}</div>
-      <p style="margin:12px 0 0;font-size:14px;color:${BRAND.muted};"><strong style="color:${BRAND.text};">Qty:</strong> ${esc(String(vars.qty))}</p>
-    </div>
+    ${needBlock(vars)}
     <p style="margin:0 0 16px;">
-      If you can help, the link below takes about two minutes — quote price, public/MRP price, any shipping or tax, and your quotation PDF.
+      If you can help, the link below takes about two minutes — quote each line, public/MRP price, any shipping or tax, and your quotation PDF.
     </p>
     <p style="margin:0;">
       We’re aiming to decide soon, so ideally before <strong>${esc(vars.deadline)}</strong> (${esc(vars.deadline_countdown)} from now). Totally fine to decline if it’s not a fit.
@@ -239,7 +294,6 @@ export function buildInviteEmail(vars: RfqEmailTemplateVars, kind: 'fulfillment'
     '',
     `What we need:`,
     vars.scope_summary,
-    `Qty: ${vars.qty}`,
     '',
     `Quote here (≈2 min): ${vars.magic_link}`,
     `Ideal by ${vars.deadline} (${vars.deadline_countdown} left). Decline link if not a fit: ${vars.magic_link}?decline=1`,
@@ -258,7 +312,7 @@ export function buildInviteEmail(vars: RfqEmailTemplateVars, kind: 'fulfillment'
 
 export function buildRemindEmail(vars: RfqEmailTemplateVars) {
   const name = firstName(vars);
-  const signOff = vars.owner_name || 'RemoAsset team';
+  const signOff = formatSignOffName(vars.owner_name);
   const bodyHtml = `
     <p style="margin:0 0 16px;">Hi ${esc(name)},</p>
     <p style="margin:0 0 16px;">
@@ -269,6 +323,7 @@ export function buildRemindEmail(vars: RfqEmailTemplateVars) {
       We’re wrapping this up in about <strong>${esc(vars.deadline_countdown)}</strong> (by ${esc(vars.deadline)}).
       The same link is below whenever you’re ready.
     </p>
+    ${(vars.need_html || vars.scope_summary) ? `<div style="margin-top:16px;">${needBlock(vars)}</div>` : ''}
   `;
   const html = wrapRfqEmailHtml({
     eyebrow: 'Friendly reminder',
@@ -288,7 +343,7 @@ export function buildRemindEmail(vars: RfqEmailTemplateVars) {
 
 export function buildAwardEmail(vars: RfqEmailTemplateVars, won: boolean) {
   const name = firstName(vars);
-  const signOff = vars.owner_name || 'RemoAsset team';
+  const signOff = formatSignOffName(vars.owner_name);
   const priceLine = vars.finalized_landed && vars.finalized_landed !== vars.finalized_price
     ? `${vars.finalized_price} (all-in landed ${vars.finalized_landed})`
     : (vars.finalized_price || vars.finalized_landed || '');

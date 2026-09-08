@@ -104,3 +104,11 @@ export function convertToUsd(localAmount: number, rateToUsd: number): number {
   if (!Number.isFinite(localAmount) || !Number.isFinite(rateToUsd)) return 0;
   return localAmount * rateToUsd;
 }
+
+/** e.g. "1 EUR = 1.1623 USD" */
+export function formatUsdRateLine(currency: string, rateToUsd: number): string {
+  const c = (currency || 'USD').trim().toUpperCase() || 'USD';
+  if (c === 'USD' || rateToUsd === 1) return '1 USD = 1.00 USD';
+  const maxFrac = rateToUsd >= 0.1 ? 4 : 6;
+  return `1 ${c} = ${rateToUsd.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: maxFrac })} USD`;
+}

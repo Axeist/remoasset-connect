@@ -134,6 +134,8 @@ export type RfqCartLine = {
   processor?: string | null;
   ram?: string | null;
   storage?: string | null;
+  addons?: { type?: string; model?: string; qty?: number }[];
+  notes?: string | null;
 };
 
 export type BidQuoteLine = { id: string; unit_price: number; mrp_price: number | null };

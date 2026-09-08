@@ -12,7 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { RfqBid, RfqStatus } from '@/types/rfq';
 import { asBidQuoteLines, asRfqCartLines, cartLineLabel, type RfqCartLine } from '@/lib/rfq';
-import { convertToUsd } from '@/lib/fx-rates';
+import { convertToUsd, formatUsdRateLine } from '@/lib/fx-rates';
 
 export function money(currency: string, value: number | null | undefined) {
   if (value == null || Number.isNaN(Number(value))) return '—';
@@ -89,6 +89,10 @@ export function RfqBidCards({
       {ordered.map((b) => {
         const isRecommended = canAct && b.id === recommendedId;
         const detailsOpen = openDetails.has(b.id);
+        const code = (b.currency || 'USD').toUpperCase();
+        const rate = usdRates[code] ?? (code === 'USD' ? 1 : undefined);
+        const landed = b.total_landed ?? b.quoted_price;
+        const usdLanded = usdOf(landed, b.currency, usdRates);
         return (
           <Card
             key={b.id}
@@ -110,16 +114,19 @@ export function RfqBidCards({
                   <Badge variant="outline" className="capitalize">{b.pricing_status.replace(/_/g, ' ')}</Badge>
                 </div>
                 <p className="text-2xl font-bold tabular-nums tracking-tight mt-1">
-                  {money('USD', usdOf(b.total_landed ?? b.quoted_price, b.currency, usdRates))}
+                  {money('USD', usdLanded)}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
+                  {money(b.currency, landed)} landed
+                  {rate != null && code !== 'USD' && (
+                    <> → {money('USD', usdLanded)} · {formatUsdRateLine(code, rate)}</>
+                  )}
+                </p>
+                <p className="text-sm text-muted-foreground mt-0.5">
                   Quoted {money(b.currency, b.quoted_price)}
                   {b.mrp_price != null && <> · MRP {money(b.currency, b.mrp_price)}</>}
                   {b.discount_pct != null && <> · {b.discount_pct}% off</>}
                   {b.lead_time_days != null && <> · {b.lead_time_days}d lead</>}
-                  {b.currency !== 'USD' && usdRates[(b.currency || '').toUpperCase()] != null && (
-                    <> · live {b.currency}→USD {usdRates[(b.currency || '').toUpperCase()].toFixed(4)}</>
-                  )}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-2">
                   {b.quotation_file_path ? (

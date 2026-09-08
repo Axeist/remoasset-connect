@@ -17,7 +17,7 @@ import {
   formatCountdown,
 } from '@/lib/rfq';
 import { fileToBase64, invokeRfqPublic } from '@/lib/rfq-api';
-import { FX_CURRENCY_OPTIONS } from '@/lib/country-currencies';
+import { convertToUsd, formatUsdRateLine, getRateToUsd } from '@/lib/fx-rates';
 import { Clock, Paperclip } from 'lucide-react';
 
 type PublicView = 'bid_form' | 'submitted' | 'revise' | 'won' | 'lost' | 'closed';
@@ -70,6 +70,7 @@ export default function RfqRespond() {
   const [doneMsg, setDoneMsg] = useState<string | null>(null);
   const [declineConfirm, setDeclineConfirm] = useState(false);
   const [lineQuotes, setLineQuotes] = useState<Record<string, LineQuote>>({});
+  const [fxRate, setFxRate] = useState<number | null>(1);
 
   const cart = asRfqCartLines(payload?.rfq?.line_items);
   const hasCart = cart.length > 0;
@@ -93,6 +94,25 @@ export default function RfqRespond() {
       otherFees: parseFloat(other) || 0,
     });
   }, [hasCart, cart, lineQuotes, quoted, mrp, shipping, tax, other]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const code = (currency || 'USD').toUpperCase();
+    if (code === 'USD') {
+      setFxRate(1);
+      return;
+    }
+    setFxRate(null);
+    (async () => {
+      try {
+        const { rate } = await getRateToUsd(code);
+        if (!cancelled) setFxRate(rate);
+      } catch {
+        if (!cancelled) setFxRate(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currency]);
 
   useEffect(() => {
     if (!token) return;
@@ -256,21 +276,35 @@ export default function RfqRespond() {
 
         {hasCart ? (
           <div className="space-y-2 mb-4">
-            {cart.map((line) => (
+            {cart.map((line) => {
+              const addons = (line.addons || []).filter((a) => (a.type || a.model || '').trim());
+              return (
               <div key={line.id || cartLineLabel(line)} className="rounded-2xl bg-white border border-[#E8E4DE] px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm leading-relaxed">{cartLineLabel(line)}</p>
+                  <p className="text-sm leading-relaxed font-medium">{cartLineLabel(line)}</p>
                   <span className="shrink-0 text-xs font-semibold text-[#6E7180] bg-[#F3F0EB] rounded-full px-2 py-0.5">
                     Qty {line.quantity || 1}
                   </span>
                 </div>
+                {addons.length > 0 && (
+                  <ul className="mt-2 text-xs text-[#6E7180] space-y-0.5 list-disc pl-4">
+                    {addons.map((a, i) => (
+                      <li key={i}>
+                        {[a.type, a.model].filter(Boolean).join(' — ')}
+                        {Number(a.qty) > 1 ? ` ×${a.qty}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            ))}
-            {rfq?.scope_summary?.includes('\n') && (
-              <p className="text-xs text-[#6E7180] px-1 whitespace-pre-wrap">
-                {rfq.scope_summary.split('\n').slice(1).join('\n')}
-              </p>
-            )}
+              );
+            })}
+            {(() => {
+              const extra = (rfq?.scope_summary || '').split('Delivery / notes:')[1]?.trim();
+              return extra ? (
+                <p className="text-xs text-[#6E7180] px-1 whitespace-pre-wrap">{extra}</p>
+              ) : null;
+            })()}
           </div>
         ) : rfq?.scope_summary ? (
           <div className="rounded-2xl bg-white border border-[#E8E4DE] px-4 py-3 mb-4">
@@ -318,6 +352,12 @@ export default function RfqRespond() {
                 </p>
                 {payload.bid.total_landed != null && (
                   <p className="text-[#6E7180]">Landed {moneyFmt(payload.bid.currency, Number(payload.bid.total_landed))}</p>
+                )}
+                {payload.bid.currency !== 'USD' && fxRate != null && payload.bid.total_landed != null && (
+                  <p className="text-sm text-[#30282B]">
+                    ≈ {moneyFmt('USD', convertToUsd(Number(payload.bid.total_landed), fxRate))}
+                    <span className="block text-xs text-[#6E7180] mt-0.5">{formatUsdRateLine(payload.bid.currency, fxRate)}</span>
+                  </p>
                 )}
                 {payload.bid.quotation_file_name && <p className="text-[#6E7180]">{payload.bid.quotation_file_name}</p>}
               </div>
@@ -403,11 +443,24 @@ export default function RfqRespond() {
             </div>
 
             {insight && (
-              <div className="flex items-center justify-between rounded-xl bg-[#30282B] text-white px-4 py-3">
-                <span className="text-sm text-white/70">
-                  {insight.discount_pct != null ? `${insight.discount_pct}% off MRP` : 'Landed total'}
-                </span>
-                <span className="text-lg font-bold tabular-nums">{moneyFmt(currency, insight.total_landed)}</span>
+              <div className="rounded-xl bg-[#30282B] text-white px-4 py-3 space-y-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-white/70">
+                    {insight.discount_pct != null ? `${insight.discount_pct}% off MRP` : 'Landed total'}
+                  </span>
+                  <span className="text-lg font-bold tabular-nums">{moneyFmt(currency, insight.total_landed)}</span>
+                </div>
+                {currency.toUpperCase() !== 'USD' && fxRate != null && (
+                  <div className="flex items-start justify-between gap-3 text-sm border-t border-white/10 pt-1.5">
+                    <span className="text-white/65">{formatUsdRateLine(currency, fxRate)}</span>
+                    <span className="font-semibold tabular-nums text-right">
+                      ≈ {moneyFmt('USD', convertToUsd(insight.total_landed, fxRate))}
+                    </span>
+                  </div>
+                )}
+                {currency.toUpperCase() !== 'USD' && fxRate == null && (
+                  <p className="text-xs text-white/50">Looking up live USD rate…</p>
+                )}
               </div>
             )}
 

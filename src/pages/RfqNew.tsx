@@ -24,7 +24,7 @@ import {
   vendorOperatesInCountry,
   type MatchableVendor,
 } from '@/lib/rfq';
-import { buildInviteEmail } from '@/lib/rfq-email-templates';
+import { buildCartNeedHtml, buildInviteEmail, formatSignOffName } from '@/lib/rfq-email-templates';
 import { invokeRfqCampaign } from '@/lib/rfq-api';
 import { ArrowLeft, Send, FlaskConical } from 'lucide-react';
 import type { RfqType } from '@/types/rfq';
@@ -32,7 +32,7 @@ import { RfqWizardRail } from '@/components/rfq/RfqWizardRail';
 import { RfqHowToButton } from '@/components/rfq/RfqHowToDialog';
 import { MultiDeviceSpecForm, type DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
 import {
-  buildMultiDeviceSummary,
+  buildCartNeedPlain,
   createEmptyDeviceSpec,
   deviceSpecToLine,
   flattenPrimaryDevice,
@@ -43,6 +43,7 @@ export default function RfqNew() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+  const [signOffName, setSignOffName] = useState('RemoAsset team');
 
   const [clients, setClients] = useState<{ id: string; name: string; country_id: string | null }[]>([]);
   const [countries, setCountries] = useState<{ id: string; name: string }[]>([]);
@@ -72,6 +73,21 @@ export default function RfqNew() {
   useEffect(() => {
     setVendorTypes(defaultVendorTypesForRfqType(rfqType));
   }, [rfqType]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from('profiles').select('full_name').eq('user_id', user.id).maybeSingle();
+      const raw =
+        (data as { full_name?: string | null } | null)?.full_name
+        || (user.user_metadata as { full_name?: string } | undefined)?.full_name
+        || user.email?.split('@')[0]
+        || '';
+      if (!cancelled) setSignOffName(formatSignOffName(raw));
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   useEffect(() => {
     (async () => {
@@ -156,7 +172,7 @@ export default function RfqNew() {
   const countryName = countries.find((c) => c.id === countryId)?.name || 'this country';
   const deadlineIso = new Date(deadlineLocal).toISOString();
   const missingMagicLink = Boolean(bodyHtml) && !bodyHtml.includes('{{magic_link}}');
-  const scope = [buildMultiDeviceSummary(devices), extraNotes.trim()].filter(Boolean).join('\n');
+  const scope = buildCartNeedPlain(devices, extraNotes.trim());
   const qtyTotal = devices.reduce((sum, d) => sum + (d.quantity || 1), 0);
 
   const buildEmailDefaults = useCallback(() => {
@@ -169,14 +185,15 @@ export default function RfqNew() {
       magic_link: '{{magic_link}}',
       scope_summary: scope || 'See RFQ details in RemoAsset Connect.',
       qty: qtyTotal || '1',
-      owner_name: user?.email?.split('@')[0] || 'RemoAsset',
+      need_html: devices.length ? buildCartNeedHtml(devices, extraNotes.trim()) : undefined,
+      owner_name: signOffName,
       rfq_type_label: rfqType.replace(/_/g, ' '),
     };
     const mail = buildInviteEmail(vars, kind);
     setSubject(mail.subject);
     setBodyHtml(mail.body_html);
     setBodyText(mail.body_text);
-  }, [rfqType, countryName, deadlineIso, scope, qtyTotal, user?.email]);
+  }, [rfqType, countryName, deadlineIso, scope, qtyTotal, extraNotes, devices, signOffName]);
 
   const toggleType = (t: VendorType) => {
     setVendorTypes((prev) =>

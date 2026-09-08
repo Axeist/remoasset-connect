@@ -19,8 +19,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { asRfqCartLines, campaignRollups, cartLineLabel, formatCountdown, formatRelativeTime } from '@/lib/rfq';
-import { convertToUsd, getRateToUsd } from '@/lib/fx-rates';
-import { buildAwardEmail, buildRemindEmail } from '@/lib/rfq-email-templates';
+import { convertToUsd, formatUsdRateLine, getRateToUsd } from '@/lib/fx-rates';
+import { buildAwardEmail, buildCartNeedHtml, buildRemindEmail, formatSignOffName } from '@/lib/rfq-email-templates';
+import { requestDeviceLineToSpec } from '@/lib/device-spec-utils';
+import type { RequestDeviceLine } from '@/types/procurement';
 import { invokeRfqCampaign } from '@/lib/rfq-api';
 import {
   RFQ_RECIPIENT_STATUS_LABELS,
@@ -60,6 +62,11 @@ function recipientActivity(r: RfqRecipient): string {
   return formatRelativeTime(r.sent_at);
 }
 
+function devicesFromRfq(rfq: Rfq) {
+  if (!Array.isArray(rfq.line_items) || rfq.line_items.length === 0) return [];
+  return (rfq.line_items as RequestDeviceLine[]).map((line) => requestDeviceLineToSpec(line));
+}
+
 export default function RfqDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -92,6 +99,7 @@ export default function RfqDetail() {
     po: false,
   });
   const [usdRates, setUsdRates] = useState<Record<string, number>>({ USD: 1 });
+  const [signOffName, setSignOffName] = useState('RemoAsset team');
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -112,6 +120,21 @@ export default function RfqDetail() {
     }
     setLoading(false);
   }, [id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from('profiles').select('full_name').eq('user_id', user.id).maybeSingle();
+      const raw =
+        (data as { full_name?: string | null } | null)?.full_name
+        || (user.user_metadata as { full_name?: string } | undefined)?.full_name
+        || user.email?.split('@')[0]
+        || '';
+      if (!cancelled) setSignOffName(formatSignOffName(raw));
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   useEffect(() => {
     tabInitialized.current = false;
@@ -183,6 +206,7 @@ export default function RfqDetail() {
     if (!rfq) return;
     setBusy(true);
     try {
+      const cart = devicesFromRfq(rfq);
       const vars = {
         vendor_name: 'Partner',
         country: rfq.country?.name || '',
@@ -191,7 +215,8 @@ export default function RfqDetail() {
         magic_link: '{{magic_link}}',
         scope_summary: rfq.scope_summary || '',
         qty: rfq.quantity || 1,
-        owner_name: user?.email?.split('@')[0] || 'RemoAsset',
+        need_html: cart.length ? buildCartNeedHtml(cart) : undefined,
+        owner_name: signOffName,
         rfq_type_label: rfq.rfq_type,
       };
       const mail = buildRemindEmail(vars);
@@ -305,7 +330,7 @@ export default function RfqDetail() {
         magic_link: '{{magic_link}}',
         scope_summary: rfq.scope_summary || '',
         qty: rfq.quantity || 1,
-        owner_name: user?.email?.split('@')[0] || 'RemoAsset',
+        owner_name: signOffName,
         rfq_type_label: rfq.rfq_type,
         finalized_price: fmtMoney(bid.quoted_price),
         finalized_landed: fmtMoney(bid.total_landed) || fmtMoney(bid.quoted_price),
@@ -551,7 +576,14 @@ export default function RfqDetail() {
                         <TableCell className="tabular-nums">{money(b.currency, b.tax_fee)}</TableCell>
                         <TableCell className="tabular-nums">{money(b.currency, b.other_fees)}</TableCell>
                         <TableCell className="tabular-nums font-semibold">{money(b.currency, b.total_landed)}</TableCell>
-                        <TableCell className="tabular-nums font-semibold">{money('USD', usdOf(b.total_landed ?? b.quoted_price, b.currency, usdRates))}</TableCell>
+                        <TableCell className="tabular-nums">
+                          <div className="font-semibold">{money('USD', usdOf(b.total_landed ?? b.quoted_price, b.currency, usdRates))}</div>
+                          {b.currency !== 'USD' && usdRates[(b.currency || 'USD').toUpperCase()] != null && (
+                            <div className="text-[11px] text-muted-foreground font-normal whitespace-nowrap">
+                              {money(b.currency, b.total_landed ?? b.quoted_price)} · {formatUsdRateLine(b.currency, usdRates[(b.currency || 'USD').toUpperCase()])}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>{b.lead_time_days != null ? `${b.lead_time_days}d` : '—'}</TableCell>
                         <TableCell><Badge variant="outline">{b.pricing_status}</Badge></TableCell>
                       </TableRow>
@@ -644,9 +676,12 @@ export default function RfqDetail() {
               <p className="text-sm">
                 <strong>{awardBid.vendor?.company_name}</strong>
                 {' · '}
-                {money('USD', usdOf(awardBid.total_landed ?? awardBid.quoted_price, awardBid.currency, usdRates))} live USD
-                {' · '}
-                {money(awardBid.currency, awardBid.total_landed ?? awardBid.quoted_price)} quoted
+                {money('USD', usdOf(awardBid.total_landed ?? awardBid.quoted_price, awardBid.currency, usdRates))}
+                {' from '}
+                {money(awardBid.currency, awardBid.total_landed ?? awardBid.quoted_price)}
+                {awardBid.currency !== 'USD' && usdRates[(awardBid.currency || 'USD').toUpperCase()] != null && (
+                  <> · {formatUsdRateLine(awardBid.currency, usdRates[(awardBid.currency || 'USD').toUpperCase()])}</>
+                )}
               </p>
             )}
             {weakCompetition && (
