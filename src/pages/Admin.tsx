@@ -46,6 +46,7 @@ interface TeamMember {
   user_id: string;
   role: string;
   full_name: string | null;
+  designation?: string | null;
   email?: string | null;
   banned_until?: string | null;
   last_sign_in_at?: string | null;
@@ -451,12 +452,13 @@ export default function Admin() {
     if (rolesRes.data) {
       const userIds = rolesRes.data.map((r) => r.user_id);
       const [{ data: profiles }, authUserMap] = await Promise.all([
-        supabase.from('profiles').select('user_id, full_name').in('user_id', userIds),
+        supabase.from('profiles').select('user_id, full_name, designation').in('user_id', userIds),
         fetchAuthUsers(),
       ]);
       setTeamMembers(rolesRes.data.map((r) => ({
         ...r,
         full_name: profiles?.find((p) => p.user_id === r.user_id)?.full_name ?? null,
+        designation: (profiles?.find((p) => p.user_id === r.user_id) as { designation?: string | null } | undefined)?.designation ?? null,
         email: authUserMap[r.user_id]?.email ?? null,
         banned_until: authUserMap[r.user_id]?.banned_until ?? null,
         last_sign_in_at: authUserMap[r.user_id]?.last_sign_in_at ?? null,
@@ -1286,6 +1288,9 @@ curl -X POST ${baseUrl}/notifications \\
                                     )}
                                   </div>
                                   <p className="text-xs text-muted-foreground">{member.email || '—'}</p>
+                                  {member.designation && (
+                                    <p className="text-xs text-muted-foreground">{member.designation}</p>
+                                  )}
                                 </div>
                               </div>
                             </TableCell>
@@ -2285,7 +2290,7 @@ curl -X POST ${baseUrl}/notifications \\
       <AddUserDialog open={addUserOpen} onOpenChange={setAddUserOpen} onSuccess={fetchData} />
       <InviteUserDialog open={inviteUserOpen} onOpenChange={setInviteUserOpen} onSuccess={fetchData} />
       {manageUser && (
-        <UserManagementDialog open={!!manageUser} onOpenChange={(open) => !open && setManageUser(null)} userId={manageUser.user_id} fullName={manageUser.full_name} role={manageUser.role} isBanned={!!manageUser.banned_until && new Date(manageUser.banned_until) > new Date()} onSuccess={fetchData} />
+        <UserManagementDialog open={!!manageUser} onOpenChange={(open) => !open && setManageUser(null)} userId={manageUser.user_id} fullName={manageUser.full_name} email={manageUser.email} role={manageUser.role} isBanned={!!manageUser.banned_until && new Date(manageUser.banned_until) > new Date()} onSuccess={fetchData} />
       )}
       <StatusFormDialog open={statusFormOpen} onOpenChange={(open) => { setStatusFormOpen(open); if (!open) setEditingStatus(null); }} status={editingStatus} onSuccess={() => { fetchData(); fetchAnalytics(); }} />
       <CountryFormDialog open={countryFormOpen} onOpenChange={(open) => { setCountryFormOpen(open); if (!open) setEditingCountry(null); }} country={editingCountry} onSuccess={() => { fetchData(); fetchAnalytics(); }} />

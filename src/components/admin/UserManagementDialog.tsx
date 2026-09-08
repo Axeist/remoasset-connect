@@ -25,13 +25,14 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Key, Ban, Trash2, Eye, EyeOff, ShieldAlert, ShieldCheck, UserX } from 'lucide-react';
+import { Loader2, Key, Ban, Trash2, Eye, EyeOff, ShieldAlert, ShieldCheck, UserX, User } from 'lucide-react';
 
 interface UserManagementDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId: string;
   fullName: string | null;
+  email?: string | null;
   role: string;
   isBanned?: boolean;
   onSuccess: () => void;
@@ -63,6 +64,7 @@ export function UserManagementDialog({
   onOpenChange,
   userId,
   fullName,
+  email,
   role,
   isBanned,
   onSuccess,
@@ -73,17 +75,65 @@ export function UserManagementDialog({
   const [togglingBan, setTogglingBan] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [editName, setEditName] = useState(fullName ?? '');
+  const [editDesignation, setEditDesignation] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState(email ?? '');
   const { toast } = useToast();
   const { user, isSuperAdmin } = useAuth();
   const [leadCount, setLeadCount] = useState<number | null>(null);
 
-  const displayName = fullName || 'User';
+  const displayName = editName.trim() || fullName || 'User';
+
+  useEffect(() => {
+    if (!open) return;
+    setEditName(fullName ?? '');
+    setEditEmail(email ?? '');
+    setProfileLoading(true);
+    supabase
+      .from('profiles')
+      .select('full_name, designation, phone')
+      .eq('user_id', userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setEditName(data.full_name ?? '');
+          setEditDesignation(data.designation ?? '');
+          setEditPhone(data.phone ?? '');
+        }
+        setProfileLoading(false);
+      });
+  }, [open, userId, fullName, email]);
 
   useEffect(() => {
     if (!deleteConfirmOpen) return;
     supabase.from('leads').select('id', { count: 'exact', head: true }).eq('owner_id', userId)
       .then(({ count }) => setLeadCount(count ?? 0));
   }, [deleteConfirmOpen, userId]);
+
+  const handleSaveProfile = async () => {
+    const name = editName.trim();
+    if (!name) {
+      toast({ variant: 'destructive', title: 'Name is required' });
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      await callManageUser('update_profile', userId, {
+        full_name: name,
+        designation: editDesignation.trim(),
+        phone: editPhone.trim(),
+        email: editEmail.trim(),
+      });
+      toast({ title: 'Profile updated', description: `Saved changes for ${name}.` });
+      onSuccess();
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: err instanceof Error ? err.message : 'Failed' });
+    }
+    setSavingProfile(false);
+  };
 
   const handleResetPassword = async () => {
     if (!newPassword.trim() || newPassword.length < 6) {
@@ -142,7 +192,7 @@ export function UserManagementDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               Manage User
@@ -151,11 +201,73 @@ export function UserManagementDialog({
               )}
             </DialogTitle>
             <DialogDescription>
-              {displayName} &middot; <span className="capitalize">{role}</span>
+              {displayName} &middot; <span className="capitalize">{role.replace(/_/g, ' ')}</span>
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-2">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <User className="h-4 w-4 text-muted-foreground" />
+                Profile
+              </div>
+              {profileLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading profile…
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="manage-name">Full name</Label>
+                    <Input
+                      id="manage-name"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="Jane Smith"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="manage-email">Email</Label>
+                    <Input
+                      id="manage-email"
+                      type="email"
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      placeholder="jane@remoasset.in"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="manage-designation">Designation</Label>
+                      <Input
+                        id="manage-designation"
+                        value={editDesignation}
+                        onChange={(e) => setEditDesignation(e.target.value)}
+                        placeholder="Sales Manager"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="manage-phone">Phone</Label>
+                      <Input
+                        id="manage-phone"
+                        type="tel"
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        placeholder="+1 234 567 8900"
+                      />
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={handleSaveProfile} disabled={savingProfile} className="gap-1.5">
+                    {savingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Save profile
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
             {/* Reset Password */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium">

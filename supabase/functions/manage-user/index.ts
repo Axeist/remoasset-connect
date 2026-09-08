@@ -43,29 +43,24 @@ Deno.serve(async (req) => {
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
-      .single()
 
-    const { data: permRow } = await supabaseAdmin
-      .from('role_permissions')
-      .select('enabled')
-      .eq('role', callerRole?.role)
-      .eq('permission', 'app.full_edit')
-      .maybeSingle()
-
-    const isLeadership = !!permRow?.enabled
+    const { data: canEdit } = await supabaseAdmin.rpc('has_permission', {
+      _user_id: user.id,
+      _permission: 'app.full_edit',
+    })
+    const roleNames = (callerRole ?? []).map((r: { role?: string }) => String(r.role))
+    const isLeadership = canEdit === true || roleNames.some((r) => r === 'admin' || r === 'super_admin')
     if (!isLeadership) {
       return new Response(JSON.stringify({ error: 'Admin role required' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403,
       })
     }
 
-    const { data: deletePerm } = await supabaseAdmin
-      .from('role_permissions')
-      .select('enabled')
-      .eq('role', callerRole?.role)
-      .eq('permission', 'users.delete')
-      .maybeSingle()
-    const canDeleteUsers = !!deletePerm?.enabled
+    const { data: canDeleteRpc } = await supabaseAdmin.rpc('has_permission', {
+      _user_id: user.id,
+      _permission: 'users.delete',
+    })
+    const canDeleteUsers = canDeleteRpc === true || roleNames.includes('super_admin')
 
     const { action, target_user_id, new_password, ban } = body
 
@@ -130,6 +125,57 @@ Deno.serve(async (req) => {
           })
         }
         return new Response(JSON.stringify({ success: true, message: ban ? 'User restricted' : 'User unrestricted' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
+        })
+      }
+
+      case 'update_profile': {
+        const full_name = typeof body.full_name === 'string' ? body.full_name.trim() : ''
+        const designation = typeof body.designation === 'string' ? body.designation.trim() : ''
+        const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
+        const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return new Response(JSON.stringify({ error: 'Enter a valid email address' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400,
+          })
+        }
+
+        const { error: profileErr } = await supabaseAdmin.from('profiles').upsert({
+          user_id: target_user_id,
+          full_name: full_name || null,
+          designation: designation || null,
+          phone: phone || null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' })
+        if (profileErr) {
+          return new Response(JSON.stringify({ error: profileErr.message }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400,
+          })
+        }
+
+        const authPatch: Record<string, unknown> = {
+          user_metadata: { full_name: full_name || '' },
+        }
+        if (email) {
+          authPatch.email = email
+          authPatch.email_confirm = true
+        }
+        const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(target_user_id, authPatch)
+        if (authErr) {
+          return new Response(JSON.stringify({ error: authErr.message }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400,
+          })
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'Profile updated',
+          full_name: full_name || null,
+          designation: designation || null,
+          phone: phone || null,
+          email: email || null,
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
         })
       }
