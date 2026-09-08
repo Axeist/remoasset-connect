@@ -19,7 +19,9 @@ import {
 } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeEdgeFunction } from '@/lib/edge-function';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
+import { UserManagementDialog } from '@/components/admin/UserManagementDialog';
 import { AddUserDialog } from '@/components/admin/AddUserDialog';
 import { InviteUserDialog } from '@/components/admin/InviteUserDialog';
 import { RolePermissionsCard } from '@/components/admin/RolePermissionsCard';
@@ -516,11 +518,10 @@ export default function Admin() {
   const fetchApiKeys = async () => {
     setApiKeyLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('api-keys', {
+      const data = await invokeEdgeFunction<{ keys?: ApiKeyRow[] }>('api-keys', {
         body: { action: 'list' },
       });
-      if (error) throw error;
-      setApiKeys((data?.keys ?? []) as ApiKeyRow[]);
+      setApiKeys(data.keys ?? []);
     } catch (e) {
       toast({ variant: 'destructive', title: 'Failed to load API keys', description: (e as Error)?.message });
     } finally {
@@ -540,11 +541,9 @@ export default function Admin() {
     }
     setApiKeyLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('api-keys', {
+      const data = await invokeEdgeFunction<{ api_key: string; name: string; key_prefix: string }>('api-keys', {
         body: { name, expires_at: newKeyExpiry || null },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
       setCreatedKeyOnce({ api_key: data.api_key, name: data.name, key_prefix: data.key_prefix });
       fetchApiKeys();
     } catch (e) {
@@ -557,12 +556,10 @@ export default function Admin() {
   const handleRevokeApiKey = async () => {
     if (!revokeKeyId) return;
     try {
-      const { data, error } = await supabase.functions.invoke('api-keys', {
+      await invokeEdgeFunction('api-keys', {
         method: 'DELETE',
         body: { id: revokeKeyId },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
       setRevokeKeyId(null);
       fetchApiKeys();
       toast({ title: 'API key revoked' });

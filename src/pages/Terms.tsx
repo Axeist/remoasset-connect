@@ -87,7 +87,15 @@ const Terms = () => {
             </ul>
           </Section>
 
-          <Section num="5" title="Data & Intellectual Property">
+          <Section num="5" title="Cookies">
+            <p>
+              Connect uses necessary cookies to keep you signed in and to remember your cookie
+              choices. Optional preference and first-party analytics cookies are used only if you
+              accept them. Details are in the Privacy Policy.
+            </p>
+          </Section>
+
+          <Section num="6" title="Data & Intellectual Property">
             <p>
               All business data entered into Connect (leads, vendor records, pipeline data, etc.)
               remains the property of RemoAsset. You may not export, share, or disclose proprietary
@@ -99,7 +107,7 @@ const Terms = () => {
             </p>
           </Section>
 
-          <Section num="6" title="Third-Party Integrations">
+          <Section num="7" title="Third-Party Integrations">
             <p>
               Connect integrates with third-party services including Google Workspace and Supabase.
               Use of these services is subject to their respective terms and privacy policies.
@@ -107,7 +115,7 @@ const Terms = () => {
             </p>
           </Section>
 
-          <Section num="7" title="Availability & Modifications">
+          <Section num="8" title="Availability & Modifications">
             <p>
               We strive to maintain platform availability but do not guarantee uninterrupted access.
               The platform may be updated, modified, or taken offline for maintenance at any time
@@ -115,7 +123,7 @@ const Terms = () => {
             </p>
           </Section>
 
-          <Section num="8" title="Limitation of Liability">
+          <Section num="9" title="Limitation of Liability">
             <p>
               To the maximum extent permitted by law, RemoAsset shall not be liable for any indirect,
               incidental, or consequential damages arising from your use of the platform, including
@@ -123,7 +131,7 @@ const Terms = () => {
             </p>
           </Section>
 
-          <Section num="9" title="Termination">
+          <Section num="10" title="Termination">
             <p>
               RemoAsset reserves the right to suspend or terminate your access to Connect at any
               time, with or without cause, including for violation of these Terms. Upon termination,
@@ -131,7 +139,7 @@ const Terms = () => {
             </p>
           </Section>
 
-          <Section num="10" title="Changes to These Terms">
+          <Section num="11" title="Changes to These Terms">
             <p>
               We may update these Terms from time to time. Continued use of the platform after
               changes are posted constitutes your acceptance of the revised Terms. Material changes
@@ -139,7 +147,7 @@ const Terms = () => {
             </p>
           </Section>
 
-          <Section num="11" title="Governing Law">
+          <Section num="12" title="Governing Law">
             <p>
               These Terms are governed by and construed in accordance with the laws of India. Any
               disputes arising under these Terms shall be subject to the exclusive jurisdiction of
@@ -147,7 +155,7 @@ const Terms = () => {
             </p>
           </Section>
 
-          <Section num="12" title="Contact">
+          <Section num="13" title="Contact">
             <p>
               For questions about these Terms, please contact{' '}
               <a href="mailto:admin@remoasset.in" className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors">

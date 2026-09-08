@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Shield } from 'lucide-react';
 
-const LAST_UPDATED = 'March 26, 2026';
+const LAST_UPDATED = 'September 9, 2026';
 
 const Section = ({ num, title, children }: { num: string; title: string; children: React.ReactNode }) => (
   <div className="space-y-2.5">
@@ -119,7 +119,18 @@ const Privacy = () => {
             </p>
           </Section>
 
-          <Section num="8" title="Data Retention">
+          <Section num="8" title="Cookies">
+            <p>
+              We ask for your cookie choices on first visit. You can change them later from Settings → Appearance.
+            </p>
+            <ul className="list-disc pl-4 space-y-1">
+              <li><strong className="text-foreground">Necessary</strong> — Sign-in session and storing your cookie choice. These are required for the app to work.</li>
+              <li><strong className="text-foreground">Preferences</strong> — Sidebar open/closed state, sidebar section expansion, theme, and the last page you visited so we can reopen it after login.</li>
+              <li><strong className="text-foreground">Analytics</strong> — A first-party cookie with visit count and last path. We do not use advertising cookies or third-party analytics pixels.</li>
+            </ul>
+          </Section>
+
+          <Section num="9" title="Data Retention">
             <p>
               Business data is retained for as long as needed to support operations. Account data is
               removed upon termination of employment or access revocation. You may request deletion of
@@ -127,7 +138,7 @@ const Privacy = () => {
             </p>
           </Section>
 
-          <Section num="9" title="Your Rights">
+          <Section num="10" title="Your Rights">
             <p>
               Authorised users may request access to, correction of, or deletion of their personal
               data by contacting the RemoAsset platform administrator at{' '}
@@ -138,14 +149,14 @@ const Privacy = () => {
             </p>
           </Section>
 
-          <Section num="10" title="Changes to This Policy">
+          <Section num="11" title="Changes to This Policy">
             <p>
               We may update this policy from time to time. Continued use of the platform after
               changes are posted constitutes acceptance of the revised policy.
             </p>
           </Section>
 
-          <Section num="11" title="Contact">
+          <Section num="12" title="Contact">
             <p>
               For questions about this Privacy Policy, please contact{' '}
               <a href="mailto:admin@remoasset.in" className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors">

@@ -12,6 +12,7 @@ import { SplashScreen } from '@/components/SplashScreen';
 import { Loader2, Mail, Lock, User, Eye, EyeOff, BarChart3, Users, Shield, Zap, ArrowLeft, CheckCircle2, Sun, Moon, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
+import { getPostLoginPath } from '@/lib/cookie-consent';
 
 const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[\]{};':"\\|,.<>/?]).{8,}$/;
 export const PASSWORD_REQUIREMENTS = [
@@ -97,7 +98,7 @@ export default function Auth() {
   useEffect(() => {
     if (!user) return;
     if (showSuccessSplash) return; // email login handles its own redirect via SplashScreen
-    navigate('/dashboard');
+    navigate(getPostLoginPath());
   }, [user, navigate, showSuccessSplash]);
 
   const handleGoogleSignIn = async () => {
@@ -205,7 +206,7 @@ export default function Auth() {
           onComplete={() => {
             justLoggedInRef.current = false;
             setShowSuccessSplash(false);
-            navigate('/dashboard');
+            navigate(getPostLoginPath());
           }}
         />
       )}

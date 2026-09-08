@@ -40,6 +40,8 @@ import RfqRespond from "./pages/RfqRespond";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import { CookieConsentBanner } from "@/components/CookieConsentBanner";
+import { PageVisitTracker } from "@/components/PageVisitTracker";
 import Clients from "./pages/Clients";
 import ClientDetail from "./pages/ClientDetail";
 import MrpLookup from "./pages/MrpLookup";
@@ -74,6 +76,8 @@ const App = () => {
         <BrowserRouter>
           <AuthProvider>
             <ScrollToTop />
+            <PageVisitTracker />
+            <CookieConsentBanner />
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/auth" element={<Auth />} />

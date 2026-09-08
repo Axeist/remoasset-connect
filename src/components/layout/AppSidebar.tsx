@@ -23,8 +23,12 @@ import {
   Tag,
   ChevronDown,
   MapPinned,
+  Wrench,
+  ChevronsDownUp,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { hasPreferencesConsent } from '@/lib/cookie-consent';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrentUserProfile } from '@/hooks/useCurrentUserProfile';
 import { useDeveloperMode } from '@/hooks/useDeveloperMode';
@@ -50,6 +54,7 @@ type NavItem = {
 type NavGroup = {
   id: string;
   title: string;
+  icon: React.ElementType;
   items: NavItem[];
 };
 
@@ -62,6 +67,7 @@ const navGroups: NavGroup[] = [
   {
     id: 'pipeline',
     title: 'Pipeline',
+    icon: Kanban,
     items: [
       { title: 'Leads', url: '/leads', icon: Users, anyOf: ['leads.own', 'leads.all'] },
       { title: 'My Pipeline', url: '/pipeline', icon: Kanban, permission: 'pipeline.own' },
@@ -73,6 +79,7 @@ const navGroups: NavGroup[] = [
   {
     id: 'partners',
     title: 'Partners',
+    icon: Globe2,
     items: [
       { title: 'Vendors', url: '/vendors', icon: Globe2, permission: 'vendors.use' },
       { title: 'Clients', url: '/clients', icon: Building2, permission: 'clients.use' },
@@ -84,6 +91,7 @@ const navGroups: NavGroup[] = [
   {
     id: 'coverage',
     title: 'Coverage',
+    icon: MapPinned,
     items: [
       { title: 'CSM Home', url: '/csm', icon: MapPinned, permission: 'csm.workspace' },
       { title: 'Country coverage', url: '/csm/coverage', icon: Globe2, permission: 'coverage.view' },
@@ -92,6 +100,7 @@ const navGroups: NavGroup[] = [
   {
     id: 'team',
     title: 'Team',
+    icon: Activity,
     items: [
       { title: 'Activity Monitor', url: '/admin/team-activity', icon: Activity, permission: 'pipeline.team' },
       { title: 'Transfer Log', url: '/admin/transfer-log', icon: ArrowRightLeft, permission: 'pipeline.team' },
@@ -102,6 +111,7 @@ const navGroups: NavGroup[] = [
   {
     id: 'tools',
     title: 'Tools',
+    icon: Wrench,
     items: [
       {
         title: 'Developer',
@@ -116,6 +126,7 @@ const navGroups: NavGroup[] = [
   {
     id: 'admin',
     title: 'Admin',
+    icon: Shield,
     items: [
       { title: 'Admin Panel', url: '/admin', icon: Shield, permission: 'admin.panel' },
     ],
@@ -146,7 +157,12 @@ function loadGroupState(): Record<string, boolean> {
 }
 
 function saveGroupState(state: Record<string, boolean>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    if (!hasPreferencesConsent()) return;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    /* ignore */
+  }
 }
 
 interface SidebarNavProps {
@@ -231,6 +247,15 @@ function SidebarNav({ collapsed = false, onNavigate, onNavClick }: SidebarNavPro
     });
   };
 
+  const allExpanded =
+    visibleGroups.length > 0 && visibleGroups.every((g) => groupOpen[g.id] === true);
+
+  const setAllGroups = (open: boolean) => {
+    const next = Object.fromEntries(visibleGroups.map((g) => [g.id, open]));
+    setGroupOpen(next);
+    saveGroupState(next);
+  };
+
   const handleClick = () => {
     onNavClick?.();
     onNavigate?.();
@@ -240,7 +265,12 @@ function SidebarNav({ collapsed = false, onNavigate, onNavClick }: SidebarNavPro
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <nav className="flex-1 min-h-0 py-4 px-2.5 space-y-1 overflow-y-auto overflow-x-hidden w-full">
+      <nav
+        className={cn(
+          'flex-1 min-h-0 px-2.5 overflow-y-auto overflow-x-hidden w-full',
+          collapsed ? 'py-2 space-y-0.5' : 'py-3 space-y-0.5'
+        )}
+      >
         {pinnedItems.map((item) => (
           <NavLinkRow
             key={item.title}
@@ -251,27 +281,59 @@ function SidebarNav({ collapsed = false, onNavigate, onNavClick }: SidebarNavPro
           />
         ))}
 
+        {visibleGroups.length > 0 && !collapsed && (
+          <button
+            type="button"
+            onClick={() => setAllGroups(!allExpanded)}
+            className="flex w-full items-center gap-2 px-3 py-1.5 mt-1 rounded-[10px] text-[11px] font-medium text-[#9DA2B3] hover:text-[#FAFBFF] hover:bg-sidebar-accent/40 transition-colors"
+          >
+            {allExpanded ? (
+              <ChevronsDownUp className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <ChevronsUpDown className="h-3.5 w-3.5 shrink-0" />
+            )}
+            <span>{allExpanded ? 'Collapse all' : 'Expand all'}</span>
+          </button>
+        )}
+
         {visibleGroups.map((group) => {
+          const hasActive = group.items.some((item) => pathActive(location.pathname, item.url));
           const open = collapsed ? false : (groupOpen[group.id] ?? false);
+
           if (collapsed) {
             return (
-              <div key={group.id} className="pt-2 space-y-1">
-                {group.items.map((item) => (
-                  <NavLinkRow
-                    key={item.title}
-                    item={item}
-                    collapsed
-                    pathname={location.pathname}
-                    onClick={handleClick}
-                  />
-                ))}
-              </div>
+              <button
+                key={group.id}
+                type="button"
+                title={group.title}
+                onClick={() => {
+                  setGroupOpen((prev) => {
+                    const next = { ...prev, [group.id]: true };
+                    saveGroupState(next);
+                    return next;
+                  });
+                }}
+                className={cn(
+                  'flex items-center justify-center w-full min-w-0 px-3 py-2 rounded-[10px] transition-all duration-200',
+                  hasActive
+                    ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                    : 'text-[#9DA2B3] hover:text-[#FAFBFF] hover:bg-sidebar-accent/50'
+                )}
+              >
+                <group.icon className="h-[19px] w-[19px] shrink-0" />
+              </button>
             );
           }
+
           return (
             <Collapsible key={group.id} open={open} onOpenChange={() => toggleGroup(group.id)}>
-              <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 mt-2 rounded-[10px] text-[11px] font-semibold uppercase tracking-wider text-[#9DA2B3] hover:text-[#FAFBFF] hover:bg-sidebar-accent/40">
-                <span>{group.title}</span>
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-1.5 mt-1 rounded-[10px] text-[11px] font-semibold uppercase tracking-wider text-[#9DA2B3] hover:text-[#FAFBFF] hover:bg-sidebar-accent/40">
+                <span className="flex items-center gap-2 min-w-0">
+                  <span>{group.title}</span>
+                  {hasActive && !open && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-sidebar-primary shrink-0" />
+                  )}
+                </span>
                 <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-0.5">

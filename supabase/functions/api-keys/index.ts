@@ -25,6 +25,28 @@ function generateApiKey(): { raw: string; prefix: string } {
   return { raw, prefix: raw.slice(0, 10) + '…' }
 }
 
+const KEY_MANAGE_PERMISSIONS = ['developer.tools', 'admin.panel', 'app.full_edit'] as const
+const KEY_MANAGE_ROLES = new Set(['admin', 'super_admin', 'developer'])
+
+async function canManageApiKeys(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<boolean> {
+  for (const permission of KEY_MANAGE_PERMISSIONS) {
+    const { data, error } = await supabaseAdmin.rpc('has_permission', {
+      _user_id: userId,
+      _permission: permission,
+    })
+    if (!error && data === true) return true
+  }
+
+  const { data: roles } = await supabaseAdmin
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+  return (roles ?? []).some((row: { role?: string }) => KEY_MANAGE_ROLES.has(String(row.role)))
+}
+
 function getToken(req: Request, body?: Record<string, unknown>): string {
   const authHeader = req.headers.get('Authorization')
   if (authHeader?.startsWith('Bearer ')) return authHeader.replace('Bearer ', '').trim()
@@ -35,6 +57,22 @@ function getToken(req: Request, body?: Record<string, unknown>): string {
   if (fromQuery) return fromQuery.trim()
   const fromBody = body && typeof body.__auth_token === 'string' ? body.__auth_token : ''
   return fromBody.trim()
+}
+
+async function listApiKeys(supabaseAdmin: ReturnType<typeof createClient>) {
+  let { data: keys, error } = await supabaseAdmin
+    .from('api_keys')
+    .select('id, name, key_prefix, created_at, last_used_at, expires_at')
+    .order('created_at', { ascending: false })
+  if (error && /expires_at/.test(error.message)) {
+    const fallback = await supabaseAdmin
+      .from('api_keys')
+      .select('id, name, key_prefix, created_at, last_used_at')
+      .order('created_at', { ascending: false })
+    keys = fallback.data
+    error = fallback.error
+  }
+  return { keys, error }
 }
 
 Deno.serve(async (req) => {
@@ -70,35 +108,27 @@ Deno.serve(async (req) => {
     )
   }
 
-  const { data: roleRow } = await supabaseAdmin
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', user.id)
-    .single()
-  const { data: permRow } = await supabaseAdmin
-    .from('role_permissions')
-    .select('enabled')
-    .eq('role', roleRow?.role)
-    .eq('permission', 'developer.tools')
-    .maybeSingle()
-  if (!permRow?.enabled) {
-    return new Response(
-      JSON.stringify({ error: 'Admin role required' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
-    )
-  }
-
   try {
+    const allowed = await canManageApiKeys(supabaseAdmin, user.id)
+    if (!allowed) {
+      return new Response(
+        JSON.stringify({ error: 'You do not have permission to manage API keys' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+      )
+    }
+
     const url = new URL(req.url)
     const match = url.pathname.match(/\/api-keys\/?(.*)$/)
     const path = (match ? match[1] : '') || '/'
+    const name = typeof parsedBody.name === 'string' ? parsedBody.name.trim() : ''
+    const wantsList =
+      parsedBody.action === 'list' ||
+      parsedBody.action === 'get' ||
+      (req.method === 'POST' && !name && parsedBody.action !== 'create')
 
     if (req.method === 'POST' && (path === '/' || path === '')) {
-      if (parsedBody.action === 'list') {
-        const { data: keys, error } = await supabaseAdmin
-          .from('api_keys')
-          .select('id, name, key_prefix, created_at, last_used_at, expires_at')
-          .order('created_at', { ascending: false })
+      if (wantsList) {
+        const { keys, error } = await listApiKeys(supabaseAdmin)
         if (error) {
           return new Response(
             JSON.stringify({ error: error.message }),
@@ -110,7 +140,6 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )
       }
-      const name = typeof parsedBody.name === 'string' ? parsedBody.name.trim() : ''
       if (!name) {
         return new Response(
           JSON.stringify({ error: 'name is required' }),
@@ -148,10 +177,7 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'GET' && (path === '/' || path === '')) {
-      const { data: keys, error } = await supabaseAdmin
-        .from('api_keys')
-        .select('id, name, key_prefix, created_at, last_used_at, expires_at')
-        .order('created_at', { ascending: false })
+      const { keys, error } = await listApiKeys(supabaseAdmin)
       if (error) {
         return new Response(
           JSON.stringify({ error: error.message }),

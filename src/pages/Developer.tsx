@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeEdgeFunction } from '@/lib/edge-function';
 
 const BASE_URL = `${import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')}/functions/v1/api`;
 
@@ -263,9 +264,8 @@ export default function Developer() {
   const fetchApiKeys = async () => {
     setApiKeyLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('api-keys', { body: { action: 'list' } });
-      if (error) throw error;
-      setApiKeys((data?.keys ?? []) as ApiKeyRow[]);
+      const data = await invokeEdgeFunction<{ keys?: ApiKeyRow[] }>('api-keys', { body: { action: 'list' } });
+      setApiKeys(data.keys ?? []);
     } catch (e) {
       toast({ variant: 'destructive', title: 'Failed to load API keys', description: (e as Error)?.message });
     } finally { setApiKeyLoading(false); }
@@ -275,9 +275,7 @@ export default function Developer() {
     if (!newKeyName.trim()) return;
     setApiKeyLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('api-keys', { body: { name: newKeyName.trim() } });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      const data = await invokeEdgeFunction<{ api_key: string; name: string; key_prefix: string }>('api-keys', { body: { name: newKeyName.trim() } });
       setCreatedKeyOnce({ api_key: data.api_key, name: data.name, key_prefix: data.key_prefix });
       fetchApiKeys();
     } catch (e) {
@@ -288,9 +286,7 @@ export default function Developer() {
   const handleRevokeKey = async () => {
     if (!revokeKeyId) return;
     try {
-      const { data, error } = await supabase.functions.invoke('api-keys', { method: 'DELETE', body: { id: revokeKeyId } });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      await invokeEdgeFunction('api-keys', { method: 'DELETE', body: { id: revokeKeyId } });
       setRevokeKeyId(null);
       fetchApiKeys();
       toast({ title: 'API key revoked' });

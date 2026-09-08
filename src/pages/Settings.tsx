@@ -18,7 +18,9 @@ import {
   User, Puzzle, Bell, Palette, Mail, Phone, Loader2, Check,
   ExternalLink, Zap, Shield, RefreshCw, Sun, Moon, Monitor,
   BellRing, BellOff, AtSign, Calendar, MessageSquare, Plus, X,
+  Cookie,
 } from 'lucide-react';
+import { openCookiePreferences } from '@/lib/cookie-consent';
 
 interface ProfileRow {
   id: string;
@@ -672,6 +674,19 @@ export default function Settings() {
                       ))}
                     </div>
                   </div>
+                </div>
+
+                <div className="rounded-xl border p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Cookie className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Cookies</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Necessary cookies keep you signed in. Preferences remember sidebar layout and your last page. Analytics is a first-party visit cookie only — no ads.
+                  </p>
+                  <Button type="button" variant="outline" size="sm" onClick={openCookiePreferences}>
+                    Change cookie choices
+                  </Button>
                 </div>
 
                 {/* Display info */}
