@@ -134,11 +134,36 @@ export type RfqCartLine = {
   processor?: string | null;
   ram?: string | null;
   storage?: string | null;
-  addons?: { type?: string; model?: string; qty?: number }[];
+  addons?: { id?: string; type?: string; model?: string; qty?: number }[];
   notes?: string | null;
 };
 
 export type BidQuoteLine = { id: string; unit_price: number; mrp_price: number | null };
+
+export function addonQuoteId(
+  line: RfqCartLine,
+  addon: NonNullable<RfqCartLine['addons']>[number],
+  index: number,
+): string {
+  if (addon.id) return String(addon.id);
+  return `${line.id || 'line'}::addon::${index}`;
+}
+
+export function addonLabel(addon: NonNullable<RfqCartLine['addons']>[number]): string {
+  return [addon.type, addon.model].filter((x) => (x || '').trim()).join(' — ') || 'Add-on';
+}
+
+export function quoteableCartRows(lines: RfqCartLine[]): { id: string; qty: number; kind: 'device' | 'addon' }[] {
+  const rows: { id: string; qty: number; kind: 'device' | 'addon' }[] = [];
+  for (const line of lines) {
+    if (line.id) rows.push({ id: line.id, qty: Number(line.quantity) || 1, kind: 'device' });
+    (line.addons || []).forEach((addon, i) => {
+      if (!(addon.type || addon.model || '').trim()) return;
+      rows.push({ id: addonQuoteId(line, addon, i), qty: Number(addon.qty) || 1, kind: 'addon' });
+    });
+  }
+  return rows;
+}
 
 export function asRfqCartLines(raw: unknown): RfqCartLine[] {
   return Array.isArray(raw) ? (raw as RfqCartLine[]) : [];
@@ -174,12 +199,10 @@ export function cartLineLabel(line: RfqCartLine): string {
 export function cartQuotedSubtotal(lines: RfqCartLine[], quotes: BidQuoteLine[]): number {
   const byId = new Map(quotes.map((q) => [q.id, q]));
   let sum = 0;
-  for (const line of lines) {
-    const id = line.id;
-    if (!id) continue;
-    const q = byId.get(id);
+  for (const row of quoteableCartRows(lines)) {
+    const q = byId.get(row.id);
     if (!q) continue;
-    sum += q.unit_price * (Number(line.quantity) || 1);
+    sum += q.unit_price * row.qty;
   }
   return Math.round(sum * 100) / 100;
 }
@@ -188,13 +211,11 @@ export function cartMrpSubtotal(lines: RfqCartLine[], quotes: BidQuoteLine[]): n
   const byId = new Map(quotes.map((q) => [q.id, q]));
   let sum = 0;
   let any = false;
-  for (const line of lines) {
-    const id = line.id;
-    if (!id) continue;
-    const q = byId.get(id);
+  for (const row of quoteableCartRows(lines)) {
+    const q = byId.get(row.id);
     if (!q || q.mrp_price == null) continue;
     any = true;
-    sum += q.mrp_price * (Number(line.quantity) || 1);
+    sum += q.mrp_price * row.qty;
   }
   return any ? Math.round(sum * 100) / 100 : null;
 }

@@ -71,7 +71,7 @@ function AddonsInline({
 }) {
   const [open, setOpen] = useState(true);
 
-  const addAddon = () => onAddonsChange([...addons, { type: '', model: '', qty: 1 }]);
+  const addAddon = () => onAddonsChange([...addons, { id: crypto.randomUUID(), type: '', model: '', qty: 1 }]);
   const updateAddon = (idx: number, field: keyof DeviceAddon, val: string | number) => {
     onAddonsChange(addons.map((a, i) => i === idx ? { ...a, [field]: val } : a));
   };
@@ -133,7 +133,7 @@ function AddonsDialogButton({
     setOpen(false);
   };
 
-  const addAddon = () => setDraft((p) => [...p, { type: '', model: '', qty: 1 }]);
+  const addAddon = () => setDraft((p) => [...p, { id: crypto.randomUUID(), type: '', model: '', qty: 1 }]);
   const updateAddon = (idx: number, field: keyof DeviceAddon, val: string | number) => {
     setDraft((p) => p.map((a, i) => i === idx ? { ...a, [field]: val } : a));
   };

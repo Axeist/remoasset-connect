@@ -136,7 +136,14 @@ export function deviceSpecToLine(v: DeviceSpecValues): RequestDeviceLine {
     material: v.material.trim() || null,
     spec_description: v.spec_description.trim() || null,
     custom_fields: v.custom_fields.filter((f) => f.label.trim() || f.value.trim()),
-    addons: v.addons,
+    addons: v.addons
+      .filter((a) => a.type.trim() || a.model.trim())
+      .map((a) => ({
+        id: a.id || crypto.randomUUID(),
+        type: a.type.trim(),
+        model: a.model.trim(),
+        qty: a.qty || 1,
+      })),
     notes: v.notes.trim() || null,
   };
 }

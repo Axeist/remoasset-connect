@@ -8,6 +8,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
+  addonLabel,
+  addonQuoteId,
   asBidQuoteLines,
   asRfqCartLines,
   cartLineLabel,
@@ -15,6 +17,7 @@ import {
   cartQuotedSubtotal,
   computeBidPricing,
   formatCountdown,
+  quoteableCartRows,
 } from '@/lib/rfq';
 import { fileToBase64, invokeRfqPublic } from '@/lib/rfq-api';
 import { convertToUsd, formatUsdRateLine, getRateToUsd } from '@/lib/fx-rates';
@@ -135,10 +138,9 @@ export default function RfqRespond() {
         const existing = asBidQuoteLines(data.bid?.line_items);
         const byId = new Map(existing.map((q) => [q.id, q]));
         const next: Record<string, LineQuote> = {};
-        for (const line of lines) {
-          if (!line.id) continue;
-          const hit = byId.get(line.id);
-          next[line.id] = {
+        for (const row of quoteableCartRows(lines)) {
+          const hit = byId.get(row.id);
+          next[row.id] = {
             unit: hit ? String(hit.unit_price) : '',
             mrp: hit?.mrp_price != null ? String(hit.mrp_price) : '',
           };
@@ -164,13 +166,11 @@ export default function RfqRespond() {
     setError(null);
     try {
       const b64 = await fileToBase64(file);
-      const line_items = cart
-        .filter((l) => l.id)
-        .map((l) => ({
-          id: l.id as string,
-          unit_price: parseFloat(lineQuotes[l.id as string]?.unit),
-          mrp_price: lineQuotes[l.id as string]?.mrp ? parseFloat(lineQuotes[l.id as string].mrp) : null,
-        }));
+      const line_items = quoteableCartRows(cart).map((row) => ({
+        id: row.id,
+        unit_price: parseFloat(lineQuotes[row.id]?.unit),
+        mrp_price: lineQuotes[row.id]?.mrp ? parseFloat(lineQuotes[row.id].mrp) : null,
+      }));
       await invokeRfqPublic({
         action: 'submit',
         token,
@@ -390,24 +390,54 @@ export default function RfqRespond() {
                 {cart.map((line) => {
                   const id = line.id as string;
                   const q = lineQuotes[id] || { unit: '', mrp: '' };
+                  const addons = (line.addons || []).filter((a) => (a.type || a.model || '').trim());
                   return (
-                    <div key={id} className="rounded-xl border border-[#E8E4DE] p-3">
-                      <div className="flex items-start gap-3">
-                        <p className="text-sm font-medium flex-1 min-w-0">{cartLineLabel(line)}</p>
-                        <span className="shrink-0 text-xs font-semibold text-[#6E7180] bg-[#F3F0EB] rounded-full px-2 py-0.5">
-                          Qty {line.quantity || 1}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        <div className="space-y-1">
-                          <Label className="text-xs text-[#6E7180]">Unit price * ({currency})</Label>
-                          <Input type="number" min={0} step="0.01" value={q.unit} onChange={(e) => setLine(id, 'unit', e.target.value)} className={fieldClass} placeholder="0.00" />
+                    <div key={id} className="rounded-xl border border-[#E8E4DE] p-3 space-y-3">
+                      <div>
+                        <div className="flex items-start gap-3">
+                          <p className="text-sm font-medium flex-1 min-w-0">{cartLineLabel(line)}</p>
+                          <span className="shrink-0 text-xs font-semibold text-[#6E7180] bg-[#F3F0EB] rounded-full px-2 py-0.5">
+                            Qty {line.quantity || 1}
+                          </span>
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-[#6E7180]">MRP / list {rfq?.rfq_type === 'fulfillment' ? '*' : ''} ({currency})</Label>
-                          <Input type="number" min={0} step="0.01" value={q.mrp} onChange={(e) => setLine(id, 'mrp', e.target.value)} className={fieldClass} placeholder="0.00" />
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-[#6E7180]">Unit price * ({currency})</Label>
+                            <Input type="number" min={0} step="0.01" value={q.unit} onChange={(e) => setLine(id, 'unit', e.target.value)} className={fieldClass} placeholder="0.00" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-[#6E7180]">MRP / list {rfq?.rfq_type === 'fulfillment' ? '*' : ''} ({currency})</Label>
+                            <Input type="number" min={0} step="0.01" value={q.mrp} onChange={(e) => setLine(id, 'mrp', e.target.value)} className={fieldClass} placeholder="0.00" />
+                          </div>
                         </div>
                       </div>
+                      {addons.length > 0 && (
+                        <div className="rounded-lg bg-[#F3F0EB] px-3 py-2.5 space-y-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6E7180]">Add-ons</p>
+                          {addons.map((addon, i) => {
+                            const aid = addonQuoteId(line, addon, i);
+                            const aq = lineQuotes[aid] || { unit: '', mrp: '' };
+                            return (
+                              <div key={aid}>
+                                <div className="flex items-start justify-between gap-2 mb-1.5">
+                                  <p className="text-sm">{addonLabel(addon)}</p>
+                                  <span className="text-xs text-[#6E7180]">Qty {addon.qty || 1}</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-[#6E7180]">Unit * ({currency})</Label>
+                                    <Input type="number" min={0} step="0.01" value={aq.unit} onChange={(e) => setLine(aid, 'unit', e.target.value)} className={fieldClass} placeholder="0.00" />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-[#6E7180]">MRP {rfq?.rfq_type === 'fulfillment' ? '*' : ''} ({currency})</Label>
+                                    <Input type="number" min={0} step="0.01" value={aq.mrp} onChange={(e) => setLine(aid, 'mrp', e.target.value)} className={fieldClass} placeholder="0.00" />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

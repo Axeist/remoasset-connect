@@ -1,6 +1,7 @@
 import type { DeviceCategory } from '@/constants/device-categories';
 
 export interface DeviceAddon {
+  id?: string;
   type: string;
   model: string;
   qty: number;

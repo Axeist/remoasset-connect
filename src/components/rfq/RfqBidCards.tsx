@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import type { RfqBid, RfqStatus } from '@/types/rfq';
-import { asBidQuoteLines, asRfqCartLines, cartLineLabel, type RfqCartLine } from '@/lib/rfq';
+import { asBidQuoteLines, asRfqCartLines, addonLabel, addonQuoteId, cartLineLabel, type RfqCartLine } from '@/lib/rfq';
 import { convertToUsd, formatUsdRateLine } from '@/lib/fx-rates';
 
 export function money(currency: string, value: number | null | undefined) {
@@ -156,10 +156,21 @@ export function RfqBidCards({
                     <p>Shipping {money(b.currency, b.shipping_fee)} · Tax {money(b.currency, b.tax_fee)} · Other {money(b.currency, b.other_fees)}</p>
                     {cart.length > 0 && asBidQuoteLines(b.line_items).map((q) => {
                       const line = cart.find((c) => c.id === q.id);
-                      const qty = Number(line?.quantity) || 1;
+                      let label = line ? cartLineLabel(line as RfqCartLine) : null;
+                      let qty = line ? Number(line.quantity) || 1 : 1;
+                      if (!line) {
+                        for (const c of cart) {
+                          (c.addons || []).forEach((addon, i) => {
+                            if (addonQuoteId(c, addon, i) === q.id) {
+                              label = `Add-on · ${addonLabel(addon)}`;
+                              qty = Number(addon.qty) || 1;
+                            }
+                          });
+                        }
+                      }
                       return (
                         <p key={q.id} className="text-xs">
-                          {line ? cartLineLabel(line as RfqCartLine) : q.id} ×{qty}: {money(b.currency, q.unit_price)}
+                          {label || q.id} ×{qty}: {money(b.currency, q.unit_price)}
                           {q.mrp_price != null && <> · MRP {money(b.currency, q.mrp_price)}</>}
                           {usdRates[(b.currency || 'USD').toUpperCase()] != null && (
                             <> · {money('USD', convertToUsd(q.unit_price * qty, usdRates[(b.currency || 'USD').toUpperCase()]))}</>

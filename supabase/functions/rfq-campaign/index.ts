@@ -252,6 +252,33 @@ Deno.serve(async (req) => {
               unit_price: Math.round(unit * 100) / 100,
               mrp_price: lineMrp != null && Number.isFinite(lineMrp) ? Math.round(lineMrp * 100) / 100 : null,
             })
+
+            const addons = Array.isArray(line.addons) ? line.addons : []
+            for (let i = 0; i < addons.length; i++) {
+              const addon = addons[i]
+              if (!(String(addon?.type || addon?.model || '').trim())) continue
+              const addonId = String(addon?.id || `${id}::addon::${i}`)
+              const addonQty = Number(addon?.qty) || 1
+              const addonHit = submittedLines.find((s: { id?: string }) => String(s?.id) === addonId)
+              const addonUnit = Number(addonHit?.unit_price)
+              if (!Number.isFinite(addonUnit) || addonUnit < 0) {
+                return json({ error: 'Quote every add-on' }, 400)
+              }
+              const addonMrp = addonHit?.mrp_price != null && addonHit.mrp_price !== '' ? Number(addonHit.mrp_price) : null
+              if (rfq.rfq_type === 'fulfillment' && (addonMrp == null || addonMrp <= 0)) {
+                return json({ error: 'MRP is required on every add-on' }, 400)
+              }
+              goods += addonUnit * addonQty
+              if (addonMrp != null && Number.isFinite(addonMrp)) {
+                mrpAny = true
+                mrpSum += addonMrp * addonQty
+              }
+              normalized.push({
+                id: addonId,
+                unit_price: Math.round(addonUnit * 100) / 100,
+                mrp_price: addonMrp != null && Number.isFinite(addonMrp) ? Math.round(addonMrp * 100) / 100 : null,
+              })
+            }
           }
           quoted = Math.round(goods * 100) / 100
           mrp = mrpAny ? Math.round(mrpSum * 100) / 100 : null
