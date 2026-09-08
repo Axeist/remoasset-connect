@@ -96,7 +96,7 @@ export function useMailNotificationPoller() {
       }
     }
     leadMapRef.current = map;
-  }, [user?.id, role]);
+  }, [user?.id, isAdmin]);
 
   useEffect(() => {
     if (!user?.id || !gmail.isConnected) return;
@@ -185,5 +185,5 @@ export function useMailNotificationPoller() {
 
     timeoutId = setTimeout(poll, INITIAL_DELAY_MS);
     return () => clearTimeout(timeoutId);
-  }, [user?.id, role, gmail.isConnected, gmail.listThreads, gmail.getThread, refreshLeads]);
+  }, [user?.id, isAdmin, gmail.isConnected, gmail.listThreads, gmail.getThread, refreshLeads]);
 }

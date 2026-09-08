@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { formatVendorTypeLabel } from '@/lib/vendorTypes';
@@ -116,7 +115,7 @@ const REGION_FILTER_OPTIONS = REGIONS.map((r) => ({ value: r.value, label: r.lab
 
 export function VendorDirectory() {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   const [vendors, setVendors] = useState<VendorLead[]>([]);

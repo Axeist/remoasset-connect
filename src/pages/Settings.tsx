@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { roleLabel } from '@/lib/permissions';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 import { useToast } from '@/hooks/use-toast';
 import { useTheme } from 'next-themes';
@@ -59,7 +60,7 @@ function saveNotifPrefs(prefs: Record<string, boolean>) {
 }
 
 export default function Settings() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, role } = useAuth();
   const { toast } = useToast();
   const { connectGoogleCalendar, disconnectGoogleCalendar } = useAuth();
   const { isConnected } = useGoogleCalendar();
@@ -241,7 +242,7 @@ export default function Settings() {
                 </Avatar>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold truncate">{fullName || user?.email?.split('@')[0] || 'You'}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">{designation || role || 'Member'}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{designation || roleLabel(role) || 'Member'}</p>
                 </div>
               </div>
             </div>
@@ -293,7 +294,7 @@ export default function Settings() {
                         <p className="text-sm text-muted-foreground">{designation || 'Add your designation below'}</p>
                         <p className="text-xs text-muted-foreground/60 mt-1">{user?.email}</p>
                       </div>
-                      <Badge variant="secondary" className="capitalize shrink-0">{role}</Badge>
+                      <Badge variant="secondary" className="shrink-0">{roleLabel(role)}</Badge>
                     </div>
 
                     <ProfileAvatarPicker

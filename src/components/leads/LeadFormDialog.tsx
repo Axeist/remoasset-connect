@@ -73,7 +73,7 @@ interface LeadFormDialogProps {
 }
 
 export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadFormDialogProps) {
-  const { user, role } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
 
   const form = useForm<LeadFormValues>({
