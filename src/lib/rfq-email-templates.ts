@@ -183,7 +183,13 @@ export function wrapRfqEmailHtml(opts: {
 
         <!-- Logo -->
         <tr><td style="padding:0 0 24px;text-align:center;">
-          <img src="${LOGO_SRC}" alt="RemoAsset" width="180" height="40" style="height:40px;width:auto;max-width:180px;display:inline-block;border:0;outline:none;" />
+          <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto;">
+            <tr>
+              <td style="background-color:${BRAND.dark};border-radius:12px;padding:14px 22px;">
+                <img src="${LOGO_SRC}" alt="RemoAsset" width="180" height="40" style="height:40px;width:auto;max-width:180px;display:block;border:0;outline:none;" />
+              </td>
+            </tr>
+          </table>
         </td></tr>
 
         <!-- Card -->
