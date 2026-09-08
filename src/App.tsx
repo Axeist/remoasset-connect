@@ -42,6 +42,7 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { PageVisitTracker } from "@/components/PageVisitTracker";
+import { VersionReloader } from "@/components/VersionReloader";
 import Clients from "./pages/Clients";
 import ClientDetail from "./pages/ClientDetail";
 import MrpLookup from "./pages/MrpLookup";
@@ -66,6 +67,7 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <VersionReloader />
         {showWelcomeSplash && (
           <SplashScreen
             variant="welcome"
