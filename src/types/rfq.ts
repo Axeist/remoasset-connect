@@ -32,6 +32,7 @@ export interface Rfq {
   target_vendor_types: VendorType[] | string[];
   scope_summary: string | null;
   quantity: number | null;
+  line_items?: unknown;
   target_budget_usd: number | null;
   deadline: string;
   status: RfqStatus;
@@ -93,6 +94,10 @@ export interface RfqBid {
   pricing_status: RfqPricingStatus;
   award_status: RfqAwardStatus;
   revision_note: string | null;
+  fx_rate_at_submit?: number | null;
+  fx_as_of?: string | null;
+  quoted_usd_at_submit?: number | null;
+  landed_usd_at_submit?: number | null;
   submitted_at: string;
   created_at: string;
   updated_at: string;

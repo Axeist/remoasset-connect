@@ -137,9 +137,9 @@ export default function RfqHub() {
               Invite Closed partners, compare quotes, award.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 shrink-0">
+          <div className="flex flex-wrap gap-2 shrink-0 items-center">
             <RfqHowToButton />
-            <Button onClick={() => navigate('/rfq/new')} className="rounded-xl cursor-pointer">
+            <Button onClick={() => navigate('/rfq/new')} className="h-10 rounded-xl cursor-pointer">
               <Plus className="h-4 w-4 mr-2" /> Raise RFQ
             </Button>
           </div>
@@ -205,9 +205,9 @@ export default function RfqHub() {
                       <p className="text-sm text-muted-foreground">
                         Raise a campaign when a client needs devices or retrieval / ITAD.
                       </p>
-                      <div className="flex flex-wrap justify-center gap-2">
+                      <div className="flex flex-wrap justify-center gap-2 items-center">
                         <RfqHowToButton />
-                        <Button className="rounded-xl cursor-pointer" onClick={() => navigate('/rfq/new')}>
+                        <Button className="h-10 rounded-xl cursor-pointer" onClick={() => navigate('/rfq/new')}>
                           <Plus className="h-4 w-4 mr-2" /> Raise RFQ
                         </Button>
                       </div>

@@ -13,7 +13,7 @@ export const RFQ_RAISE_GUIDE = [
   {
     n: '1',
     title: 'Brief',
-    body: 'Choose request type, then pick an active client from the list or a prospecting client and type the name. Set country, quantity, and deadline. Write a clear scope. Pick vendor types — only Closed partners matching those types in the country are invited. You are always on CC.',
+    body: 'Choose request type, then pick an active or prospecting client. Set country and deadline. Add a cart of devices (laptops, monitors, HDDs, mice, keyboards). Only Closed partners matching your vendor types in that country are invited.',
   },
   {
     n: '2',
@@ -39,8 +39,7 @@ export function RfqHowToButton({ className }: { className?: string }) {
       <Button
         type="button"
         variant="outline"
-        size="sm"
-        className={`rounded-xl cursor-pointer shrink-0 ${className ?? ''}`}
+        className={`h-10 rounded-xl cursor-pointer shrink-0 ${className ?? ''}`}
         onClick={() => setOpen(true)}
       >
         <CircleHelp className="h-3.5 w-3.5 mr-1.5" />

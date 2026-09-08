@@ -71,6 +71,39 @@ function computePricing(quoted: number, mrp: number | null, shipping: number, ta
   return { total_landed: Math.round(total * 100) / 100, discount_pct, discount_amount }
 }
 
+async function rateToUsd(fromCurrency: string): Promise<{ rate: number; date: string }> {
+  const from = (fromCurrency || 'USD').trim().toUpperCase()
+  if (from === 'USD') return { rate: 1, date: new Date().toISOString().slice(0, 10) }
+  try {
+    const res = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(from)}`)
+    if (res.ok) {
+      const data = await res.json()
+      const usd = data?.conversion_rates?.USD
+      if (usd != null && !Number.isNaN(Number(usd))) {
+        const date = data.time_last_update_utc
+          ? new Date(data.time_last_update_utc).toISOString().slice(0, 10)
+          : new Date().toISOString().slice(0, 10)
+        return { rate: Number(usd), date }
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+  try {
+    const res = await fetch(`https://api.frankfurter.app/v1/latest?from=${encodeURIComponent(from)}&to=USD`)
+    if (res.ok) {
+      const data = await res.json()
+      const usd = data?.rates?.USD
+      if (usd != null && !Number.isNaN(Number(usd))) {
+        return { rate: Number(usd), date: data.date || new Date().toISOString().slice(0, 10) }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  throw new Error(`No USD rate for ${from}`)
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -93,7 +126,7 @@ Deno.serve(async (req) => {
 
       const { data: rfq } = await sb
         .from('rfqs')
-        .select('*, client:clients!client_id(id, name), country:countries!country_id(id, name)')
+        .select('id, status, deadline, sealed_until, unsealed_at, rfq_type, scope_summary, quantity, line_items, client_request_id, country:countries!country_id(id, name)')
         .eq('id', recipient.rfq_id)
         .single()
       if (!rfq) return json({ error: 'RFQ not found' }, 404)
@@ -139,8 +172,8 @@ Deno.serve(async (req) => {
             scope_summary: rfq.scope_summary,
             quantity: rfq.quantity,
             deadline: rfq.deadline,
-            client_name: rfq.client?.name,
             country_name: rfq.country?.name,
+            line_items: Array.isArray(rfq.line_items) ? rfq.line_items : [],
           },
           vendor_name: recipient.vendor?.company_name,
           recipient_status: recipient.status,
@@ -158,6 +191,7 @@ Deno.serve(async (req) => {
                 pricing_status: bid.pricing_status,
                 award_status: bid.award_status,
                 revision_note: bid.revision_note,
+                line_items: Array.isArray(bid.line_items) ? bid.line_items : [],
               }
             : null,
         })
@@ -176,18 +210,62 @@ Deno.serve(async (req) => {
         if (rfq.status === 'awarded' || rfq.status === 'cancelled') {
           return json({ error: 'This RFQ is closed for new quotes' }, 400)
         }
-        const quoted = Number(body.quoted_price)
-        const mrp = body.mrp_price != null ? Number(body.mrp_price) : null
-        const shipping = Number(body.shipping_fee || 0)
-        const tax = Number(body.tax_fee || 0)
-        const other = Number(body.other_fees || 0)
-        if (!Number.isFinite(quoted) || quoted < 0) return json({ error: 'quoted_price required' }, 400)
-        if (rfq.rfq_type === 'fulfillment' && (mrp == null || mrp <= 0)) {
-          return json({ error: 'MRP / public price is required' }, 400)
-        }
         if (!body.file_base64 || !body.file_name) {
           return json({ error: 'Quotation file is mandatory' }, 400)
         }
+
+        const cart = Array.isArray(rfq.line_items) ? rfq.line_items : []
+        const submittedLines = Array.isArray(body.line_items) ? body.line_items : []
+        let quoted = Number(body.quoted_price)
+        let mrp = body.mrp_price != null ? Number(body.mrp_price) : null
+
+        if (cart.length > 0) {
+          let goods = 0
+          let mrpSum = 0
+          let mrpAny = false
+          const normalized: { id: string; unit_price: number; mrp_price: number | null }[] = []
+          for (const line of cart) {
+            const id = String(line.id || '')
+            const qty = Number(line.quantity) || 1
+            const hit = submittedLines.find((s: { id?: string }) => String(s?.id) === id)
+            const unit = Number(hit?.unit_price)
+            if (!id || !Number.isFinite(unit) || unit < 0) {
+              return json({ error: 'Quote every line item' }, 400)
+            }
+            const lineMrp = hit?.mrp_price != null && hit.mrp_price !== '' ? Number(hit.mrp_price) : null
+            if (rfq.rfq_type === 'fulfillment' && (lineMrp == null || lineMrp <= 0)) {
+              return json({ error: 'MRP is required on every line' }, 400)
+            }
+            goods += unit * qty
+            if (lineMrp != null && Number.isFinite(lineMrp)) {
+              mrpAny = true
+              mrpSum += lineMrp * qty
+            }
+            normalized.push({
+              id,
+              unit_price: Math.round(unit * 100) / 100,
+              mrp_price: lineMrp != null && Number.isFinite(lineMrp) ? Math.round(lineMrp * 100) / 100 : null,
+            })
+          }
+          quoted = Math.round(goods * 100) / 100
+          mrp = mrpAny ? Math.round(mrpSum * 100) / 100 : null
+          body.line_items = normalized
+        } else {
+          quoted = Number(body.quoted_price)
+          mrp = body.mrp_price != null ? Number(body.mrp_price) : null
+          if (!Number.isFinite(quoted) || quoted < 0) return json({ error: 'quoted_price required' }, 400)
+          if (rfq.rfq_type === 'fulfillment' && (mrp == null || mrp <= 0)) {
+            return json({ error: 'MRP / public price is required' }, 400)
+          }
+        }
+
+        if (!Number.isFinite(quoted) || quoted < 0) return json({ error: 'quoted_price required' }, 400)
+
+        const shipping = Number(body.shipping_fee || 0)
+        const tax = Number(body.tax_fee || 0)
+        const other = Number(body.other_fees || 0)
+        const currency = String(body.currency || 'USD').toUpperCase()
+        const fx = await rateToUsd(currency)
 
         const pricing = computePricing(quoted, mrp, shipping, tax, other)
         const ext = String(body.file_name).split('.').pop() || 'pdf'
@@ -207,7 +285,7 @@ Deno.serve(async (req) => {
           recipient_id: recipient.id,
           vendor_id: recipient.vendor_id,
           quoted_price: quoted,
-          currency: body.currency || 'USD',
+          currency,
           mrp_price: mrp,
           discount_pct: pricing.discount_pct,
           discount_amount: pricing.discount_amount,
@@ -225,6 +303,10 @@ Deno.serve(async (req) => {
           award_status: 'pending',
           revision_note: null,
           submitted_at: new Date().toISOString(),
+          fx_rate_at_submit: fx.rate,
+          fx_as_of: fx.date,
+          quoted_usd_at_submit: Math.round(quoted * fx.rate * 100) / 100,
+          landed_usd_at_submit: Math.round(pricing.total_landed * fx.rate * 100) / 100,
         }
 
         if (bid?.id && ['submitted', 'revision_requested'].includes(bid.pricing_status)) {

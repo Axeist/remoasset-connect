@@ -18,7 +18,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { campaignRollups, formatCountdown, formatRelativeTime } from '@/lib/rfq';
+import { asRfqCartLines, campaignRollups, cartLineLabel, formatCountdown, formatRelativeTime } from '@/lib/rfq';
+import { convertToUsd, getRateToUsd } from '@/lib/fx-rates';
 import { buildAwardEmail, buildRemindEmail } from '@/lib/rfq-email-templates';
 import { invokeRfqCampaign } from '@/lib/rfq-api';
 import {
@@ -32,7 +33,7 @@ import {
 } from '@/types/rfq';
 import { ArrowLeft, Bell, CheckSquare, ChevronDown, ChevronUp, Send, Table2, Trash2 } from 'lucide-react';
 import { RFQ_RECIPIENT_HELP, RFQ_STATUS_HELP } from '@/components/rfq/RfqInfo';
-import { money, RfqBidCards } from '@/components/rfq/RfqBidCards';
+import { money, RfqBidCards, usdOf } from '@/components/rfq/RfqBidCards';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -90,6 +91,7 @@ export default function RfqDetail() {
     loserMail: false,
     po: false,
   });
+  const [usdRates, setUsdRates] = useState<Record<string, number>>({ USD: 1 });
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -117,6 +119,46 @@ export default function RfqDetail() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const codes = [...new Set(bids.map((b) => (b.currency || 'USD').toUpperCase()))];
+    if (!codes.includes('USD')) codes.push('USD');
+    (async () => {
+      const next: Record<string, number> = { USD: 1 };
+      await Promise.all(
+        codes.map(async (code) => {
+          try {
+            const { rate } = await getRateToUsd(code);
+            next[code] = rate;
+          } catch {
+            /* leave missing so UI keeps original currency */
+          }
+        }),
+      );
+      if (!cancelled) setUsdRates(next);
+    })();
+    const refresh = window.setInterval(() => {
+      void (async () => {
+        const next: Record<string, number> = { USD: 1 };
+        await Promise.all(
+          codes.map(async (code) => {
+            try {
+              const { rate } = await getRateToUsd(code);
+              next[code] = rate;
+            } catch {
+              /* ignore */
+            }
+          }),
+        );
+        if (!cancelled) setUsdRates(next);
+      })();
+    }, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(refresh);
+    };
+  }, [bids]);
 
   const roll = useMemo(() => campaignRollups(recipients), [recipients]);
   const awardBid = bids.find((b) => b.id === awardBidId);
@@ -223,6 +265,12 @@ export default function RfqDetail() {
     if (!bid) return;
     setBusy(true);
     try {
+      const { rate } = await getRateToUsd(bid.currency || 'USD');
+      const landed = Number(bid.total_landed ?? bid.quoted_price);
+      const vendor_price_usd = Math.round(convertToUsd(landed, rate) * 100) / 100;
+      const mrp_usd =
+        bid.mrp_price != null ? Math.round(convertToUsd(Number(bid.mrp_price), rate) * 100) / 100 : null;
+
       await supabase.from('rfq_bids' as any).update({ award_status: 'won', pricing_status: 'accepted' }).eq('id', bid.id);
       await supabase.from('rfq_bids' as any).update({ award_status: 'lost' }).eq('rfq_id', rfq.id).neq('id', bid.id);
 
@@ -237,8 +285,8 @@ export default function RfqDetail() {
       if (rfq.client_request_id) {
         await supabase.from('client_requests' as any).update({
           vendor_id: bid.vendor_id,
-          vendor_price_usd: bid.quoted_price,
-          mrp_usd: bid.mrp_price,
+          vendor_price_usd,
+          mrp_usd,
           status: 'vendor_allocated',
         }).eq('id', rfq.client_request_id);
       }
@@ -322,6 +370,7 @@ export default function RfqDetail() {
   }
 
   const scopeLong = (rfq.scope_summary || '').split('\n').length > 3 || (rfq.scope_summary || '').length > 180;
+  const cartLines = asRfqCartLines(rfq.line_items);
 
   return (
     <AppLayout>
@@ -347,6 +396,17 @@ export default function RfqDetail() {
             <p className="text-sm tabular-nums text-muted-foreground mt-1">
               Sent {roll.sent} · Opened {roll.opened} · Quoted {roll.quoted}
             </p>
+            {cartLines.length > 0 && (
+              <ul className="mt-3 space-y-1 text-sm">
+                {cartLines.map((line, i) => (
+                  <li key={line.id || i} className="text-muted-foreground">
+                    <span className="text-foreground">{cartLineLabel(line)}</span>
+                    {' · '}×{Number(line.quantity) || 1}
+                    {line.category ? ` · ${line.category}` : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
             {rfq.scope_summary && (
               <div className="mt-3">
                 <p className={`text-sm whitespace-pre-wrap ${!briefOpen && scopeLong ? 'line-clamp-3' : ''}`}>
@@ -468,6 +528,7 @@ export default function RfqDetail() {
                       <TableHead>Tax</TableHead>
                       <TableHead>Other</TableHead>
                       <TableHead>Landed</TableHead>
+                      <TableHead>USD (live)</TableHead>
                       <TableHead>Lead</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
@@ -475,7 +536,7 @@ export default function RfqDetail() {
                   <TableBody>
                     {bids.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                           No quotes yet.
                         </TableCell>
                       </TableRow>
@@ -490,6 +551,7 @@ export default function RfqDetail() {
                         <TableCell className="tabular-nums">{money(b.currency, b.tax_fee)}</TableCell>
                         <TableCell className="tabular-nums">{money(b.currency, b.other_fees)}</TableCell>
                         <TableCell className="tabular-nums font-semibold">{money(b.currency, b.total_landed)}</TableCell>
+                        <TableCell className="tabular-nums font-semibold">{money('USD', usdOf(b.total_landed ?? b.quoted_price, b.currency, usdRates))}</TableCell>
                         <TableCell>{b.lead_time_days != null ? `${b.lead_time_days}d` : '—'}</TableCell>
                         <TableCell><Badge variant="outline">{b.pricing_status}</Badge></TableCell>
                       </TableRow>
@@ -501,6 +563,8 @@ export default function RfqDetail() {
               <RfqBidCards
                 bids={bids}
                 rfqStatus={rfq.status}
+                rfqLines={rfq.line_items}
+                usdRates={usdRates}
                 onAward={openAward}
                 onRevise={openRevise}
                 onOpenFile={openQuotation}
@@ -580,7 +644,9 @@ export default function RfqDetail() {
               <p className="text-sm">
                 <strong>{awardBid.vendor?.company_name}</strong>
                 {' · '}
-                {money(awardBid.currency, awardBid.total_landed ?? awardBid.quoted_price)} landed
+                {money('USD', usdOf(awardBid.total_landed ?? awardBid.quoted_price, awardBid.currency, usdRates))} live USD
+                {' · '}
+                {money(awardBid.currency, awardBid.total_landed ?? awardBid.quoted_price)} quoted
               </p>
             )}
             {weakCompetition && (

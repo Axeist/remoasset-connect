@@ -663,3 +663,10 @@ img[src="/logo.png"] {
   cursor: pointer;
 }
 
+.rfq-public [data-radix-select-trigger] {
+  background-color: #ffffff !important;
+  color: #30282b !important;
+  border-color: #e6e3de !important;
+  height: 3rem;
+}
+

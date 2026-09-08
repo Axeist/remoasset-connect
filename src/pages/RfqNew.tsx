@@ -30,6 +30,14 @@ import { ArrowLeft, Send, FlaskConical } from 'lucide-react';
 import type { RfqType } from '@/types/rfq';
 import { RfqWizardRail } from '@/components/rfq/RfqWizardRail';
 import { RfqHowToButton } from '@/components/rfq/RfqHowToDialog';
+import { MultiDeviceSpecForm, type DeviceSpecValues } from '@/components/shared/DeviceSpecForm';
+import {
+  buildMultiDeviceSummary,
+  createEmptyDeviceSpec,
+  deviceSpecToLine,
+  flattenPrimaryDevice,
+  validateDeviceLines,
+} from '@/lib/device-spec-utils';
 
 export default function RfqNew() {
   const navigate = useNavigate();
@@ -45,8 +53,8 @@ export default function RfqNew() {
   const [clientId, setClientId] = useState('');
   const [prospectName, setProspectName] = useState('');
   const [countryId, setCountryId] = useState('');
-  const [scope, setScope] = useState('');
-  const [qty, setQty] = useState('1');
+  const [devices, setDevices] = useState<DeviceSpecValues[]>(() => [createEmptyDeviceSpec()]);
+  const [extraNotes, setExtraNotes] = useState('');
   const [deadlineLocal, setDeadlineLocal] = useState(() => {
     const d = new Date(Date.now() + 48 * 3600_000);
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -148,6 +156,8 @@ export default function RfqNew() {
   const countryName = countries.find((c) => c.id === countryId)?.name || 'this country';
   const deadlineIso = new Date(deadlineLocal).toISOString();
   const missingMagicLink = Boolean(bodyHtml) && !bodyHtml.includes('{{magic_link}}');
+  const scope = [buildMultiDeviceSummary(devices), extraNotes.trim()].filter(Boolean).join('\n');
+  const qtyTotal = devices.reduce((sum, d) => sum + (d.quantity || 1), 0);
 
   const buildEmailDefaults = useCallback(() => {
     const kind = rfqType === 'fulfillment' ? 'fulfillment' : 'retrieval';
@@ -158,7 +168,7 @@ export default function RfqNew() {
       deadline_countdown: formatCountdown(deadlineIso),
       magic_link: '{{magic_link}}',
       scope_summary: scope || 'See RFQ details in RemoAsset Connect.',
-      qty: qty || '1',
+      qty: qtyTotal || '1',
       owner_name: user?.email?.split('@')[0] || 'RemoAsset',
       rfq_type_label: rfqType.replace(/_/g, ' '),
     };
@@ -166,7 +176,7 @@ export default function RfqNew() {
     setSubject(mail.subject);
     setBodyHtml(mail.body_html);
     setBodyText(mail.body_text);
-  }, [rfqType, countryName, deadlineIso, scope, qty, user?.email]);
+  }, [rfqType, countryName, deadlineIso, scope, qtyTotal, user?.email]);
 
   const toggleType = (t: VendorType) => {
     setVendorTypes((prev) =>
@@ -181,13 +191,15 @@ export default function RfqNew() {
     clientKind === 'active' ? Boolean(clientId) : Boolean(prospectName.trim());
 
   const goPartners = () => {
-    if (!briefClientReady || !countryId || !scope.trim()) {
+    const deviceErr = validateDeviceLines(devices);
+    if (!briefClientReady || !countryId || deviceErr) {
       toast({
         title: 'Complete the brief',
         description:
-          clientKind === 'prospecting'
-            ? 'Prospect name, country, and scope are required.'
-            : 'Client, country, and scope are required.',
+          deviceErr
+            || (clientKind === 'prospecting'
+              ? 'Prospect name, country, and at least one device are required.'
+              : 'Client, country, and at least one device are required.'),
         variant: 'destructive',
       });
       return;
@@ -196,7 +208,7 @@ export default function RfqNew() {
   };
 
   const goEmailStep = () => {
-    if (!briefClientReady || !countryId || !scope.trim() || !selectedVendorIds.size) {
+    if (!briefClientReady || !countryId || validateDeviceLines(devices) || !selectedVendorIds.size) {
       toast({
         title: 'Select partners',
         description: 'At least one vendor is required.',
@@ -258,6 +270,8 @@ export default function RfqNew() {
       let rfqId: string | null = null;
 
       if (mode === 'send' || true) {
+        const lineItems = devices.map(deviceSpecToLine);
+        const flat = flattenPrimaryDevice(devices);
         const { data: req, error: reqErr } = await supabase.from('client_requests' as any).insert({
           client_id: resolvedClientId,
           country_id: countryId,
@@ -267,15 +281,16 @@ export default function RfqNew() {
               : rfqType === 'itad'
                 ? 'itad'
                 : 'fulfillment',
-          brand: 'RFQ',
-          device_model: scope.slice(0, 80) || 'RFQ campaign',
-          quantity: Number(qty) || 1,
-          processor: '—',
-          display_size: '—',
-          ram: '—',
-          storage: '—',
+          brand: flat.brand || 'RFQ',
+          device_model: (flat.device_model || scope).slice(0, 80) || 'RFQ campaign',
+          quantity: qtyTotal || 1,
+          processor: flat.processor || '—',
+          display_size: flat.display_size || '—',
+          ram: flat.ram || '—',
+          storage: flat.storage || '—',
+          devices: lineItems,
           status: 'rfq_in_progress',
-          notes: `Created from RFQ campaign. Scope: ${scope}`,
+          notes: extraNotes.trim() || `Created from RFQ campaign. ${scope}`,
           created_by: user?.id,
         }).select('id').single();
         if (reqErr) throw reqErr;
@@ -287,7 +302,8 @@ export default function RfqNew() {
           rfq_type: rfqType,
           target_vendor_types: vendorTypes,
           scope_summary: scope,
-          quantity: Number(qty) || 1,
+          quantity: qtyTotal || 1,
+          line_items: lineItems,
           deadline: deadlineIso,
           status: 'draft',
           cc_emails,
@@ -363,7 +379,7 @@ export default function RfqNew() {
           <ArrowLeft className="h-4 w-4 mr-2" /> Back
         </Button>
 
-        <div className="mt-2 mb-4 flex items-start justify-between gap-3">
+        <div className="mt-2 mb-4 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Raise RFQ</h1>
             <p className="text-sm text-muted-foreground mt-1">Step {step} of 3</p>
@@ -449,23 +465,21 @@ export default function RfqNew() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Quantity</Label>
-                  <Input className="rounded-xl" type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Deadline</Label>
-                  <Input className="rounded-xl" type="datetime-local" value={deadlineLocal} onChange={(e) => setDeadlineLocal(e.target.value)} />
-                </div>
+              <div className="space-y-2">
+                <Label>Deadline</Label>
+                <Input className="rounded-xl" type="datetime-local" value={deadlineLocal} onChange={(e) => setDeadlineLocal(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>Scope / brief *</Label>
+                <Label>Cart *</Label>
+                <MultiDeviceSpecForm devices={devices} onChange={setDevices} hideNotes />
+              </div>
+              <div className="space-y-2">
+                <Label>Delivery / extra notes</Label>
                 <Textarea
-                  className="rounded-xl min-h-[120px]"
-                  placeholder={'Example:\n• 25× MacBook Pro 14" M3, 16GB/512GB\n• Delivery to Bangalore by 30 Jul'}
-                  value={scope}
-                  onChange={(e) => setScope(e.target.value)}
+                  className="rounded-xl min-h-[72px]"
+                  placeholder="Delivery city, warranty, packing…"
+                  value={extraNotes}
+                  onChange={(e) => setExtraNotes(e.target.value)}
                 />
               </div>
             </section>

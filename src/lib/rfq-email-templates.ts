@@ -61,7 +61,9 @@ function applyVars(template: string, vars: RfqEmailTemplateVars): string {
     .replaceAll('{{owner_name}}', esc(vars.owner_name))
     .replaceAll('{{rfq_type_label}}', esc(vars.rfq_type_label))
     .replaceAll('{{finalized_price}}', esc(vars.finalized_price || ''))
-    .replaceAll('{{finalized_landed}}', esc(vars.finalized_landed || vars.finalized_price || ''));
+    .replaceAll('{{finalized_landed}}', esc(vars.finalized_landed || vars.finalized_price || ''))
+    .replaceAll('{{client_name}}', '')
+    .replaceAll('{{client}}', '');
 }
 
 function firstName(vars: RfqEmailTemplateVars): string {

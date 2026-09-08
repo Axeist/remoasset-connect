@@ -124,3 +124,75 @@ export function campaignRollups(recipients: { status: string }[]) {
   const noResponse = recipients.filter((r) => r.status === 'no_response').length;
   return { sent, opened, quoted, declined, bounced, noResponse, total: recipients.length };
 }
+
+export type RfqCartLine = {
+  id?: string;
+  brand?: string;
+  device_model?: string;
+  quantity?: number;
+  category?: string;
+  processor?: string | null;
+  ram?: string | null;
+  storage?: string | null;
+};
+
+export type BidQuoteLine = { id: string; unit_price: number; mrp_price: number | null };
+
+export function asRfqCartLines(raw: unknown): RfqCartLine[] {
+  return Array.isArray(raw) ? (raw as RfqCartLine[]) : [];
+}
+
+export function asBidQuoteLines(raw: unknown): BidQuoteLine[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((row) => {
+      const r = row as BidQuoteLine;
+      if (!r?.id) return null;
+      const unit = Number(r.unit_price);
+      if (!Number.isFinite(unit)) return null;
+      const mrp = r.mrp_price == null ? null : Number(r.mrp_price);
+      return {
+        id: String(r.id),
+        unit_price: unit,
+        mrp_price: mrp != null && Number.isFinite(mrp) ? mrp : null,
+      };
+    })
+    .filter((x): x is BidQuoteLine => x != null);
+}
+
+export function cartLineLabel(line: RfqCartLine): string {
+  const head = `${line.brand || ''} ${line.device_model || ''}`.trim() || 'Item';
+  const bits = [head];
+  if (line.processor) bits.push(String(line.processor));
+  if (line.ram) bits.push(String(line.ram));
+  if (line.storage) bits.push(String(line.storage));
+  return bits.join(', ');
+}
+
+export function cartQuotedSubtotal(lines: RfqCartLine[], quotes: BidQuoteLine[]): number {
+  const byId = new Map(quotes.map((q) => [q.id, q]));
+  let sum = 0;
+  for (const line of lines) {
+    const id = line.id;
+    if (!id) continue;
+    const q = byId.get(id);
+    if (!q) continue;
+    sum += q.unit_price * (Number(line.quantity) || 1);
+  }
+  return Math.round(sum * 100) / 100;
+}
+
+export function cartMrpSubtotal(lines: RfqCartLine[], quotes: BidQuoteLine[]): number | null {
+  const byId = new Map(quotes.map((q) => [q.id, q]));
+  let sum = 0;
+  let any = false;
+  for (const line of lines) {
+    const id = line.id;
+    if (!id) continue;
+    const q = byId.get(id);
+    if (!q || q.mrp_price == null) continue;
+    any = true;
+    sum += q.mrp_price * (Number(line.quantity) || 1);
+  }
+  return any ? Math.round(sum * 100) / 100 : null;
+}

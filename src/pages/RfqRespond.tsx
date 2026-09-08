@@ -4,14 +4,31 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { computeBidPricing, formatCountdown } from '@/lib/rfq';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  asBidQuoteLines,
+  asRfqCartLines,
+  cartLineLabel,
+  cartMrpSubtotal,
+  cartQuotedSubtotal,
+  computeBidPricing,
+  formatCountdown,
+} from '@/lib/rfq';
 import { fileToBase64, invokeRfqPublic } from '@/lib/rfq-api';
+import { FX_CURRENCY_OPTIONS } from '@/lib/country-currencies';
 import { Clock, Paperclip } from 'lucide-react';
 
 type PublicView = 'bid_form' | 'submitted' | 'revise' | 'won' | 'lost' | 'closed';
+type LineQuote = { unit: string; mrp: string };
 
 const fieldClass =
   'h-12 rounded-xl border-[#E6E3DE] bg-white text-[#30282B] placeholder:text-[#9A958C] shadow-none focus-visible:ring-[#EA6E35]/25 focus-visible:ring-offset-0';
+
+function moneyFmt(currency: string, n: number) {
+  return `${currency} ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 function RfqPublicShell({ children }: { children: ReactNode }) {
   return (
@@ -52,19 +69,30 @@ export default function RfqRespond() {
   const [submitting, setSubmitting] = useState(false);
   const [doneMsg, setDoneMsg] = useState<string | null>(null);
   const [declineConfirm, setDeclineConfirm] = useState(false);
+  const [lineQuotes, setLineQuotes] = useState<Record<string, LineQuote>>({});
+
+  const cart = asRfqCartLines(payload?.rfq?.line_items);
+  const hasCart = cart.length > 0;
 
   const insight = useMemo(() => {
-    const q = parseFloat(quoted);
-    const m = parseFloat(mrp);
-    if (!Number.isFinite(q)) return null;
+    const quotes = Object.entries(lineQuotes).map(([id, q]) => ({
+      id,
+      unit_price: parseFloat(q.unit),
+      mrp_price: q.mrp ? parseFloat(q.mrp) : null,
+    })).filter((q) => Number.isFinite(q.unit_price));
+    const goods = hasCart
+      ? cartQuotedSubtotal(cart, quotes)
+      : parseFloat(quoted);
+    const m = hasCart ? cartMrpSubtotal(cart, quotes) : parseFloat(mrp);
+    if (!Number.isFinite(goods)) return null;
     return computeBidPricing({
-      quotedPrice: q,
-      mrpPrice: Number.isFinite(m) ? m : null,
+      quotedPrice: goods,
+      mrpPrice: Number.isFinite(m as number) ? (m as number) : null,
       shippingFee: parseFloat(shipping) || 0,
       taxFee: parseFloat(tax) || 0,
       otherFees: parseFloat(other) || 0,
     });
-  }, [quoted, mrp, shipping, tax, other]);
+  }, [hasCart, cart, lineQuotes, quoted, mrp, shipping, tax, other]);
 
   useEffect(() => {
     if (!token) return;
@@ -82,6 +110,19 @@ export default function RfqRespond() {
           setValidUntil(data.bid.quote_valid_until || '');
           setNotes(data.bid.notes || '');
         }
+        const lines = asRfqCartLines(data.rfq?.line_items);
+        const existing = asBidQuoteLines(data.bid?.line_items);
+        const byId = new Map(existing.map((q) => [q.id, q]));
+        const next: Record<string, LineQuote> = {};
+        for (const line of lines) {
+          if (!line.id) continue;
+          const hit = byId.get(line.id);
+          next[line.id] = {
+            unit: hit ? String(hit.unit_price) : '',
+            mrp: hit?.mrp_price != null ? String(hit.mrp_price) : '',
+          };
+        }
+        setLineQuotes(next);
         if (search.get('decline') === '1' && data.view === 'bid_form') {
           setDeclineConfirm(true);
         }
@@ -102,11 +143,18 @@ export default function RfqRespond() {
     setError(null);
     try {
       const b64 = await fileToBase64(file);
+      const line_items = cart
+        .filter((l) => l.id)
+        .map((l) => ({
+          id: l.id as string,
+          unit_price: parseFloat(lineQuotes[l.id as string]?.unit),
+          mrp_price: lineQuotes[l.id as string]?.mrp ? parseFloat(lineQuotes[l.id as string].mrp) : null,
+        }));
       await invokeRfqPublic({
         action: 'submit',
         token,
-        quoted_price: parseFloat(quoted),
-        mrp_price: mrp ? parseFloat(mrp) : null,
+        quoted_price: hasCart ? cartQuotedSubtotal(cart, line_items) : parseFloat(quoted),
+        mrp_price: hasCart ? cartMrpSubtotal(cart, line_items) : (mrp ? parseFloat(mrp) : null),
         shipping_fee: parseFloat(shipping) || 0,
         tax_fee: parseFloat(tax) || 0,
         other_fees: parseFloat(other) || 0,
@@ -114,6 +162,7 @@ export default function RfqRespond() {
         lead_time_days: leadTime ? parseInt(leadTime, 10) : null,
         quote_valid_until: validUntil || null,
         notes,
+        line_items,
         file_base64: b64,
         file_name: file.name,
         file_content_type: file.type || 'application/pdf',
@@ -179,6 +228,10 @@ export default function RfqRespond() {
     : view === 'closed' ? 'This RFQ is closed'
     : 'Your quote';
 
+  const setLine = (id: string, field: keyof LineQuote, value: string) => {
+    setLineQuotes((prev) => ({ ...prev, [id]: { unit: '', mrp: '', ...prev[id], [field]: value } }));
+  };
+
   return (
     <RfqPublicShell>
       <div className="max-w-lg mx-auto px-4 py-6 pb-10">
@@ -187,9 +240,8 @@ export default function RfqRespond() {
             <h1 className="text-[1.65rem] font-bold tracking-tight leading-tight">{heading}</h1>
             <p className="text-sm text-[#6E7180] mt-1 truncate">
               {payload?.vendor_name && <span className="text-[#30282B] font-medium">{payload.vendor_name}</span>}
-              {payload?.vendor_name && ' · '}
-              {rfq?.client_name}
-              {rfq?.country_name && ` · ${rfq.country_name}`}
+              {payload?.vendor_name && rfq?.country_name && ' · '}
+              {rfq?.country_name}
             </p>
           </div>
           {deadline && view !== 'won' && view !== 'lost' && view !== 'closed' && (
@@ -202,7 +254,25 @@ export default function RfqRespond() {
           )}
         </div>
 
-        {rfq?.scope_summary && (
+        {hasCart ? (
+          <div className="space-y-2 mb-4">
+            {cart.map((line) => (
+              <div key={line.id || cartLineLabel(line)} className="rounded-2xl bg-white border border-[#E8E4DE] px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm leading-relaxed">{cartLineLabel(line)}</p>
+                  <span className="shrink-0 text-xs font-semibold text-[#6E7180] bg-[#F3F0EB] rounded-full px-2 py-0.5">
+                    Qty {line.quantity || 1}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {rfq?.scope_summary?.includes('\n') && (
+              <p className="text-xs text-[#6E7180] px-1 whitespace-pre-wrap">
+                {rfq.scope_summary.split('\n').slice(1).join('\n')}
+              </p>
+            )}
+          </div>
+        ) : rfq?.scope_summary ? (
           <div className="rounded-2xl bg-white border border-[#E8E4DE] px-4 py-3 mb-4">
             <div className="flex items-start justify-between gap-3">
               <p className="text-sm whitespace-pre-wrap leading-relaxed">{rfq.scope_summary}</p>
@@ -211,7 +281,7 @@ export default function RfqRespond() {
               </span>
             </div>
           </div>
-        )}
+        ) : null}
 
         {view === 'revise' && payload?.bid?.revision_note && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 mb-4 text-sm text-amber-950">
@@ -244,10 +314,10 @@ export default function RfqRespond() {
             {payload?.bid && (
               <div className="rounded-xl bg-[#F3F0EB] px-3 py-3 space-y-1">
                 <p className="text-lg font-bold tabular-nums">
-                  {payload.bid.currency} {payload.bid.quoted_price}
+                  {moneyFmt(payload.bid.currency, Number(payload.bid.quoted_price))}
                 </p>
                 {payload.bid.total_landed != null && (
-                  <p className="text-[#6E7180]">Landed {payload.bid.currency} {payload.bid.total_landed}</p>
+                  <p className="text-[#6E7180]">Landed {moneyFmt(payload.bid.currency, Number(payload.bid.total_landed))}</p>
                 )}
                 {payload.bid.quotation_file_name && <p className="text-[#6E7180]">{payload.bid.quotation_file_name}</p>}
               </div>
@@ -262,32 +332,60 @@ export default function RfqRespond() {
 
         {(view === 'bid_form' || view === 'revise') && !declineConfirm && (
           <div className="rounded-2xl bg-white border border-[#E8E4DE] p-5 space-y-5 shadow-[0_8px_30px_rgba(48,40,43,0.06)]">
-            <div className="grid grid-cols-[1fr_5.5rem] gap-2">
-              <div className="space-y-1.5">
-                <Label className="text-[#30282B]">Your price *</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={quoted}
-                  onChange={(e) => setQuoted(e.target.value)}
-                  className={`${fieldClass} text-lg font-semibold tabular-nums`}
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[#30282B]">Currency</Label>
-                <Input value={currency} onChange={(e) => setCurrency(e.target.value)} className={fieldClass} />
-              </div>
+            <div className="space-y-1.5">
+              <Label className="text-[#30282B]">Currency</Label>
+              <Select value={currency} onValueChange={setCurrency}>
+                <SelectTrigger className={`${fieldClass} w-full`}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {FX_CURRENCY_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-[#30282B]">MRP / list {rfq?.rfq_type === 'fulfillment' ? '*' : '(optional)'}</Label>
-              <Input type="number" min={0} step="0.01" value={mrp} onChange={(e) => setMrp(e.target.value)} className={fieldClass} placeholder="Public list price" />
-            </div>
+            {hasCart ? (
+              <div className="space-y-3">
+                {cart.map((line) => {
+                  const id = line.id as string;
+                  const q = lineQuotes[id] || { unit: '', mrp: '' };
+                  return (
+                    <div key={id} className="rounded-xl border border-[#E8E4DE] p-3">
+                      <div className="flex items-start gap-3">
+                        <p className="text-sm font-medium flex-1 min-w-0">{cartLineLabel(line)}</p>
+                        <span className="shrink-0 text-xs font-semibold text-[#6E7180] bg-[#F3F0EB] rounded-full px-2 py-0.5">
+                          Qty {line.quantity || 1}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-[#6E7180]">Unit price * ({currency})</Label>
+                          <Input type="number" min={0} step="0.01" value={q.unit} onChange={(e) => setLine(id, 'unit', e.target.value)} className={fieldClass} placeholder="0.00" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-[#6E7180]">MRP / list {rfq?.rfq_type === 'fulfillment' ? '*' : ''} ({currency})</Label>
+                          <Input type="number" min={0} step="0.01" value={q.mrp} onChange={(e) => setLine(id, 'mrp', e.target.value)} className={fieldClass} placeholder="0.00" />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-[#30282B]">Your price * ({currency})</Label>
+                  <Input type="number" min={0} step="0.01" value={quoted} onChange={(e) => setQuoted(e.target.value)} className={`${fieldClass} text-lg font-semibold tabular-nums`} placeholder="0.00" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[#30282B]">MRP / list {rfq?.rfq_type === 'fulfillment' ? '*' : '(optional)'} ({currency})</Label>
+                  <Input type="number" min={0} step="0.01" value={mrp} onChange={(e) => setMrp(e.target.value)} className={fieldClass} placeholder="0.00" />
+                </div>
+              </>
+            )}
 
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#9A958C] mb-2">Fees (optional)</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#9A958C] mb-2">Fees (optional, {currency})</p>
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs text-[#6E7180]">Shipping</Label>
@@ -309,9 +407,7 @@ export default function RfqRespond() {
                 <span className="text-sm text-white/70">
                   {insight.discount_pct != null ? `${insight.discount_pct}% off MRP` : 'Landed total'}
                 </span>
-                <span className="text-lg font-bold tabular-nums">
-                  {currency} {insight.total_landed.toLocaleString()}
-                </span>
+                <span className="text-lg font-bold tabular-nums">{moneyFmt(currency, insight.total_landed)}</span>
               </div>
             )}
 
@@ -328,12 +424,7 @@ export default function RfqRespond() {
 
             <div className="space-y-1.5">
               <Label className="text-[#30282B]">Notes</Label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className={`${fieldClass} min-h-[72px] h-auto`}
-                placeholder="Warranty, inclusions…"
-              />
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={`${fieldClass} min-h-[72px] h-auto`} placeholder="Warranty, inclusions…" />
             </div>
 
             <div>
@@ -346,30 +437,16 @@ export default function RfqRespond() {
                   <span className="block text-sm font-medium truncate">{file ? file.name : 'PDF or image'}</span>
                   <span className="block text-xs text-[#9A958C]">Required to submit</span>
                 </span>
-                <input
-                  type="file"
-                  accept=".pdf,image/*"
-                  className="sr-only"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                />
+                <input type="file" accept=".pdf,image/*" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] || null)} />
               </label>
             </div>
 
             {error && <p className="text-sm text-[#D94F4F]">{error}</p>}
 
-            <Button
-              className="w-full h-12 rounded-xl font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white cursor-pointer transition-colors duration-200"
-              disabled={submitting}
-              onClick={submit}
-            >
+            <Button className="w-full h-12 rounded-xl font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white cursor-pointer transition-colors duration-200" disabled={submitting} onClick={submit}>
               {submitting ? 'Submitting…' : 'Send quote'}
             </Button>
-            <button
-              type="button"
-              className="w-full text-center text-sm text-[#6E7180] hover:text-[#30282B] cursor-pointer py-1"
-              disabled={submitting}
-              onClick={() => setDeclineConfirm(true)}
-            >
+            <button type="button" className="w-full text-center text-sm text-[#6E7180] hover:text-[#30282B] cursor-pointer py-1" disabled={submitting} onClick={() => setDeclineConfirm(true)}>
               Decline this RFQ
             </button>
           </div>
