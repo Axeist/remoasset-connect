@@ -27,7 +27,8 @@ import { campaignRollups, formatCountdown } from '@/lib/rfq';
 import { cn } from '@/lib/utils';
 import { RFQ_STATUS_LABELS, type Rfq, type RfqRecipient } from '@/types/rfq';
 import { Plus, Search, Megaphone, Clock, Trash2 } from 'lucide-react';
-import { HowItWorksStrip, RFQ_STATUS_HELP } from '@/components/rfq/RfqInfo';
+import { RfqHowToButton } from '@/components/rfq/RfqHowToDialog';
+import { RFQ_STATUS_HELP } from '@/components/rfq/RfqInfo';
 
 type RfqRow = Rfq & {
   recipients?: Pick<RfqRecipient, 'status'>[];
@@ -136,9 +137,12 @@ export default function RfqHub() {
               Invite Closed partners, compare quotes, award.
             </p>
           </div>
-          <Button onClick={() => navigate('/rfq/new')} className="rounded-xl shrink-0 cursor-pointer">
-            <Plus className="h-4 w-4 mr-2" /> Raise RFQ
-          </Button>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <RfqHowToButton />
+            <Button onClick={() => navigate('/rfq/new')} className="rounded-xl cursor-pointer">
+              <Plus className="h-4 w-4 mr-2" /> Raise RFQ
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -201,17 +205,12 @@ export default function RfqHub() {
                       <p className="text-sm text-muted-foreground">
                         Raise a campaign when a client needs devices or retrieval / ITAD.
                       </p>
-                      <details className="text-left">
-                        <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
-                          How RFQ works
-                        </summary>
-                        <div className="mt-3">
-                          <HowItWorksStrip />
-                        </div>
-                      </details>
-                      <Button className="rounded-xl cursor-pointer" onClick={() => navigate('/rfq/new')}>
-                        <Plus className="h-4 w-4 mr-2" /> Raise RFQ
-                      </Button>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        <RfqHowToButton />
+                        <Button className="rounded-xl cursor-pointer" onClick={() => navigate('/rfq/new')}>
+                          <Plus className="h-4 w-4 mr-2" /> Raise RFQ
+                        </Button>
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>

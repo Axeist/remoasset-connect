@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,8 +6,31 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { computeBidPricing, formatCountdown } from '@/lib/rfq';
 import { fileToBase64, invokeRfqPublic } from '@/lib/rfq-api';
+import { Clock, Paperclip } from 'lucide-react';
 
 type PublicView = 'bid_form' | 'submitted' | 'revise' | 'won' | 'lost' | 'closed';
+
+const fieldClass =
+  'h-12 rounded-xl border-[#E6E3DE] bg-white text-[#30282B] placeholder:text-[#9A958C] shadow-none focus-visible:ring-[#EA6E35]/25 focus-visible:ring-offset-0';
+
+function RfqPublicShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="rfq-public min-h-screen bg-[#F3F0EB] text-[#30282B]" style={{ colorScheme: 'light', fontFamily: "'Manrope', system-ui, sans-serif" }}>
+      <header className="bg-[#30282B] px-4 py-4">
+        <div className="max-w-lg mx-auto flex flex-col items-center gap-1.5">
+          <img
+            src="/logo-dark.png"
+            alt="Remoasset"
+            className="h-9 w-auto object-contain"
+            style={{ mixBlendMode: 'lighten' }}
+          />
+          <p className="text-[#C4B8B0] text-[11px] tracking-wide uppercase font-semibold">Partner quote</p>
+        </div>
+      </header>
+      {children}
+    </div>
+  );
+}
 
 export default function RfqRespond() {
   const { token } = useParams<{ token: string }>();
@@ -72,7 +95,7 @@ export default function RfqRespond() {
 
   const submit = async () => {
     if (!token || !file) {
-      setError('Quotation file is mandatory');
+      setError('Attach a quotation file to send.');
       return;
     }
     setSubmitting(true);
@@ -120,218 +143,238 @@ export default function RfqRespond() {
   };
 
   if (loading) {
-    return <div className="min-h-screen grid place-items-center text-muted-foreground">Loading RFQ…</div>;
+    return (
+      <RfqPublicShell>
+        <div className="grid place-items-center py-24 text-sm text-[#6E7180]">Loading RFQ…</div>
+      </RfqPublicShell>
+    );
   }
 
   if (error && !payload) {
     const isPlaceholder = token === 'test';
     return (
-      <div className="min-h-screen grid place-items-center p-6 text-center bg-[#F0F0F5]" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-        <div className="max-w-md space-y-3">
-          <p className="text-lg font-bold text-[#30282B]">
+      <RfqPublicShell>
+        <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-3">
+          <h1 className="text-xl font-bold">
             {isPlaceholder ? 'This was a placeholder test link' : 'Link invalid or expired'}
-          </p>
+          </h1>
           <p className="text-sm text-[#6E7180] leading-relaxed">
             {isPlaceholder
-              ? 'Older test emails used /rfq/respond/test, which is not a real quote link. Raise the RFQ again and use Test send — the new email includes a working partner link.'
-              : (error || 'This quote link is not valid. Ask RemoAsset for a fresh invite.')}
+              ? 'Raise the RFQ again and use Test send — that email includes a working partner link.'
+              : (error || 'Ask RemoAsset for a fresh invite.')}
           </p>
         </div>
-      </div>
+      </RfqPublicShell>
     );
   }
 
   const rfq = payload?.rfq;
   const deadline = rfq?.deadline as string;
   const urgent = deadline ? new Date(deadline).getTime() - Date.now() < 4 * 3600_000 : false;
+  const heading =
+    view === 'won' ? 'You’re selected'
+    : view === 'lost' ? 'Not selected this round'
+    : view === 'submitted' ? 'Quote received'
+    : view === 'revise' ? 'Please revise your quote'
+    : view === 'closed' ? 'This RFQ is closed'
+    : 'Your quote';
 
   return (
-    <div className="min-h-screen bg-[#F0F0F5] text-[#30282B]" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-      <div className="bg-[#30282B] text-white px-4 py-5">
-        <div className="max-w-xl mx-auto text-center">
-          <p className="text-xl font-extrabold tracking-tight" style={{ fontFamily: "'Outfit', Manrope, sans-serif" }}>
-            Remo<span className="text-[#EA6E35]">Asset</span>
-          </p>
-          <p className="text-[#9DA2B3] text-xs mt-1">Partner quote</p>
-        </div>
-      </div>
-
-      {deadline && view !== 'won' && view !== 'lost' && view !== 'closed' && (
-        <div className={`px-4 py-3 text-center text-sm font-semibold ${urgent ? 'bg-[#EA6E35] text-white' : 'bg-[#FFF6F0] text-[#30282B] border-b border-[#F5D0B8]'}`}>
-          Due {new Date(deadline).toLocaleString()} · {formatCountdown(deadline)} left
-        </div>
-      )}
-
-      <div className="max-w-xl mx-auto px-4 py-8 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            {view === 'won' && 'You’re selected — pricing accepted'}
-            {view === 'lost' && 'Not selected this round'}
-            {view === 'submitted' && 'Quote received — under review'}
-            {view === 'revise' && 'RemoAsset needs a revised quote'}
-            {view === 'closed' && 'This RFQ is closed'}
-            {view === 'bid_form' && 'Submit your quote'}
-          </h1>
-          <p className="text-sm text-slate-600 mt-2">
-            {payload?.vendor_name && <>For <strong>{payload.vendor_name}</strong> · </>}
-            {rfq?.country_name} · {rfq?.client_name}
-          </p>
+    <RfqPublicShell>
+      <div className="max-w-lg mx-auto px-4 py-6 pb-10">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="min-w-0">
+            <h1 className="text-[1.65rem] font-bold tracking-tight leading-tight">{heading}</h1>
+            <p className="text-sm text-[#6E7180] mt-1 truncate">
+              {payload?.vendor_name && <span className="text-[#30282B] font-medium">{payload.vendor_name}</span>}
+              {payload?.vendor_name && ' · '}
+              {rfq?.client_name}
+              {rfq?.country_name && ` · ${rfq.country_name}`}
+            </p>
+          </div>
+          {deadline && view !== 'won' && view !== 'lost' && view !== 'closed' && (
+            <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
+              urgent ? 'bg-[#EA6E35] text-white' : 'bg-[#30282B] text-white'
+            }`}>
+              <Clock className="h-3 w-3" />
+              {formatCountdown(deadline)}
+            </span>
+          )}
         </div>
 
         {rfq?.scope_summary && (
-          <div className="rounded-2xl border bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Scope</p>
-            <p className="text-sm whitespace-pre-wrap">{rfq.scope_summary}</p>
-            <p className="text-sm mt-2 text-slate-600">Quantity: {rfq.quantity}</p>
+          <div className="rounded-2xl bg-white border border-[#E8E4DE] px-4 py-3 mb-4">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm whitespace-pre-wrap leading-relaxed">{rfq.scope_summary}</p>
+              <span className="shrink-0 text-xs font-semibold text-[#6E7180] bg-[#F3F0EB] rounded-full px-2 py-0.5">
+                Qty {rfq.quantity}
+              </span>
+            </div>
           </div>
         )}
 
         {view === 'revise' && payload?.bid?.revision_note && (
-          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-            <strong>RemoAsset note:</strong> {payload.bid.revision_note}
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 mb-4 text-sm text-amber-950">
+            {payload.bid.revision_note}
           </div>
         )}
 
         {declineConfirm && (view === 'bid_form' || view === 'revise') && (
-          <div className="rounded-2xl border bg-white p-5 shadow-sm space-y-3">
-            <p className="font-semibold">Decline this RFQ?</p>
-            <p className="text-sm text-slate-600">We’ll stop reminders for this request. You can still quote later from the original email.</p>
-            <Label>Optional reason</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="rounded-xl" placeholder="Capacity, spec, timing…" />
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button className="w-full rounded-xl h-11 font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white cursor-pointer" disabled={submitting} onClick={decline}>
+          <div className="rounded-2xl bg-white border border-[#E8E4DE] p-5 space-y-3 shadow-[0_8px_30px_rgba(48,40,43,0.06)]">
+            <p className="font-semibold text-lg">Decline this RFQ?</p>
+            <p className="text-sm text-[#6E7180]">We’ll stop reminders. You can still quote from the original email.</p>
+            <Label className="text-[#30282B]">Optional reason</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={`${fieldClass} min-h-[88px] h-auto`} placeholder="Capacity, spec, timing…" />
+            {error && <p className="text-sm text-[#D94F4F]">{error}</p>}
+            <Button className="w-full h-12 rounded-xl font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white cursor-pointer" disabled={submitting} onClick={decline}>
               {submitting ? 'Declining…' : 'Confirm decline'}
             </Button>
-            <Button variant="ghost" className="w-full rounded-xl cursor-pointer" disabled={submitting} onClick={() => setDeclineConfirm(false)}>
+            <Button variant="ghost" className="w-full rounded-xl cursor-pointer text-[#6E7180]" disabled={submitting} onClick={() => setDeclineConfirm(false)}>
               Go back and quote
             </Button>
           </div>
         )}
 
         {(view === 'won' || view === 'lost' || view === 'submitted' || view === 'closed') && (
-          <div className="rounded-2xl border bg-white p-5 shadow-sm space-y-2 text-sm">
+          <div className="rounded-2xl bg-white border border-[#E8E4DE] p-5 space-y-3 shadow-[0_8px_30px_rgba(48,40,43,0.06)] text-sm">
             {doneMsg && <p className="font-medium">{doneMsg}</p>}
-            {view === 'won' && (
-              <p>You won this RFQ. RemoAsset accepted your pricing and will follow up on next steps.</p>
-            )}
-            {view === 'lost' && (
-              <p>Another partner was selected. You remain on the Closed network for future RFQs.</p>
-            )}
-            {view === 'submitted' && (
-              <p>Your quote is under review. You can edit and resubmit until the campaign closes.</p>
-            )}
+            {view === 'won' && <p>Pricing is accepted. RemoAsset will follow up on next steps.</p>}
+            {view === 'lost' && <p>Another partner was selected. You’re still on the Closed network for future RFQs.</p>}
+            {view === 'submitted' && <p>Under review. You can edit until the campaign closes.</p>}
             {payload?.bid && (
-              <div className="rounded-lg bg-slate-50 border p-3 text-slate-700 space-y-1">
-                <p>
-                  Your quote: <strong>{payload.bid.currency} {payload.bid.quoted_price}</strong>
-                  {payload.bid.discount_pct != null && <> · {payload.bid.discount_pct}% off MRP</>}
+              <div className="rounded-xl bg-[#F3F0EB] px-3 py-3 space-y-1">
+                <p className="text-lg font-bold tabular-nums">
+                  {payload.bid.currency} {payload.bid.quoted_price}
                 </p>
                 {payload.bid.total_landed != null && (
-                  <p>Total landed: <strong>{payload.bid.currency} {payload.bid.total_landed}</strong></p>
+                  <p className="text-[#6E7180]">Landed {payload.bid.currency} {payload.bid.total_landed}</p>
                 )}
-                {payload.bid.quotation_file_name && <p>File: {payload.bid.quotation_file_name}</p>}
+                {payload.bid.quotation_file_name && <p className="text-[#6E7180]">{payload.bid.quotation_file_name}</p>}
               </div>
             )}
             {(view === 'submitted' || view === 'revise') && (
-              <Button variant="outline" className="rounded-xl mt-2 cursor-pointer" onClick={() => setView(view === 'revise' ? 'revise' : 'bid_form')}>
-                {view === 'revise' ? 'Enter revised quote' : 'Edit / resubmit quote'}
+              <Button variant="outline" className="rounded-xl cursor-pointer border-[#E6E3DE]" onClick={() => setView(view === 'revise' ? 'revise' : 'bid_form')}>
+                {view === 'revise' ? 'Enter revised quote' : 'Edit quote'}
               </Button>
             )}
           </div>
         )}
 
         {(view === 'bid_form' || view === 'revise') && !declineConfirm && (
-          <div className="rounded-2xl border bg-white p-5 shadow-sm space-y-6">
-            <section className="space-y-3">
-              <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">Offer</h2>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Quoted price *</Label>
-                  <Input type="number" min={0} step="0.01" value={quoted} onChange={(e) => setQuoted(e.target.value)} className="rounded-xl" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Currency</Label>
-                  <Input value={currency} onChange={(e) => setCurrency(e.target.value)} className="rounded-xl" />
-                </div>
-              </div>
+          <div className="rounded-2xl bg-white border border-[#E8E4DE] p-5 space-y-5 shadow-[0_8px_30px_rgba(48,40,43,0.06)]">
+            <div className="grid grid-cols-[1fr_5.5rem] gap-2">
               <div className="space-y-1.5">
-                <Label>MRP / list {rfq?.rfq_type === 'fulfillment' ? '*' : '(optional)'}</Label>
-                <Input type="number" min={0} step="0.01" value={mrp} onChange={(e) => setMrp(e.target.value)} className="rounded-xl" />
-              </div>
-            </section>
-
-            <section className="space-y-3">
-              <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">Landed extras</h2>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="space-y-1.5">
-                  <Label>Shipping</Label>
-                  <Input type="number" min={0} step="0.01" value={shipping} onChange={(e) => setShipping(e.target.value)} className="rounded-xl" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Tax / VAT</Label>
-                  <Input type="number" min={0} step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} className="rounded-xl" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Other</Label>
-                  <Input type="number" min={0} step="0.01" value={other} onChange={(e) => setOther(e.target.value)} className="rounded-xl" />
-                </div>
-              </div>
-              {insight && (
-                <div className="sticky bottom-2 rounded-xl bg-[#30282B] text-white px-3 py-2 text-sm tabular-nums">
-                  {insight.discount_pct != null && <span className="mr-3 opacity-80">{insight.discount_pct}% off MRP</span>}
-                  <strong>Total landed: {currency} {insight.total_landed.toLocaleString()}</strong>
-                </div>
-              )}
-            </section>
-
-            <section className="space-y-3">
-              <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">Terms</h2>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Lead time (days)</Label>
-                  <Input type="number" min={0} value={leadTime} onChange={(e) => setLeadTime(e.target.value)} className="rounded-xl" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Valid until</Label>
-                  <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} className="rounded-xl" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Notes</Label>
-                <Textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="rounded-xl"
-                  placeholder="Warranty, inclusions…"
+                <Label className="text-[#30282B]">Your price *</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={quoted}
+                  onChange={(e) => setQuoted(e.target.value)}
+                  className={`${fieldClass} text-lg font-semibold tabular-nums`}
+                  placeholder="0.00"
                 />
               </div>
-            </section>
-
-            <section className="space-y-3">
-              <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">File</h2>
               <div className="space-y-1.5">
-                <Label>Quotation PDF or image *</Label>
-                <Input
+                <Label className="text-[#30282B]">Currency</Label>
+                <Input value={currency} onChange={(e) => setCurrency(e.target.value)} className={fieldClass} />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[#30282B]">MRP / list {rfq?.rfq_type === 'fulfillment' ? '*' : '(optional)'}</Label>
+              <Input type="number" min={0} step="0.01" value={mrp} onChange={(e) => setMrp(e.target.value)} className={fieldClass} placeholder="Public list price" />
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#9A958C] mb-2">Fees (optional)</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-[#6E7180]">Shipping</Label>
+                  <Input type="number" min={0} step="0.01" value={shipping} onChange={(e) => setShipping(e.target.value)} className={fieldClass} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-[#6E7180]">Tax</Label>
+                  <Input type="number" min={0} step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} className={fieldClass} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-[#6E7180]">Other</Label>
+                  <Input type="number" min={0} step="0.01" value={other} onChange={(e) => setOther(e.target.value)} className={fieldClass} />
+                </div>
+              </div>
+            </div>
+
+            {insight && (
+              <div className="flex items-center justify-between rounded-xl bg-[#30282B] text-white px-4 py-3">
+                <span className="text-sm text-white/70">
+                  {insight.discount_pct != null ? `${insight.discount_pct}% off MRP` : 'Landed total'}
+                </span>
+                <span className="text-lg font-bold tabular-nums">
+                  {currency} {insight.total_landed.toLocaleString()}
+                </span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label className="text-[#30282B]">Lead time (days)</Label>
+                <Input type="number" min={0} value={leadTime} onChange={(e) => setLeadTime(e.target.value)} className={fieldClass} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[#30282B]">Valid until</Label>
+                <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} className={fieldClass} />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[#30282B]">Notes</Label>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className={`${fieldClass} min-h-[72px] h-auto`}
+                placeholder="Warranty, inclusions…"
+              />
+            </div>
+
+            <div>
+              <Label className="text-[#30282B]">Quotation file *</Label>
+              <label className="mt-1.5 flex items-center gap-3 rounded-xl border border-dashed border-[#D9D4CC] bg-[#FAF8F5] px-3 py-3 cursor-pointer hover:border-[#EA6E35]/50 transition-colors duration-200">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white border border-[#E6E3DE] shrink-0">
+                  <Paperclip className="h-4 w-4 text-[#EA6E35]" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium truncate">{file ? file.name : 'PDF or image'}</span>
+                  <span className="block text-xs text-[#9A958C]">Required to submit</span>
+                </span>
+                <input
                   type="file"
                   accept=".pdf,image/*"
-                  className="rounded-xl"
+                  className="sr-only"
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
-              </div>
-            </section>
+              </label>
+            </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button className="w-full rounded-xl h-11 font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white cursor-pointer" disabled={submitting} onClick={submit}>
-              {submitting ? 'Submitting…' : 'Send your quote'}
+            {error && <p className="text-sm text-[#D94F4F]">{error}</p>}
+
+            <Button
+              className="w-full h-12 rounded-xl font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white cursor-pointer transition-colors duration-200"
+              disabled={submitting}
+              onClick={submit}
+            >
+              {submitting ? 'Submitting…' : 'Send quote'}
             </Button>
-            <Button variant="ghost" className="w-full rounded-xl text-[#6E7180] cursor-pointer" disabled={submitting} onClick={() => setDeclineConfirm(true)}>
+            <button
+              type="button"
+              className="w-full text-center text-sm text-[#6E7180] hover:text-[#30282B] cursor-pointer py-1"
+              disabled={submitting}
+              onClick={() => setDeclineConfirm(true)}
+            >
               Decline this RFQ
-            </Button>
+            </button>
           </div>
         )}
-
-        <p className="text-center text-xs text-[#9DA2B3] pb-8">RemoAsset · Global IT asset lifecycle</p>
       </div>
-    </div>
+    </RfqPublicShell>
   );
 }

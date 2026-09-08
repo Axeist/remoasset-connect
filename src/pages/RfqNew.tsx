@@ -29,6 +29,7 @@ import { invokeRfqCampaign } from '@/lib/rfq-api';
 import { ArrowLeft, Send, FlaskConical } from 'lucide-react';
 import type { RfqType } from '@/types/rfq';
 import { RfqWizardRail } from '@/components/rfq/RfqWizardRail';
+import { RfqHowToButton } from '@/components/rfq/RfqHowToDialog';
 
 export default function RfqNew() {
   const navigate = useNavigate();
@@ -326,9 +327,12 @@ export default function RfqNew() {
           <ArrowLeft className="h-4 w-4 mr-2" /> Back
         </Button>
 
-        <div className="mt-2 mb-4">
-          <h1 className="text-2xl font-bold tracking-tight">Raise RFQ</h1>
-          <p className="text-sm text-muted-foreground mt-1">Step {step} of 3</p>
+        <div className="mt-2 mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Raise RFQ</h1>
+            <p className="text-sm text-muted-foreground mt-1">Step {step} of 3</p>
+          </div>
+          <RfqHowToButton />
         </div>
 
         <RfqWizardRail step={step} onStepChange={setStep} />
@@ -424,6 +428,11 @@ export default function RfqNew() {
                 />
               </div>
             </section>
+            <div className="flex justify-end pt-2 border-t border-border/60">
+              <Button className="rounded-xl cursor-pointer" onClick={goPartners}>
+                Continue
+              </Button>
+            </div>
           </Card>
         )}
 
@@ -493,6 +502,11 @@ export default function RfqNew() {
                 </label>
               ))}
             </div>
+            <div className="flex justify-end pt-2 border-t border-border/60">
+              <Button className="rounded-xl cursor-pointer" onClick={goEmailStep} disabled={!selectedVendorIds.size}>
+                Continue ({selectedVendorIds.size})
+              </Button>
+            </div>
           </Card>
         )}
 
@@ -521,22 +535,7 @@ export default function RfqNew() {
                 onChange={(e) => setBodyHtml(e.target.value)}
               />
             )}
-          </Card>
-        )}
-
-        <div className="sticky bottom-0 z-10 mt-6 -mx-6 px-6 py-3 border-t bg-background/95 backdrop-blur flex flex-col sm:flex-row gap-2 sm:justify-end">
-          {step === 1 && (
-            <Button className="rounded-xl cursor-pointer" onClick={goPartners}>
-              Continue
-            </Button>
-          )}
-          {step === 2 && (
-            <Button className="rounded-xl cursor-pointer" onClick={goEmailStep} disabled={!selectedVendorIds.size}>
-              Continue ({selectedVendorIds.size})
-            </Button>
-          )}
-          {step === 3 && (
-            <>
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end pt-2 border-t border-border/60">
               <Button
                 variant="outline"
                 className="rounded-xl cursor-pointer"
@@ -548,9 +547,9 @@ export default function RfqNew() {
               <Button className="rounded-xl cursor-pointer" disabled={saving} onClick={() => createAndSend('send')}>
                 <Send className="h-4 w-4 mr-2" /> Send to {selectedVendorIds.size} partners
               </Button>
-            </>
-          )}
-        </div>
+            </div>
+          </Card>
+        )}
       </div>
     </AppLayout>
   );

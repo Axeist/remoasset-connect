@@ -621,3 +621,45 @@ img[src="/logo.png"] {
   color: inherit !important;
 }
 
+/* Public RFQ quote page: stay readable even when the app shell is in dark mode */
+.rfq-public {
+  color-scheme: light;
+  --background: 0 0% 100%;
+  --foreground: 340 9% 17%;
+  --card: 0 0% 100%;
+  --card-foreground: 340 9% 17%;
+  --muted: 30 16% 94%;
+  --muted-foreground: 25 6% 40%;
+  --input: 30 10% 88%;
+  --border: 30 10% 88%;
+  --ring: 21 82% 56%;
+  --primary: 21 82% 56%;
+  --primary-foreground: 0 0% 100%;
+}
+
+.rfq-public input,
+.rfq-public textarea,
+.rfq-public select {
+  background-color: #ffffff !important;
+  color: #30282b !important;
+  border-color: #e6e3de !important;
+  color-scheme: light;
+}
+
+.rfq-public input::placeholder,
+.rfq-public textarea::placeholder {
+  color: #9a958c !important;
+  opacity: 1;
+}
+
+.rfq-public input[type='file']::file-selector-button {
+  background: #f4f1ec;
+  color: #30282b;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.35rem 0.75rem;
+  margin-right: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
