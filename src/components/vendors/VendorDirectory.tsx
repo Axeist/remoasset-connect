@@ -115,7 +115,6 @@ const REGION_FILTER_OPTIONS = REGIONS.map((r) => ({ value: r.value, label: r.lab
 
 export function VendorDirectory() {
   const navigate = useNavigate();
-  const navigate = useNavigate();
   const { toast } = useToast();
 
   const [vendors, setVendors] = useState<VendorLead[]>([]);
