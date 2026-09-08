@@ -18,6 +18,7 @@ import {
 } from '@/lib/rfq';
 import { fileToBase64, invokeRfqPublic } from '@/lib/rfq-api';
 import { convertToUsd, formatUsdRateLine, getRateToUsd } from '@/lib/fx-rates';
+import { FX_CURRENCY_OPTIONS } from '@/lib/country-currencies';
 import { Clock, Paperclip } from 'lucide-react';
 
 type PublicView = 'bid_form' | 'submitted' | 'revise' | 'won' | 'lost' | 'closed';
