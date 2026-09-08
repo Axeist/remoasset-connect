@@ -193,6 +193,7 @@ CREATE TRIGGER protect_super_admin_assignment
 -- Leads visibility
 DROP POLICY IF EXISTS "Authenticated users can view all leads" ON public.leads;
 DROP POLICY IF EXISTS "Employees can view their own leads" ON public.leads;
+DROP POLICY IF EXISTS "Users can view permitted leads" ON public.leads;
 CREATE POLICY "Users can view permitted leads" ON public.leads
   FOR SELECT TO authenticated
   USING (
@@ -220,12 +221,14 @@ CREATE POLICY "Admins can delete leads" ON public.leads
 
 DROP POLICY IF EXISTS "Authenticated users can view all lead activities" ON public.lead_activities;
 DROP POLICY IF EXISTS "Users can view activities for their leads" ON public.lead_activities;
+DROP POLICY IF EXISTS "Users can view permitted lead activities" ON public.lead_activities;
 CREATE POLICY "Users can view permitted lead activities" ON public.lead_activities
   FOR SELECT TO authenticated
   USING (public.can_select_lead(lead_id));
 
 DROP POLICY IF EXISTS "Authenticated users can view all lead documents" ON public.lead_documents;
 DROP POLICY IF EXISTS "Users can view lead documents for their leads" ON public.lead_documents;
+DROP POLICY IF EXISTS "Users can view permitted lead documents" ON public.lead_documents;
 CREATE POLICY "Users can view permitted lead documents" ON public.lead_documents
   FOR SELECT TO authenticated
   USING (public.can_select_lead(lead_id));
@@ -236,6 +239,7 @@ CREATE POLICY "Admins can delete lead activities" ON public.lead_activities
 
 -- Replace remaining has_role(..., admin) policies
 DROP POLICY IF EXISTS "Admins can manage all roles" ON public.user_roles;
+DROP POLICY IF EXISTS "Users with edit_role can manage roles" ON public.user_roles;
 CREATE POLICY "Users with edit_role can manage roles" ON public.user_roles
   FOR ALL TO authenticated
   USING (
