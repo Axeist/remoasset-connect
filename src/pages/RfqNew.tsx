@@ -471,6 +471,9 @@ export default function RfqNew() {
               </div>
               <div className="space-y-2">
                 <Label>Cart *</Label>
+                <p className="text-xs text-muted-foreground -mt-1">
+                  Collapse a line when you’re done. Specs and add-ons stay off the main list.
+                </p>
                 <MultiDeviceSpecForm devices={devices} onChange={setDevices} hideNotes />
               </div>
               <div className="space-y-2">

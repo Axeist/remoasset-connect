@@ -71,37 +71,43 @@ function computePricing(quoted: number, mrp: number | null, shipping: number, ta
   return { total_landed: Math.round(total * 100) / 100, discount_pct, discount_amount }
 }
 
-async function rateToUsd(fromCurrency: string): Promise<{ rate: number; date: string }> {
+function pickUsdRate(data: Record<string, unknown> | null | undefined, from: string): number | null {
+  if (!data) return null
+  const rates = (data.rates || data.conversion_rates) as { USD?: number; usd?: number } | undefined
+  const nested = data[from.toLowerCase()] as { usd?: number } | undefined
+  const usd = rates?.USD ?? rates?.usd ?? nested?.usd
+  if (usd == null || Number.isNaN(Number(usd))) return null
+  return Number(usd)
+}
+
+async function rateToUsd(fromCurrency: string): Promise<{ rate: number; date: string } | null> {
   const from = (fromCurrency || 'USD').trim().toUpperCase()
   if (from === 'USD') return { rate: 1, date: new Date().toISOString().slice(0, 10) }
-  try {
-    const res = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(from)}`)
-    if (res.ok) {
+
+  const urls = [
+    `https://open.er-api.com/v6/latest/${encodeURIComponent(from)}`,
+    `https://api.frankfurter.dev/v1/latest?from=${encodeURIComponent(from)}&to=USD`,
+    `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${from.toLowerCase()}.json`,
+    `https://latest.currency-api.pages.dev/v1/currencies/${from.toLowerCase()}.json`,
+  ]
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { headers: { Accept: 'application/json' } })
+      if (!res.ok) continue
       const data = await res.json()
-      const usd = data?.conversion_rates?.USD
-      if (usd != null && !Number.isNaN(Number(usd))) {
-        const date = data.time_last_update_utc
-          ? new Date(data.time_last_update_utc).toISOString().slice(0, 10)
-          : new Date().toISOString().slice(0, 10)
-        return { rate: Number(usd), date }
-      }
+      const usd = pickUsdRate(data, from)
+      if (usd == null) continue
+      const date =
+        (typeof data.date === 'string' && data.date)
+        || (data.time_last_update_utc ? new Date(String(data.time_last_update_utc)).toISOString().slice(0, 10) : null)
+        || new Date().toISOString().slice(0, 10)
+      return { rate: usd, date }
+    } catch {
+      /* try next source */
     }
-  } catch {
-    /* fall through */
   }
-  try {
-    const res = await fetch(`https://api.frankfurter.app/v1/latest?from=${encodeURIComponent(from)}&to=USD`)
-    if (res.ok) {
-      const data = await res.json()
-      const usd = data?.rates?.USD
-      if (usd != null && !Number.isNaN(Number(usd))) {
-        return { rate: Number(usd), date: data.date || new Date().toISOString().slice(0, 10) }
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  throw new Error(`No USD rate for ${from}`)
+  return null
 }
 
 Deno.serve(async (req) => {
@@ -268,6 +274,8 @@ Deno.serve(async (req) => {
         const fx = await rateToUsd(currency)
 
         const pricing = computePricing(quoted, mrp, shipping, tax, other)
+        const fxRate = fx?.rate ?? null
+        const fxDate = fx?.date ?? null
         const ext = String(body.file_name).split('.').pop() || 'pdf'
         const path = `${rfq.id}/${recipient.id}-${Date.now()}.${ext}`
         const raw = body.file_base64.includes(',')
@@ -303,10 +311,10 @@ Deno.serve(async (req) => {
           award_status: 'pending',
           revision_note: null,
           submitted_at: new Date().toISOString(),
-          fx_rate_at_submit: fx.rate,
-          fx_as_of: fx.date,
-          quoted_usd_at_submit: Math.round(quoted * fx.rate * 100) / 100,
-          landed_usd_at_submit: Math.round(pricing.total_landed * fx.rate * 100) / 100,
+          fx_rate_at_submit: fxRate,
+          fx_as_of: fxDate,
+          quoted_usd_at_submit: fxRate != null ? Math.round(quoted * fxRate * 100) / 100 : null,
+          landed_usd_at_submit: fxRate != null ? Math.round(pricing.total_landed * fxRate * 100) / 100 : null,
         }
 
         if (bid?.id && ['submitted', 'revision_requested'].includes(bid.pricing_status)) {

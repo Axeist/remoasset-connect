@@ -14,6 +14,7 @@ export function SpecCombobox({
   placeholder,
   required,
   tooltip,
+  size = 'default',
 }: {
   label: string;
   value: string;
@@ -22,10 +23,12 @@ export function SpecCombobox({
   placeholder: string;
   required?: boolean;
   tooltip?: string;
+  size?: 'default' | 'sm';
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const compact = size === 'sm';
 
   const filtered = search
     ? options.filter((o) => o.toLowerCase().includes(search.toLowerCase()))
@@ -45,14 +48,17 @@ export function SpecCombobox({
   };
 
   return (
-    <div className="space-y-1.5">
-      <Label className="text-sm font-medium flex items-center gap-1">
-        {label}
+    <div className={cn('min-w-0', compact ? 'space-y-1' : 'space-y-1.5')}>
+      <Label className={cn(
+        'font-medium flex items-center gap-1',
+        compact ? 'text-xs text-muted-foreground h-4 leading-4' : 'text-sm',
+      )}>
+        <span className="truncate">{label}</span>
         {required && <span className="text-destructive">*</span>}
-        {tooltip && (
+        {tooltip && !compact && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+              <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help shrink-0" />
             </TooltipTrigger>
             <TooltipContent><p className="text-xs">{tooltip}</p></TooltipContent>
           </Tooltip>
@@ -64,27 +70,29 @@ export function SpecCombobox({
             type="button"
             role="combobox"
             aria-expanded={open}
+            title={tooltip}
             className={cn(
-              'flex h-10 w-full items-center justify-between rounded-[10px] border-[1.5px] border-input bg-background px-3 py-2 text-sm ring-offset-background',
+              'flex w-full items-center justify-between border-[1.5px] border-input bg-background px-3 text-sm ring-offset-background',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               'disabled:cursor-not-allowed disabled:opacity-50',
+              compact ? 'h-9 rounded-lg' : 'h-10 rounded-[10px] py-2',
               !value && 'text-muted-foreground',
             )}
           >
-            <span className="truncate">{value || placeholder}</span>
+            <span className="truncate text-left">{value || placeholder}</span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-[--radix-popover-trigger-width] p-0"
+          className="w-[--radix-popover-trigger-width] p-0 overflow-hidden"
           align="start"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
-          <div className="flex items-center border-b px-3">
-            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+          <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-3">
+            <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <input
               ref={inputRef}
-              className="flex h-10 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+              className="spec-combo-search flex h-9 w-full bg-transparent text-sm outline-none border-0 shadow-none ring-0 focus:outline-none focus-visible:outline-none placeholder:text-muted-foreground"
               placeholder="Search or type…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}

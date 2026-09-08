@@ -279,8 +279,8 @@
   background: hsl(var(--primary) / 0.6);
 }
 
-/* RemoAsset focus ring for inputs */
-input:focus-visible,
+/* RemoAsset focus ring for inputs (not combobox typeahead — that sits inside a popover) */
+input:focus-visible:not(.spec-combo-search),
 textarea:focus-visible,
 [data-radix-select-trigger]:focus-visible {
   box-shadow: 0 0 0 3px rgba(234, 110, 53, 0.15);
