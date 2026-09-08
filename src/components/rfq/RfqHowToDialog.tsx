@@ -13,7 +13,7 @@ export const RFQ_RAISE_GUIDE = [
   {
     n: '1',
     title: 'Brief',
-    body: 'Choose request type, client, country, quantity, and deadline. Write a clear scope. Pick vendor types — only Closed partners matching those types in the country are invited. You are always on CC.',
+    body: 'Choose request type, then pick an active client from the list or a prospecting client and type the name. Set country, quantity, and deadline. Write a clear scope. Pick vendor types — only Closed partners matching those types in the country are invited. You are always on CC.',
   },
   {
     n: '2',

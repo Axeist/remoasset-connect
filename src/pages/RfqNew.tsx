@@ -41,7 +41,9 @@ export default function RfqNew() {
   const [vendors, setVendors] = useState<MatchableVendor[]>([]);
   const [rfqType, setRfqType] = useState<RfqType>('fulfillment');
   const [vendorTypes, setVendorTypes] = useState<VendorType[]>(['new_device']);
+  const [clientKind, setClientKind] = useState<'active' | 'prospecting'>('active');
   const [clientId, setClientId] = useState('');
+  const [prospectName, setProspectName] = useState('');
   const [countryId, setCountryId] = useState('');
   const [scope, setScope] = useState('');
   const [qty, setQty] = useState('1');
@@ -111,9 +113,10 @@ export default function RfqNew() {
   }, []);
 
   useEffect(() => {
+    if (clientKind !== 'active') return;
     const client = clients.find((c) => c.id === clientId);
     if (client?.country_id) setCountryId(client.country_id);
-  }, [clientId, clients]);
+  }, [clientId, clients, clientKind]);
 
   const matched = useMemo(() => {
     if (!countryId || !vendorTypes.length) return [];
@@ -174,11 +177,17 @@ export default function RfqNew() {
   const parseExtraCc = () =>
     extraCc.split(/[,;\s]+/).map((e) => e.trim()).filter((e) => e.includes('@'));
 
+  const briefClientReady =
+    clientKind === 'active' ? Boolean(clientId) : Boolean(prospectName.trim());
+
   const goPartners = () => {
-    if (!clientId || !countryId || !scope.trim()) {
+    if (!briefClientReady || !countryId || !scope.trim()) {
       toast({
         title: 'Complete the brief',
-        description: 'Client, country, and scope are required.',
+        description:
+          clientKind === 'prospecting'
+            ? 'Prospect name, country, and scope are required.'
+            : 'Client, country, and scope are required.',
         variant: 'destructive',
       });
       return;
@@ -187,7 +196,7 @@ export default function RfqNew() {
   };
 
   const goEmailStep = () => {
-    if (!clientId || !countryId || !scope.trim() || !selectedVendorIds.size) {
+    if (!briefClientReady || !countryId || !scope.trim() || !selectedVendorIds.size) {
       toast({
         title: 'Select partners',
         description: 'At least one vendor is required.',
@@ -219,11 +228,38 @@ export default function RfqNew() {
       const ownerCc = user?.email ? [user.email] : [];
       const cc_emails = Array.from(new Set([...ownerCc, ...parseExtraCc()]));
 
+      let resolvedClientId = clientId;
+      if (clientKind === 'prospecting') {
+        const name = prospectName.trim();
+        const existing = clients.find((c) => c.name.toLowerCase() === name.toLowerCase());
+        if (existing) {
+          resolvedClientId = existing.id;
+        } else {
+          const { data: created, error: clientErr } = await supabase
+            .from('clients' as any)
+            .insert({
+              name,
+              country_id: countryId || null,
+              notes: 'Created from RFQ as a prospecting client.',
+              created_by: user?.id,
+            })
+            .select('id')
+            .single();
+          if (clientErr) throw clientErr;
+          resolvedClientId = (created as { id: string }).id;
+          setClientId(resolvedClientId);
+          setClients((prev) => [
+            ...prev,
+            { id: resolvedClientId, name, country_id: countryId || null },
+          ]);
+        }
+      }
+
       let rfqId: string | null = null;
 
       if (mode === 'send' || true) {
         const { data: req, error: reqErr } = await supabase.from('client_requests' as any).insert({
-          client_id: clientId,
+          client_id: resolvedClientId,
           country_id: countryId,
           request_type:
             rfqType === 'retrieval_redeployment'
@@ -245,7 +281,7 @@ export default function RfqNew() {
         if (reqErr) throw reqErr;
 
         const { data: rfq, error: rfqErr } = await supabase.from('rfqs' as any).insert({
-          client_id: clientId,
+          client_id: resolvedClientId,
           client_request_id: (req as any).id,
           country_id: countryId,
           rfq_type: rfqType,
@@ -355,14 +391,52 @@ export default function RfqNew() {
               </div>
               <div className="space-y-2">
                 <Label>Client *</Label>
-                <Select value={clientId} onValueChange={setClientId}>
-                  <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select client" /></SelectTrigger>
-                  <SelectContent>
-                    {clients.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { value: 'active' as const, label: 'Active client' },
+                    { value: 'prospecting' as const, label: 'Prospecting client' },
+                  ]).map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => {
+                        setClientKind(o.value);
+                        if (o.value === 'prospecting') setClientId('');
+                        else setProspectName('');
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-sm border transition-colors duration-200 cursor-pointer ${
+                        clientKind === o.value
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background hover:bg-muted'
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                {clientKind === 'active' ? (
+                  <Select value={clientId} onValueChange={setClientId}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select client" /></SelectTrigger>
+                    <SelectContent>
+                      {clients.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <>
+                    <Input
+                      className="rounded-xl"
+                      value={prospectName}
+                      onChange={(e) => setProspectName(e.target.value)}
+                      placeholder="Type prospect name"
+                      autoFocus
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Saved as a new client when you send this RFQ.
+                    </p>
+                  </>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Country *</Label>
