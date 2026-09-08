@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -27,7 +28,7 @@ import { buildInviteEmail } from '@/lib/rfq-email-templates';
 import { invokeRfqCampaign } from '@/lib/rfq-api';
 import { ArrowLeft, Send, FlaskConical } from 'lucide-react';
 import type { RfqType } from '@/types/rfq';
-import { FieldHint, InfoCallout } from '@/components/rfq/RfqInfo';
+import { RfqWizardRail } from '@/components/rfq/RfqWizardRail';
 
 export default function RfqNew() {
   const navigate = useNavigate();
@@ -55,6 +56,7 @@ export default function RfqNew() {
   const [bodyText, setBodyText] = useState('');
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [editHtml, setEditHtml] = useState(false);
 
   useEffect(() => {
     setVendorTypes(defaultVendorTypesForRfqType(rfqType));
@@ -77,7 +79,6 @@ export default function RfqNew() {
         .filter(([, name]) => isClosedStatusName(name))
         .map(([id]) => id);
 
-      // Only Closed/Won leads — paginate so we never miss partners past the first 2000 alpha rows
       const pageSize = 1000;
       let from = 0;
       const rows: MatchableVendor[] = [];
@@ -118,7 +119,6 @@ export default function RfqNew() {
     return matchRfqVendors(vendors, countryId, vendorTypes);
   }, [vendors, countryId, vendorTypes]);
 
-  /** Won vendors in-country that still fail a match rule — for diagnostics */
   const nearMisses = useMemo(() => {
     if (!countryId) return [];
     return vendors
@@ -130,7 +130,7 @@ export default function RfqNew() {
         if (!v.email || !v.email.includes('@')) reasons.push('missing email');
         if (!vendorHasAnyType(v, vendorTypes)) {
           const have = (v.vendor_types || []).join(', ') || 'none';
-          reasons.push(`vendor types [${have}] do not overlap selection [${vendorTypes.join(', ')}]`);
+          reasons.push(`types [${have}] do not overlap [${vendorTypes.join(', ')}]`);
         }
         return { ...v, reasons };
       })
@@ -141,8 +141,9 @@ export default function RfqNew() {
     setSelectedVendorIds(new Set(matched.map((m) => m.id)));
   }, [matched]);
 
-  const countryName = countries.find((c) => c.id === countryId)?.name || 'Country';
+  const countryName = countries.find((c) => c.id === countryId)?.name || 'this country';
   const deadlineIso = new Date(deadlineLocal).toISOString();
+  const missingMagicLink = Boolean(bodyHtml) && !bodyHtml.includes('{{magic_link}}');
 
   const buildEmailDefaults = useCallback(() => {
     const kind = rfqType === 'fulfillment' ? 'fulfillment' : 'retrieval';
@@ -172,16 +173,29 @@ export default function RfqNew() {
   const parseExtraCc = () =>
     extraCc.split(/[,;\s]+/).map((e) => e.trim()).filter((e) => e.includes('@'));
 
+  const goPartners = () => {
+    if (!clientId || !countryId || !scope.trim()) {
+      toast({
+        title: 'Complete the brief',
+        description: 'Client, country, and scope are required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setStep(2);
+  };
+
   const goEmailStep = () => {
     if (!clientId || !countryId || !scope.trim() || !selectedVendorIds.size) {
       toast({
-        title: 'Complete the brief',
-        description: 'Client, country, scope, and at least one vendor are required.',
+        title: 'Select partners',
+        description: 'At least one vendor is required.',
         variant: 'destructive',
       });
       return;
     }
     buildEmailDefaults();
+    setEditHtml(false);
     setStep(3);
   };
 
@@ -207,7 +221,6 @@ export default function RfqNew() {
       let rfqId: string | null = null;
 
       if (mode === 'send' || true) {
-        // Create client request linked
         const { data: req, error: reqErr } = await supabase.from('client_requests' as any).insert({
           client_id: clientId,
           country_id: countryId,
@@ -299,202 +312,166 @@ export default function RfqNew() {
     }
   };
 
+  const selectAll = () => setSelectedVendorIds(new Set(matched.map((m) => m.id)));
+  const selectNone = () => setSelectedVendorIds(new Set());
+
   return (
     <AppLayout>
-      <div className="p-6 max-w-3xl mx-auto space-y-6">
-        <Button variant="ghost" className="rounded-xl -ml-2" onClick={() => (step === 1 ? navigate('/rfq') : setStep((s) => (s === 3 ? 2 : 1) as 1 | 2))}>
+      <div className="p-6 max-w-3xl mx-auto pb-8">
+        <Button
+          variant="ghost"
+          className="rounded-xl -ml-2 cursor-pointer"
+          onClick={() => (step === 1 ? navigate('/rfq') : setStep((s) => (s === 3 ? 2 : 1)))}
+        >
           <ArrowLeft className="h-4 w-4 mr-2" /> Back
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Raise RFQ campaign</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Step {step} of 3 — brief → Closed partners → edit &amp; send email
-          </p>
+
+        <div className="mt-2 mb-4">
+          <h1 className="text-2xl font-bold tracking-tight">Raise RFQ</h1>
+          <p className="text-sm text-muted-foreground mt-1">Step {step} of 3</p>
         </div>
 
-        <div className="flex gap-2 text-xs">
-          {[
-            { n: 1, label: 'Brief' },
-            { n: 2, label: 'Partners' },
-            { n: 3, label: 'Email & send' },
-          ].map((s) => (
-            <div
-              key={s.n}
-              className={`flex-1 rounded-lg border px-2 py-1.5 text-center ${
-                step === s.n ? 'border-primary bg-primary/5 font-semibold' : step > s.n ? 'bg-muted/40 text-muted-foreground' : 'text-muted-foreground'
-              }`}
-            >
-              {s.n}. {s.label}
-            </div>
-          ))}
-        </div>
+        <RfqWizardRail step={step} onStepChange={setStep} />
 
         {step === 1 && (
-          <div className="space-y-5 rounded-xl border bg-card p-5">
-            <InfoCallout title="Who gets invited?" tone="blue">
-              <p>
-                Only vendors whose pipeline status is <strong>Closed / Won</strong>, who operate in the selected country,
-                have a contact email, and match at least one vendor type you select below.
-              </p>
-            </InfoCallout>
-
-            <div className="space-y-2">
-              <Label>Request type</Label>
-              <Select value={rfqType} onValueChange={(v) => setRfqType(v as RfqType)}>
-                <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fulfillment">New device fulfillment</SelectItem>
-                  <SelectItem value="retrieval_redeployment">Retrieval / storage / redeploy</SelectItem>
-                  <SelectItem value="itad">ITAD</SelectItem>
-                </SelectContent>
-              </Select>
-              <FieldHint>
-                Sets smart defaults for vendor types and email template. Fulfillment → new device; retrieval → warehouse + ITAD.
-              </FieldHint>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Vendor types to mail</Label>
-              <div className="flex flex-wrap gap-2">
-                {VENDOR_TYPE_OPTIONS.map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    onClick={() => toggleType(o.value)}
-                    className={`px-3 py-1.5 rounded-full text-sm border transition ${
-                      vendorTypes.includes(o.value)
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-background hover:bg-muted'
-                    }`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-              <FieldHint>
-                Multi-select who should receive this campaign. You can add or remove types beyond the defaults.
-              </FieldHint>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Client</Label>
-              <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select client" /></SelectTrigger>
-                <SelectContent>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldHint>A linked client request is created automatically so award can allocate the vendor later.</FieldHint>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Country</Label>
-              <Select value={countryId} onValueChange={setCountryId}>
-                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select country" /></SelectTrigger>
-                <SelectContent>
-                  {countries.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldHint>Prefills from the client when available. Matching uses HQ or operating countries on the vendor.</FieldHint>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
+          <Card className="card-shadow mt-6 p-5 space-y-8">
+            <section className="space-y-4">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">What you need</h2>
               <div className="space-y-2">
-                <Label>Quantity</Label>
-                <Input className="rounded-xl" type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} />
-                <FieldHint>Shown in the email and on the vendor quote form.</FieldHint>
+                <Label>Request type</Label>
+                <Select value={rfqType} onValueChange={(v) => setRfqType(v as RfqType)}>
+                  <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fulfillment">New device fulfillment</SelectItem>
+                    <SelectItem value="retrieval_redeployment">Retrieval / storage / redeploy</SelectItem>
+                    <SelectItem value="itad">ITAD</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Sets vendor-type defaults and the email template.</p>
               </div>
               <div className="space-y-2">
-                <Label>Deadline</Label>
-                <Input className="rounded-xl" type="datetime-local" value={deadlineLocal} onChange={(e) => setDeadlineLocal(e.target.value)} />
-                <FieldHint>Default 48 hours. Partners must submit before this deadline.</FieldHint>
+                <Label>Client *</Label>
+                <Select value={clientId} onValueChange={setClientId}>
+                  <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select client" /></SelectTrigger>
+                  <SelectContent>
+                    {clients.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
+              <div className="space-y-2">
+                <Label>Country *</Label>
+                <Select value={countryId} onValueChange={setCountryId}>
+                  <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select country" /></SelectTrigger>
+                  <SelectContent>
+                    {countries.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Quantity</Label>
+                  <Input className="rounded-xl" type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Deadline</Label>
+                  <Input className="rounded-xl" type="datetime-local" value={deadlineLocal} onChange={(e) => setDeadlineLocal(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Scope / brief *</Label>
+                <Textarea
+                  className="rounded-xl min-h-[120px]"
+                  placeholder={'Example:\n• 25× MacBook Pro 14" M3, 16GB/512GB\n• Delivery to Bangalore by 30 Jul'}
+                  value={scope}
+                  onChange={(e) => setScope(e.target.value)}
+                />
+              </div>
+            </section>
 
-            <div className="space-y-2">
-              <Label>Scope / brief</Label>
-              <Textarea
-                className="rounded-xl min-h-[120px]"
-                placeholder={'Example:\n• 25× MacBook Pro 14" M3, 16GB/512GB\n• Delivery to Bangalore by 30 Jul\n• Include warranty + shipping in landed price'}
-                value={scope}
-                onChange={(e) => setScope(e.target.value)}
-              />
-              <FieldHint>
-                Be specific — this text appears in the email and on the magic-link form. Clear scope gets faster, better quotes.
-              </FieldHint>
-            </div>
-
-            <div className="space-y-2">
-              <Label>CC (you are always included)</Label>
-              <Input
-                className="rounded-xl"
-                placeholder="extra@remoasset.com, teammate@…"
-                value={extraCc}
-                onChange={(e) => setExtraCc(e.target.value)}
-              />
-              {user?.email && (
-                <FieldHint>
-                  Locked CC: <strong>{user.email}</strong>. Add teammates (comma-separated). Same CC list is used for send, remind, and award emails.
-                </FieldHint>
-              )}
-            </div>
-
-            <Button className="rounded-xl w-full" onClick={() => setStep(2)}>Continue to partner matching</Button>
-          </div>
+            <section className="space-y-4">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Who to invite</h2>
+              <div className="space-y-2">
+                <Label>Vendor types</Label>
+                <div className="flex flex-wrap gap-2">
+                  {VENDOR_TYPE_OPTIONS.map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => toggleType(o.value)}
+                      className={`px-3 py-1.5 rounded-full text-sm border transition-colors duration-200 cursor-pointer ${
+                        vendorTypes.includes(o.value)
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background hover:bg-muted'
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">Only Closed partners matching these types in the country are invited.</p>
+              </div>
+              <div className="space-y-2">
+                <Label>CC (you are always included)</Label>
+                <Input
+                  className="rounded-xl"
+                  placeholder="teammate@remoasset.com"
+                  value={extraCc}
+                  onChange={(e) => setExtraCc(e.target.value)}
+                />
+              </div>
+            </section>
+          </Card>
         )}
 
         {step === 2 && (
-          <div className="space-y-4 rounded-xl border bg-card p-5">
-            <InfoCallout title="Review the matched list" tone="neutral">
-              <p>
-                These are Closed partners who match your country and vendor types and have an email on file.
-                Uncheck anyone who should not receive this RFQ. Do not add vendors manually here — fix their lead status, country, or types in Vendors if someone is missing.
-              </p>
-            </InfoCallout>
+          <Card className="card-shadow mt-6 p-5 space-y-4">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <p className="font-semibold">
-                {matched.length} Closed partner{matched.length === 1 ? '' : 's'} matched
-                <span className="font-normal text-muted-foreground text-sm ml-2">
-                  ({selectedVendorIds.size} selected to email)
-                </span>
+                {matched.length} partner{matched.length === 1 ? '' : 's'} · {selectedVendorIds.size} selected
               </p>
-              <Badge variant="secondary">{countryName}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{countryName}</Badge>
+                {matched.length > 0 && (
+                  <>
+                    <Button type="button" variant="ghost" size="sm" className="cursor-pointer" onClick={selectAll}>
+                      All
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="cursor-pointer" onClick={selectNone}>
+                      None
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
             {matched.length === 0 && (
-              <InfoCallout title="No matches" tone="amber">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-sm">
                 <p>
-                  No Closed vendors with email for these types in this country. Check the vendor directory:
-                  pipeline status must be Closed/Won, country coverage must include {countryName || 'this country'},
-                  and vendor types must overlap your selection ({vendorTypes.join(', ') || 'none selected'}).
+                  No Closed vendors with email for these types in {countryName}. Status must be Closed/Won, country coverage must include {countryName}, and types must overlap ({vendorTypes.join(', ') || 'none'}).
                 </p>
                 {nearMisses.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    <p className="font-semibold">Won partners in {countryName} that did not match:</p>
+                  <div className="mt-3 space-y-1">
+                    <p className="font-semibold">In {countryName} but not matched:</p>
                     {nearMisses.map((v) => (
                       <p key={v.id} className="text-xs">
                         <strong>{v.company_name}</strong> — {v.reasons.join('; ')}
                       </p>
                     ))}
-                    <p className="text-xs mt-2">
-                      Tip: for a fulfillment RFQ, select <strong>New Device</strong> on step 1 (or add that type on the lead).
-                      For retrieval, the lead needs <strong>warehouse</strong> and/or <strong>ITAD</strong> types.
-                    </p>
                   </div>
                 )}
                 {nearMisses.length === 0 && (
                   <p className="mt-2 text-xs">
-                    No Won partners found for {countryName} at all. Confirm the lead HQ/served country is Bahamas and status is Won.
+                    No Won partners found for {countryName}. Confirm HQ/served country and status on the lead.
                   </p>
                 )}
-              </InfoCallout>
+              </div>
             )}
             <div className="max-h-[360px] overflow-y-auto space-y-2">
               {matched.map((m) => (
-                <label key={m.id} className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40">
+                <label key={m.id} className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40 transition-colors duration-200">
                   <Checkbox
                     checked={selectedVendorIds.has(m.id)}
                     onCheckedChange={(c) => {
@@ -510,62 +487,70 @@ export default function RfqNew() {
                     <p className="font-medium text-sm">{m.company_name}</p>
                     <p className="text-xs text-muted-foreground truncate">{m.email}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Types: {(m.vendor_types || []).join(', ') || '—'} · Status: {m.status_name}
+                      {(m.vendor_types || []).join(', ') || '—'}
                     </p>
                   </div>
                 </label>
               ))}
             </div>
-            <Button className="rounded-xl w-full" onClick={goEmailStep} disabled={!selectedVendorIds.size}>
-              Continue to email ({selectedVendorIds.size} recipient{selectedVendorIds.size === 1 ? '' : 's'})
-            </Button>
-          </div>
+          </Card>
         )}
 
         {step === 3 && (
-          <div className="space-y-4 rounded-xl border bg-card p-5">
-            <InfoCallout title="Edit before you send" tone="amber">
-              <p>
-                Template uses RemoAsset branding (orange + dark) and a human, short tone.
-                Keep <code className="text-[11px] bg-black/5 px-1 rounded">{'{{magic_link}}'}</code> in the body —
-                it becomes each partner’s personal quote link. Use <strong>Test send</strong> to yourself first.
-              </p>
-            </InfoCallout>
+          <Card className="card-shadow mt-6 p-5 space-y-4">
             <div className="space-y-2">
-              <Label>Subject line</Label>
+              <Label>Subject</Label>
               <Input className="rounded-xl" value={subject} onChange={(e) => setSubject(e.target.value)} />
-              <FieldHint>Shown in the inbox. Deadline / country in the subject improves open rates.</FieldHint>
             </div>
-            <div className="space-y-2">
-              <Label>HTML body</Label>
+            <div className="rounded-xl border bg-muted/30 p-3 overflow-auto max-h-[320px]">
+              <p className="text-xs font-semibold text-muted-foreground mb-2">Preview</p>
+              <div dangerouslySetInnerHTML={{ __html: bodyHtml.replaceAll('{{magic_link}}', '#') }} />
+            </div>
+            {missingMagicLink && (
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                Keep {'{{magic_link}}'} in the body so each partner gets a quote link.
+              </p>
+            )}
+            <Button type="button" variant="ghost" size="sm" className="cursor-pointer" onClick={() => setEditHtml((v) => !v)}>
+              {editHtml ? 'Hide HTML' : 'Edit HTML'}
+            </Button>
+            {editHtml && (
               <Textarea
-                className="rounded-xl min-h-[280px] font-mono text-xs"
+                className="rounded-xl min-h-[220px] font-mono text-xs"
                 value={bodyHtml}
                 onChange={(e) => setBodyHtml(e.target.value)}
               />
-            </div>
-            <div className="rounded-xl border bg-muted/30 p-3 overflow-auto max-h-[240px]">
-              <p className="text-xs font-semibold text-muted-foreground mb-2">Live preview (how partners will see it)</p>
-              <div dangerouslySetInnerHTML={{ __html: bodyHtml.replaceAll('{{magic_link}}', '#') }} />
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
+            )}
+          </Card>
+        )}
+
+        <div className="sticky bottom-0 z-10 mt-6 -mx-6 px-6 py-3 border-t bg-background/95 backdrop-blur flex flex-col sm:flex-row gap-2 sm:justify-end">
+          {step === 1 && (
+            <Button className="rounded-xl cursor-pointer" onClick={goPartners}>
+              Continue
+            </Button>
+          )}
+          {step === 2 && (
+            <Button className="rounded-xl cursor-pointer" onClick={goEmailStep} disabled={!selectedVendorIds.size}>
+              Continue ({selectedVendorIds.size})
+            </Button>
+          )}
+          {step === 3 && (
+            <>
               <Button
                 variant="outline"
-                className="rounded-xl flex-1"
+                className="rounded-xl cursor-pointer"
                 disabled={saving}
                 onClick={() => createAndSend('test_send')}
               >
                 <FlaskConical className="h-4 w-4 mr-2" /> Test send to me
               </Button>
-              <Button className="rounded-xl flex-1" disabled={saving} onClick={() => createAndSend('send')}>
+              <Button className="rounded-xl cursor-pointer" disabled={saving} onClick={() => createAndSend('send')}>
                 <Send className="h-4 w-4 mr-2" /> Send to {selectedVendorIds.size} partners
               </Button>
-            </div>
-            <FieldHint>
-              Send creates the campaign, logs every outbound email in Connect, and moves the linked client request to RFQ in progress.
-            </FieldHint>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </AppLayout>
   );

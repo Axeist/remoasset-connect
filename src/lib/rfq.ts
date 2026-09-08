@@ -85,6 +85,21 @@ export function isRfqSealed(rfq: {
   return new Date(until).getTime() > Date.now();
 }
 
+export function formatRelativeTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms)) return '—';
+  if (ms < 0) return new Date(iso).toLocaleString();
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 export function formatCountdown(deadlineIso: string): string {
   const ms = new Date(deadlineIso).getTime() - Date.now();
   if (ms <= 0) return '0h';

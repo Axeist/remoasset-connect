@@ -1,21 +1,24 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { campaignRollups, formatCountdown } from '@/lib/rfq';
+import { campaignRollups, formatCountdown, formatRelativeTime } from '@/lib/rfq';
 import { buildAwardEmail, buildRemindEmail } from '@/lib/rfq-email-templates';
 import { invokeRfqCampaign } from '@/lib/rfq-api';
 import {
@@ -25,9 +28,11 @@ import {
   type RfqBid,
   type RfqEmail,
   type RfqRecipient,
+  type RfqStatus,
 } from '@/types/rfq';
-import { ArrowLeft, Trophy, Bell, CheckSquare, Send, Trash2, FileText } from 'lucide-react';
-import { FieldHint, InfoCallout, RFQ_RECIPIENT_HELP, RFQ_STATUS_HELP } from '@/components/rfq/RfqInfo';
+import { ArrowLeft, Bell, CheckSquare, ChevronDown, ChevronUp, Send, Table2, Trash2 } from 'lucide-react';
+import { RFQ_RECIPIENT_HELP, RFQ_STATUS_HELP } from '@/components/rfq/RfqInfo';
+import { money, RfqBidCards } from '@/components/rfq/RfqBidCards';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,9 +44,19 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-function money(currency: string, value: number | null | undefined) {
-  if (value == null || Number.isNaN(Number(value))) return '—';
-  return `${currency} ${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+function defaultTab(status: RfqStatus): string {
+  if (status === 'bidding') return 'bids';
+  if (status === 'awarded') return 'checklist';
+  return 'recipients';
+}
+
+function recipientActivity(r: RfqRecipient): string {
+  if (r.status === 'quoted' && r.quoted_at) return `Quoted ${formatRelativeTime(r.quoted_at)}`;
+  if (r.status === 'declined' && r.declined_at) return `Declined ${formatRelativeTime(r.declined_at)}`;
+  if (r.status === 'opened' && r.opened_at) return `Opened ${formatRelativeTime(r.opened_at)}`;
+  if (r.status === 'sent' && r.sent_at) return `Sent ${formatRelativeTime(r.sent_at)}`;
+  if (r.status === 'pending_send') return 'Not sent yet';
+  return formatRelativeTime(r.sent_at);
 }
 
 export default function RfqDetail() {
@@ -54,9 +69,17 @@ export default function RfqDetail() {
   const [bids, setBids] = useState<RfqBid[]>([]);
   const [emails, setEmails] = useState<RfqEmail[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('recipients');
+  const tabInitialized = useRef(false);
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [spreadsheet, setSpreadsheet] = useState(false);
   const [awardOpen, setAwardOpen] = useState(false);
   const [awardBidId, setAwardBidId] = useState<string | null>(null);
   const [rationale, setRationale] = useState('');
+  const [weakOk, setWeakOk] = useState(false);
+  const [reviseOpen, setReviseOpen] = useState(false);
+  const [reviseBid, setReviseBid] = useState<RfqBid | null>(null);
+  const [reviseNote, setReviseNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -81,12 +104,23 @@ export default function RfqDetail() {
     setRecipients((rec as any) || []);
     setBids((b as any) || []);
     setEmails((e as any) || []);
+    if (r && !tabInitialized.current) {
+      setTab(defaultTab((r as Rfq).status));
+      tabInitialized.current = true;
+    }
     setLoading(false);
+  }, [id]);
+
+  useEffect(() => {
+    tabInitialized.current = false;
+    setTab('recipients');
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
 
   const roll = useMemo(() => campaignRollups(recipients), [recipients]);
+  const awardBid = bids.find((b) => b.id === awardBidId);
+  const weakCompetition = bids.length < 2;
 
   const openQuotation = async (b: RfqBid) => {
     if (!b.quotation_file_path) {
@@ -157,16 +191,22 @@ export default function RfqDetail() {
     }
   };
 
-  const requestRevision = async (bid: RfqBid) => {
-    const note = window.prompt('Revision note for vendor:') || 'Please revise your pricing.';
+  const requestRevision = async () => {
+    if (!reviseBid || !reviseNote.trim()) {
+      toast({ title: 'Revision note required', variant: 'destructive' });
+      return;
+    }
     await supabase.from('rfq_bids' as any).update({
       pricing_status: 'revision_requested',
-      revision_note: note,
-    }).eq('id', bid.id);
+      revision_note: reviseNote.trim(),
+    }).eq('id', reviseBid.id);
     if (rfq?.client_request_id) {
       await supabase.from('client_requests' as any).update({ status: 'pricing_review' }).eq('id', rfq.client_request_id);
     }
     toast({ title: 'Revision requested' });
+    setReviseOpen(false);
+    setReviseBid(null);
+    setReviseNote('');
     load();
   };
 
@@ -175,12 +215,12 @@ export default function RfqDetail() {
       toast({ title: 'Rationale required', variant: 'destructive' });
       return;
     }
+    if (weakCompetition && !weakOk) {
+      toast({ title: 'Confirm weak competition', description: 'Fewer than two quotes. Check the box to proceed.', variant: 'destructive' });
+      return;
+    }
     const bid = bids.find((b) => b.id === awardBidId);
     if (!bid) return;
-    if (bids.length < 2) {
-      const ok = window.confirm('Fewer than 2 quotes — weak competition. Award anyway?');
-      if (!ok) return;
-    }
     setBusy(true);
     try {
       await supabase.from('rfq_bids' as any).update({ award_status: 'won', pricing_status: 'accepted' }).eq('id', bid.id);
@@ -234,6 +274,7 @@ export default function RfqDetail() {
 
       setChecklist((c) => ({ ...c, pricing: true, file: true, winnerMail: true, loserMail: true }));
       setAwardOpen(false);
+      setTab('checklist');
       toast({
         title: 'Awarded & notified',
         description: `${bid.vendor?.company_name || 'Winner'} selected. Other partners emailed with the finalized price.`,
@@ -260,68 +301,93 @@ export default function RfqDetail() {
     navigate('/rfq');
   };
 
+  const openAward = (bid: RfqBid) => {
+    setAwardBidId(bid.id);
+    setWeakOk(false);
+    setAwardOpen(true);
+  };
+
+  const openRevise = (bid: RfqBid) => {
+    setReviseBid(bid);
+    setReviseNote(bid.revision_note || '');
+    setReviseOpen(true);
+  };
+
   if (loading || !rfq) {
     return (
       <AppLayout>
-        <div className="p-6 text-sm text-muted-foreground">Loading campaign details…</div>
+        <div className="p-6 text-sm text-muted-foreground">Loading campaign…</div>
       </AppLayout>
     );
   }
 
+  const scopeLong = (rfq.scope_summary || '').split('\n').length > 3 || (rfq.scope_summary || '').length > 180;
+
   return (
     <AppLayout>
       <div className="p-6 max-w-6xl mx-auto space-y-6">
-        <Button variant="ghost" className="rounded-xl -ml-2" onClick={() => navigate('/rfq')}>
+        <Button variant="ghost" className="rounded-xl -ml-2 cursor-pointer" onClick={() => navigate('/rfq')}>
           <ArrowLeft className="h-4 w-4 mr-2" /> All RFQs
         </Button>
 
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-bold tracking-tight">{rfq.client?.name}</h1>
-              <Badge>{RFQ_STATUS_LABELS[rfq.status]}</Badge>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge>{RFQ_STATUS_LABELS[rfq.status]}</Badge>
+                </TooltipTrigger>
+                <TooltipContent>{RFQ_STATUS_HELP[rfq.status]}</TooltipContent>
+              </Tooltip>
             </div>
-            <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-              {RFQ_STATUS_HELP[rfq.status]}
+            <p className="text-sm text-muted-foreground mt-2">
+              {rfq.country?.name} · Qty {rfq.quantity} · {formatCountdown(rfq.deadline)} left
             </p>
-            <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap border-l-2 border-primary/30 pl-3">
-              {rfq.scope_summary || 'No scope written for this campaign.'}
+            <p className="text-sm tabular-nums text-muted-foreground mt-1">
+              Sent {roll.sent} · Opened {roll.opened} · Quoted {roll.quoted}
             </p>
-            <p className="text-sm mt-3 tabular-nums">
-              <strong>{rfq.country?.name}</strong> · Qty {rfq.quantity} · Types:{' '}
-              {(rfq.target_vendor_types || []).join(', ') || '—'}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Deadline <strong className="text-foreground">{new Date(rfq.deadline).toLocaleString()}</strong>
-              {' '}({formatCountdown(rfq.deadline)} left)
-            </p>
-            <p className="text-sm mt-2 tabular-nums rounded-lg bg-muted/50 inline-block px-3 py-1.5">
-              Campaign: Sent {roll.sent} · Opened {roll.opened} · Quoted {roll.quoted} · Declined {roll.declined}
-              {roll.bounced > 0 && ` · Bounced ${roll.bounced}`}
-            </p>
+            {rfq.scope_summary && (
+              <div className="mt-3">
+                <p className={`text-sm whitespace-pre-wrap ${!briefOpen && scopeLong ? 'line-clamp-3' : ''}`}>
+                  {rfq.scope_summary}
+                </p>
+                {scopeLong && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-0 mt-1 cursor-pointer"
+                    onClick={() => setBriefOpen((v) => !v)}
+                  >
+                    {briefOpen ? <><ChevronUp className="h-3.5 w-3.5 mr-1" /> Less</> : <><ChevronDown className="h-3.5 w-3.5 mr-1" /> Brief</>}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             {rfq.status === 'draft' && (
-              <Button className="rounded-xl" disabled={busy} onClick={sendDraft} title="Email all pending recipients">
+              <Button className="rounded-xl cursor-pointer" disabled={busy} onClick={sendDraft}>
                 <Send className="h-4 w-4 mr-2" /> Send campaign
               </Button>
             )}
-            <Button
-              variant="outline"
-              className="rounded-xl"
-              disabled={busy || rfq.status === 'draft'}
-              onClick={remind}
-              title="Email vendors who have not quoted yet"
-            >
-              <Bell className="h-4 w-4 mr-2" /> Remind silent
-            </Button>
+            {rfq.status !== 'draft' && rfq.status !== 'awarded' && (
+              <Button
+                variant="outline"
+                className="rounded-xl cursor-pointer"
+                disabled={busy}
+                onClick={remind}
+              >
+                <Bell className="h-4 w-4 mr-2" /> Remind non-responders
+              </Button>
+            )}
             {isAdmin && (
               <Button
                 variant="outline"
-                className="rounded-xl text-destructive hover:text-destructive"
+                className="rounded-xl text-destructive hover:text-destructive cursor-pointer"
                 disabled={busy || deleting}
                 onClick={() => setDeleteOpen(true)}
-                title="Permanently delete this campaign"
               >
                 <Trash2 className="h-4 w-4 mr-2" /> Delete
               </Button>
@@ -329,263 +395,243 @@ export default function RfqDetail() {
           </div>
         </div>
 
-        <Tabs defaultValue="recipients">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="rounded-xl flex-wrap h-auto">
             <TabsTrigger value="recipients">Recipients ({recipients.length})</TabsTrigger>
-            <TabsTrigger value="bids">Bids ({bids.length})</TabsTrigger>
+            <TabsTrigger value="bids">Quotes ({bids.length})</TabsTrigger>
             <TabsTrigger value="emails">Emails ({emails.length})</TabsTrigger>
-            <TabsTrigger value="checklist">Handoff checklist</TabsTrigger>
+            <TabsTrigger value="checklist">Handoff</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="recipients" className="space-y-3 mt-3">
-            <InfoCallout tone="blue">
-              <p>
-                Each row is one partner in this campaign.
-                <strong> Sent</strong> = emailed · <strong>Opened</strong> = opened the link ·
-                <strong> Quoted</strong> = submitted price + mandatory quotation file ·
-                <strong> Declined</strong> = opted out. Hover a status badge for more detail.
-              </p>
-            </InfoCallout>
-            <div className="rounded-xl border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Vendor</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Sent</TableHead>
-                  <TableHead>Opened</TableHead>
-                  <TableHead>Quoted</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recipients.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      No recipients on this campaign yet.
-                    </TableCell>
-                  </TableRow>
-                )}
-                {recipients.map((r) => (
-                  <TableRow key={r.id} title={RFQ_RECIPIENT_HELP[r.status]}>
-                    <TableCell className="font-medium">{r.vendor?.company_name}</TableCell>
-                    <TableCell className="text-sm">{r.email}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{RFQ_RECIPIENT_STATUS_LABELS[r.status]}</Badge>
-                      <p className="text-[10px] text-muted-foreground mt-1 max-w-[160px] leading-snug hidden xl:block">
-                        {RFQ_RECIPIENT_HELP[r.status]}
-                      </p>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{r.sent_at ? new Date(r.sent_at).toLocaleString() : '—'}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{r.opened_at ? new Date(r.opened_at).toLocaleString() : '—'}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{r.quoted_at ? new Date(r.quoted_at).toLocaleString() : '—'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="bids" className="rounded-xl border bg-card mt-3">
-            <div className="px-4 pt-4">
-              <InfoCallout title="All quote details" tone="emerald">
-                <p>
-                  Full response from each partner: prices, fees, lead time, notes, and quotation file.
-                  Prefer <strong>total landed</strong> (quote + shipping + tax + other) when comparing.
-                  Award requires a short rationale for the audit trail.
-                </p>
-              </InfoCallout>
-            </div>
-            <div className="overflow-x-auto">
+          <TabsContent value="recipients" className="mt-3">
+            <Card className="card-shadow overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Vendor</TableHead>
-                    <TableHead>Quoted</TableHead>
-                    <TableHead>MRP</TableHead>
-                    <TableHead>Discount</TableHead>
-                    <TableHead>Shipping</TableHead>
-                    <TableHead>Tax</TableHead>
-                    <TableHead>Other</TableHead>
-                    <TableHead>Landed total</TableHead>
-                    <TableHead>Lead time</TableHead>
-                    <TableHead>Submitted</TableHead>
-                    <TableHead>Notes</TableHead>
-                    <TableHead>File</TableHead>
+                    <TableHead>Email</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead></TableHead>
+                    <TableHead>Activity</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bids.length === 0 && (
+                  {recipients.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={14} className="text-center text-muted-foreground py-8">
-                        No bids yet. When a partner submits a quote, every field they entered will show here.
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                        No recipients on this campaign yet.
                       </TableCell>
                     </TableRow>
                   )}
-                  {bids.map((b) => (
-                    <TableRow key={b.id}>
-                      <TableCell className="font-medium whitespace-nowrap">{b.vendor?.company_name || '—'}</TableCell>
-                      <TableCell className="tabular-nums whitespace-nowrap">{money(b.currency, b.quoted_price)}</TableCell>
-                      <TableCell className="tabular-nums whitespace-nowrap">{money(b.currency, b.mrp_price)}</TableCell>
-                      <TableCell className="tabular-nums whitespace-nowrap">
-                        {b.discount_pct != null ? `${b.discount_pct}%` : '—'}
-                        {b.discount_amount != null && (
-                          <span className="block text-[10px] text-muted-foreground">
-                            {money(b.currency, b.discount_amount)} off
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="tabular-nums whitespace-nowrap">{money(b.currency, b.shipping_fee)}</TableCell>
-                      <TableCell className="tabular-nums whitespace-nowrap">{money(b.currency, b.tax_fee)}</TableCell>
-                      <TableCell className="tabular-nums whitespace-nowrap">{money(b.currency, b.other_fees)}</TableCell>
-                      <TableCell className="tabular-nums font-semibold whitespace-nowrap">{money(b.currency, b.total_landed)}</TableCell>
-                      <TableCell className="whitespace-nowrap">{b.lead_time_days != null ? `${b.lead_time_days}d` : '—'}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {b.submitted_at ? new Date(b.submitted_at).toLocaleString() : '—'}
-                      </TableCell>
-                      <TableCell className="text-xs max-w-[200px]">
-                        {b.notes ? (
-                          <span className="line-clamp-3" title={b.notes}>{b.notes}</span>
-                        ) : '—'}
-                        {b.revision_note && (
-                          <span className="block text-amber-600 mt-1" title={b.revision_note}>
-                            Revision: {b.revision_note}
-                          </span>
-                        )}
-                      </TableCell>
+                  {recipients.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium">{r.vendor?.company_name}</TableCell>
+                      <TableCell className="text-sm">{r.email}</TableCell>
                       <TableCell>
-                        {b.quotation_file_path ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-auto px-1 py-0.5 text-xs max-w-[140px]"
-                            onClick={() => openQuotation(b)}
-                            title={b.quotation_file_name || 'Open quotation'}
-                          >
-                            <FileText className="h-3.5 w-3.5 mr-1 shrink-0" />
-                            <span className="truncate">{b.quotation_file_name || 'Open file'}</span>
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="secondary">{RFQ_RECIPIENT_STATUS_LABELS[r.status]}</Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>{RFQ_RECIPIENT_HELP[r.status]}</TooltipContent>
+                        </Tooltip>
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{b.pricing_status}</Badge>
-                        {b.award_status === 'won' && <Badge className="bg-emerald-600 ml-1">Won</Badge>}
-                        {b.award_status === 'lost' && <Badge variant="secondary" className="ml-1">Lost</Badge>}
-                      </TableCell>
-                      <TableCell className="space-x-1 whitespace-nowrap">
-                        {rfq.status !== 'awarded' && (
-                          <>
-                            <Button size="sm" variant="ghost" onClick={() => requestRevision(b)} title="Ask vendor to revise on the same link">Revise</Button>
-                            <Button
-                              size="sm"
-                              className="rounded-lg"
-                              onClick={() => { setAwardBidId(b.id); setAwardOpen(true); }}
-                            >
-                              <Trophy className="h-3.5 w-3.5 mr-1" /> Award
-                            </Button>
-                          </>
-                        )}
-                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{recipientActivity(r)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </Card>
           </TabsContent>
 
-          <TabsContent value="emails" className="mt-3 space-y-3">
-            <InfoCallout tone="blue">
-              <p>
-                Every outbound message (invite, test, remind, award, not selected) is stored here with the exact HTML after your edits,
-                plus To/CC and Resend id — so you never need to dig Gmail for “what did we send?”
-              </p>
-            </InfoCallout>
-            <div className="rounded-xl border bg-card divide-y">
-            {emails.length === 0 && <p className="p-6 text-sm text-muted-foreground">No emails logged yet. Send the campaign to start the log.</p>}
-            {emails.map((e) => (
-              <details key={e.id} className="p-4">
-                <summary className="cursor-pointer text-sm font-medium flex flex-wrap gap-2 items-center">
-                  <Badge variant="secondary">{e.kind.replace(/_/g, ' ')}</Badge>
-                  <span>{e.subject}</span>
-                  <span className="text-muted-foreground font-normal">→ {e.to_email}</span>
-                  <span className="text-xs text-muted-foreground ml-auto">{new Date(e.sent_at).toLocaleString()}</span>
-                </summary>
-                <div className="mt-3 text-xs text-muted-foreground">
-                  CC: {(e.cc_emails || []).join(', ') || '—'}
-                  {e.resend_message_id && <> · Resend id: {e.resend_message_id}</>}
-                </div>
-                <div className="mt-2 max-h-64 overflow-auto border rounded-lg p-3 bg-muted/20" dangerouslySetInnerHTML={{ __html: e.body_html }} />
-              </details>
-            ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="checklist" className="rounded-xl border bg-card mt-3 p-5 space-y-3">
-            <p className="text-sm font-medium flex items-center gap-2">
-              <CheckSquare className="h-4 w-4" /> Post-award handoff
-            </p>
-            <p className="text-sm text-muted-foreground">
-              After you award, tick these so fulfillment does not stall between “winner picked” and PO / shipping.
-            </p>
-            {([
-              ['pricing', 'Pricing accepted on the linked client request'],
-              ['file', 'Quotation file available on the request / bid'],
-              ['winnerMail', 'Winner notified (award email logged)'],
-              ['loserMail', 'Other bidders notified (not selected)'],
-              ['po', 'PO / order placed — move request to Ordered / PO sent'],
-            ] as const).map(([key, label]) => (
-              <label key={key} className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  checked={checklist[key]}
-                  onChange={(e) => setChecklist((c) => ({ ...c, [key]: e.target.checked }))}
-                />
-                <span>{label}</span>
-              </label>
-            ))}
-            {rfq.award_rationale && (
-              <div className="text-sm mt-4 rounded-lg border bg-muted/30 p-3">
-                <span className="font-semibold">Award rationale on file:</span> {rfq.award_rationale}
-              </div>
-            )}
-            {rfq.client_request_id && (
-              <Button variant="outline" className="rounded-xl mt-2" onClick={() => navigate(`/clients/${rfq.client_id}`)}>
-                Open client to continue fulfillment
+          <TabsContent value="bids" className="mt-3 space-y-3">
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="cursor-pointer"
+                onClick={() => setSpreadsheet((v) => !v)}
+              >
+                <Table2 className="h-4 w-4 mr-1" />
+                {spreadsheet ? 'Card view' : 'Spreadsheet view'}
               </Button>
+            </div>
+            {spreadsheet ? (
+              <Card className="card-shadow overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead>Quoted</TableHead>
+                      <TableHead>MRP</TableHead>
+                      <TableHead>Discount</TableHead>
+                      <TableHead>Shipping</TableHead>
+                      <TableHead>Tax</TableHead>
+                      <TableHead>Other</TableHead>
+                      <TableHead>Landed</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bids.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                          No quotes yet.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {bids.map((b) => (
+                      <TableRow key={b.id}>
+                        <TableCell className="font-medium whitespace-nowrap">{b.vendor?.company_name || '—'}</TableCell>
+                        <TableCell className="tabular-nums">{money(b.currency, b.quoted_price)}</TableCell>
+                        <TableCell className="tabular-nums">{money(b.currency, b.mrp_price)}</TableCell>
+                        <TableCell className="tabular-nums">{b.discount_pct != null ? `${b.discount_pct}%` : '—'}</TableCell>
+                        <TableCell className="tabular-nums">{money(b.currency, b.shipping_fee)}</TableCell>
+                        <TableCell className="tabular-nums">{money(b.currency, b.tax_fee)}</TableCell>
+                        <TableCell className="tabular-nums">{money(b.currency, b.other_fees)}</TableCell>
+                        <TableCell className="tabular-nums font-semibold">{money(b.currency, b.total_landed)}</TableCell>
+                        <TableCell>{b.lead_time_days != null ? `${b.lead_time_days}d` : '—'}</TableCell>
+                        <TableCell><Badge variant="outline">{b.pricing_status}</Badge></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            ) : (
+              <RfqBidCards
+                bids={bids}
+                rfqStatus={rfq.status}
+                onAward={openAward}
+                onRevise={openRevise}
+                onOpenFile={openQuotation}
+              />
             )}
+          </TabsContent>
+
+          <TabsContent value="emails" className="mt-3">
+            <Card className="card-shadow divide-y">
+              {emails.length === 0 && (
+                <p className="p-6 text-sm text-muted-foreground">No emails logged yet.</p>
+              )}
+              {emails.map((e) => (
+                <details key={e.id} className="p-4">
+                  <summary className="cursor-pointer text-sm font-medium flex flex-wrap gap-2 items-center">
+                    <Badge variant="secondary">{e.kind.replace(/_/g, ' ')}</Badge>
+                    <span>{e.subject}</span>
+                    <span className="text-muted-foreground font-normal">→ {e.to_email}</span>
+                    <span className="text-xs text-muted-foreground ml-auto">{new Date(e.sent_at).toLocaleString()}</span>
+                  </summary>
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    CC: {(e.cc_emails || []).join(', ') || '—'}
+                    {e.resend_message_id && (
+                      <span className="block mt-1">Resend id: {e.resend_message_id}</span>
+                    )}
+                  </div>
+                  <div className="mt-2 max-h-64 overflow-auto border rounded-lg p-3 bg-muted/20" dangerouslySetInnerHTML={{ __html: e.body_html }} />
+                </details>
+              ))}
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="checklist" className="mt-3">
+            <Card className="card-shadow p-5 space-y-3">
+              <p className="text-sm font-medium flex items-center gap-2">
+                <CheckSquare className="h-4 w-4" /> Post-award handoff
+              </p>
+              {([
+                ['pricing', 'Pricing accepted on the linked client request'],
+                ['file', 'Quotation file available on the request / bid'],
+                ['winnerMail', 'Winner notified'],
+                ['loserMail', 'Other bidders notified'],
+                ['po', 'PO / order placed'],
+              ] as const).map(([key, label]) => (
+                <label key={key} className="flex items-start gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={checklist[key]}
+                    onChange={(e) => setChecklist((c) => ({ ...c, [key]: e.target.checked }))}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+              {rfq.award_rationale && (
+                <div className="text-sm mt-4 rounded-lg border bg-muted/30 p-3">
+                  <span className="font-semibold">Award rationale:</span> {rfq.award_rationale}
+                </div>
+              )}
+              {rfq.client_request_id && (
+                <Button variant="default" className="rounded-xl mt-2 cursor-pointer" onClick={() => navigate(`/clients/${rfq.client_id}`)}>
+                  Open client
+                </Button>
+              )}
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
 
-      <Dialog open={awardOpen} onOpenChange={setAwardOpen}>
+      <Dialog open={awardOpen} onOpenChange={(open) => { setAwardOpen(open); if (!open) setWeakOk(false); }}>
         <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Award this RFQ</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              This marks the vendor as winner, accepts pricing, updates the client request, and emails
-              the winner plus every other partner who was invited — with a warm note that we went with
-              someone else on price, and the finalized amount we locked in.
-            </p>
-            <Label>Award rationale (required for audit)</Label>
+            {awardBid && (
+              <p className="text-sm">
+                <strong>{awardBid.vendor?.company_name}</strong>
+                {' · '}
+                {money(awardBid.currency, awardBid.total_landed ?? awardBid.quoted_price)} landed
+              </p>
+            )}
+            {weakCompetition && (
+              <label className="flex items-start gap-2 text-sm rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 cursor-pointer">
+                <Checkbox checked={weakOk} onCheckedChange={(c) => setWeakOk(c === true)} className="mt-0.5" />
+                <span>Fewer than two quotes — award anyway.</span>
+              </label>
+            )}
+            <Label>Award rationale *</Label>
             <Textarea
               className="rounded-xl"
               value={rationale}
               onChange={(e) => setRationale(e.target.value)}
-              placeholder="e.g. Lowest landed cost, 18% off MRP, 7-day lead time, complete quotation PDF"
+              placeholder="e.g. Lowest landed cost, complete quotation PDF"
             />
-            <FieldHint>If fewer than 2 quotes exist you will get a weak-competition warning before confirm.</FieldHint>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAwardOpen(false)}>Cancel</Button>
-            <Button disabled={busy || !rationale.trim()} onClick={confirmAward}>Confirm award</Button>
+            <Button variant="outline" className="cursor-pointer" onClick={() => setAwardOpen(false)}>Cancel</Button>
+            <Button
+              className="cursor-pointer"
+              disabled={busy || !rationale.trim() || (weakCompetition && !weakOk)}
+              onClick={confirmAward}
+            >
+              Confirm award
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reviseOpen} onOpenChange={(open) => { setReviseOpen(open); if (!open) setReviseBid(null); }}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Request revision</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {reviseBid && (
+              <p className="text-sm text-muted-foreground">{reviseBid.vendor?.company_name}</p>
+            )}
+            <Label>Note for the vendor *</Label>
+            <Textarea
+              className="rounded-xl"
+              value={reviseNote}
+              onChange={(e) => setReviseNote(e.target.value)}
+              placeholder="What should they change?"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="cursor-pointer" onClick={() => setReviseOpen(false)}>Cancel</Button>
+            <Button className="cursor-pointer" disabled={!reviseNote.trim()} onClick={requestRevision}>
+              Send request
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

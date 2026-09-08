@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card } from '@/components/ui/card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -18,16 +19,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { campaignRollups, formatCountdown } from '@/lib/rfq';
+import { cn } from '@/lib/utils';
 import { RFQ_STATUS_LABELS, type Rfq, type RfqRecipient } from '@/types/rfq';
 import { Plus, Search, Megaphone, Clock, Trash2 } from 'lucide-react';
-import { HowItWorksStrip, InfoCallout, RFQ_STATUS_HELP } from '@/components/rfq/RfqInfo';
+import { HowItWorksStrip, RFQ_STATUS_HELP } from '@/components/rfq/RfqInfo';
 
 type RfqRow = Rfq & {
   recipients?: Pick<RfqRecipient, 'status'>[];
+};
+
+type HubFilter = 'all' | 'open' | 'bidding' | 'overdue';
+
+const TYPE_LABEL: Record<string, string> = {
+  fulfillment: 'Fulfillment',
+  retrieval_redeployment: 'Retrieval',
+  itad: 'ITAD',
 };
 
 export default function RfqHub() {
@@ -37,6 +48,7 @@ export default function RfqHub() {
   const [rows, setRows] = useState<RfqRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<HubFilter>('all');
   const [deleteTarget, setDeleteTarget] = useState<RfqRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -62,16 +74,6 @@ export default function RfqHub() {
 
   useEffect(() => { load(); }, [load]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) =>
-      (r.client?.name || '').toLowerCase().includes(q)
-      || (r.scope_summary || '').toLowerCase().includes(q)
-      || (r.country?.name || '').toLowerCase().includes(q),
-    );
-  }, [rows, search]);
-
   const kpis = useMemo(() => {
     const open = rows.filter((r) => ['draft', 'sent', 'bidding'].includes(r.status)).length;
     const awarding = rows.filter((r) => r.status === 'bidding').length;
@@ -81,10 +83,27 @@ export default function RfqHub() {
     return { open, awarding, overdue, total: rows.length };
   }, [rows]);
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (filter === 'open' && !['draft', 'sent', 'bidding'].includes(r.status)) return false;
+      if (filter === 'bidding' && r.status !== 'bidding') return false;
+      if (filter === 'overdue') {
+        const overdue = ['sent', 'bidding'].includes(r.status) && new Date(r.deadline).getTime() < Date.now();
+        if (!overdue) return false;
+      }
+      if (!q) return true;
+      return (
+        (r.client?.name || '').toLowerCase().includes(q)
+        || (r.scope_summary || '').toLowerCase().includes(q)
+        || (r.country?.name || '').toLowerCase().includes(q)
+      );
+    });
+  }, [rows, search, filter]);
+
   const handleDelete = async () => {
     if (!deleteTarget || !isAdmin) return;
     setDeleting(true);
-    // Clear award FK first so CASCADE delete of bids cannot conflict
     await supabase.from('rfqs' as any).update({ awarded_bid_id: null }).eq('id', deleteTarget.id);
     const { error } = await supabase.from('rfqs' as any).delete().eq('id', deleteTarget.id);
     setDeleting(false);
@@ -98,6 +117,11 @@ export default function RfqHub() {
   };
 
   const colSpan = isAdmin ? 7 : 6;
+  const emptyAll = !loading && rows.length === 0;
+
+  const toggleFilter = (next: HubFilter) => {
+    setFilter((prev) => (prev === next ? 'all' : next));
+  };
 
   return (
     <AppLayout>
@@ -106,33 +130,37 @@ export default function RfqHub() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Megaphone className="h-6 w-6 text-primary" />
-              RFQ Campaigns
+              RFQ
             </h1>
-            <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-              Competitive sourcing for new devices and retrieval / warehouse / ITAD.
-              Only <strong className="text-foreground font-medium">Closed</strong> partners in the same country are invited.
-              Every email and every reply is tracked here — not only in Gmail.
+            <p className="text-sm text-muted-foreground mt-1">
+              Invite Closed partners, compare quotes, award.
             </p>
           </div>
-          <Button onClick={() => navigate('/rfq/new')} className="rounded-xl shrink-0">
+          <Button onClick={() => navigate('/rfq/new')} className="rounded-xl shrink-0 cursor-pointer">
             <Plus className="h-4 w-4 mr-2" /> Raise RFQ
           </Button>
         </div>
 
-        <HowItWorksStrip />
-
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: 'Open', value: kpis.open, hint: 'Draft, sent, or bidding' },
-            { label: 'Bidding', value: kpis.awarding, hint: 'Quotes in — ready to compare' },
-            { label: 'Overdue', value: kpis.overdue, hint: 'Past deadline, not awarded' },
-            { label: 'Total', value: kpis.total, hint: 'All campaigns' },
+            { key: 'open' as const, label: 'Open', value: kpis.open },
+            { key: 'bidding' as const, label: 'Bidding', value: kpis.awarding },
+            { key: 'overdue' as const, label: 'Overdue', value: kpis.overdue },
+            { key: 'all' as const, label: 'Total', value: kpis.total },
           ].map((k) => (
-            <div key={k.label} className="rounded-xl border bg-card px-4 py-3">
+            <button
+              key={k.label}
+              type="button"
+              onClick={() => toggleFilter(k.key)}
+              className={cn(
+                'text-left rounded-[14px] border bg-card card-shadow px-4 py-3 cursor-pointer transition-colors duration-200',
+                'hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                filter === k.key && 'ring-1 ring-primary/40 bg-primary/5',
+              )}
+            >
               <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">{k.label}</p>
               <p className="text-2xl font-bold tabular-nums mt-1">{k.value}</p>
-              <p className="text-[11px] text-muted-foreground mt-1">{k.hint}</p>
-            </div>
+            </button>
           ))}
         </div>
 
@@ -146,7 +174,7 @@ export default function RfqHub() {
           />
         </div>
 
-        <div className="rounded-xl border bg-card overflow-hidden">
+        <Card className="card-shadow overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -154,8 +182,8 @@ export default function RfqHub() {
                 <TableHead>Type</TableHead>
                 <TableHead>Country</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Campaign tracking</TableHead>
-                <TableHead>Time left</TableHead>
+                <TableHead>Quotes</TableHead>
+                <TableHead>Deadline</TableHead>
                 {isAdmin && <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>}
               </TableRow>
             </TableHeader>
@@ -165,19 +193,33 @@ export default function RfqHub() {
                   <TableCell colSpan={colSpan}><Skeleton className="h-8 w-full" /></TableCell>
                 </TableRow>
               ))}
-              {!loading && filtered.length === 0 && (
+              {!loading && emptyAll && (
                 <TableRow>
                   <TableCell colSpan={colSpan} className="py-12">
-                    <div className="text-center space-y-2 max-w-md mx-auto">
+                    <div className="text-center space-y-4 max-w-lg mx-auto">
                       <p className="font-medium">No RFQ campaigns yet</p>
                       <p className="text-sm text-muted-foreground">
                         Raise a campaign when a client needs devices or retrieval / ITAD.
-                        We will match Closed partners, email them, and track every reply in one place.
                       </p>
-                      <Button className="rounded-xl mt-2" onClick={() => navigate('/rfq/new')}>
-                        <Plus className="h-4 w-4 mr-2" /> Raise your first RFQ
+                      <details className="text-left">
+                        <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
+                          How RFQ works
+                        </summary>
+                        <div className="mt-3">
+                          <HowItWorksStrip />
+                        </div>
+                      </details>
+                      <Button className="rounded-xl cursor-pointer" onClick={() => navigate('/rfq/new')}>
+                        <Plus className="h-4 w-4 mr-2" /> Raise RFQ
                       </Button>
                     </div>
+                  </TableCell>
+                </TableRow>
+              )}
+              {!loading && !emptyAll && filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={colSpan} className="py-10 text-center text-sm text-muted-foreground">
+                    No campaigns match this filter.
                   </TableCell>
                 </TableRow>
               )}
@@ -186,9 +228,8 @@ export default function RfqHub() {
                 return (
                   <TableRow
                     key={r.id}
-                    className="cursor-pointer hover:bg-muted/40"
+                    className="cursor-pointer hover:bg-muted/40 transition-colors duration-200"
                     onClick={() => navigate(`/rfq/${r.id}`)}
-                    title={RFQ_STATUS_HELP[r.status]}
                   >
                     <TableCell>
                       <div className="font-medium">{r.client?.name || '—'}</div>
@@ -198,28 +239,24 @@ export default function RfqHub() {
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="capitalize text-sm">
-                      {r.rfq_type.replace(/_/g, ' ')}
-                    </TableCell>
+                    <TableCell className="text-sm">{TYPE_LABEL[r.rfq_type] || r.rfq_type}</TableCell>
                     <TableCell>{r.country?.name || '—'}</TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{RFQ_STATUS_LABELS[r.status]}</Badge>
-                      <p className="text-[10px] text-muted-foreground mt-1 max-w-[140px] leading-snug hidden lg:block">
-                        {RFQ_STATUS_HELP[r.status]}
-                      </p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="secondary">{RFQ_STATUS_LABELS[r.status]}</Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>{RFQ_STATUS_HELP[r.status]}</TooltipContent>
+                      </Tooltip>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      <div className="tabular-nums">Sent {roll.sent} · Opened {roll.opened} · Quoted {roll.quoted}</div>
-                      <div className="text-[10px] mt-0.5">Click row for full recipient grid</div>
+                    <TableCell className="tabular-nums text-sm">
+                      {roll.quoted} / {roll.sent || roll.total}
                     </TableCell>
                     <TableCell className="text-sm">
                       <span className="inline-flex items-center gap-1">
                         <Clock className="h-3.5 w-3.5" />
-                        {formatCountdown(r.deadline)} left
+                        {formatCountdown(r.deadline)}
                       </span>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        {new Date(r.deadline).toLocaleString()}
-                      </div>
                     </TableCell>
                     {isAdmin && (
                       <TableCell className="text-right">
@@ -227,7 +264,7 @@ export default function RfqHub() {
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive cursor-pointer"
                           title="Delete campaign"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -243,14 +280,7 @@ export default function RfqHub() {
               })}
             </TableBody>
           </Table>
-        </div>
-
-        <InfoCallout title="Reading the campaign column" tone="blue">
-          <p>
-            <strong>Sent</strong> = invite emailed · <strong>Opened</strong> = partner opened the link ·
-            <strong> Quoted</strong> = valid bid + quotation file uploaded. Open a campaign to see full prices, fees, notes, and files.
-          </p>
-        </InfoCallout>
+        </Card>
       </div>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !deleting && setDeleteTarget(null)}>
