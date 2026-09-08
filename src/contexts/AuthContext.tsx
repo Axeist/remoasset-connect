@@ -1,13 +1,19 @@
-import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-
-type AppRole = 'admin' | 'employee';
+import { normalizeRole, type AppRole, type Permission } from '@/lib/permissions';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   role: AppRole | null;
+  permissions: Set<string>;
+  can: (permission: Permission) => boolean;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  seesAllLeads: boolean;
+  seesClosedWonAll: boolean;
+  scopeOwnLeads: boolean;
   loading: boolean;
   googleAccessToken: string | null;
   allowedEmailDomain: string;
@@ -36,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
+  const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [allowedEmailDomain, setAllowedEmailDomain] = useState('remoasset.com');
@@ -96,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSession(null);
             setUser(null);
             setRole(null);
+            setPermissions(new Set());
             setGoogleAccessToken(null);
             setLoading(false);
             return;
@@ -112,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(null);
           setUser(null);
           setRole(null);
+          setPermissions(new Set());
           setGoogleAccessToken(null);
           setLoading(false);
           return;
@@ -123,10 +132,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           setTimeout(() => {
-            fetchUserRole(session.user.id);
+            void fetchUserAccess(session.user.id);
           }, 0);
         } else {
           setRole(null);
+          setPermissions(new Set());
         }
         // Always mark loading done once we have an auth state
         setLoading(false);
@@ -151,16 +161,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserAccess = async (userId: string) => {
     const { data, error } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (!error && data) {
-      setRole(data.role as AppRole);
+    const nextRole = !error ? normalizeRole(data?.role ?? null) : null;
+    setRole(nextRole);
+
+    if (!nextRole) {
+      setPermissions(new Set());
+      return;
     }
+
+    const { data: permRows } = await supabase
+      .from('role_permissions')
+      .select('permission, enabled')
+      .eq('role', nextRole);
+
+    setPermissions(new Set((permRows ?? []).filter((p) => p.enabled).map((p) => p.permission)));
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
@@ -220,11 +241,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setRole(null);
+    setPermissions(new Set());
     disconnectGoogleCalendar();
   };
 
+  const can = useCallback((permission: Permission) => permissions.has(permission), [permissions]);
+  const isAdmin = can('app.full_edit');
+  const isSuperAdmin = role === 'super_admin' || can('roles.configure');
+  const seesAllLeads = can('leads.all');
+  const seesClosedWonAll = can('leads.closed_won_all');
+  const scopeOwnLeads = !seesAllLeads && !seesClosedWonAll;
+
   return (
-    <AuthContext.Provider value={{ user, session, role, loading, googleAccessToken, allowedEmailDomain, allowedEmailDomains: parseDomains(allowedEmailDomain), signUp, signIn, signOut, connectGoogleCalendar, disconnectGoogleCalendar }}>
+    <AuthContext.Provider value={{
+      user, session, role, permissions, can, isAdmin, isSuperAdmin,
+      seesAllLeads, seesClosedWonAll, scopeOwnLeads, loading,
+      googleAccessToken, allowedEmailDomain, allowedEmailDomains: parseDomains(allowedEmailDomain),
+      signUp, signIn, signOut, connectGoogleCalendar, disconnectGoogleCalendar,
+    }}>
       {children}
     </AuthContext.Provider>
   );

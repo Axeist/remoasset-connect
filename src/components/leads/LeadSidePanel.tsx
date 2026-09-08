@@ -73,9 +73,8 @@ interface LeadSidePanelProps {
 
 export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelProps) {
   const navigate = useNavigate();
-  const { user, role } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
-  const isAdmin = role === 'admin';
   const isOwner = lead.owner_id === user?.id;
   const canEdit = isAdmin || isOwner;
 

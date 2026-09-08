@@ -104,9 +104,8 @@ interface PipelineProps {
 
 export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
   const navigate = useNavigate();
-  const { user, role } = useAuth();
+  const { user, isAdmin, scopeOwnLeads } = useAuth();
   const { toast } = useToast();
-  const isAdmin = role === 'admin';
 
   const canEditLead = useCallback((lead: Lead) => isAdmin || lead.owner_id === user?.id, [isAdmin, user]);
 
@@ -158,7 +157,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
       .select('id, company_name, contact_name, email, phone, lead_score, status_id, owner_id, hq_country_id, country_ids, created_at, updated_at, website, contact_designation, notes, status:lead_statuses(name, color)')
       .order('lead_score', { ascending: false });
 
-    if (role === 'employee' && user) {
+    if (scopeOwnLeads && user) {
       query = query.eq('owner_id', user.id);
     }
 
@@ -242,7 +241,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     }
 
     setLoading(false);
-  }, [filters, user, role, toast, owners]);
+  }, [filters, user, scopeOwnLeads, toast, owners]);
 
   useEffect(() => { if (refReady) fetchLeads(); }, [fetchLeads, refReady]);
 
@@ -557,7 +556,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
                   className="pl-9 h-9 text-sm"
                 />
               </div>
-              {role === 'admin' && (
+              {isAdmin && (
                 <Select value={filters.owner || 'all'} onValueChange={(v) => update({ owner: v === 'all' ? '' : v })}>
                   <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="All Owners" /></SelectTrigger>
                   <SelectContent>
@@ -631,7 +630,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
               leads={leads}
               statuses={statuses}
               lastActivityMap={lastActivityMap}
-              isAdmin={role === 'admin'}
+              isAdmin={isAdmin}
               owners={owners}
             />
           </div>

@@ -44,7 +44,13 @@ Deno.serve(async (req) => {
     if (userError || !user) return json({ error: 'Unauthorized' }, 401)
 
     const { data: callerRole } = await supabaseAdmin.from('user_roles').select('role').eq('user_id', user.id).single()
-    if (callerRole?.role !== 'admin') return json({ error: 'Admin role required' }, 403)
+    const { data: permRow } = await supabaseAdmin
+      .from('role_permissions')
+      .select('enabled')
+      .eq('role', callerRole?.role)
+      .eq('permission', 'app.full_edit')
+      .maybeSingle()
+    if (!permRow?.enabled) return json({ error: 'Admin role required' }, 403)
 
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
     const action = (body as { action?: string }).action ?? (req.method === 'GET' ? 'status' : 'status')

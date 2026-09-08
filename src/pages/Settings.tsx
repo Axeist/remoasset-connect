@@ -59,7 +59,7 @@ function saveNotifPrefs(prefs: Record<string, boolean>) {
 }
 
 export default function Settings() {
-  const { user, role } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const { connectGoogleCalendar, disconnectGoogleCalendar } = useAuth();
   const { isConnected } = useGoogleCalendar();
@@ -124,7 +124,7 @@ export default function Settings() {
 
   // Load allowed domains (admin only)
   useEffect(() => {
-    if (role !== 'admin') return;
+    if (!isAdmin) return;
     supabase.from('app_settings').select('id, allowed_email_domain').limit(1).single()
       .then(({ data }) => {
         if (data) {
@@ -134,7 +134,7 @@ export default function Settings() {
           }
         }
       });
-  }, [role]);
+  }, [isAdmin]);
 
   const addDomain = () => {
     const trimmed = domainInput.trim().replace(/^@/, '').toLowerCase();
@@ -473,7 +473,7 @@ export default function Settings() {
                 </div>
 
                 {/* Admin: Allowed sign-in domains */}
-                {role === 'admin' && (
+                {isAdmin && (
                   <div className="rounded-xl border border-border/60 p-4 space-y-3">
                     <div className="flex items-center gap-2">
                       <Shield className="h-4 w-4 text-primary" />

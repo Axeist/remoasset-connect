@@ -306,10 +306,9 @@ function UserMessage({ message }: { message: ChatMessage }) {
 }
 
 export default function VendorAgent() {
-  const { role, user } = useAuth();
+  const { isAdmin, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const isAdmin = role === 'admin';
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {

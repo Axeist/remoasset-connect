@@ -167,9 +167,8 @@ function TrendIcon({ pct }: { pct: number }) {
 }
 
 export function ProductivityReport() {
-  const { user, role } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
-  const isAdmin = role === 'admin';
 
   const [period, setPeriod] = useState<Period>('weekly');
   const [customFrom, setCustomFrom] = useState<Date | null>(null);

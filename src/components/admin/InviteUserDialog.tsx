@@ -10,7 +10,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RoleSelectFields } from '@/components/admin/RoleSelectFields';
+import type { AppRole } from '@/lib/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Mail } from 'lucide-react';
@@ -24,7 +25,7 @@ interface InviteUserDialogProps {
 export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDialogProps) {
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'admin' | 'employee'>('employee');
+  const [role, setRole] = useState<AppRole>('procurement_specialist');
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -32,7 +33,7 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
     if (!open) {
       setEmail('');
       setFullName('');
-      setRole('employee');
+      setRole('procurement_specialist');
     }
     onOpenChange(open);
   };
@@ -111,28 +112,7 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Role</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as 'admin' | 'employee')}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="employee">
-                  <div className="flex flex-col items-start">
-                    <span>Employee</span>
-                    <span className="text-xs text-muted-foreground">Can view and manage leads</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="admin">
-                  <div className="flex flex-col items-start">
-                    <span>Admin</span>
-                    <span className="text-xs text-muted-foreground">Full access including admin panel</span>
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <RoleSelectFields value={role} onChange={setRole} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleClose(false)}>

@@ -73,9 +73,8 @@ export function TaskFormDialog({
   defaultLeadId,
   onSuccess,
 }: TaskFormDialogProps) {
-  const { user, role } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
-  const isAdmin = role === 'admin';
   const [leads, setLeads] = useState<{ id: string; company_name: string }[]>([]);
   const [assignees, setAssignees] = useState<{ id: string; full_name: string | null }[]>([]);
 

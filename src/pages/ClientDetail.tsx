@@ -65,8 +65,7 @@ export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { role } = useAuth();
-  const isAdmin = role === 'admin';
+  const { isAdmin } = useAuth();
   const [client, setClient] = useState<Client | null>(null);
   const [requests, setRequests] = useState<ClientRequest[]>([]);
   const [loading, setLoading] = useState(true);

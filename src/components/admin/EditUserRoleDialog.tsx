@@ -8,8 +8,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RoleSelectFields } from '@/components/admin/RoleSelectFields';
+import type { AppRole } from '@/lib/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -45,7 +45,7 @@ export function EditUserRoleDialog({
     setSubmitting(true);
     const { error } = await supabase
       .from('user_roles')
-      .update({ role: role as 'admin' | 'employee' })
+          .update({ role: role as AppRole })
       .eq('id', userRoleId);
     setSubmitting(false);
     if (error) {
@@ -65,18 +65,7 @@ export function EditUserRoleDialog({
           <DialogDescription>{fullName || 'User'}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label>Role</Label>
-            <Select value={role} onValueChange={setRole}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="employee">Employee</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <RoleSelectFields value={role} onChange={setRole} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

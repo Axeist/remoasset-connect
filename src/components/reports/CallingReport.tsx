@@ -32,8 +32,7 @@ function defaultFilter(): ReportDateFilterValue {
 }
 
 export function CallingReport() {
-  const { user, role } = useAuth();
-  const isAdmin = role === 'admin';
+  const { user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [calls, setCalls] = useState<CallRow[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});

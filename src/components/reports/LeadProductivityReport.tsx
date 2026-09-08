@@ -296,8 +296,7 @@ function StatusCell({ count, color }: { count: number; color: string }) {
 }
 
 export function LeadProductivityReport() {
-  const { user, role } = useAuth();
-  const isAdmin = role === 'admin';
+  const { user, isAdmin } = useAuth();
 
   const [dateFilter, setDateFilter] = useState<ReportDateFilterValue>(() => {
     const range = getPresetRange('this_month')!;

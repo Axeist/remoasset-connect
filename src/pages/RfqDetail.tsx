@@ -47,9 +47,8 @@ function money(currency: string, value: number | null | undefined) {
 export default function RfqDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, role } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
-  const isAdmin = role === 'admin';
   const [rfq, setRfq] = useState<Rfq | null>(null);
   const [recipients, setRecipients] = useState<RfqRecipient[]>([]);
   const [bids, setBids] = useState<RfqBid[]>([]);

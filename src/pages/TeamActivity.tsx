@@ -49,7 +49,7 @@ const priorityColors: Record<string, string> = {
 };
 
 export default function TeamActivity() {
-  const { user, role } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [followUps, setFollowUps] = useState<FollowUpWithDetails[]>([]);
@@ -63,8 +63,6 @@ export default function TeamActivity() {
   const [employeeFilter, setEmployeeFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
-  
-  const isAdmin = role === 'admin';
 
   useEffect(() => {
     if (user) {

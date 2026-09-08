@@ -75,7 +75,13 @@ Deno.serve(async (req) => {
     .select('role')
     .eq('user_id', user.id)
     .single()
-  if (roleRow?.role !== 'admin') {
+  const { data: permRow } = await supabaseAdmin
+    .from('role_permissions')
+    .select('enabled')
+    .eq('role', roleRow?.role)
+    .eq('permission', 'developer.tools')
+    .maybeSingle()
+  if (!permRow?.enabled) {
     return new Response(
       JSON.stringify({ error: 'Admin role required' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }

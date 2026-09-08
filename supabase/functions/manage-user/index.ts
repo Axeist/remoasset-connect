@@ -45,11 +45,27 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id)
       .single()
 
-    if (callerRole?.role !== 'admin') {
+    const { data: permRow } = await supabaseAdmin
+      .from('role_permissions')
+      .select('enabled')
+      .eq('role', callerRole?.role)
+      .eq('permission', 'app.full_edit')
+      .maybeSingle()
+
+    const isLeadership = !!permRow?.enabled
+    if (!isLeadership) {
       return new Response(JSON.stringify({ error: 'Admin role required' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403,
       })
     }
+
+    const { data: deletePerm } = await supabaseAdmin
+      .from('role_permissions')
+      .select('enabled')
+      .eq('role', callerRole?.role)
+      .eq('permission', 'users.delete')
+      .maybeSingle()
+    const canDeleteUsers = !!deletePerm?.enabled
 
     const { action, target_user_id, new_password, ban } = body
 
@@ -119,6 +135,69 @@ Deno.serve(async (req) => {
       }
 
       case 'delete_user': {
+        if (!canDeleteUsers) {
+          return new Response(JSON.stringify({ error: 'Only Super Admin can delete users' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403,
+          })
+        }
+        const transferTo = body.transfer_to_user_id as string | undefined
+        if (!transferTo) {
+          return new Response(JSON.stringify({ error: 'transfer_to_user_id is required' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400,
+          })
+        }
+        if (transferTo === target_user_id) {
+          return new Response(JSON.stringify({ error: 'Cannot transfer leads to the user being deleted' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400,
+          })
+        }
+        const { data: recipientRole } = await supabaseAdmin
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', transferTo)
+          .single()
+        if (recipientRole?.role !== 'super_admin') {
+          return new Response(JSON.stringify({ error: 'Leads must be transferred to a Super Admin' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400,
+          })
+        }
+
+        const { data: ownedLeads, error: leadsErr } = await supabaseAdmin
+          .from('leads')
+          .select('id')
+          .eq('owner_id', target_user_id)
+        if (leadsErr) {
+          return new Response(JSON.stringify({ error: leadsErr.message }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400,
+          })
+        }
+        const leadIds = (ownedLeads ?? []).map((l: { id: string }) => l.id)
+        if (leadIds.length > 0) {
+          const { error: transferUpdateErr } = await supabaseAdmin
+            .from('leads')
+            .update({ owner_id: transferTo })
+            .eq('owner_id', target_user_id)
+          if (transferUpdateErr) {
+            return new Response(JSON.stringify({ error: transferUpdateErr.message }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400,
+            })
+          }
+          const transferRows = leadIds.map((lead_id: string) => ({
+            lead_id,
+            from_user_id: target_user_id,
+            to_user_id: transferTo,
+            transferred_by: user.id,
+            notes: 'User deleted — leads transferred to Super Admin',
+          }))
+          await supabaseAdmin.from('lead_transfers').insert(transferRows)
+          await supabaseAdmin.from('notifications').insert({
+            user_id: transferTo,
+            title: 'Leads transferred to you',
+            message: `${leadIds.length} lead${leadIds.length === 1 ? '' : 's'} were transferred because a user was deleted.`,
+            type: 'lead',
+          })
+        }
+
         await supabaseAdmin.from('user_roles').delete().eq('user_id', target_user_id)
         await supabaseAdmin.from('profiles').delete().eq('user_id', target_user_id)
         const { error } = await supabaseAdmin.auth.admin.deleteUser(target_user_id)
@@ -127,7 +206,11 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400,
           })
         }
-        return new Response(JSON.stringify({ success: true, message: 'User deleted' }), {
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'User deleted',
+          transferred_leads: leadIds.length,
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
         })
       }

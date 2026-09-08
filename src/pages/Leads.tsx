@@ -47,8 +47,7 @@ type SortOrder = 'asc' | 'desc';
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export default function Leads() {
-  const { user, role } = useAuth();
-  const isAdmin = role === 'admin';
+  const { user, isAdmin, scopeOwnLeads } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -66,7 +65,7 @@ export default function Leads() {
   const [deleting, setDeleting] = useState(false);
   const [exportingAll, setExportingAll] = useState(false);
   const [sidePanelLead, setSidePanelLead] = useState<Lead | null>(null);
-  const defaultOwner = searchParams.get('owner') ?? (!isAdmin && user ? user.id : '');
+  const defaultOwner = searchParams.get('owner') ?? (scopeOwnLeads && user ? user.id : '');
   const [filters, setFilters] = useState<LeadsFiltersState>({
     search: searchParams.get('search') ?? '',
     status: '',

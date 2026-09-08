@@ -10,7 +10,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RoleSelectFields } from '@/components/admin/RoleSelectFields';
+import type { AppRole } from '@/lib/permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -28,7 +29,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: AddUserDialogPr
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'admin' | 'employee'>('employee');
+  const [role, setRole] = useState<AppRole>('procurement_specialist');
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -88,7 +89,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: AddUserDialogPr
       setEmail('');
       setPassword('');
       setFullName('');
-      setRole('employee');
+      setRole('procurement_specialist');
       onOpenChange(false);
       onSuccess();
     } catch (err) {
@@ -143,18 +144,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess }: AddUserDialogPr
               placeholder="Jane Doe"
             />
           </div>
-          <div className="space-y-2">
-            <Label>Role</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as 'admin' | 'employee')}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="employee">Employee</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <RoleSelectFields value={role} onChange={setRole} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

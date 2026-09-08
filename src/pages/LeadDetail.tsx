@@ -116,7 +116,7 @@ export default function LeadDetail() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, role } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const [lead, setLead] = useState<Lead | null>(null);
   const [activities, setActivities] = useState<LeadActivity[]>([]);
@@ -145,7 +145,6 @@ export default function LeadDetail() {
   const [enriching, setEnriching] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
 
-  const isAdmin = role === 'admin';
   const isOwner = lead?.owner_id === user?.id;
   const canEdit = isAdmin || isOwner;
 

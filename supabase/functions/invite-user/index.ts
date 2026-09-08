@@ -47,7 +47,14 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id)
       .single()
 
-    if (callerRole?.role !== 'admin') {
+    const { data: invitePerm } = await supabaseClient
+      .from('role_permissions')
+      .select('enabled')
+      .eq('role', callerRole?.role)
+      .eq('permission', 'users.invite')
+      .maybeSingle()
+
+    if (!invitePerm?.enabled) {
       return new Response(
         JSON.stringify({ error: 'Admin role required' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
@@ -63,7 +70,18 @@ Deno.serve(async (req) => {
       )
     }
 
-    const assignedRole = role === 'admin' ? 'admin' : 'employee'
+    const assignable = ['procurement_specialist', 'csm', 'developer', 'admin']
+    const requested = role === 'employee' ? 'procurement_specialist' : role
+    let assignedRole = assignable.includes(requested) ? requested : 'procurement_specialist'
+    if (requested === 'super_admin') {
+      if (callerRole?.role !== 'super_admin') {
+        return new Response(
+          JSON.stringify({ error: 'Only Super Admin can assign Super Admin' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        )
+      }
+      assignedRole = 'super_admin'
+    }
     const trimmedEmail = email.trim()
     const trimmedName: string | null = typeof full_name === 'string' && full_name.trim() ? full_name.trim() : null
 
@@ -105,7 +123,8 @@ Deno.serve(async (req) => {
     if (newUserId) {
       await supabaseClient
         .from('user_roles')
-        .upsert({ user_id: newUserId, role: assignedRole }, { onConflict: 'user_id' })
+        .update({ role: assignedRole })
+        .eq('user_id', newUserId)
 
       await supabaseClient
         .from('profiles')

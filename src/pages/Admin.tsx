@@ -22,7 +22,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { EditUserRoleDialog } from '@/components/admin/EditUserRoleDialog';
 import { AddUserDialog } from '@/components/admin/AddUserDialog';
 import { InviteUserDialog } from '@/components/admin/InviteUserDialog';
-import { UserManagementDialog } from '@/components/admin/UserManagementDialog';
+import { RolePermissionsCard } from '@/components/admin/RolePermissionsCard';
+import { roleLabel } from '@/lib/permissions';
 import { StatusFormDialog } from '@/components/admin/StatusFormDialog';
 import { CountryFormDialog } from '@/components/admin/CountryFormDialog';
 import { CloudTalkSettingsCard } from '@/components/admin/CloudTalkSettingsCard';
@@ -61,7 +62,7 @@ interface Country {
   code: string;
 }
 
-type Tab = 'profile' | 'users' | 'configuration' | 'integrations' | 'api' | 'analytics' | 'developer';
+type Tab = 'profile' | 'users' | 'roles' | 'configuration' | 'integrations' | 'api' | 'analytics' | 'developer';
 
 interface ApiKeyRow {
   id: string;
@@ -75,6 +76,7 @@ interface ApiKeyRow {
 const NAV_ITEMS: { id: Tab; icon: React.ElementType; label: string; desc: string }[] = [
   { id: 'profile', icon: User, label: 'Profile', desc: 'Your info & account' },
   { id: 'users', icon: Users, label: 'Users', desc: 'Team management' },
+  { id: 'roles', icon: Shield, label: 'Roles', desc: 'Permission matrix' },
   { id: 'configuration', icon: Sliders, label: 'Configuration', desc: 'Statuses, countries & pipeline' },
   { id: 'integrations', icon: Puzzle, label: 'Integrations', desc: 'Connected services' },
   { id: 'api', icon: Key, label: 'API', desc: 'Keys & integration' },
@@ -189,7 +191,7 @@ function AllowedDomainSection({ slackSettingsId }: { slackSettingsId: string | n
 export default function Admin() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { connectGoogleCalendar, disconnectGoogleCalendar } = useAuth();
+  const { connectGoogleCalendar, disconnectGoogleCalendar, can } = useAuth();
   const { isConnected: isCalendarConnected } = useGoogleCalendar();
   const [activeTab, setActiveTab] = useState<Tab>('profile');
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -1205,7 +1207,7 @@ curl -X POST ${baseUrl}/notifications \\
         <div className="flex flex-col sm:flex-row rounded-xl border bg-card overflow-hidden min-h-[600px]">
           {/* Side nav — horizontal scrollable strip on mobile, vertical sidebar on sm+ */}
           <div className="sm:w-52 border-b sm:border-b-0 sm:border-r bg-muted/20 shrink-0 flex sm:flex-col py-2 sm:py-3 px-2 gap-0.5 overflow-x-auto sm:overflow-x-visible">
-            {NAV_ITEMS.map((item) => (
+            {NAV_ITEMS.filter((item) => item.id !== 'roles' || can('roles.configure')).map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -1291,8 +1293,8 @@ curl -X POST ${baseUrl}/notifications \\
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Badge variant={member.role === 'admin' ? 'default' : 'secondary'} className="capitalize">
-                                {member.role}
+                              <Badge variant={member.role === 'admin' || member.role === 'super_admin' ? 'default' : 'secondary'}>
+                                {roleLabel(member.role)}
                               </Badge>
                             </TableCell>
                             <TableCell>
@@ -1338,6 +1340,10 @@ curl -X POST ${baseUrl}/notifications \\
                   </Table>
                 </div>
               </div>
+            )}
+
+            {activeTab === 'roles' && can('roles.configure') && (
+              <RolePermissionsCard />
             )}
 
             {/* ── CONFIGURATION ── */}

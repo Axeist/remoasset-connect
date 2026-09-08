@@ -59,7 +59,7 @@ function loadNotifPrefs(): NotifPrefs {
 }
 
 export function useMailNotificationPoller() {
-  const { user, role } = useAuth();
+  const { user, isAdmin } = useAuth();
   const gmail = useGmail();
   const mountedRef = useRef(true);
   const leadMapRef = useRef<Map<string, LeadEntry>>(new Map());
@@ -76,7 +76,6 @@ export function useMailNotificationPoller() {
     if (now - lastLeadFetchRef.current < LEAD_CACHE_MS) return;
     lastLeadFetchRef.current = now;
 
-    const isAdmin = role === 'admin';
     let q = supabase
       .from('leads')
       .select('id, company_name, email, owner_id')

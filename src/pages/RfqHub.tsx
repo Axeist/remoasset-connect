@@ -32,9 +32,8 @@ type RfqRow = Rfq & {
 
 export default function RfqHub() {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { isAdmin } = useAuth();
   const { toast } = useToast();
-  const isAdmin = role === 'admin';
   const [rows, setRows] = useState<RfqRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

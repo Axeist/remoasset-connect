@@ -39,7 +39,7 @@ let _cacheUserId: string | null = null;
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useInboxThreads() {
-  const { user, role, loading: authLoading } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const gmail = useGmail();
   const [leads, setLeads] = useState<InboxLead[]>([]);
 
@@ -57,8 +57,6 @@ export function useInboxThreads() {
   const hasCompletedInitialFetchRef = useRef(false);
   // Prevents two concurrent fetches from racing (useEffect re-fire during refresh)
   const isFetchingRef = useRef(false);
-
-  const isAdmin = role === 'admin';
 
   // Write through to the module-level cache whenever we update threads
   const applyThreads = useCallback((fresh: InboxThreadItem[]) => {

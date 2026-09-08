@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Key, Ban, Trash2, Eye, EyeOff, ShieldAlert, ShieldCheck, UserX } from 'lucide-react';
 
 interface UserManagementDialogProps {
@@ -42,7 +43,17 @@ async function callManageUser(action: string, targetUserId: string, extras?: Rec
   const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
   const { data, error } = await supabase.functions.invoke('manage-user', { body, headers });
 
-  if (error) throw new Error(error.message || 'Request failed');
+  if (error) {
+    let message = error.message || 'Request failed';
+    try {
+      const parsed = await (error as { context?: Response }).context?.json?.();
+      if (parsed?.error) message = parsed.error;
+    } catch { /* gateway message */ }
+    if (data && typeof data === 'object' && 'error' in data && (data as { error?: string }).error) {
+      message = String((data as { error: string }).error);
+    }
+    throw new Error(message);
+  }
   if (data?.error) throw new Error(data.error);
   return data;
 }
@@ -63,8 +74,16 @@ export function UserManagementDialog({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
+  const { user, isSuperAdmin } = useAuth();
+  const [leadCount, setLeadCount] = useState<number | null>(null);
 
   const displayName = fullName || 'User';
+
+  useEffect(() => {
+    if (!deleteConfirmOpen) return;
+    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('owner_id', userId)
+      .then(({ count }) => setLeadCount(count ?? 0));
+  }, [deleteConfirmOpen, userId]);
 
   const handleResetPassword = async () => {
     if (!newPassword.trim() || newPassword.length < 6) {
@@ -100,11 +119,17 @@ export function UserManagementDialog({
     setTogglingBan(false);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!user?.id) return;
     setDeleting(true);
     try {
-      await callManageUser('delete_user', userId);
-      toast({ title: 'User deleted', description: `${displayName} has been removed from the system.` });
+      const result = await callManageUser('delete_user', userId, { transfer_to_user_id: user.id });
+      const moved = result?.transferred_leads ?? leadCount ?? 0;
+      toast({
+        title: 'User deleted',
+        description: `${displayName} has been removed. ${moved} lead${moved === 1 ? '' : 's'} transferred to you.`,
+      });
       setDeleteConfirmOpen(false);
       onOpenChange(false);
       onSuccess();
@@ -211,6 +236,8 @@ export function UserManagementDialog({
               </div>
             </div>
 
+            {isSuperAdmin && (
+            <>
             <Separator />
 
             {/* Delete */}
@@ -234,6 +261,8 @@ export function UserManagementDialog({
                 </Button>
               </div>
             </div>
+            </>
+            )}
           </div>
 
           <DialogFooter>
@@ -247,9 +276,15 @@ export function UserManagementDialog({
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete user permanently?</AlertDialogTitle>
+            <AlertDialogTitle>Delete user and transfer leads?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{displayName}</strong> from the system including their profile, role, and auth account. Any leads owned by this user will become unassigned. This action cannot be undone.
+              This will permanently delete <strong>{displayName}</strong> including their profile, role, and auth account.
+              {leadCount == null
+                ? ' Counting their leads…'
+                : leadCount === 0
+                  ? ' They have no owned leads.'
+                  : ` ${leadCount} lead${leadCount === 1 ? '' : 's'} will be transferred to you as Super Admin.`}
+              {' '}This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

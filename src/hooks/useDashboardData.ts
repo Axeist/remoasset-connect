@@ -86,8 +86,7 @@ export interface WorldDemographicsCountry {
 }
 
 export function useDashboardData() {
-  const { user, role } = useAuth();
-  const isAdmin = role === 'admin';
+  const { user, isAdmin, scopeOwnLeads } = useAuth();
 
   const [kpis, setKpis] = useState<DashboardKpis>({
     totalLeads: 0,
@@ -128,7 +127,7 @@ export function useDashboardData() {
         };
 
         const applyOwnerFilter = <T extends { eq: (col: string, val: string) => T }>(q: T): T =>
-          !isAdmin ? q.eq('owner_id', user.id) : q;
+          !scopeOwnLeads ? q : q.eq('owner_id', user.id);
 
         let tasksQuery = supabase
           .from('tasks')
@@ -179,7 +178,7 @@ export function useDashboardData() {
           applyOwnerFilter(supabase.from('leads').select('id', { count: 'exact', head: true }).is('status_id', null) as any),
           fetchAllPaginated<CountryRow>((from, to) => {
             let q = supabase.from('leads').select('country_ids').range(from, to);
-            if (!isAdmin) q = q.eq('owner_id', user.id);
+            if (scopeOwnLeads) q = q.eq('owner_id', user.id);
             return q;
           }),
           fetchAllPaginated<WorldDemoRow>((from, to) => {
@@ -187,7 +186,7 @@ export function useDashboardData() {
               .from('leads')
               .select('country_ids, status_id, lead_statuses(name, color)')
               .range(from, to);
-            if (!isAdmin) q = q.eq('owner_id', user.id);
+            if (scopeOwnLeads) q = q.eq('owner_id', user.id);
             return q;
           }),
         ]);
@@ -282,7 +281,7 @@ export function useDashboardData() {
         setLoading(false);
 
         // Batch 2: recent activity, charts, quick access (non-blocking)
-        const myLeadIds = !isAdmin
+        const myLeadIds = scopeOwnLeads
           ? (await fetchAllPaginated<{ id: string }>((from, to) =>
               supabase.from('leads').select('id').eq('owner_id', user.id).range(from, to)
             )).map((l) => l.id)
@@ -293,10 +292,10 @@ export function useDashboardData() {
           .select('id, lead_id, activity_type, description, created_at, user_id')
           .order('created_at', { ascending: false })
           .limit(10);
-        if (!isAdmin && myLeadIds?.length === 0) {
+        if (scopeOwnLeads && myLeadIds?.length === 0) {
           setRecentActivities([]);
         } else {
-          if (!isAdmin && myLeadIds?.length) (activityQuery as any).in('lead_id', myLeadIds);
+          if (scopeOwnLeads && myLeadIds?.length) (activityQuery as any).in('lead_id', myLeadIds);
           const { data: activities } = await activityQuery;
           if (activities?.length) {
             const leadIds = [...new Set(activities.map((a) => a.lead_id))];
@@ -431,7 +430,7 @@ export function useDashboardData() {
         setLoading(false);
       }
     })();
-  }, [user?.id, role, isAdmin]);
+  }, [user?.id, isAdmin, scopeOwnLeads]);
 
   return {
     kpis,

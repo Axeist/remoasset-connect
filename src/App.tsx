@@ -8,6 +8,9 @@ import { useEffect } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminRoute } from "@/components/AdminRoute";
+import CsmHome from "./pages/CsmHome";
+import CsmCoverage from "./pages/CsmCoverage";
+import { RequirePermission } from "@/components/RequirePermission";
 import { SplashScreen } from "@/components/SplashScreen";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -85,6 +88,8 @@ const App = () => {
               <Route path="/rfq/new" element={<ProtectedRoute><RfqNew /></ProtectedRoute>} />
               <Route path="/rfq/:id" element={<ProtectedRoute><RfqDetail /></ProtectedRoute>} />
               <Route path="/rfq/respond/:token" element={<RfqRespond />} />
+              <Route path="/csm" element={<ProtectedRoute><RequirePermission permission="csm.workspace"><CsmHome /></RequirePermission></ProtectedRoute>} />
+              <Route path="/csm/coverage" element={<ProtectedRoute><RequirePermission permission="coverage.view"><CsmCoverage /></RequirePermission></ProtectedRoute>} />
               <Route path="/vendor-agent" element={<AdminRoute><VendorAgent /></AdminRoute>} />
               <Route path="/leads/:id" element={<ProtectedRoute><LeadDetail /></ProtectedRoute>} />
               <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
@@ -93,7 +98,7 @@ const App = () => {
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
               <Route path="/admin/api-docs" element={<AdminRoute><ApiDocs /></AdminRoute>} />
               <Route path="/admin/api-tester" element={<AdminRoute><ApiTester /></AdminRoute>} />
-              <Route path="/developer" element={<AdminRoute><Developer /></AdminRoute>} />
+              <Route path="/developer" element={<RequirePermission permission="developer.tools"><Developer /></RequirePermission>} />
               <Route path="/admin/team-activity" element={<ProtectedRoute><TeamActivity /></ProtectedRoute>} />
               <Route path="/admin/transfer-log" element={<AdminRoute><TransferLog /></AdminRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

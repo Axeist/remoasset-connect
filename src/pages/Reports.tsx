@@ -29,9 +29,8 @@ import { CallingReport } from '@/components/reports/CallingReport';
 type TimeRange = 'hourly' | 'weekly' | 'monthly' | 'yearly';
 
 export default function Reports() {
-  const { user, role } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
-  const isAdmin = role === 'admin';
   const [loading, setLoading] = useState(true);
   
   // Time range filters

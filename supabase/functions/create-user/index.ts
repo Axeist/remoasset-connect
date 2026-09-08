@@ -40,7 +40,14 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id)
       .single()
 
-    if (callerRole?.role !== 'admin') {
+    const { data: invitePerm } = await supabaseAdmin
+      .from('role_permissions')
+      .select('enabled')
+      .eq('role', callerRole?.role)
+      .eq('permission', 'users.invite')
+      .maybeSingle()
+
+    if (!invitePerm?.enabled) {
       return new Response(JSON.stringify({ error: 'Admin role required' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403,
       })
@@ -52,6 +59,18 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Email and password are required' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400,
       })
+    }
+
+    const assignable = ['procurement_specialist', 'csm', 'developer', 'admin']
+    const requested = role === 'employee' ? 'procurement_specialist' : role
+    let userRole = assignable.includes(requested) ? requested : 'procurement_specialist'
+    if (requested === 'super_admin') {
+      if (callerRole?.role !== 'super_admin') {
+        return new Response(JSON.stringify({ error: 'Only Super Admin can assign Super Admin' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403,
+        })
+      }
+      userRole = 'super_admin'
     }
 
     const { data: newUserData, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -68,12 +87,7 @@ Deno.serve(async (req) => {
     }
 
     const newUserId = newUserData.user.id
-    const userRole = role === 'admin' ? 'admin' : 'employee'
-
-    await supabaseAdmin.from('user_roles').upsert(
-      { user_id: newUserId, role: userRole },
-      { onConflict: 'user_id' }
-    )
+    await supabaseAdmin.from('user_roles').update({ role: userRole }).eq('user_id', newUserId)
 
     await supabaseAdmin.from('profiles').upsert(
       { user_id: newUserId, full_name: full_name || null },

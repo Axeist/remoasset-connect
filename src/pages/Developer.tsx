@@ -26,7 +26,7 @@ const BASE_URL = `${import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')}/funct
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
-type DevTab = 'keys' | 'tester' | 'docs' | 'tools';
+type DevTab = 'keys' | 'tester' | 'docs' | 'flow' | 'tools';
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 interface ApiKeyRow {
@@ -64,6 +64,7 @@ const TABS: { id: DevTab; label: string; icon: React.ElementType; desc: string }
   { id: 'keys',   label: 'API Keys',     icon: Key,      desc: 'Create & manage API keys' },
   { id: 'tester', label: 'API Tester',   icon: Terminal, desc: 'Fire live requests' },
   { id: 'docs',   label: 'API Docs',     icon: FileText, desc: 'Full endpoint reference' },
+  { id: 'flow',   label: 'User flow',    icon: Layers,    desc: 'Happy-path payloads' },
   { id: 'tools',  label: 'Dev Tools',    icon: Wrench,   desc: 'Session, env & health' },
 ];
 
@@ -839,6 +840,30 @@ export default function Developer() {
 
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'flow' && (
+          <div className="space-y-4 max-w-3xl">
+            <div>
+              <h2 className="text-base font-semibold">User flow</h2>
+              <p className="text-sm text-muted-foreground">
+                Run this path with your own test leads (Developer CRM is owner-scoped). Use the Tester tab for live calls.
+              </p>
+            </div>
+            {[
+              { step: '1. Auth', body: 'POST /auth/v1/token with email/password or use an API key: Authorization: Bearer ra_…' },
+              { step: '2. Create a test lead', body: 'POST /leads  { "company_name": "Test Vendor Co", "contact_name": "QA", "email": "qa@example.com" }' },
+              { step: '3. Move to closed won', body: 'PATCH /leads/:id  { "status_id": "<Won status uuid>" } so the vendor appears in /vendors and RFQ matching.' },
+              { step: '4. Create RFQ', body: 'Use the RFQ UI or API to invite vendors in a country. Vendor reply URL: /rfq/respond/:token' },
+              { step: '5. Verify', body: 'Open CSM coverage or Vendor Directory. Confirm the lead is only visible to you unless an Admin is testing.' },
+            ].map((row) => (
+              <Card key={row.step} className="p-4 space-y-2">
+                <p className="text-sm font-semibold">{row.step}</p>
+                <pre className="text-xs bg-muted/50 rounded-md p-3 overflow-x-auto whitespace-pre-wrap">{row.body}</pre>
+              </Card>
+            ))}
+            <Button variant="outline" onClick={() => setTab('tester')}>Open API Tester</Button>
           </div>
         )}
 
