@@ -65,7 +65,7 @@ function BidLinesTable({
     return <p className="text-sm text-muted-foreground px-1">No line breakdown on this quote.</p>;
   }
   return (
-    <div className="overflow-x-auto rounded-xl border">
+    <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-muted/50 text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -91,7 +91,7 @@ function BidLinesTable({
                   v.kind === 'extra' && !v.isAlternative && 'bg-sky-50/60 dark:bg-sky-950/20',
                 )}
               >
-                <td className="px-3 py-2 whitespace-nowrap">
+                <td className="px-3 py-1.5 whitespace-nowrap">
                   <span className={cn(
                     'inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-semibold',
                     v.isAlternative && 'bg-amber-200/80 text-amber-950',
@@ -102,16 +102,14 @@ function BidLinesTable({
                     {kindLabel(v)}
                   </span>
                 </td>
-                <td className="px-3 py-2 text-muted-foreground max-w-[220px]">
-                  {v.isAlternative ? v.requested || '—' : v.requested || '—'}
-                </td>
-                <td className="px-3 py-2 font-medium max-w-[260px]">{v.quoted}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{v.qty}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{money(currency, v.unit_price)}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{money(currency, v.mrp_price)}</td>
-                <td className="px-3 py-2 text-right tabular-nums font-semibold">{money(currency, lineTotal)}</td>
+                <td className="px-3 py-1.5 text-muted-foreground max-w-[280px]">{v.isAlternative ? v.requested || '—' : v.requested || '—'}</td>
+                <td className="px-3 py-1.5 font-medium max-w-[320px]">{v.quoted}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{v.qty}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{money(currency, v.unit_price)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{money(currency, v.mrp_price)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums font-semibold">{money(currency, lineTotal)}</td>
                 {usdRate != null && (
-                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                  <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
                     {money('USD', convertToUsd(lineTotal, usdRate))}
                   </td>
                 )}
@@ -215,66 +213,28 @@ export function RfqBidCards({
         const match = bidMatchKind(views);
         const extraCount = views.filter((v) => v.kind === 'extra').length;
         const altCount = views.filter((v) => v.isAlternative).length;
+        const bestUsd = usdOf(
+          ordered[0].total_landed ?? ordered[0].quoted_price,
+          ordered[0].currency,
+          usdRates,
+        );
         return (
           <Card
             key={b.id}
             className={cn(
-              'overflow-hidden',
-              isRecommended && 'ring-1 ring-primary/40',
+              'overflow-hidden border-border/80',
+              isRecommended && 'ring-1 ring-primary/35',
               b.award_status === 'won' && 'ring-1 ring-emerald-500/50',
             )}
           >
-            <div className="flex flex-col xl:flex-row xl:items-stretch">
-              <div className="xl:w-[280px] shrink-0 border-b xl:border-b-0 xl:border-r bg-muted/25 p-4 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold leading-tight">{b.vendor?.company_name || '—'}</p>
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {isRecommended && <Badge className="text-[10px] uppercase tracking-wide">Lowest USD</Badge>}
-                      {b.award_status === 'won' && <Badge className="bg-emerald-600">Won</Badge>}
-                      {b.award_status === 'lost' && <Badge variant="secondary">Lost</Badge>}
-                      <Badge variant="outline" className="capitalize">{b.pricing_status.replace(/_/g, ' ')}</Badge>
-                    </div>
-                  </div>
-                  <BidActions bid={b} canAct={canAct} isRecommended={isRecommended} onAward={onAward} onRevise={onRevise} />
-                </div>
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Landed USD</p>
-                  <p className="text-3xl font-bold tabular-nums tracking-tight">{money('USD', usdLanded)}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {money(b.currency, landed)}
-                    {rate != null && code !== 'USD' && <> · {formatUsdRateLine(code, rate)}</>}
-                  </p>
-                </div>
-                <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                  <div>
-                    <dt className="text-muted-foreground">Goods</dt>
-                    <dd className="font-medium tabular-nums">{money(b.currency, b.quoted_price)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">MRP</dt>
-                    <dd className="font-medium tabular-nums">{money(b.currency, b.mrp_price)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Discount</dt>
-                    <dd className="font-medium tabular-nums">{b.discount_pct != null ? `${b.discount_pct}%` : '—'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Lead</dt>
-                    <dd className="font-medium">{b.lead_time_days != null ? `${b.lead_time_days}d` : '—'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Ship / tax / other</dt>
-                    <dd className="font-medium tabular-nums">
-                      {money(b.currency, b.shipping_fee)} / {money(b.currency, b.tax_fee)} / {money(b.currency, b.other_fees)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Valid</dt>
-                    <dd className="font-medium">{b.quote_valid_until || '—'}</dd>
-                  </div>
-                </dl>
-                <div className="flex flex-wrap gap-1">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 border-b bg-muted/20">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-base truncate">{b.vendor?.company_name || '—'}</p>
+                  {isRecommended && <Badge className="text-[10px] uppercase tracking-wide">Lowest USD</Badge>}
+                  {b.award_status === 'won' && <Badge className="bg-emerald-600">Won</Badge>}
+                  {b.award_status === 'lost' && <Badge variant="secondary">Lost</Badge>}
+                  <Badge variant="outline" className="capitalize">{b.pricing_status.replace(/_/g, ' ')}</Badge>
                   {match !== 'as_requested' && (
                     <Badge variant="outline" className="text-amber-800 border-amber-300 bg-amber-50">
                       {bidMatchLabel(match)}{altCount > 0 ? ` · ${altCount}` : ''}
@@ -286,20 +246,60 @@ export function RfqBidCards({
                     </Badge>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {b.quotation_file_path && (
-                    <Button type="button" size="sm" variant="ghost" className="h-8 px-2 text-xs cursor-pointer" onClick={() => onOpenFile(b)}>
-                      <FileText className="h-3.5 w-3.5 mr-1 shrink-0" />
-                      <span className="truncate max-w-[140px]">{b.quotation_file_name || 'Quotation'}</span>
-                    </Button>
-                  )}
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+                  <div className="rounded-lg border bg-background px-2.5 py-1.5">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Landed USD</p>
+                    <p className="text-lg font-bold tabular-nums leading-tight">{money('USD', usdLanded)}</p>
+                    {bestUsd != null && usdLanded != null && usdLanded > bestUsd && (
+                      <p className="text-[10px] text-amber-700">+{money('USD', usdLanded - bestUsd)} vs lowest</p>
+                    )}
+                  </div>
+                  <div className="rounded-lg border bg-background px-2.5 py-1.5">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Goods</p>
+                    <p className="text-sm font-semibold tabular-nums">{money(b.currency, b.quoted_price)}</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-2.5 py-1.5">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">vs MRP</p>
+                    <p className="text-sm font-semibold tabular-nums">{b.discount_pct != null ? `${b.discount_pct}% off` : '—'}</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-2.5 py-1.5">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Lead</p>
+                    <p className="text-sm font-semibold">{b.lead_time_days != null ? `${b.lead_time_days} days` : '—'}</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-2.5 py-1.5">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Fees</p>
+                    <p className="text-sm font-semibold tabular-nums">
+                      {money(b.currency, (Number(b.shipping_fee) || 0) + (Number(b.tax_fee) || 0) + (Number(b.other_fees) || 0))}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-2.5 py-1.5">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Valid</p>
+                    <p className="text-sm font-semibold">{b.quote_valid_until || '—'}</p>
+                  </div>
                 </div>
-                {b.notes && <p className="text-xs text-muted-foreground whitespace-pre-wrap border-t pt-2">{b.notes}</p>}
+                <p className="text-[11px] text-muted-foreground mt-1.5">
+                  {money(b.currency, landed)} landed
+                  {rate != null && code !== 'USD' && <> · {formatUsdRateLine(code, rate)}</>}
+                  {b.mrp_price != null && <> · MRP {money(b.currency, b.mrp_price)}</>}
+                  {' · '}Ship {money(b.currency, b.shipping_fee)} · Tax {money(b.currency, b.tax_fee)} · Other {money(b.currency, b.other_fees)}
+                </p>
               </div>
-              <div className="flex-1 min-w-0 p-3">
-                <BidLinesTable views={views} currency={b.currency} usdRate={rate} />
+              <div className="flex items-center gap-2 shrink-0 self-start">
+                {b.quotation_file_path && (
+                  <Button type="button" size="sm" variant="ghost" className="h-8 px-2 text-xs cursor-pointer" onClick={() => onOpenFile(b)}>
+                    <FileText className="h-3.5 w-3.5 mr-1 shrink-0" />
+                    File
+                  </Button>
+                )}
+                <BidActions bid={b} canAct={canAct} isRecommended={isRecommended} onAward={onAward} onRevise={onRevise} />
               </div>
             </div>
+            <div className="p-0">
+              <BidLinesTable views={views} currency={b.currency} usdRate={rate} />
+            </div>
+            {b.notes && (
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap px-4 py-2 border-t">{b.notes}</p>
+            )}
           </Card>
         );
       })}

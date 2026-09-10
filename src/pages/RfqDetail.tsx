@@ -33,7 +33,7 @@ import {
   type RfqRecipient,
   type RfqStatus,
 } from '@/types/rfq';
-import { ArrowLeft, Bell, CheckSquare, ChevronDown, ChevronUp, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, Bell, CheckSquare, ChevronDown, ChevronUp, Clock, Eye, Send, Trash2 } from 'lucide-react';
 import { RFQ_RECIPIENT_HELP, RFQ_STATUS_HELP } from '@/components/rfq/RfqInfo';
 import { money, RfqBidCards, RfqBidSpreadsheet, BidViewToggle, usdOf } from '@/components/rfq/RfqBidCards';
 import {
@@ -399,8 +399,8 @@ export default function RfqDetail() {
 
   return (
     <AppLayout>
-      <div className="w-full max-w-none space-y-6">
-        <Button variant="ghost" className="rounded-xl -ml-2 cursor-pointer" onClick={() => navigate('/rfq')}>
+      <div className="max-w-[1400px] mx-auto space-y-4 sm:space-y-6 px-2 sm:px-0">
+        <Button variant="ghost" className="rounded-xl -ml-2 h-8 cursor-pointer" onClick={() => navigate('/rfq')}>
           <ArrowLeft className="h-4 w-4 mr-2" /> All RFQs
         </Button>
 
@@ -415,41 +415,9 @@ export default function RfqDetail() {
                 <TooltipContent>{RFQ_STATUS_HELP[rfq.status]}</TooltipContent>
               </Tooltip>
             </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              {rfq.country?.name} · Qty {rfq.quantity} · {formatCountdown(rfq.deadline)} left
+            <p className="text-sm text-muted-foreground mt-1">
+              {rfq.country?.name} · {rfq.rfq_type?.replace(/_/g, ' ')} · {formatCountdown(rfq.deadline)} left
             </p>
-            <p className="text-sm tabular-nums text-muted-foreground mt-1">
-              Sent {roll.sent} · Opened {roll.opened} · Quoted {roll.quoted}
-            </p>
-            {cartLines.length > 0 && (
-              <ul className="mt-3 space-y-1 text-sm">
-                {cartLines.map((line, i) => (
-                  <li key={line.id || i} className="text-muted-foreground">
-                    <span className="text-foreground">{cartLineLabel(line)}</span>
-                    {' · '}×{Number(line.quantity) || 1}
-                    {line.category ? ` · ${line.category}` : ''}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {rfq.scope_summary && (
-              <div className="mt-3">
-                <p className={`text-sm whitespace-pre-wrap ${!briefOpen && scopeLong ? 'line-clamp-3' : ''}`}>
-                  {rfq.scope_summary}
-                </p>
-                {scopeLong && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-0 mt-1 cursor-pointer"
-                    onClick={() => setBriefOpen((v) => !v)}
-                  >
-                    {briefOpen ? <><ChevronUp className="h-3.5 w-3.5 mr-1" /> Less</> : <><ChevronDown className="h-3.5 w-3.5 mr-1" /> Brief</>}
-                  </Button>
-                )}
-              </div>
-            )}
           </div>
           <div className="flex flex-wrap gap-2">
             {rfq.status === 'draft' && (
@@ -479,6 +447,62 @@ export default function RfqDetail() {
             )}
           </div>
         </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <Card className="p-3 border-border/80">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Send className="h-3.5 w-3.5" /> Sent</div>
+            <p className="text-xl font-bold tabular-nums">{roll.sent}</p>
+          </Card>
+          <Card className="p-3 border-border/80">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Eye className="h-3.5 w-3.5" /> Opened</div>
+            <p className="text-xl font-bold tabular-nums">{roll.opened}</p>
+          </Card>
+          <Card className="p-3 border-primary/20 bg-primary/5">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">Quoted</div>
+            <p className="text-xl font-bold tabular-nums">{roll.quoted}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{bids.length} bid file{bids.length === 1 ? '' : 's'}</p>
+          </Card>
+          <Card className="p-3 border-border/80">
+            <div className="text-muted-foreground text-xs font-medium mb-1">Declined</div>
+            <p className="text-xl font-bold tabular-nums">{roll.declined}</p>
+          </Card>
+          <Card className="p-3 border-border/80">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Clock className="h-3.5 w-3.5" /> Time left</div>
+            <p className="text-xl font-bold tabular-nums">{formatCountdown(rfq.deadline)}</p>
+          </Card>
+        </div>
+
+        {(cartLines.length > 0 || rfq.scope_summary) && (
+          <Card className="p-4 border-border/80">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">Requested</p>
+            {cartLines.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {cartLines.map((line, i) => (
+                  <div key={line.id || i} className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+                    <p className="font-medium">{cartLineLabel(line)} <span className="text-muted-foreground font-normal">×{Number(line.quantity) || 1}</span></p>
+                    {(line.addons || []).filter((a) => (a.type || a.model || '').trim()).length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {(line.addons || []).filter((a) => (a.type || a.model || '').trim()).map((a) => [a.type, a.model].filter(Boolean).join(' — ')).join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {rfq.scope_summary && (
+              <div className="mt-2">
+                <p className={`text-sm whitespace-pre-wrap text-muted-foreground ${!briefOpen && scopeLong ? 'line-clamp-2' : ''}`}>
+                  {rfq.scope_summary}
+                </p>
+                {scopeLong && (
+                  <Button type="button" variant="ghost" size="sm" className="h-7 px-0 mt-1 cursor-pointer" onClick={() => setBriefOpen((v) => !v)}>
+                    {briefOpen ? <><ChevronUp className="h-3.5 w-3.5 mr-1" /> Less</> : <><ChevronDown className="h-3.5 w-3.5 mr-1" /> Brief</>}
+                  </Button>
+                )}
+              </div>
+            )}
+          </Card>
+        )}
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="rounded-xl flex-wrap h-auto">

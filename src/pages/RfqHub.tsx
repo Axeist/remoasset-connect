@@ -26,7 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 import { campaignRollups, formatCountdown } from '@/lib/rfq';
 import { cn } from '@/lib/utils';
 import { RFQ_STATUS_LABELS, type Rfq, type RfqRecipient } from '@/types/rfq';
-import { Plus, Search, Megaphone, Clock, Trash2 } from 'lucide-react';
+import { Plus, Search, Megaphone, Clock, Trash2, Send, Eye, FileText, AlertTriangle } from 'lucide-react';
 import { RfqHowToButton } from '@/components/rfq/RfqHowToDialog';
 import { RFQ_STATUS_HELP } from '@/components/rfq/RfqInfo';
 
@@ -126,67 +126,74 @@ export default function RfqHub() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="max-w-[1400px] mx-auto space-y-4 sm:space-y-6 px-2 sm:px-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Megaphone className="h-6 w-6 text-primary" />
               RFQ
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-0.5">
               Invite Closed partners, compare quotes, award.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0 items-center">
             <RfqHowToButton />
-            <Button onClick={() => navigate('/rfq/new')} className="h-10 rounded-xl cursor-pointer">
-              <Plus className="h-4 w-4 mr-2" /> Raise RFQ
+            <Button onClick={() => navigate('/rfq/new')} className="gap-1.5 shrink-0 cursor-pointer">
+              <Plus className="h-4 w-4" /> Raise RFQ
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { key: 'open' as const, label: 'Open', value: kpis.open },
-            { key: 'bidding' as const, label: 'Bidding', value: kpis.awarding },
-            { key: 'overdue' as const, label: 'Overdue', value: kpis.overdue },
-            { key: 'all' as const, label: 'Total', value: kpis.total },
-          ].map((k) => (
-            <button
-              key={k.label}
-              type="button"
-              onClick={() => toggleFilter(k.key)}
-              className={cn(
-                'text-left rounded-[14px] border bg-card card-shadow px-4 py-3 cursor-pointer transition-colors duration-200',
-                'hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                filter === k.key && 'ring-1 ring-primary/40 bg-primary/5',
-              )}
-            >
-              <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">{k.label}</p>
-              <p className="text-2xl font-bold tabular-nums mt-1">{k.value}</p>
-            </button>
-          ))}
+            { key: 'open' as const, label: 'Open', value: kpis.open, hint: 'Draft, sent, bidding', icon: FileText, accent: '' },
+            { key: 'bidding' as const, label: 'Bidding', value: kpis.awarding, hint: 'Quotes in', icon: Send, accent: 'border-primary/20 bg-primary/5' },
+            { key: 'overdue' as const, label: 'Overdue', value: kpis.overdue, hint: 'Past deadline', icon: AlertTriangle, accent: kpis.overdue ? 'border-amber-500/25 bg-amber-500/5' : '' },
+            { key: 'all' as const, label: 'Total', value: kpis.total, hint: 'All campaigns', icon: Megaphone, accent: '' },
+          ].map((k) => {
+            const Icon = k.icon;
+            return (
+              <button
+                key={k.label}
+                type="button"
+                onClick={() => toggleFilter(k.key)}
+                className={cn(
+                  'text-left rounded-[14px] border bg-card px-4 py-3 cursor-pointer transition-colors duration-200',
+                  'hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  k.accent,
+                  filter === k.key && 'ring-1 ring-primary/40 bg-primary/5',
+                )}
+              >
+                <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
+                  <Icon className="h-3.5 w-3.5" /> {k.label}
+                </div>
+                <p className={cn('text-2xl font-bold tabular-nums mt-1', k.key === 'overdue' && kpis.overdue > 0 && 'text-amber-700')}>{k.value}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{k.hint}</p>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="relative max-w-md">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            className="pl-9 rounded-xl"
+            className="h-10 pl-10 rounded-xl"
             placeholder="Search by client, country, or scope…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
-        <Card className="card-shadow overflow-hidden">
+        <Card className="overflow-hidden border-border/80">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Client</TableHead>
+                <TableHead>Campaign</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Country</TableHead>
+                <TableHead>Pipeline</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Quotes</TableHead>
                 <TableHead>Deadline</TableHead>
                 {isAdmin && <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>}
               </TableRow>
@@ -194,7 +201,7 @@ export default function RfqHub() {
             <TableBody>
               {loading && Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={colSpan}><Skeleton className="h-8 w-full" /></TableCell>
+                  <TableCell colSpan={colSpan}><Skeleton className="h-10 w-full" /></TableCell>
                 </TableRow>
               ))}
               {!loading && emptyAll && (
@@ -224,6 +231,8 @@ export default function RfqHub() {
               )}
               {!loading && filtered.map((r) => {
                 const roll = campaignRollups(r.recipients || []);
+                const overdue = ['sent', 'bidding'].includes(r.status) && new Date(r.deadline).getTime() < Date.now();
+                const denom = Math.max(1, roll.sent || roll.total);
                 return (
                   <TableRow
                     key={r.id}
@@ -233,7 +242,7 @@ export default function RfqHub() {
                     <TableCell>
                       <div className="font-medium">{r.client?.name || '—'}</div>
                       {r.scope_summary && (
-                        <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5 max-w-[220px]">
+                        <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5 max-w-[360px]">
                           {r.scope_summary}
                         </div>
                       )}
@@ -241,18 +250,25 @@ export default function RfqHub() {
                     <TableCell className="text-sm">{TYPE_LABEL[r.rfq_type] || r.rfq_type}</TableCell>
                     <TableCell>{r.country?.name || '—'}</TableCell>
                     <TableCell>
+                      <div className="flex items-center gap-3 text-xs tabular-nums">
+                        <span className="inline-flex items-center gap-1 text-muted-foreground" title="Sent"><Send className="h-3 w-3" />{roll.sent}</span>
+                        <span className="inline-flex items-center gap-1 text-muted-foreground" title="Opened"><Eye className="h-3 w-3" />{roll.opened}</span>
+                        <span className="inline-flex items-center gap-1 font-medium" title="Quoted">{roll.quoted} quoted</span>
+                      </div>
+                      <div className="mt-1 h-1 w-28 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, (roll.quoted / denom) * 100)}%` }} />
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Badge variant="secondary">{RFQ_STATUS_LABELS[r.status]}</Badge>
+                          <Badge variant={overdue ? 'destructive' : 'secondary'}>{RFQ_STATUS_LABELS[r.status]}</Badge>
                         </TooltipTrigger>
                         <TooltipContent>{RFQ_STATUS_HELP[r.status]}</TooltipContent>
                       </Tooltip>
                     </TableCell>
-                    <TableCell className="tabular-nums text-sm">
-                      {roll.quoted} / {roll.sent || roll.total}
-                    </TableCell>
                     <TableCell className="text-sm">
-                      <span className="inline-flex items-center gap-1">
+                      <span className={cn('inline-flex items-center gap-1', overdue && 'text-amber-700 font-medium')}>
                         <Clock className="h-3.5 w-3.5" />
                         {formatCountdown(r.deadline)}
                       </span>
