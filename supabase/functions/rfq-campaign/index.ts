@@ -71,6 +71,96 @@ function computePricing(quoted: number, mrp: number | null, shipping: number, ta
   return { total_landed: Math.round(total * 100) / 100, discount_pct, discount_amount }
 }
 
+type NormalizedQuoteLine = {
+  id: string
+  unit_price: number
+  mrp_price: number | null
+  kind?: 'device' | 'addon' | 'extra'
+  qty?: number
+  label?: string
+  extra_type?: string
+  alternative?: {
+    brand: string
+    device_model: string
+    processor: string | null
+    ram: string | null
+    storage: string | null
+  } | null
+}
+
+function parseLeadTimeDays(raw: unknown): number | null {
+  if (raw == null || raw === '') return null
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 0) return null
+  return Math.round(n)
+}
+
+function parseAlternative(raw: unknown): NormalizedQuoteLine['alternative'] | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const a = raw as Record<string, unknown>
+  const brand = String(a.brand || '').trim()
+  const device_model = String(a.device_model || '').trim()
+  const processor = String(a.processor || '').trim()
+  const ram = String(a.ram || '').trim()
+  const storage = String(a.storage || '').trim()
+  if (!brand && !device_model && !processor && !ram && !storage) return undefined
+  return {
+    brand,
+    device_model,
+    processor: processor || null,
+    ram: ram || null,
+    storage: storage || null,
+  }
+}
+
+function parseExtraType(raw: unknown): string {
+  const t = String(raw || '').toLowerCase()
+  return ['applecare', 'warranty', 'accessory', 'other'].includes(t) ? t : 'other'
+}
+
+function isExtraSubmitted(s: { id?: string; kind?: string }): boolean {
+  return s?.kind === 'extra' || String(s?.id || '').startsWith('extra::')
+}
+
+function normalizeExtras(
+  submittedLines: Record<string, unknown>[],
+  fulfillment: boolean,
+): { error?: string; goods: number; mrpSum: number; mrpAny: boolean; rows: NormalizedQuoteLine[] } {
+  let goods = 0
+  let mrpSum = 0
+  let mrpAny = false
+  const rows: NormalizedQuoteLine[] = []
+  for (const s of submittedLines) {
+    if (!isExtraSubmitted(s as { id?: string; kind?: string })) continue
+    const label = String(s.label || '').trim()
+    const unit = Number(s.unit_price)
+    const qty = Math.max(1, Number(s.qty) || 1)
+    if (!label && (!Number.isFinite(unit) || unit === 0) && (s.mrp_price == null || s.mrp_price === '')) continue
+    if (!label || !Number.isFinite(unit) || unit < 0) {
+      return { error: 'Complete extra item description and unit price' }
+    }
+    const lineMrp = s.mrp_price != null && s.mrp_price !== '' ? Number(s.mrp_price) : null
+    if (fulfillment && (lineMrp == null || !Number.isFinite(lineMrp) || lineMrp <= 0)) {
+      return { error: 'MRP is required on every extra item' }
+    }
+    goods += unit * qty
+    if (lineMrp != null && Number.isFinite(lineMrp)) {
+      mrpAny = true
+      mrpSum += lineMrp * qty
+    }
+    rows.push({
+      id: String(s.id || `extra::${crypto.randomUUID()}`),
+      kind: 'extra',
+      extra_type: parseExtraType(s.extra_type),
+      label,
+      qty,
+      unit_price: Math.round(unit * 100) / 100,
+      mrp_price: lineMrp != null && Number.isFinite(lineMrp) ? Math.round(lineMrp * 100) / 100 : null,
+    })
+  }
+  return { goods, mrpSum, mrpAny, rows }
+}
+
 function pickUsdRate(data: Record<string, unknown> | null | undefined, from: string): number | null {
   if (!data) return null
   const rates = (data.rates || data.conversion_rates) as { USD?: number; usd?: number } | undefined
@@ -219,9 +309,15 @@ Deno.serve(async (req) => {
         if (!body.file_base64 || !body.file_name) {
           return json({ error: 'Quotation file is mandatory' }, 400)
         }
+        const leadTimeDays = parseLeadTimeDays(body.lead_time_days)
+        if (leadTimeDays == null) {
+          return json({ error: 'Lead time (days) is required' }, 400)
+        }
 
         const cart = Array.isArray(rfq.line_items) ? rfq.line_items : []
         const submittedLines = Array.isArray(body.line_items) ? body.line_items : []
+        const extras = normalizeExtras(submittedLines, rfq.rfq_type === 'fulfillment')
+        if (extras.error) return json({ error: extras.error }, 400)
         let quoted = Number(body.quoted_price)
         let mrp = body.mrp_price != null ? Number(body.mrp_price) : null
 
@@ -229,7 +325,7 @@ Deno.serve(async (req) => {
           let goods = 0
           let mrpSum = 0
           let mrpAny = false
-          const normalized: { id: string; unit_price: number; mrp_price: number | null }[] = []
+          const normalized: NormalizedQuoteLine[] = []
           for (const line of cart) {
             const id = String(line.id || '')
             const qty = Number(line.quantity) || 1
@@ -237,6 +333,10 @@ Deno.serve(async (req) => {
             const unit = Number(hit?.unit_price)
             if (!id || !Number.isFinite(unit) || unit < 0) {
               return json({ error: 'Quote every line item' }, 400)
+            }
+            const alternative = parseAlternative(hit?.alternative) ?? null
+            if (alternative && !alternative.brand && !alternative.device_model) {
+              return json({ error: 'Enter brand or model for the alternative device' }, 400)
             }
             const lineMrp = hit?.mrp_price != null && hit.mrp_price !== '' ? Number(hit.mrp_price) : null
             if (rfq.rfq_type === 'fulfillment' && (lineMrp == null || lineMrp <= 0)) {
@@ -249,8 +349,10 @@ Deno.serve(async (req) => {
             }
             normalized.push({
               id,
+              kind: 'device',
               unit_price: Math.round(unit * 100) / 100,
               mrp_price: lineMrp != null && Number.isFinite(lineMrp) ? Math.round(lineMrp * 100) / 100 : null,
+              alternative,
             })
 
             const addons = Array.isArray(line.addons) ? line.addons : []
@@ -261,7 +363,9 @@ Deno.serve(async (req) => {
               const addonQty = Number(addon?.qty) || 1
               const addonHit = submittedLines.find((s: { id?: string }) => String(s?.id) === addonId)
               const addonUnit = Number(addonHit?.unit_price)
-              if (!Number.isFinite(addonUnit) || addonUnit < 0) {
+              const addonPriced = Number.isFinite(addonUnit) && addonUnit >= 0
+              if (!addonPriced) {
+                if (alternative) continue
                 return json({ error: 'Quote every add-on' }, 400)
               }
               const addonMrp = addonHit?.mrp_price != null && addonHit.mrp_price !== '' ? Number(addonHit.mrp_price) : null
@@ -275,14 +379,18 @@ Deno.serve(async (req) => {
               }
               normalized.push({
                 id: addonId,
+                kind: 'addon',
                 unit_price: Math.round(addonUnit * 100) / 100,
                 mrp_price: addonMrp != null && Number.isFinite(addonMrp) ? Math.round(addonMrp * 100) / 100 : null,
               })
             }
           }
+          goods += extras.goods
+          mrpSum += extras.mrpSum
+          if (extras.mrpAny) mrpAny = true
           quoted = Math.round(goods * 100) / 100
           mrp = mrpAny ? Math.round(mrpSum * 100) / 100 : null
-          body.line_items = normalized
+          body.line_items = [...normalized, ...extras.rows]
         } else {
           quoted = Number(body.quoted_price)
           mrp = body.mrp_price != null ? Number(body.mrp_price) : null
@@ -290,6 +398,11 @@ Deno.serve(async (req) => {
           if (rfq.rfq_type === 'fulfillment' && (mrp == null || mrp <= 0)) {
             return json({ error: 'MRP / public price is required' }, 400)
           }
+          quoted = Math.round((quoted + extras.goods) * 100) / 100
+          if (extras.mrpAny) {
+            mrp = Math.round(((mrp != null && Number.isFinite(mrp) ? mrp : 0) + extras.mrpSum) * 100) / 100
+          }
+          body.line_items = extras.rows
         }
 
         if (!Number.isFinite(quoted) || quoted < 0) return json({ error: 'quoted_price required' }, 400)
@@ -330,7 +443,7 @@ Deno.serve(async (req) => {
           total_landed: pricing.total_landed,
           line_items: body.line_items || [],
           quote_valid_until: body.quote_valid_until || null,
-          lead_time_days: body.lead_time_days != null ? Number(body.lead_time_days) : null,
+          lead_time_days: leadTimeDays,
           notes: body.notes || null,
           quotation_file_path: path,
           quotation_file_name: body.file_name,

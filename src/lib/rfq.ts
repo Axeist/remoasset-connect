@@ -138,7 +138,73 @@ export type RfqCartLine = {
   notes?: string | null;
 };
 
-export type BidQuoteLine = { id: string; unit_price: number; mrp_price: number | null };
+export const EXTRA_TYPES = ['applecare', 'warranty', 'accessory', 'other'] as const;
+export type ExtraType = (typeof EXTRA_TYPES)[number];
+
+export type BidAlternativeSpec = {
+  brand?: string;
+  device_model?: string;
+  processor?: string | null;
+  ram?: string | null;
+  storage?: string | null;
+};
+
+export type BidQuoteLine = {
+  id: string;
+  unit_price: number;
+  mrp_price: number | null;
+  kind?: 'device' | 'addon' | 'extra';
+  qty?: number;
+  label?: string;
+  extra_type?: ExtraType;
+  alternative?: BidAlternativeSpec | null;
+};
+
+export function extraTypeLabel(t: ExtraType | string | undefined): string {
+  if (t === 'applecare') return 'AppleCare';
+  if (t === 'warranty') return 'Warranty';
+  if (t === 'accessory') return 'Accessory';
+  return 'Other';
+}
+
+export function parseExtraType(raw: unknown): ExtraType {
+  const t = String(raw || '').toLowerCase();
+  return (EXTRA_TYPES as readonly string[]).includes(t) ? (t as ExtraType) : 'other';
+}
+
+export function isExtraQuoteLine(q: Pick<BidQuoteLine, 'id' | 'kind'>): boolean {
+  return q.kind === 'extra' || String(q.id).startsWith('extra::');
+}
+
+export function alternativeLabel(alt: BidAlternativeSpec | null | undefined): string {
+  if (!alt) return '';
+  const head = `${alt.brand || ''} ${alt.device_model || ''}`.trim() || 'Alternative';
+  const bits = [head];
+  if (alt.processor) bits.push(String(alt.processor));
+  if (alt.ram) bits.push(String(alt.ram));
+  if (alt.storage) bits.push(String(alt.storage));
+  return bits.join(', ');
+}
+
+function extrasQuotedAmount(quotes: BidQuoteLine[]): number {
+  let sum = 0;
+  for (const q of quotes) {
+    if (!isExtraQuoteLine(q)) continue;
+    sum += q.unit_price * (Number(q.qty) || 1);
+  }
+  return sum;
+}
+
+function extrasMrpAmount(quotes: BidQuoteLine[]): { sum: number; any: boolean } {
+  let sum = 0;
+  let any = false;
+  for (const q of quotes) {
+    if (!isExtraQuoteLine(q) || q.mrp_price == null) continue;
+    any = true;
+    sum += q.mrp_price * (Number(q.qty) || 1);
+  }
+  return { sum, any };
+}
 
 export function addonQuoteId(
   line: RfqCartLine,
@@ -169,6 +235,18 @@ export function asRfqCartLines(raw: unknown): RfqCartLine[] {
   return Array.isArray(raw) ? (raw as RfqCartLine[]) : [];
 }
 
+function asAlternativeSpec(raw: unknown): BidAlternativeSpec | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const a = raw as BidAlternativeSpec;
+  const brand = String(a.brand || '').trim();
+  const device_model = String(a.device_model || '').trim();
+  const processor = a.processor != null && String(a.processor).trim() ? String(a.processor).trim() : null;
+  const ram = a.ram != null && String(a.ram).trim() ? String(a.ram).trim() : null;
+  const storage = a.storage != null && String(a.storage).trim() ? String(a.storage).trim() : null;
+  if (!brand && !device_model && !processor && !ram && !storage) return null;
+  return { brand, device_model, processor, ram, storage };
+}
+
 export function asBidQuoteLines(raw: unknown): BidQuoteLine[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -178,10 +256,19 @@ export function asBidQuoteLines(raw: unknown): BidQuoteLine[] {
       const unit = Number(r.unit_price);
       if (!Number.isFinite(unit)) return null;
       const mrp = r.mrp_price == null ? null : Number(r.mrp_price);
+      const kind = r.kind === 'addon' || r.kind === 'extra' || r.kind === 'device'
+        ? r.kind
+        : (String(r.id).startsWith('extra::') ? 'extra' : undefined);
+      const qtyRaw = r.qty != null ? Number(r.qty) : undefined;
       return {
         id: String(r.id),
         unit_price: unit,
         mrp_price: mrp != null && Number.isFinite(mrp) ? mrp : null,
+        kind,
+        qty: qtyRaw != null && Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : undefined,
+        label: r.label != null && String(r.label).trim() ? String(r.label).trim() : undefined,
+        extra_type: kind === 'extra' ? parseExtraType(r.extra_type) : undefined,
+        alternative: asAlternativeSpec(r.alternative),
       };
     })
     .filter((x): x is BidQuoteLine => x != null);
@@ -204,6 +291,7 @@ export function cartQuotedSubtotal(lines: RfqCartLine[], quotes: BidQuoteLine[])
     if (!q) continue;
     sum += q.unit_price * row.qty;
   }
+  sum += extrasQuotedAmount(quotes);
   return Math.round(sum * 100) / 100;
 }
 
@@ -217,5 +305,34 @@ export function cartMrpSubtotal(lines: RfqCartLine[], quotes: BidQuoteLine[]): n
     any = true;
     sum += q.mrp_price * row.qty;
   }
+  const extras = extrasMrpAmount(quotes);
+  if (extras.any) {
+    any = true;
+    sum += extras.sum;
+  }
   return any ? Math.round(sum * 100) / 100 : null;
+}
+
+/** Cart subtotal, or a legacy single quoted price, plus extra priced lines. */
+export function quoteGoodsTotal(
+  lines: RfqCartLine[],
+  quotes: BidQuoteLine[],
+  legacyQuoted?: number,
+): number {
+  if (lines.length > 0) return cartQuotedSubtotal(lines, quotes);
+  const extras = extrasQuotedAmount(quotes);
+  const base = Number.isFinite(legacyQuoted as number) ? (legacyQuoted as number) : 0;
+  return Math.round((base + extras) * 100) / 100;
+}
+
+export function quoteMrpTotal(
+  lines: RfqCartLine[],
+  quotes: BidQuoteLine[],
+  legacyMrp?: number | null,
+): number | null {
+  if (lines.length > 0) return cartMrpSubtotal(lines, quotes);
+  const extras = extrasMrpAmount(quotes);
+  const base = legacyMrp != null && Number.isFinite(legacyMrp) ? legacyMrp : null;
+  if (base == null && !extras.any) return null;
+  return Math.round(((base ?? 0) + extras.sum) * 100) / 100;
 }
