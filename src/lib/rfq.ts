@@ -283,6 +283,94 @@ export function cartLineLabel(line: RfqCartLine): string {
   return bits.join(', ');
 }
 
+export type BidLineView = {
+  id: string;
+  kind: 'device' | 'addon' | 'extra';
+  requested: string | null;
+  quoted: string;
+  isAlternative: boolean;
+  qty: number;
+  unit_price: number;
+  mrp_price: number | null;
+};
+
+export function describeBidQuoteLine(q: BidQuoteLine, cart: RfqCartLine[]): BidLineView {
+  const isAlt = !!(q.alternative && (q.alternative.brand || q.alternative.device_model));
+  if (isExtraQuoteLine(q)) {
+    return {
+      id: q.id,
+      kind: 'extra',
+      requested: null,
+      quoted: `${extraTypeLabel(q.extra_type)} · ${q.label || 'Extra'}`,
+      isAlternative: false,
+      qty: Number(q.qty) || 1,
+      unit_price: q.unit_price,
+      mrp_price: q.mrp_price,
+    };
+  }
+  const line = cart.find((c) => c.id === q.id);
+  if (line) {
+    return {
+      id: q.id,
+      kind: 'device',
+      requested: cartLineLabel(line),
+      quoted: isAlt ? alternativeLabel(q.alternative) : cartLineLabel(line),
+      isAlternative: isAlt,
+      qty: Number(line.quantity) || 1,
+      unit_price: q.unit_price,
+      mrp_price: q.mrp_price,
+    };
+  }
+  for (const c of cart) {
+    const addons = c.addons || [];
+    for (let i = 0; i < addons.length; i++) {
+      if (addonQuoteId(c, addons[i], i) !== q.id) continue;
+      return {
+        id: q.id,
+        kind: 'addon',
+        requested: addonLabel(addons[i]),
+        quoted: addonLabel(addons[i]),
+        isAlternative: false,
+        qty: Number(addons[i].qty) || 1,
+        unit_price: q.unit_price,
+        mrp_price: q.mrp_price,
+      };
+    }
+  }
+  return {
+    id: q.id,
+    kind: q.kind === 'addon' ? 'addon' : 'device',
+    requested: null,
+    quoted: isAlt ? alternativeLabel(q.alternative) : q.id,
+    isAlternative: isAlt,
+    qty: Number(q.qty) || 1,
+    unit_price: q.unit_price,
+    mrp_price: q.mrp_price,
+  };
+}
+
+export function bidLineViews(raw: unknown, cart: RfqCartLine[]): BidLineView[] {
+  return asBidQuoteLines(raw).map((q) => describeBidQuoteLine(q, cart));
+}
+
+export type BidMatchKind = 'as_requested' | 'alternative' | 'mixed' | 'extras_only';
+
+export function bidMatchKind(views: BidLineView[]): BidMatchKind {
+  const devices = views.filter((v) => v.kind === 'device');
+  const alt = devices.filter((v) => v.isAlternative).length;
+  if (devices.length === 0) return views.some((v) => v.kind === 'extra') ? 'extras_only' : 'as_requested';
+  if (alt === 0) return 'as_requested';
+  if (alt === devices.length) return 'alternative';
+  return 'mixed';
+}
+
+export function bidMatchLabel(kind: BidMatchKind): string {
+  if (kind === 'alternative') return 'Alternative spec';
+  if (kind === 'mixed') return 'Mixed specs';
+  if (kind === 'extras_only') return 'Extras only';
+  return 'As requested';
+}
+
 export function cartQuotedSubtotal(lines: RfqCartLine[], quotes: BidQuoteLine[]): number {
   const byId = new Map(quotes.map((q) => [q.id, q]));
   let sum = 0;

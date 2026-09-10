@@ -31,9 +31,14 @@ import {
 import { fileToBase64, invokeRfqPublic } from '@/lib/rfq-api';
 import { convertToUsd, formatUsdRateLine, getRateToUsd } from '@/lib/fx-rates';
 import { FX_CURRENCY_OPTIONS } from '@/lib/country-currencies';
-import { Clock, Paperclip, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Clock, Paperclip, Plus, Trash2 } from 'lucide-react';
 
-type PublicView = 'bid_form' | 'submitted' | 'revise' | 'won' | 'lost' | 'closed';
+type QuoteStep = 1 | 2 | 3;
+const QUOTE_STEPS: { n: QuoteStep; title: string; hint: string }[] = [
+  { n: 1, title: 'Devices', hint: 'Price each requested item' },
+  { n: 2, title: 'Extras', hint: 'AppleCare, warranty, extras' },
+  { n: 3, title: 'Terms', hint: 'Fees, lead time, file' },
+];
 type LineQuote = { unit: string; mrp: string };
 type ExtraRow = {
   id: string;
@@ -118,6 +123,46 @@ function RfqPublicShell({ children }: { children: ReactNode }) {
   );
 }
 
+function QuoteStepper({ step, onSelect }: { step: QuoteStep; onSelect: (n: QuoteStep) => void }) {
+  return (
+    <ol className="flex gap-2">
+      {QUOTE_STEPS.map((s) => {
+        const done = step > s.n;
+        const active = step === s.n;
+        return (
+          <li key={s.n} className="flex-1 min-w-0">
+            <button
+              type="button"
+              onClick={() => onSelect(s.n)}
+              className={`w-full text-left rounded-xl px-3 py-2.5 border cursor-pointer transition-colors duration-200 ${
+                active
+                  ? 'border-[#EA6E35] bg-[#FFF4ED]'
+                  : done
+                    ? 'border-[#E8E4DE] bg-[#F3F0EB]'
+                    : 'border-[#E8E4DE] bg-white'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <span
+                  className={`grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold shrink-0 ${
+                    done ? 'bg-[#30282B] text-white' : active ? 'bg-[#EA6E35] text-white' : 'bg-[#E8E4DE] text-[#6E7180]'
+                  }`}
+                >
+                  {done ? <Check className="h-3.5 w-3.5" /> : s.n}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-semibold truncate">{s.title}</span>
+                  <span className="hidden sm:block text-[11px] text-[#9A958C] truncate">{s.hint}</span>
+                </span>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function SpecBits({ line }: { line: RfqCartLine }) {
   const bits = [
     line.processor && { k: 'CPU', v: line.processor },
@@ -166,6 +211,7 @@ export default function RfqRespond() {
   const [lineQuotes, setLineQuotes] = useState<Record<string, LineQuote>>({});
   const [alternatives, setAlternatives] = useState<Record<string, BidAlternativeSpec | null>>({});
   const [extras, setExtras] = useState<ExtraRow[]>([]);
+  const [step, setStep] = useState<QuoteStep>(1);
   const [fxRate, setFxRate] = useState<number | null>(1);
 
   const cart = asRfqCartLines(payload?.rfq?.line_items);
@@ -361,6 +407,90 @@ export default function RfqRespond() {
       });
     }
     return items;
+  };
+
+  const validateStep = (n: QuoteStep): string | null => {
+    const fulfillment = payload?.rfq?.rfq_type === 'fulfillment';
+    if (n === 1) {
+      if (hasCart) {
+        for (const line of cart) {
+          const id = String(line.id || '');
+          const unit = parseFloat(lineQuotes[id]?.unit);
+          if (!id || !Number.isFinite(unit) || unit < 0) return 'Enter a unit price for every device.';
+          const lineMrp = lineQuotes[id]?.mrp ? parseFloat(lineQuotes[id].mrp) : null;
+          if (fulfillment && (lineMrp == null || !Number.isFinite(lineMrp) || lineMrp <= 0)) {
+            return 'MRP is required on every line.';
+          }
+          const alt = alternatives[id];
+          const usingAlt = !!(alt && (alt.brand?.trim() || alt.device_model?.trim()));
+          if (alt && !usingAlt) return 'Enter brand or model for the alternative device.';
+          if (!usingAlt) {
+            const addons = (line.addons || []).filter((a) => (a.type || a.model || '').trim());
+            for (let i = 0; i < addons.length; i++) {
+              const aid = addonQuoteId(line, addons[i], i);
+              const addonUnit = parseFloat(lineQuotes[aid]?.unit);
+              if (!Number.isFinite(addonUnit) || addonUnit < 0) return 'Quote every add-on, or mark the line as an alternative.';
+              const addonMrp = lineQuotes[aid]?.mrp ? parseFloat(lineQuotes[aid].mrp) : null;
+              if (fulfillment && (addonMrp == null || !Number.isFinite(addonMrp) || addonMrp <= 0)) {
+                return 'MRP is required on every add-on.';
+              }
+            }
+          }
+        }
+      } else {
+        const g = parseFloat(quoted);
+        if (!Number.isFinite(g) || g < 0) return 'Enter your price.';
+        if (fulfillment) {
+          const m = parseFloat(mrp);
+          if (!Number.isFinite(m) || m <= 0) return 'MRP is required.';
+        }
+      }
+    }
+    if (n === 2) {
+      for (const extra of extras) {
+        const label = extra.label.trim();
+        if (!label && !extra.unit && !extra.mrp) continue;
+        const unit = parseFloat(extra.unit);
+        if (!label || !Number.isFinite(unit) || unit < 0) return 'Complete extra item description and unit price, or remove it.';
+        if (fulfillment) {
+          const extraMrp = extra.mrp ? parseFloat(extra.mrp) : null;
+          if (extraMrp == null || !Number.isFinite(extraMrp) || extraMrp <= 0) return 'MRP is required on every extra item.';
+        }
+      }
+    }
+    if (n === 3) {
+      const lead = parseInt(leadTime, 10);
+      if (!Number.isFinite(lead) || lead < 0) return 'Lead time (days) is required.';
+      if (!file) return 'Attach a quotation file to send.';
+    }
+    return null;
+  };
+
+  const goNext = () => {
+    const err = validateStep(step);
+    if (err) {
+      setError(err);
+      return;
+    }
+    setError(null);
+    setStep((s) => (s < 3 ? ((s + 1) as QuoteStep) : s));
+  };
+
+  const goToStep = (n: QuoteStep) => {
+    if (n <= step) {
+      setError(null);
+      setStep(n);
+      return;
+    }
+    for (let i = step; i < n; i++) {
+      const err = validateStep(i as QuoteStep);
+      if (err) {
+        setError(err);
+        return;
+      }
+    }
+    setError(null);
+    setStep(n);
   };
 
   const submit = async () => {
@@ -635,7 +765,7 @@ export default function RfqRespond() {
         </button>
       </div>
       {extras.length === 0 && (
-        <p className="text-xs text-[#9A958C]">AppleCare, warranties, accessories — add a priced line if you offer them.</p>
+        <p className="text-sm text-[#6E7180]">Optional. Add AppleCare, warranty, or anything extra — or continue without extras.</p>
       )}
       {extras.map((extra) => {
         const qty = Math.max(1, parseInt(extra.qty, 10) || 1);
@@ -705,6 +835,9 @@ export default function RfqRespond() {
                 Qty {line.quantity || 1}
               </span>
             </div>
+            {usingAlt && (
+              <p className="text-[11px] text-[#9A958C]">Requested stays on the left. Fill the spec you can actually supply.</p>
+            )}
             <div className="grid grid-cols-2 rounded-xl bg-[#F3F0EB] p-1">
               <button
                 type="button"
@@ -808,72 +941,109 @@ export default function RfqRespond() {
           {payload.bid.revision_note}
         </div>
       )}
-      <div className="space-y-1.5">
-        <Label className="text-[#30282B]">Currency</Label>
-        <Select value={currency} onValueChange={setCurrency}>
-          <SelectTrigger className={`${fieldClass} w-full`}><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {FX_CURRENCY_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {priceFields}
-      {extraItemsBlock}
+      <QuoteStepper step={step} onSelect={goToStep} />
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#9A958C] mb-2">Fees (optional, {currency})</p>
-        <div className="grid grid-cols-3 gap-2">
-          <div className="space-y-1">
-            <Label className="text-xs text-[#6E7180]">Shipping</Label>
-            <Input type="number" min={0} step="0.01" value={shipping} onChange={(e) => setShipping(e.target.value)} className={fieldClass} />
+        <p className="text-lg font-semibold tracking-tight">{QUOTE_STEPS[step - 1].title}</p>
+        <p className="text-sm text-[#6E7180] mt-0.5">{QUOTE_STEPS[step - 1].hint}</p>
+      </div>
+      {step === 1 && (
+        <>
+          <div className="space-y-1.5">
+            <Label className="text-[#30282B]">Currency</Label>
+            <Select value={currency} onValueChange={setCurrency}>
+              <SelectTrigger className={`${fieldClass} w-full`}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {FX_CURRENCY_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-[#6E7180]">Tax</Label>
-            <Input type="number" min={0} step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} className={fieldClass} />
+          {priceFields}
+        </>
+      )}
+      {step === 2 && extraItemsBlock}
+      {step === 3 && (
+        <>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#9A958C] mb-2">Fees (optional, {currency})</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-[#6E7180]">Shipping</Label>
+                <Input type="number" min={0} step="0.01" value={shipping} onChange={(e) => setShipping(e.target.value)} className={fieldClass} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-[#6E7180]">Tax</Label>
+                <Input type="number" min={0} step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} className={fieldClass} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-[#6E7180]">Other</Label>
+                <Input type="number" min={0} step="0.01" value={other} onChange={(e) => setOther(e.target.value)} className={fieldClass} />
+              </div>
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-[#6E7180]">Other</Label>
-            <Input type="number" min={0} step="0.01" value={other} onChange={(e) => setOther(e.target.value)} className={fieldClass} />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-[#30282B]">Lead time (days) *</Label>
+              <Input type="number" min={0} value={leadTime} onChange={(e) => setLeadTime(e.target.value)} className={fieldClass} placeholder="0 = in stock" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[#30282B]">Valid until</Label>
+              <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} className={fieldClass} />
+            </div>
           </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1.5">
-          <Label className="text-[#30282B]">Lead time (days) *</Label>
-          <Input type="number" min={0} value={leadTime} onChange={(e) => setLeadTime(e.target.value)} className={fieldClass} placeholder="0 = in stock" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-[#30282B]">Valid until</Label>
-          <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} className={fieldClass} />
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <Label className="text-[#30282B]">Notes</Label>
-        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={`${fieldClass} min-h-[72px] h-auto`} placeholder="Inclusions, exclusions…" />
-      </div>
-      <div>
-        <Label className="text-[#30282B]">Quotation file *</Label>
-        <label className="mt-1.5 flex items-center gap-3 rounded-xl border border-dashed border-[#D9D4CC] bg-[#FAF8F5] px-3 py-3 cursor-pointer hover:border-[#EA6E35]/50 transition-colors duration-200">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white border border-[#E6E3DE] shrink-0">
-            <Paperclip className="h-4 w-4 text-[#EA6E35]" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-medium truncate">{file ? file.name : 'PDF or image'}</span>
-            <span className="block text-xs text-[#9A958C]">Required to submit</span>
-          </span>
-          <input type="file" accept=".pdf,image/*" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-        </label>
-      </div>
+          <div className="space-y-1.5">
+            <Label className="text-[#30282B]">Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={`${fieldClass} min-h-[72px] h-auto`} placeholder="Inclusions, exclusions…" />
+          </div>
+          <div>
+            <Label className="text-[#30282B]">Quotation file *</Label>
+            <label className="mt-1.5 flex items-center gap-3 rounded-xl border border-dashed border-[#D9D4CC] bg-[#FAF8F5] px-3 py-3 cursor-pointer hover:border-[#EA6E35]/50 transition-colors duration-200">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white border border-[#E6E3DE] shrink-0">
+                <Paperclip className="h-4 w-4 text-[#EA6E35]" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium truncate">{file ? file.name : 'PDF or image'}</span>
+                <span className="block text-xs text-[#9A958C]">Required to submit</span>
+              </span>
+              <input type="file" accept=".pdf,image/*" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            </label>
+          </div>
+        </>
+      )}
       {error && <p className="text-sm text-[#D94F4F]">{error}</p>}
     </>
   );
 
   const sendActions = (
     <>
-      <Button className="w-full h-12 rounded-xl font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white cursor-pointer transition-colors duration-200" disabled={submitting} onClick={submit}>
-        {submitting ? 'Submitting…' : 'Send quote'}
-      </Button>
+      <div className="flex gap-2">
+        {step > 1 && (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 rounded-xl cursor-pointer border-[#E6E3DE] shrink-0"
+            disabled={submitting}
+            onClick={() => { setError(null); setStep((s) => (s - 1) as QuoteStep); }}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" /> Back
+          </Button>
+        )}
+        {step < 3 ? (
+          <Button
+            type="button"
+            className="flex-1 h-12 rounded-xl font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white cursor-pointer"
+            disabled={submitting}
+            onClick={goNext}
+          >
+            Continue <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        ) : (
+          <Button className="flex-1 h-12 rounded-xl font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white cursor-pointer transition-colors duration-200" disabled={submitting} onClick={submit}>
+            {submitting ? 'Submitting…' : 'Send quote'}
+          </Button>
+        )}
+      </div>
       <button type="button" className="w-full text-center text-sm text-[#6E7180] hover:text-[#30282B] cursor-pointer py-1" disabled={submitting} onClick={() => setDeclineConfirm(true)}>
         Decline this RFQ
       </button>

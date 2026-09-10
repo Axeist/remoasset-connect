@@ -18,7 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { asRfqCartLines, campaignRollups, cartLineLabel, formatCountdown, formatRelativeTime } from '@/lib/rfq';
+import { asRfqCartLines, bidLineViews, bidMatchKind, bidMatchLabel, campaignRollups, cartLineLabel, formatCountdown, formatRelativeTime } from '@/lib/rfq';
 import { convertToUsd, formatUsdRateLine, getRateToUsd } from '@/lib/fx-rates';
 import { buildAwardEmail, buildCartNeedHtml, buildRemindEmail, formatSignOffName } from '@/lib/rfq-email-templates';
 import { requestDeviceLineToSpec } from '@/lib/device-spec-utils';
@@ -546,14 +546,13 @@ export default function RfqDetail() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Vendor</TableHead>
-                      <TableHead>Quoted</TableHead>
-                      <TableHead>MRP</TableHead>
-                      <TableHead>Discount</TableHead>
-                      <TableHead>Shipping</TableHead>
-                      <TableHead>Tax</TableHead>
-                      <TableHead>Other</TableHead>
-                      <TableHead>Landed</TableHead>
-                      <TableHead>USD (live)</TableHead>
+                      <TableHead>Match</TableHead>
+                      <TableHead className="min-w-[280px]">Line</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead className="text-right">Unit</TableHead>
+                      <TableHead className="text-right">MRP</TableHead>
+                      <TableHead className="text-right">Line total</TableHead>
+                      <TableHead>Landed / USD</TableHead>
                       <TableHead>Lead</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
@@ -561,33 +560,87 @@ export default function RfqDetail() {
                   <TableBody>
                     {bids.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                           No quotes yet.
                         </TableCell>
                       </TableRow>
                     )}
-                    {bids.map((b) => (
-                      <TableRow key={b.id}>
-                        <TableCell className="font-medium whitespace-nowrap">{b.vendor?.company_name || '—'}</TableCell>
-                        <TableCell className="tabular-nums">{money(b.currency, b.quoted_price)}</TableCell>
-                        <TableCell className="tabular-nums">{money(b.currency, b.mrp_price)}</TableCell>
-                        <TableCell className="tabular-nums">{b.discount_pct != null ? `${b.discount_pct}%` : '—'}</TableCell>
-                        <TableCell className="tabular-nums">{money(b.currency, b.shipping_fee)}</TableCell>
-                        <TableCell className="tabular-nums">{money(b.currency, b.tax_fee)}</TableCell>
-                        <TableCell className="tabular-nums">{money(b.currency, b.other_fees)}</TableCell>
-                        <TableCell className="tabular-nums font-semibold">{money(b.currency, b.total_landed)}</TableCell>
-                        <TableCell className="tabular-nums">
-                          <div className="font-semibold">{money('USD', usdOf(b.total_landed ?? b.quoted_price, b.currency, usdRates))}</div>
-                          {b.currency !== 'USD' && usdRates[(b.currency || 'USD').toUpperCase()] != null && (
-                            <div className="text-[11px] text-muted-foreground font-normal whitespace-nowrap">
-                              {money(b.currency, b.total_landed ?? b.quoted_price)} · {formatUsdRateLine(b.currency, usdRates[(b.currency || 'USD').toUpperCase()])}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>{b.lead_time_days != null ? `${b.lead_time_days}d` : '—'}</TableCell>
-                        <TableCell><Badge variant="outline">{b.pricing_status}</Badge></TableCell>
-                      </TableRow>
-                    ))}
+                    {bids.map((b) => {
+                      const views = bidLineViews(b.line_items, cartLines);
+                      const match = bidMatchKind(views);
+                      const usdLanded = usdOf(b.total_landed ?? b.quoted_price, b.currency, usdRates);
+                      const lineRows = views.length > 0 ? views : [null];
+                      return lineRows.map((v, i) => (
+                        <TableRow key={`${b.id}-${v?.id || i}`} className={i === 0 ? '' : 'border-t-0'}>
+                          {i === 0 ? (
+                            <TableCell className="font-medium whitespace-nowrap align-top" rowSpan={lineRows.length}>
+                              {b.vendor?.company_name || '—'}
+                              <p className="text-[11px] text-muted-foreground font-normal mt-1">
+                                Goods {money(b.currency, b.quoted_price)}
+                                {b.discount_pct != null && <> · {b.discount_pct}% off</>}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground font-normal">
+                                Ship {money(b.currency, b.shipping_fee)} · Tax {money(b.currency, b.tax_fee)} · Other {money(b.currency, b.other_fees)}
+                              </p>
+                            </TableCell>
+                          ) : null}
+                          {i === 0 ? (
+                            <TableCell className="align-top" rowSpan={lineRows.length}>
+                              <Badge
+                                variant="outline"
+                                className={
+                                  match === 'as_requested'
+                                    ? 'text-emerald-800 border-emerald-200'
+                                    : 'text-amber-800 border-amber-300 bg-amber-50'
+                                }
+                              >
+                                {bidMatchLabel(match)}
+                              </Badge>
+                            </TableCell>
+                          ) : null}
+                          <TableCell className="align-top">
+                            {v ? (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                  {v.isAlternative ? 'Alternative' : v.kind === 'extra' ? 'Extra' : v.kind === 'addon' ? 'Add-on' : 'As requested'}
+                                </p>
+                                {v.isAlternative && v.requested && (
+                                  <p className="text-[11px] text-muted-foreground">Asked: {v.requested}</p>
+                                )}
+                                <p className="text-sm font-medium leading-snug">{v.quoted}</p>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">No line breakdown</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="tabular-nums text-right align-top">{v ? v.qty : '—'}</TableCell>
+                          <TableCell className="tabular-nums text-right align-top">{v ? money(b.currency, v.unit_price) : '—'}</TableCell>
+                          <TableCell className="tabular-nums text-right align-top">{v ? money(b.currency, v.mrp_price) : '—'}</TableCell>
+                          <TableCell className="tabular-nums text-right align-top font-medium">
+                            {v ? money(b.currency, v.unit_price * v.qty) : '—'}
+                          </TableCell>
+                          {i === 0 ? (
+                            <TableCell className="align-top whitespace-nowrap" rowSpan={lineRows.length}>
+                              <div className="font-semibold tabular-nums">{money(b.currency, b.total_landed)}</div>
+                              <div className="text-[11px] text-muted-foreground tabular-nums">{money('USD', usdLanded)}</div>
+                              {b.quote_valid_until && (
+                                <div className="text-[11px] text-muted-foreground">Valid {b.quote_valid_until}</div>
+                              )}
+                            </TableCell>
+                          ) : null}
+                          {i === 0 ? (
+                            <TableCell className="align-top" rowSpan={lineRows.length}>
+                              {b.lead_time_days != null ? `${b.lead_time_days}d` : '—'}
+                            </TableCell>
+                          ) : null}
+                          {i === 0 ? (
+                            <TableCell className="align-top" rowSpan={lineRows.length}>
+                              <Badge variant="outline">{b.pricing_status}</Badge>
+                            </TableCell>
+                          ) : null}
+                        </TableRow>
+                      ));
+                    })}
                   </TableBody>
                 </Table>
               </Card>
