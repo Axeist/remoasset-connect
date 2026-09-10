@@ -31,13 +31,28 @@ import {
 import { fileToBase64, invokeRfqPublic } from '@/lib/rfq-api';
 import { convertToUsd, formatUsdRateLine, getRateToUsd } from '@/lib/fx-rates';
 import { FX_CURRENCY_OPTIONS } from '@/lib/country-currencies';
-import { Check, ChevronLeft, ChevronRight, Clock, Paperclip, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, CircleHelp, Clock, Paperclip, Plus, Trash2 } from 'lucide-react';
 
 type QuoteStep = 1 | 2 | 3;
-const QUOTE_STEPS: { n: QuoteStep; title: string; hint: string }[] = [
-  { n: 1, title: 'Devices', hint: 'Price each requested item' },
-  { n: 2, title: 'Extras', hint: 'AppleCare, warranty, extras' },
-  { n: 3, title: 'Terms', hint: 'Fees, lead time, file' },
+const QUOTE_STEPS: { n: QuoteStep; title: string; hint: string; help: string }[] = [
+  {
+    n: 1,
+    title: 'Devices',
+    hint: 'Price each requested item',
+    help: 'Enter unit price (and MRP for fulfillment). If the exact spec is not available, choose Alternative and describe what you can supply instead. Requested add-ons stay required unless you quote an alternative.',
+  },
+  {
+    n: 2,
+    title: 'Extras',
+    hint: 'AppleCare, warranty, extras',
+    help: 'Optional. Add AppleCare, warranty, or any extra billed item with qty and price. Continue without extras if you have none.',
+  },
+  {
+    n: 3,
+    title: 'Terms',
+    hint: 'Fees, lead time, file',
+    help: 'Add shipping/tax if they apply. Lead time is required (0 = in stock / same day). Attach the quotation PDF or image to send.',
+  },
 ];
 type LineQuote = { unit: string; mrp: string };
 type ExtraRow = {
@@ -125,41 +140,34 @@ function RfqPublicShell({ children }: { children: ReactNode }) {
 
 function QuoteStepper({ step, onSelect }: { step: QuoteStep; onSelect: (n: QuoteStep) => void }) {
   return (
-    <ol className="flex gap-2">
-      {QUOTE_STEPS.map((s) => {
-        const done = step > s.n;
-        const active = step === s.n;
-        return (
-          <li key={s.n} className="flex-1 min-w-0">
-            <button
-              type="button"
-              onClick={() => onSelect(s.n)}
-              className={`w-full text-left rounded-xl px-3 py-2.5 border cursor-pointer transition-colors duration-200 ${
-                active
-                  ? 'border-[#EA6E35] bg-[#FFF4ED]'
-                  : done
-                    ? 'border-[#E8E4DE] bg-[#F3F0EB]'
-                    : 'border-[#E8E4DE] bg-white'
-              }`}
-            >
-              <span className="flex items-center gap-2">
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9A958C] mb-3">
+        Step {step} of {QUOTE_STEPS.length}
+      </p>
+      <ol className="flex items-center">
+        {QUOTE_STEPS.map((s, i) => {
+          const done = step > s.n;
+          const active = step === s.n;
+          return (
+            <li key={s.n} className="flex items-center min-w-0" style={{ flex: i < QUOTE_STEPS.length - 1 ? 1 : '0 0 auto' }}>
+              <button type="button" onClick={() => onSelect(s.n)} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer w-[4.5rem]">
                 <span
-                  className={`grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold shrink-0 ${
-                    done ? 'bg-[#30282B] text-white' : active ? 'bg-[#EA6E35] text-white' : 'bg-[#E8E4DE] text-[#6E7180]'
+                  className={`grid h-8 w-8 place-items-center rounded-full text-xs font-bold ${
+                    done ? 'bg-[#30282B] text-white' : active ? 'bg-[#EA6E35] text-white ring-4 ring-[#EA6E35]/15' : 'bg-[#E8E4DE] text-[#6E7180]'
                   }`}
                 >
-                  {done ? <Check className="h-3.5 w-3.5" /> : s.n}
+                  {done ? <Check className="h-4 w-4" /> : s.n}
                 </span>
-                <span className="min-w-0">
-                  <span className="block text-xs font-semibold truncate">{s.title}</span>
-                  <span className="hidden sm:block text-[11px] text-[#9A958C] truncate">{s.hint}</span>
-                </span>
-              </span>
-            </button>
-          </li>
-        );
-      })}
-    </ol>
+                <span className={`text-xs font-semibold ${active ? 'text-[#30282B]' : 'text-[#6E7180]'}`}>{s.title}</span>
+              </button>
+              {i < QUOTE_STEPS.length - 1 && (
+                <span className={`h-0.5 flex-1 mx-1 rounded-full ${step > s.n ? 'bg-[#30282B]' : 'bg-[#E8E4DE]'}`} />
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
@@ -942,10 +950,11 @@ export default function RfqRespond() {
         </div>
       )}
       <QuoteStepper step={step} onSelect={goToStep} />
-      <div>
-        <p className="text-lg font-semibold tracking-tight">{QUOTE_STEPS[step - 1].title}</p>
-        <p className="text-sm text-[#6E7180] mt-0.5">{QUOTE_STEPS[step - 1].hint}</p>
+      <div className="flex gap-2.5 rounded-xl border border-[#E8E4DE] bg-[#FAF8F5] px-3 py-2.5">
+        <CircleHelp className="h-4 w-4 text-[#EA6E35] shrink-0 mt-0.5" />
+        <p className="text-sm text-[#6E7180] leading-relaxed">{QUOTE_STEPS[step - 1].help}</p>
       </div>
+      <p className="text-base font-semibold tracking-tight">{QUOTE_STEPS[step - 1].title}</p>
       {step === 1 && (
         <>
           <div className="space-y-1.5">
@@ -1105,10 +1114,12 @@ export default function RfqRespond() {
         {declineCard}
         {statusCard}
         {showForm && (
-          <div className="rounded-2xl bg-white border border-[#E8E4DE] p-5 space-y-5 shadow-[0_8px_30px_rgba(48,40,43,0.06)]">
+          <div className="rounded-2xl bg-white border border-[#E8E4DE] p-4 space-y-4 shadow-[0_8px_30px_rgba(48,40,43,0.06)]">
             {formBody}
-            {landedBar}
-            {sendActions}
+            <div className="space-y-3 pt-1">
+              {landedBar}
+              {sendActions}
+            </div>
           </div>
         )}
       </div>
@@ -1123,11 +1134,11 @@ export default function RfqRespond() {
           {declineCard}
           {statusCard}
           {showForm && (
-            <div className="flex-1 min-h-0 flex flex-col rounded-2xl bg-white border border-[#E8E4DE] shadow-[0_8px_30px_rgba(48,40,43,0.06)]">
-              <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5">
+            <div className="max-h-full overflow-y-auto rounded-2xl bg-white border border-[#E8E4DE] shadow-[0_8px_30px_rgba(48,40,43,0.06)]">
+              <div className="p-5 space-y-4">
                 {formBody}
               </div>
-              <div className="shrink-0 border-t border-[#E8E4DE] p-4 space-y-3 bg-white rounded-b-2xl">
+              <div className="px-5 pb-5 space-y-3">
                 {landedBar}
                 {sendActions}
               </div>
