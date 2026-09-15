@@ -68,7 +68,7 @@ export async function invokeRfqPublic(
       signal: timeoutCtrl?.signal ?? opts?.signal,
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || res.statusText);
+    if (!res.ok) throw new Error(data.error || data.detail || data.message || res.statusText);
     if (data.error) throw new Error(data.error);
     return data;
   } catch (e) {
@@ -89,4 +89,48 @@ export function fileToBase64(file: File): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+/** Reads a quotation on the Vercel API so parse works without a new Edge Function deploy. */
+export async function parsePartnerQuotation(opts: {
+  token: string;
+  fileBase64: string;
+  fileName: string;
+  contentType: string;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}) {
+  const timeoutMs = opts.timeoutMs ?? 45_000;
+  const timeoutCtrl = new AbortController();
+  const timer = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
+  const onUserAbort = () => timeoutCtrl.abort();
+  if (opts.signal) {
+    if (opts.signal.aborted) timeoutCtrl.abort();
+    else opts.signal.addEventListener('abort', onUserAbort, { once: true });
+  }
+  try {
+    const res = await fetch('/api/rfq-parse-quotation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: opts.token,
+        file_base64: opts.fileBase64,
+        file_name: opts.fileName,
+        file_content_type: opts.contentType,
+      }),
+      signal: timeoutCtrl.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || data.detail || data.message || res.statusText);
+    if (data.error) throw new Error(data.error);
+    return data;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error(opts.signal?.aborted ? 'Cancelled' : 'Reading quotation timed out. Enter prices below.');
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    opts.signal?.removeEventListener('abort', onUserAbort);
+  }
 }

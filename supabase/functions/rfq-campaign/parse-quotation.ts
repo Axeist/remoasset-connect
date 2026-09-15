@@ -2,8 +2,12 @@ import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
 import {
   asMapped,
   cartSpecsFromRfqLines,
+  crudePdfText,
   extractJson,
   heuristicMap,
+  looksLikePdf,
+  MAP_SYSTEM,
+  mapUserPrompt,
   type ParseQuotationResult,
 } from './quote-map.ts'
 
@@ -38,34 +42,10 @@ async function mapWithClaude(excerpt: string, cart: ReturnType<typeof cartSpecsF
     model: MODEL,
     max_tokens: 1600,
     temperature: 0,
-    system:
-      'You map a vendor quotation extract onto an RFQ cart. Prefer unit price over line totals. Treat MRP/list/MSRP as mrp_price and the offered/quoted rate as unit_price. Never invent prices that are not in the extract. Return JSON only.',
+    system: MAP_SYSTEM,
     messages: [{
       role: 'user',
-      content: `RFQ CART (use these ids exactly):\n${cartJson}\n\nQUOTATION EXTRACT:\n${body}\n\nReturn ONLY this JSON:\n{
-  "currency": "USD",
-  "quoted_price": null,
-  "mrp_price": null,
-  "shipping_fee": 0,
-  "tax_fee": 0,
-  "other_fees": 0,
-  "lead_time_days": null,
-  "quote_valid_until": "YYYY-MM-DD or null",
-  "notes": null,
-  "line_items": [
-    { "id": "cart-id", "unit_price": 0, "mrp_price": null, "confidence": "high", "alternative": null }
-  ],
-  "extras": [
-    { "extra_type": "warranty", "label": "", "qty": 1, "unit_price": 0, "mrp_price": null, "confidence": "low" }
-  ]
-}
-
-Rules:
-- Every cart id should appear in line_items. Use null prices when unknown.
-- If the quoted device differs from the cart spec, set alternative { brand, device_model, processor, ram, storage }.
-- Unmatched billed rows (AppleCare, warranty, accessories) go in extras, not as cart lines.
-- quoted_price/mrp_price at top level only for RFQs with an empty cart (lump-sum quotes).
-- Dates ISO YYYY-MM-DD. Currency ISO code.`,
+      content: mapUserPrompt(body, cartJson),
     }],
   })
 
@@ -106,6 +86,54 @@ export async function convertWithDocling(bytes: Uint8Array, fileName: string, co
   return { excerpt: excerpt.slice(0, 12000) }
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return btoa(bin)
+}
+
+function imageMediaType(contentType: string, fileName: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' | null {
+  const mime = contentType.toLowerCase()
+  const name = fileName.toLowerCase()
+  if (mime.includes('png') || name.endsWith('.png')) return 'image/png'
+  if (mime.includes('webp') || name.endsWith('.webp')) return 'image/webp'
+  if (mime.includes('gif') || name.endsWith('.gif')) return 'image/gif'
+  if (mime.includes('jpeg') || mime.includes('jpg') || name.endsWith('.jpg') || name.endsWith('.jpeg') || mime.startsWith('image/')) {
+    return 'image/jpeg'
+  }
+  return null
+}
+
+async function mapWithClaudeImage(
+  bytes: Uint8Array,
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+  cart: ReturnType<typeof cartSpecsFromRfqLines>,
+): Promise<ParseQuotationResult> {
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
+  const anthropic = new Anthropic({ apiKey })
+  const cartJson = JSON.stringify(cart, null, 2)
+  const work = anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 1600,
+    temperature: 0,
+    system: MAP_SYSTEM,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mediaType, data: bytesToBase64(bytes) } },
+        { type: 'text', text: mapUserPrompt('(see quotation image)', cartJson) },
+      ],
+    }],
+  })
+  const raced = await Promise.race([
+    work,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Claude timed out')), CLAUDE_TIMEOUT_MS)),
+  ])
+  const text = raced.content.map((b) => b.type === 'text' ? b.text : '').join('')
+  return asMapped(extractJson(text), cart)
+}
+
 export async function parseQuotationFromFile(opts: {
   fileBase64: string
   fileName: string
@@ -114,14 +142,31 @@ export async function parseQuotationFromFile(opts: {
 }): Promise<ParseQuotationResult> {
   const bytes = decodeFileBytes(opts.fileBase64)
   if (bytes.byteLength > 10 * 1024 * 1024) throw new Error('File exceeds 10MB')
-  const { excerpt } = await convertWithDocling(bytes, opts.fileName, opts.contentType)
   const cart = cartSpecsFromRfqLines(opts.rfqLines)
-  try {
-    return await mapWithClaude(excerpt, cart)
-  } catch (err) {
-    console.error('quote map claude failed', err)
-    return heuristicMap(excerpt, cart)
+  let excerpt = ''
+  if (Deno.env.get('QUOTE_OCR_URL')) {
+    try {
+      excerpt = (await convertWithDocling(bytes, opts.fileName, opts.contentType)).excerpt
+    } catch (err) {
+      console.error('docling convert failed', err)
+    }
   }
+  if (!excerpt && looksLikePdf(bytes, opts.fileName, opts.contentType)) {
+    excerpt = crudePdfText(bytes)
+  }
+  if (excerpt.length >= 40) {
+    try {
+      return await mapWithClaude(excerpt, cart)
+    } catch (err) {
+      console.error('quote map claude failed', err)
+      return heuristicMap(excerpt, cart)
+    }
+  }
+  const media = imageMediaType(opts.contentType, opts.fileName)
+  if (media) {
+    return await mapWithClaudeImage(bytes, media, cart)
+  }
+  throw new Error('Could not read text from this file. Use a PDF with selectable text, or a clear photo of the quote.')
 }
 
 export { cartSpecsFromRfqLines, heuristicMap }

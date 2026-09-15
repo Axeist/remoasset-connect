@@ -28,7 +28,7 @@ import {
   type ExtraType,
   type RfqCartLine,
 } from '@/lib/rfq';
-import { fileToBase64, invokeRfqPublic } from '@/lib/rfq-api';
+import { fileToBase64, invokeRfqPublic, parsePartnerQuotation } from '@/lib/rfq-api';
 import { fieldFromMoney, fileForParse, type ParsedQuoteFill } from '@/lib/rfq-quote-parse';
 import { convertToUsd, formatUsdRateLine, getRateToUsd } from '@/lib/fx-rates';
 import { FX_CURRENCY_OPTIONS } from '@/lib/country-currencies';
@@ -436,16 +436,14 @@ export default function RfqRespond() {
       const forParse = await fileForParse(picked);
       if (ctrl.signal.aborted) return;
       const b64 = await fileToBase64(forParse);
-      const data = await invokeRfqPublic(
-        {
-          action: 'parse_quotation',
-          token,
-          file_base64: b64,
-          file_name: forParse.name,
-          file_content_type: forParse.type || picked.type || 'application/pdf',
-        },
-        { signal: ctrl.signal, timeoutMs: 45_000 },
-      );
+      const data = await parsePartnerQuotation({
+        token,
+        fileBase64: b64,
+        fileName: forParse.name,
+        contentType: forParse.type || picked.type || 'application/pdf',
+        signal: ctrl.signal,
+        timeoutMs: 45_000,
+      });
       if (ctrl.signal.aborted) return;
       applyFill(data as ParsedQuoteFill);
       setParseStatus('filled');

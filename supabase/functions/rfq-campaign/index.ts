@@ -472,9 +472,6 @@ Deno.serve(async (req) => {
       }
 
       if (action === 'parse_quotation') {
-        if (!Deno.env.get('QUOTE_OCR_URL')) {
-          return json({ error: 'OCR not configured' }, 503)
-        }
         if (!body.file_base64 || !body.file_name) {
           return json({ error: 'Quotation file is required' }, 400)
         }

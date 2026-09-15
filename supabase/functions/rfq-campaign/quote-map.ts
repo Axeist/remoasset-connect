@@ -361,3 +361,60 @@ export function asMapped(raw: unknown, cart: CartSpec[]): ParseQuotationResult {
     source: 'claude',
   }
 }
+
+export function crudePdfText(bytes: Uint8Array): string {
+  let latin1 = ''
+  const max = Math.min(bytes.length, 4_000_000)
+  for (let i = 0; i < max; i++) latin1 += String.fromCharCode(bytes[i])
+  const chunks: string[] = []
+  const re = /\(((?:\\.|[^\\)]){2,})\)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(latin1))) {
+    const inner = m[1]
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '')
+      .replace(/\\t/g, ' ')
+      .replace(/\\\(/g, '(')
+      .replace(/\\\)/g, ')')
+      .replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)))
+    if (/[A-Za-z0-9]/.test(inner)) chunks.push(inner)
+  }
+  return chunks.join(' ').replace(/\s+/g, ' ').trim()
+}
+
+export function looksLikePdf(bytes: Uint8Array, fileName: string, contentType: string): boolean {
+  if (bytes.length >= 5 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) return true
+  const name = fileName.toLowerCase()
+  const mime = contentType.toLowerCase()
+  return name.endsWith('.pdf') || mime.includes('pdf')
+}
+
+export const MAP_SYSTEM =
+  'You map a vendor quotation extract onto an RFQ cart. Prefer unit price over line totals. Treat MRP/list/MSRP as mrp_price and the offered/quoted rate as unit_price. Never invent prices that are not in the extract. Return JSON only.'
+
+export function mapUserPrompt(excerpt: string, cartJson: string): string {
+  return `RFQ CART (use these ids exactly):\n${cartJson}\n\nQUOTATION EXTRACT:\n${excerpt}\n\nReturn ONLY this JSON:\n{
+  "currency": "USD",
+  "quoted_price": null,
+  "mrp_price": null,
+  "shipping_fee": 0,
+  "tax_fee": 0,
+  "other_fees": 0,
+  "lead_time_days": null,
+  "quote_valid_until": "YYYY-MM-DD or null",
+  "notes": null,
+  "line_items": [
+    { "id": "cart-id", "unit_price": 0, "mrp_price": null, "confidence": "high", "alternative": null }
+  ],
+  "extras": [
+    { "extra_type": "warranty", "label": "", "qty": 1, "unit_price": 0, "mrp_price": null, "confidence": "low" }
+  ]
+}
+
+Rules:
+- Every cart id should appear in line_items. Use null prices when unknown.
+- If the quoted device differs from the cart spec, set alternative { brand, device_model, processor, ram, storage }.
+- Unmatched billed rows (AppleCare, warranty, accessories) go in extras, not as cart lines.
+- quoted_price/mrp_price at top level only for RFQs with an empty cart (lump-sum quotes).
+- Dates ISO YYYY-MM-DD. Currency ISO code.`
+}
