@@ -462,9 +462,9 @@ export default function RfqRespond() {
       setParseError(null);
       return;
     }
-    if (picked.size > 10 * 1024 * 1024) {
+    if (picked.size > 4 * 1024 * 1024) {
       setParseStatus('failed');
-      setParseError('File must be 10MB or smaller.');
+      setParseError('File must be 4MB or smaller for auto-fill.');
       return;
     }
     void runParse(picked);

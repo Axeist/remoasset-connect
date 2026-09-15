@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cartSpecsFromRfqLines, heuristicMap } from '../../supabase/functions/rfq-campaign/quote-map.ts';
+import { cartSpecsFromRfqLines, heuristicMap } from '@/lib/rfq-quote-map';
 
 describe('heuristicMap', () => {
   it('matches a cart line from a markdown table and picks a unit price', () => {
