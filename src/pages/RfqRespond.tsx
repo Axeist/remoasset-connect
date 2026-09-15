@@ -730,7 +730,6 @@ export default function RfqRespond() {
     : view === 'revise' ? 'Please revise your quote'
     : view === 'closed' ? 'This RFQ is closed'
     : 'Your quote';
-  const fulfillment = rfq?.rfq_type === 'fulfillment';
   const notesExtra = deliveryNotes(rfq?.scope_summary);
   const showForm = (view === 'bid_form' || view === 'revise') && !declineConfirm;
   const showStatus = view === 'won' || view === 'lost' || view === 'submitted' || view === 'closed';
