@@ -52,7 +52,7 @@ export type ParseQuotationResult = {
 }
 
 export function money(raw: unknown): number | null {
-  if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) return Math.round(raw * 100) / 100
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return Math.round(raw * 100) / 100
   if (typeof raw !== 'string') return null
   const cleaned = raw.replace(/[^\d.,-]/g, '').trim()
   if (!cleaned) return null
@@ -71,7 +71,7 @@ export function money(raw: unknown): number | null {
   } else {
     n = parseFloat(cleaned)
   }
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null
 }
 
 export function addonId(line: { id?: string }, addon: { id?: string }, index: number): string {
@@ -413,32 +413,45 @@ export function sniffImageMedia(
   return null
 }
 
+export function pdfExtractIsUsable(text: string): boolean {
+  const t = (text || '').trim()
+  if (t.length < 80) return false
+  if (/endstream|endobj|\/Type\s*\/Font|ReportLab PDF Library/i.test(t) && t.length < 8000) {
+    const words = t.match(/[A-Za-z]{4,}/g) || []
+    const real = words.filter((w) => !/^(opensource|anonymous|unspecified|reportlab|library|endstream|endobj)$/i.test(w))
+    if (real.length < 20) return false
+  }
+  const words = t.match(/[A-Za-z]{3,}/g) || []
+  return words.length >= 12
+}
+
 export const MAP_SYSTEM =
-  'You map a vendor quotation extract onto an RFQ cart. Prefer unit price over line totals. Treat MRP/list/MSRP as mrp_price and the offered/quoted rate as unit_price. Never invent prices that are not in the extract. Return JSON only.'
+  'You map a vendor quotation onto an RFQ cart. Fill unit_price with the offer/quoted unit amount (not 0). Indian grouping 1,21,500 is 121500. A leading n or Rs before a number is INR. If the quoted SKU is the same family but different CPU/RAM/storage, still fill unit_price and set alternative to the quoted spec. Use null only when no price exists. Return JSON only.'
 
 export function mapUserPrompt(excerpt: string, cartJson: string): string {
   return `RFQ CART (use these ids exactly):\n${cartJson}\n\nQUOTATION EXTRACT:\n${excerpt}\n\nReturn ONLY this JSON:\n{
-  "currency": "USD",
+  "currency": "INR",
   "quoted_price": null,
   "mrp_price": null,
-  "shipping_fee": 0,
-  "tax_fee": 0,
-  "other_fees": 0,
-  "lead_time_days": null,
-  "quote_valid_until": "YYYY-MM-DD or null",
+  "shipping_fee": null,
+  "tax_fee": null,
+  "other_fees": null,
+  "lead_time_days": 12,
+  "quote_valid_until": null,
   "notes": null,
   "line_items": [
-    { "id": "cart-id", "unit_price": 0, "mrp_price": null, "confidence": "high", "alternative": null }
+    { "id": "cart-id", "unit_price": 121500, "mrp_price": null, "confidence": "high", "alternative": null }
   ],
-  "extras": [
-    { "extra_type": "warranty", "label": "", "qty": 1, "unit_price": 0, "mrp_price": null, "confidence": "low" }
-  ]
+  "extras": []
 }
 
 Rules:
-- Every cart id should appear in line_items. Use null prices when unknown.
-- If the quoted device differs from the cart spec, set alternative { brand, device_model, processor, ram, storage }.
-- Unmatched billed rows (AppleCare, warranty, accessories) go in extras, not as cart lines.
-- quoted_price/mrp_price at top level only for RFQs with an empty cart (lump-sum quotes).
-- Dates ISO YYYY-MM-DD. Currency ISO code.`
+- Every cart id must appear in line_items.
+- unit_price is the offer/quoted unit price as a number. Never 0. Use null if unknown.
+- 1,21,500 and 1,11,500 are 121500 and 111500 (Indian lakhs grouping).
+- Set currency from the quote (INR, USD, EUR, …).
+- If CPU/RAM/storage/model differs from the cart, still fill unit_price and set alternative { brand, device_model, processor, ram, storage }.
+- Unmatched billed rows go in extras.
+- Delivery in 10-12 days → lead_time_days 12.
+- Dates ISO YYYY-MM-DD.`
 }

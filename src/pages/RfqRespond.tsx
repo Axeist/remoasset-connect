@@ -381,8 +381,8 @@ export default function RfqRespond() {
       for (const row of mapped.line_items || []) {
         if (!row.id) continue;
         next[row.id] = {
-          unit: fieldFromMoney(row.unit_price),
-          mrp: fieldFromMoney(row.mrp_price),
+          unit: row.unit_price != null && row.unit_price > 0 ? fieldFromMoney(row.unit_price) : (next[row.id]?.unit || ''),
+          mrp: row.mrp_price != null && row.mrp_price > 0 ? fieldFromMoney(row.mrp_price) : (next[row.id]?.mrp || ''),
         };
         if (row.confidence === 'low') low.add(row.id);
       }

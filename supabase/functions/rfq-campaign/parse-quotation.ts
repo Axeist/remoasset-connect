@@ -1,10 +1,10 @@
-import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
 import {
   asMapped,
   cartSpecsFromRfqLines,
   crudePdfText,
   extractJson,
   heuristicMap,
+  pdfExtractIsUsable,
   looksLikePdf,
   MAP_SYSTEM,
   mapUserPrompt,
@@ -12,13 +12,19 @@ import {
 } from './quote-map.ts'
 
 const DOCLING_TIMEOUT_MS = 35_000
-const CLAUDE_TIMEOUT_MS = 12_000
+const CLAUDE_TIMEOUT_MS = 25_000
 const EXTRACT_CAP = 8000
 const MODEL = 'claude-haiku-4-5-20251001'
 
 function decodeFileBytes(fileBase64: string): Uint8Array {
   const raw = fileBase64.includes(',') ? fileBase64.split(',')[1] : fileBase64
   return Uint8Array.from(atob(raw), (c) => c.charCodeAt(0))
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return btoa(bin)
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
@@ -31,30 +37,55 @@ async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Pro
   }
 }
 
-async function mapWithClaude(excerpt: string, cart: ReturnType<typeof cartSpecsFromRfqLines>): Promise<ParseQuotationResult> {
+async function claudeMessages(
+  content: unknown,
+  cart: ReturnType<typeof cartSpecsFromRfqLines>,
+  model = MODEL,
+): Promise<ParseQuotationResult> {
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
-  const anthropic = new Anthropic({ apiKey })
-  const cartJson = JSON.stringify(cart, null, 2)
-  const body = excerpt.slice(0, EXTRACT_CAP)
-
-  const work = anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 1600,
-    temperature: 0,
-    system: MAP_SYSTEM,
-    messages: [{
-      role: 'user',
-      content: mapUserPrompt(body, cartJson),
-    }],
-  })
-
-  const raced = await Promise.race([
-    work,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Claude timed out')), CLAUDE_TIMEOUT_MS)),
-  ])
-  const text = raced.content.map((b) => b.type === 'text' ? b.text : '').join('')
+  const res = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 1600,
+      temperature: 0,
+      system: MAP_SYSTEM,
+      messages: [{ role: 'user', content }],
+    }),
+  }, CLAUDE_TIMEOUT_MS)
+  if (!res.ok) {
+    const errText = await res.text()
+    if (model === MODEL && Array.isArray(content)) {
+      console.error('quote map haiku failed, retrying sonnet', errText.slice(0, 200))
+      return claudeMessages(content, cart, 'claude-sonnet-4-5-20250929')
+    }
+    throw new Error(`Claude map failed (${res.status}): ${errText.slice(0, 280)}`)
+  }
+  const payload = await res.json() as { content?: { type: string; text?: string }[] }
+  const text = (payload.content || []).map((b) => (b.type === 'text' ? b.text || '' : '')).join('')
   return asMapped(extractJson(text), cart)
+}
+
+async function mapWithClaude(excerpt: string, cart: ReturnType<typeof cartSpecsFromRfqLines>): Promise<ParseQuotationResult> {
+  const cartJson = JSON.stringify(cart, null, 2)
+  return claudeMessages(mapUserPrompt(excerpt.slice(0, EXTRACT_CAP), cartJson), cart)
+}
+
+async function mapWithClaudePdf(bytes: Uint8Array, cart: ReturnType<typeof cartSpecsFromRfqLines>): Promise<ParseQuotationResult> {
+  const cartJson = JSON.stringify(cart, null, 2)
+  return claudeMessages(
+    [
+      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: bytesToBase64(bytes) } },
+      { type: 'text', text: mapUserPrompt('(see quotation PDF)', cartJson) },
+    ],
+    cart,
+  )
 }
 
 export async function convertWithDocling(bytes: Uint8Array, fileName: string, contentType: string): Promise<{ excerpt: string }> {
@@ -86,12 +117,6 @@ export async function convertWithDocling(bytes: Uint8Array, fileName: string, co
   return { excerpt: excerpt.slice(0, 12000) }
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
-  let bin = ''
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
-  return btoa(bin)
-}
-
 function imageMediaType(contentType: string, fileName: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' | null {
   const mime = contentType.toLowerCase()
   const name = fileName.toLowerCase()
@@ -109,29 +134,14 @@ async function mapWithClaudeImage(
   mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
   cart: ReturnType<typeof cartSpecsFromRfqLines>,
 ): Promise<ParseQuotationResult> {
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
-  const anthropic = new Anthropic({ apiKey })
   const cartJson = JSON.stringify(cart, null, 2)
-  const work = anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 1600,
-    temperature: 0,
-    system: MAP_SYSTEM,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'image', source: { type: 'base64', media_type: mediaType, data: bytesToBase64(bytes) } },
-        { type: 'text', text: mapUserPrompt('(see quotation image)', cartJson) },
-      ],
-    }],
-  })
-  const raced = await Promise.race([
-    work,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Claude timed out')), CLAUDE_TIMEOUT_MS)),
-  ])
-  const text = raced.content.map((b) => b.type === 'text' ? b.text : '').join('')
-  return asMapped(extractJson(text), cart)
+  return claudeMessages(
+    [
+      { type: 'image', source: { type: 'base64', media_type: mediaType, data: bytesToBase64(bytes) } },
+      { type: 'text', text: mapUserPrompt('(see quotation image)', cartJson) },
+    ],
+    cart,
+  )
 }
 
 export async function parseQuotationFromFile(opts: {
@@ -151,16 +161,20 @@ export async function parseQuotationFromFile(opts: {
       console.error('docling convert failed', err)
     }
   }
-  if (!excerpt && looksLikePdf(bytes, opts.fileName, opts.contentType)) {
-    excerpt = crudePdfText(bytes)
-  }
-  if (excerpt.length >= 40) {
+  const pdf = looksLikePdf(bytes, opts.fileName, opts.contentType)
+  if (!excerpt && pdf) excerpt = crudePdfText(bytes)
+  const usable = pdfExtractIsUsable(excerpt)
+  if (usable) {
     try {
       return await mapWithClaude(excerpt, cart)
     } catch (err) {
       console.error('quote map claude failed', err)
+      if (pdf) return await mapWithClaudePdf(bytes, cart)
       return heuristicMap(excerpt, cart)
     }
+  }
+  if (pdf) {
+    return await mapWithClaudePdf(bytes, cart)
   }
   const media = imageMediaType(opts.contentType, opts.fileName)
   if (media) {
