@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,9 +29,10 @@ import {
   type RfqCartLine,
 } from '@/lib/rfq';
 import { fileToBase64, invokeRfqPublic } from '@/lib/rfq-api';
+import { fieldFromMoney, fileForParse, type ParsedQuoteFill } from '@/lib/rfq-quote-parse';
 import { convertToUsd, formatUsdRateLine, getRateToUsd } from '@/lib/fx-rates';
 import { FX_CURRENCY_OPTIONS } from '@/lib/country-currencies';
-import { Check, ChevronLeft, ChevronRight, CircleHelp, Clock, Paperclip, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, CircleHelp, Clock, Loader2, Paperclip, Plus, Trash2 } from 'lucide-react';
 
 type QuoteStep = 1 | 2 | 3;
 const QUOTE_STEPS: { n: QuoteStep; title: string; hint: string; help: string }[] = [
@@ -39,7 +40,7 @@ const QUOTE_STEPS: { n: QuoteStep; title: string; hint: string; help: string }[]
     n: 1,
     title: 'Devices',
     hint: 'Price each requested item',
-    help: 'Enter unit price (and MRP for fulfillment). If the exact spec is not available, choose Alternative and describe what you can supply instead. Requested add-ons stay required unless you quote an alternative.',
+    help: 'Upload the quotation first. We read it, fill prices, then you can correct anything. If the exact spec is not available, choose Alternative.',
   },
   {
     n: 2,
@@ -51,9 +52,10 @@ const QUOTE_STEPS: { n: QuoteStep; title: string; hint: string; help: string }[]
     n: 3,
     title: 'Terms',
     hint: 'Fees, lead time, file',
-    help: 'Add shipping/tax if they apply. Lead time is required (0 = in stock / same day). Attach the quotation PDF or image to send.',
+    help: 'Add shipping/tax if they apply. Lead time is required (0 = in stock / same day). The quotation file from step 1 is attached to send.',
   },
 ];
+type ParseStatus = 'idle' | 'reading' | 'filled' | 'failed';
 type LineQuote = { unit: string; mrp: string };
 type ExtraRow = {
   id: string;
@@ -67,6 +69,10 @@ type ExtraRow = {
 const fieldClass =
   'h-12 rounded-xl border-[#E6E3DE] bg-white text-[#30282B] placeholder:text-[#9A958C] shadow-none focus-visible:ring-[#EA6E35]/25 focus-visible:ring-offset-0';
 const fieldSm = fieldClass.replace('h-12', 'h-10');
+
+function confidenceRing(low: boolean) {
+  return low ? ' ring-2 ring-amber-300/80' : '';
+}
 
 function moneyFmt(currency: string, n: number) {
   return `${currency} ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -221,9 +227,15 @@ export default function RfqRespond() {
   const [extras, setExtras] = useState<ExtraRow[]>([]);
   const [step, setStep] = useState<QuoteStep>(1);
   const [fxRate, setFxRate] = useState<number | null>(1);
+  const [parseStatus, setParseStatus] = useState<ParseStatus>('idle');
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [lowConfidence, setLowConfidence] = useState<Set<string>>(() => new Set());
+  const parseAbort = useRef<AbortController | null>(null);
 
   const cart = asRfqCartLines(payload?.rfq?.line_items);
   const hasCart = cart.length > 0;
+  const locked = parseStatus === 'reading';
+  const fulfillment = payload?.rfq?.rfq_type === 'fulfillment';
 
   const builtQuotes = useMemo((): BidQuoteLine[] => {
     const fromCart: BidQuoteLine[] = Object.entries(lineQuotes)
@@ -346,6 +358,119 @@ export default function RfqRespond() {
       }
     })();
   }, [token, search]);
+
+  useEffect(() => () => { parseAbort.current?.abort(); }, []);
+
+  const applyFill = (mapped: ParsedQuoteFill) => {
+    if (mapped.currency) setCurrency(mapped.currency);
+    if (!hasCart) {
+      if (mapped.quoted_price != null) setQuoted(fieldFromMoney(mapped.quoted_price));
+      if (mapped.mrp_price != null) setMrp(fieldFromMoney(mapped.mrp_price));
+    }
+    if (mapped.shipping_fee != null) setShipping(fieldFromMoney(mapped.shipping_fee) || '0');
+    if (mapped.tax_fee != null) setTax(fieldFromMoney(mapped.tax_fee) || '0');
+    if (mapped.other_fees != null) setOther(fieldFromMoney(mapped.other_fees) || '0');
+    if (mapped.lead_time_days != null && Number.isFinite(mapped.lead_time_days)) {
+      setLeadTime(String(Math.max(0, Math.round(mapped.lead_time_days))));
+    }
+    if (mapped.quote_valid_until) setValidUntil(mapped.quote_valid_until);
+    if (mapped.notes) setNotes(mapped.notes);
+    const low = new Set<string>();
+    setLineQuotes((prev) => {
+      const next = { ...prev };
+      for (const row of mapped.line_items || []) {
+        if (!row.id) continue;
+        next[row.id] = {
+          unit: fieldFromMoney(row.unit_price),
+          mrp: fieldFromMoney(row.mrp_price),
+        };
+        if (row.confidence === 'low') low.add(row.id);
+      }
+      return next;
+    });
+    setAlternatives((prev) => {
+      const next = { ...prev };
+      for (const row of mapped.line_items || []) {
+        const alt = row.alternative;
+        if (alt && (alt.brand?.trim() || alt.device_model?.trim())) {
+          next[row.id] = {
+            brand: alt.brand || '',
+            device_model: alt.device_model || '',
+            processor: alt.processor || '',
+            ram: alt.ram || '',
+            storage: alt.storage || '',
+          };
+        }
+      }
+      return next;
+    });
+    if (mapped.extras?.length) {
+      setExtras(
+        mapped.extras.map((e) => {
+          const id = `extra::${crypto.randomUUID()}`;
+          if (e.confidence === 'low') low.add(id);
+          return {
+            id,
+            extra_type: parseExtraType(e.extra_type),
+            label: e.label,
+            qty: String(Math.max(1, e.qty || 1)),
+            unit: fieldFromMoney(e.unit_price),
+            mrp: fieldFromMoney(e.mrp_price),
+          };
+        }),
+      );
+    }
+    setLowConfidence(low);
+  };
+
+  const runParse = async (picked: File) => {
+    if (!token) return;
+    parseAbort.current?.abort();
+    const ctrl = new AbortController();
+    parseAbort.current = ctrl;
+    setParseStatus('reading');
+    setParseError(null);
+    setError(null);
+    setLowConfidence(new Set());
+    try {
+      const forParse = await fileForParse(picked);
+      if (ctrl.signal.aborted) return;
+      const b64 = await fileToBase64(forParse);
+      const data = await invokeRfqPublic(
+        {
+          action: 'parse_quotation',
+          token,
+          file_base64: b64,
+          file_name: forParse.name,
+          file_content_type: forParse.type || picked.type || 'application/pdf',
+        },
+        { signal: ctrl.signal, timeoutMs: 45_000 },
+      );
+      if (ctrl.signal.aborted) return;
+      applyFill(data as ParsedQuoteFill);
+      setParseStatus('filled');
+    } catch (e) {
+      if (ctrl.signal.aborted) return;
+      setParseStatus('failed');
+      setParseError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const onPickFile = (picked: File | null) => {
+    setFile(picked);
+    if (!picked) {
+      parseAbort.current?.abort();
+      setParseStatus('idle');
+      setParseError(null);
+      return;
+    }
+    if (picked.size > 10 * 1024 * 1024) {
+      setParseStatus('failed');
+      setParseError('File must be 10MB or smaller.');
+      return;
+    }
+    void runParse(picked);
+  };
 
   const buildLineItems = (): BidQuoteLine[] | { error: string } => {
     const fulfillment = payload?.rfq?.rfq_type === 'fulfillment';
@@ -475,6 +600,7 @@ export default function RfqRespond() {
   };
 
   const goNext = () => {
+    if (locked) return;
     const err = validateStep(step);
     if (err) {
       setError(err);
@@ -485,6 +611,7 @@ export default function RfqRespond() {
   };
 
   const goToStep = (n: QuoteStep) => {
+    if (locked) return;
     if (n <= step) {
       setError(null);
       setStep(n);
@@ -889,11 +1016,11 @@ export default function RfqRespond() {
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs text-[#6E7180]">Unit price * ({currency})</Label>
-                <Input type="number" min={0} step="0.01" value={q.unit} onChange={(e) => setLine(id, 'unit', e.target.value)} className={fieldClass} placeholder="0.00" />
+                <Input type="number" min={0} step="0.01" value={q.unit} onChange={(e) => setLine(id, 'unit', e.target.value)} className={`${fieldClass}${confidenceRing(lowConfidence.has(id))}`} placeholder="0.00" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-[#6E7180]">MRP / list {fulfillment ? '*' : ''} ({currency})</Label>
-                <Input type="number" min={0} step="0.01" value={q.mrp} onChange={(e) => setLine(id, 'mrp', e.target.value)} className={fieldClass} placeholder="0.00" />
+                <Input type="number" min={0} step="0.01" value={q.mrp} onChange={(e) => setLine(id, 'mrp', e.target.value)} className={`${fieldClass}${confidenceRing(lowConfidence.has(id))}`} placeholder="0.00" />
               </div>
             </div>
             {addons.length > 0 && (
@@ -913,7 +1040,7 @@ export default function RfqRespond() {
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <Label className="text-xs text-[#6E7180]">Unit {usingAlt ? '' : '*'} ({currency})</Label>
-                          <Input type="number" min={0} step="0.01" value={aq.unit} onChange={(e) => setLine(aid, 'unit', e.target.value)} className={fieldClass} placeholder="0.00" />
+                          <Input type="number" min={0} step="0.01" value={aq.unit} onChange={(e) => setLine(aid, 'unit', e.target.value)} className={`${fieldClass}${confidenceRing(lowConfidence.has(aid))}`} placeholder="0.00" />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-[#6E7180]">MRP {fulfillment && !usingAlt ? '*' : ''} ({currency})</Label>
@@ -942,6 +1069,49 @@ export default function RfqRespond() {
     </>
   );
 
+  const quotationFileBlock = (
+    <div>
+      <Label className="text-[#30282B]">Quotation file *</Label>
+      <label className="mt-1.5 flex items-center gap-3 rounded-xl border border-dashed border-[#D9D4CC] bg-[#FAF8F5] px-3 py-3 cursor-pointer hover:border-[#EA6E35]/50 transition-colors duration-200">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white border border-[#E6E3DE] shrink-0">
+          {parseStatus === 'reading'
+            ? <Loader2 className="h-4 w-4 text-[#EA6E35] animate-spin" />
+            : <Paperclip className="h-4 w-4 text-[#EA6E35]" />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium truncate">
+            {parseStatus === 'reading' ? 'Reading quotation…' : file ? file.name : 'PDF or image'}
+          </span>
+          <span className="block text-xs text-[#9A958C]">
+            {parseStatus === 'reading'
+              ? 'Prices and terms will fill in, then you can correct them.'
+              : parseStatus === 'filled'
+                ? 'Filled from file — correct or add anything you need.'
+                : parseStatus === 'failed'
+                  ? 'Couldn’t read file — enter prices below, or retry.'
+                  : 'Required. We fill the form from this file first.'}
+          </span>
+        </span>
+        <input
+          type="file"
+          accept=".pdf,image/*"
+          className="sr-only"
+          disabled={locked}
+          onChange={(e) => onPickFile(e.target.files?.[0] || null)}
+        />
+      </label>
+      {parseStatus === 'failed' && (
+        <button
+          type="button"
+          className="mt-1.5 text-xs font-semibold text-[#EA6E35] cursor-pointer"
+          onClick={() => file && void runParse(file)}
+        >
+          Retry
+        </button>
+      )}
+    </div>
+  );
+
   const formBody = (
     <>
       {view === 'revise' && payload?.bid?.revision_note && (
@@ -955,11 +1125,21 @@ export default function RfqRespond() {
         <p className="text-sm text-[#6E7180] leading-relaxed">{QUOTE_STEPS[step - 1].help}</p>
       </div>
       <p className="text-base font-semibold tracking-tight">{QUOTE_STEPS[step - 1].title}</p>
+      {quotationFileBlock}
+      {parseStatus === 'filled' && (
+        <div className="rounded-xl border border-[#EA6E35]/25 bg-[#EA6E35]/8 px-3 py-2.5 text-sm text-[#30282B]">
+          Filled from file — correct or add anything you need.
+        </div>
+      )}
+      {parseError && parseStatus === 'failed' && (
+        <p className="text-sm text-[#D94F4F]">{parseError}</p>
+      )}
+      <fieldset disabled={locked} className={`space-y-4 min-w-0 ${locked ? 'opacity-60' : ''}`}>
       {step === 1 && (
         <>
           <div className="space-y-1.5">
             <Label className="text-[#30282B]">Currency</Label>
-            <Select value={currency} onValueChange={setCurrency}>
+            <Select value={currency} onValueChange={setCurrency} disabled={locked}>
               <SelectTrigger className={`${fieldClass} w-full`}><SelectValue /></SelectTrigger>
               <SelectContent>
                 {FX_CURRENCY_OPTIONS.map((o) => (
@@ -979,11 +1159,11 @@ export default function RfqRespond() {
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs text-[#6E7180]">Shipping</Label>
-                <Input type="number" min={0} step="0.01" value={shipping} onChange={(e) => setShipping(e.target.value)} className={fieldClass} />
+                <Input type="number" min={0} step="0.01" value={shipping} onChange={(e) => setShipping(e.target.value)} className={`${fieldClass}${confidenceRing(lowConfidence.has('shipping'))}`} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-[#6E7180]">Tax</Label>
-                <Input type="number" min={0} step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} className={fieldClass} />
+                <Input type="number" min={0} step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} className={`${fieldClass}${confidenceRing(lowConfidence.has('tax'))}`} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-[#6E7180]">Other</Label>
@@ -994,7 +1174,7 @@ export default function RfqRespond() {
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
               <Label className="text-[#30282B]">Lead time (days) *</Label>
-              <Input type="number" min={0} value={leadTime} onChange={(e) => setLeadTime(e.target.value)} className={fieldClass} placeholder="0 = in stock" />
+              <Input type="number" min={0} value={leadTime} onChange={(e) => setLeadTime(e.target.value)} className={`${fieldClass}${confidenceRing(lowConfidence.has('lead'))}`} placeholder="0 = in stock" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-[#30282B]">Valid until</Label>
@@ -1005,21 +1185,9 @@ export default function RfqRespond() {
             <Label className="text-[#30282B]">Notes</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={`${fieldClass} min-h-[72px] h-auto`} placeholder="Inclusions, exclusions…" />
           </div>
-          <div>
-            <Label className="text-[#30282B]">Quotation file *</Label>
-            <label className="mt-1.5 flex items-center gap-3 rounded-xl border border-dashed border-[#D9D4CC] bg-[#FAF8F5] px-3 py-3 cursor-pointer hover:border-[#EA6E35]/50 transition-colors duration-200">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white border border-[#E6E3DE] shrink-0">
-                <Paperclip className="h-4 w-4 text-[#EA6E35]" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-medium truncate">{file ? file.name : 'PDF or image'}</span>
-                <span className="block text-xs text-[#9A958C]">Required to submit</span>
-              </span>
-              <input type="file" accept=".pdf,image/*" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-            </label>
-          </div>
         </>
       )}
+      </fieldset>
       {error && <p className="text-sm text-[#D94F4F]">{error}</p>}
     </>
   );
@@ -1032,7 +1200,7 @@ export default function RfqRespond() {
             type="button"
             variant="outline"
             className="h-12 rounded-xl cursor-pointer border-[#E6E3DE] shrink-0"
-            disabled={submitting}
+            disabled={submitting || locked}
             onClick={() => { setError(null); setStep((s) => (s - 1) as QuoteStep); }}
           >
             <ChevronLeft className="h-4 w-4 mr-1" /> Back
@@ -1042,18 +1210,18 @@ export default function RfqRespond() {
           <Button
             type="button"
             className="flex-1 h-12 rounded-xl font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white cursor-pointer"
-            disabled={submitting}
+            disabled={submitting || locked}
             onClick={goNext}
           >
-            Continue <ChevronRight className="h-4 w-4 ml-1" />
+            {locked ? 'Reading quotation…' : <>Continue <ChevronRight className="h-4 w-4 ml-1" /></>}
           </Button>
         ) : (
-          <Button className="flex-1 h-12 rounded-xl font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white cursor-pointer transition-colors duration-200" disabled={submitting} onClick={submit}>
+          <Button className="flex-1 h-12 rounded-xl font-semibold bg-[#EA6E35] hover:bg-[#d9622f] text-white cursor-pointer transition-colors duration-200" disabled={submitting || locked} onClick={submit}>
             {submitting ? 'Submitting…' : 'Send quote'}
           </Button>
         )}
       </div>
-      <button type="button" className="w-full text-center text-sm text-[#6E7180] hover:text-[#30282B] cursor-pointer py-1" disabled={submitting} onClick={() => setDeclineConfirm(true)}>
+      <button type="button" className="w-full text-center text-sm text-[#6E7180] hover:text-[#30282B] cursor-pointer py-1" disabled={submitting || locked} onClick={() => setDeclineConfirm(true)}>
         Decline this RFQ
       </button>
     </>

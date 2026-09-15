@@ -43,21 +43,43 @@ export async function invokeRfqCampaign(body: Record<string, unknown>) {
 }
 
 /** Public (no session) calls via fetch + anon key */
-export async function invokeRfqPublic(body: Record<string, unknown>) {
+export async function invokeRfqPublic(
+  body: Record<string, unknown>,
+  opts?: { signal?: AbortSignal; timeoutMs?: number },
+) {
   const url = `${import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')}/functions/v1/rfq-campaign`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || res.statusText);
-  if (data.error) throw new Error(data.error);
-  return data;
+  const timeoutMs = opts?.timeoutMs;
+  const timeoutCtrl = timeoutMs ? new AbortController() : null;
+  const timer = timeoutMs ? setTimeout(() => timeoutCtrl!.abort(), timeoutMs) : null;
+  const onUserAbort = () => timeoutCtrl?.abort();
+  if (opts?.signal && timeoutCtrl) {
+    if (opts.signal.aborted) timeoutCtrl.abort();
+    else opts.signal.addEventListener('abort', onUserAbort, { once: true });
+  }
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(body),
+      signal: timeoutCtrl?.signal ?? opts?.signal,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    if (data.error) throw new Error(data.error);
+    return data;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error(opts?.signal?.aborted ? 'Cancelled' : 'Reading quotation timed out. Enter prices below.');
+    }
+    throw e;
+  } finally {
+    if (timer) clearTimeout(timer);
+    opts?.signal?.removeEventListener('abort', onUserAbort);
+  }
 }
 
 export function fileToBase64(file: File): Promise<string> {

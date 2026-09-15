@@ -1,9 +1,10 @@
 /**
  * rfq-campaign
  * Authenticated: send | remind | award_emails | test_send
- * Public (token): get | open | submit | decline
+ * Public (token): get | open | submit | decline | parse_quotation
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { parseQuotationFromFile } from './parse-quotation.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -58,6 +59,183 @@ function serviceClient() {
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
+}
+
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function moneyLabel(currency: string, amount: number): string {
+  const n = Number.isFinite(amount) ? amount : 0
+  return `${currency} ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function quoteReceivedEmail(opts: {
+  firstName: string
+  vendorName: string
+  clientName: string
+  countryName: string
+  landed: string
+  leadTime: string
+  isRevision: boolean
+  appLink: string
+}): { html: string; text: string } {
+  const title = opts.isRevision ? 'A partner updated their quote' : 'A partner just quoted'
+  const intro = opts.isRevision
+    ? `${escHtml(opts.vendorName)} sent a revised quote for ${escHtml(opts.clientName)}.`
+    : `${escHtml(opts.vendorName)} quoted on ${escHtml(opts.clientName)}.`
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /></head>
+<body style="margin:0;padding:0;background-color:#F0F0F5;font-family:Manrope,system-ui,-apple-system,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#F0F0F5;padding:40px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;">
+        <tr><td style="height:5px;background:linear-gradient(90deg,#EA6E35 0%,#F09A72 60%,#FBBC9A 100%);font-size:0;">&nbsp;</td></tr>
+        <tr><td style="background:#30282B;padding:32px 36px 24px;text-align:center;">
+          <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#F09A72;">Quote received</p>
+          <h1 style="margin:0;font-size:22px;font-weight:800;color:#ffffff;line-height:1.3;">${title}</h1>
+        </td></tr>
+        <tr><td style="padding:28px 36px;font-size:15px;line-height:1.7;color:#30282B;">
+          <p style="margin:0 0 16px;">Hi ${escHtml(opts.firstName)},</p>
+          <p style="margin:0 0 16px;">${intro} Open Connect to compare it against the other bids.</p>
+          <p style="margin:0 0 8px;"><strong>Partner:</strong> ${escHtml(opts.vendorName)}</p>
+          <p style="margin:0 0 8px;"><strong>Client:</strong> ${escHtml(opts.clientName)}${opts.countryName ? ` · ${escHtml(opts.countryName)}` : ''}</p>
+          <p style="margin:0 0 8px;"><strong>Landed:</strong> ${escHtml(opts.landed)}</p>
+          <p style="margin:0;"><strong>Lead time:</strong> ${escHtml(opts.leadTime)}</p>
+        </td></tr>
+        <tr><td style="padding:0 36px 32px;" align="center">
+          <a href="${opts.appLink}" style="display:inline-block;background:linear-gradient(135deg,#EA6E35 0%,#F09A72 100%);color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;">
+            View quote in Connect
+          </a>
+          <p style="margin:14px 0 0;font-size:12px;color:#9DA2B3;line-height:1.5;word-break:break-all;">
+            ${opts.appLink}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`
+  const text = [
+    `Hi ${opts.firstName},`,
+    '',
+    opts.isRevision
+      ? `${opts.vendorName} sent a revised quote for ${opts.clientName}.`
+      : `${opts.vendorName} quoted on ${opts.clientName}.`,
+    '',
+    `Partner: ${opts.vendorName}`,
+    `Client: ${opts.clientName}${opts.countryName ? ` · ${opts.countryName}` : ''}`,
+    `Landed: ${opts.landed}`,
+    `Lead time: ${opts.leadTime}`,
+    '',
+    `Open in Connect: ${opts.appLink}`,
+  ].join('\n')
+  return { html, text }
+}
+
+async function notifyInternalQuoteReceived(
+  sb: ReturnType<typeof serviceClient>,
+  opts: {
+    rfqId: string
+    vendorName: string
+    currency: string
+    landed: number
+    leadTimeDays: number
+    isRevision: boolean
+  },
+) {
+  try {
+    const { data: campaign } = await sb
+      .from('rfqs')
+      .select('id, owner_id, created_by, cc_emails, client:clients!client_id(name), country:countries!country_id(name)')
+      .eq('id', opts.rfqId)
+      .single()
+    if (!campaign) return
+
+    const ownerId = campaign.owner_id || campaign.created_by
+    let ownerEmail = ''
+    let firstName = 'there'
+    if (ownerId) {
+      const { data: authUser } = await sb.auth.admin.getUserById(ownerId)
+      ownerEmail = String(authUser.user?.email || '').trim()
+      const { data: profile } = await sb.from('profiles').select('full_name').eq('user_id', ownerId).maybeSingle()
+      const full =
+        String(profile?.full_name || authUser.user?.user_metadata?.full_name || '').trim()
+        || ownerEmail.split('@')[0]
+        || ''
+      firstName = full.split(/\s+/)[0] || 'there'
+    }
+
+    const cc = [...new Set(
+      (Array.isArray(campaign.cc_emails) ? campaign.cc_emails : [])
+        .map((e: string) => String(e).trim().toLowerCase())
+        .filter(Boolean),
+    )]
+    const to = (ownerEmail || cc[0] || '').toLowerCase()
+    if (!to) {
+      console.error('quote_received notify skipped: no owner or CC email')
+      return
+    }
+    const ccList = cc.filter((e) => e !== to)
+    const appLink = `${APP_URL}/rfq/${campaign.id}?tab=bids`
+    const clientRel = campaign.client as { name?: string } | { name?: string }[] | null
+    const countryRel = campaign.country as { name?: string } | { name?: string }[] | null
+    const clientName = (Array.isArray(clientRel) ? clientRel[0]?.name : clientRel?.name) || 'Client'
+    const countryName = (Array.isArray(countryRel) ? countryRel[0]?.name : countryRel?.name) || ''
+    const vendor = opts.vendorName || 'A partner'
+    const landed = moneyLabel(opts.currency, opts.landed)
+    const leadTime = opts.leadTimeDays === 0 ? 'In stock (0 days)' : `${opts.leadTimeDays} day${opts.leadTimeDays === 1 ? '' : 's'}`
+    const subject = opts.isRevision
+      ? `${vendor} updated their quote — ${clientName}`
+      : `${vendor} quoted — ${clientName}`
+    const mail = quoteReceivedEmail({
+      firstName,
+      vendorName: vendor,
+      clientName,
+      countryName,
+      landed,
+      leadTime,
+      isRevision: opts.isRevision,
+      appLink,
+    })
+    const { message_id } = await sendViaResend({
+      to,
+      subject,
+      html: mail.html,
+      text: mail.text,
+      cc: ccList,
+    })
+    await sb.from('rfq_emails').insert({
+      rfq_id: campaign.id,
+      recipient_id: null,
+      kind: 'quote_received',
+      to_email: to,
+      cc_emails: ccList,
+      subject,
+      body_html: mail.html,
+      body_text: mail.text,
+      resend_message_id: message_id,
+      sent_by: null,
+    })
+
+    const userIds = [...new Set([campaign.owner_id, campaign.created_by].filter(Boolean))] as string[]
+    if (userIds.length) {
+      await sb.from('notifications').insert(
+        userIds.map((user_id) => ({
+          user_id,
+          title: subject,
+          message: `${vendor} quoted ${landed}${countryName ? ` · ${countryName}` : ''}. Open the RFQ to compare.`,
+          type: 'info',
+          metadata: { rfqId: campaign.id },
+        })),
+      )
+    }
+  } catch (err) {
+    console.error('quote_received notify failed', err)
+  }
 }
 
 function computePricing(quoted: number, mrp: number | null, shipping: number, tax: number, other: number) {
@@ -209,7 +387,7 @@ Deno.serve(async (req) => {
     const sb = serviceClient()
 
     // ——— Public token actions ———
-    if (['get', 'open', 'submit', 'decline'].includes(action)) {
+    if (['get', 'open', 'submit', 'decline', 'parse_quotation'].includes(action)) {
       const token = body.token as string
       if (!token) return json({ error: 'token required' }, 400)
 
@@ -291,6 +469,35 @@ Deno.serve(async (req) => {
               }
             : null,
         })
+      }
+
+      if (action === 'parse_quotation') {
+        if (!Deno.env.get('QUOTE_OCR_URL')) {
+          return json({ error: 'OCR not configured' }, 503)
+        }
+        if (!body.file_base64 || !body.file_name) {
+          return json({ error: 'Quotation file is required' }, 400)
+        }
+        const mime = String(body.file_content_type || '').toLowerCase()
+        const name = String(body.file_name).toLowerCase()
+        const okMime = !mime || mime === 'application/pdf' || mime.startsWith('image/')
+        const okName = /\.(pdf|png|jpe?g|webp)$/.test(name) || okMime
+        if (!okMime && !okName) {
+          return json({ error: 'Upload a PDF or image' }, 400)
+        }
+        try {
+          const mapped = await parseQuotationFromFile({
+            fileBase64: String(body.file_base64),
+            fileName: String(body.file_name),
+            contentType: String(body.file_content_type || 'application/pdf'),
+            rfqLines: Array.isArray(rfq.line_items) ? rfq.line_items : [],
+          })
+          return json(mapped)
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          const status = msg.includes('not configured') ? 503 : 422
+          return json({ error: msg }, status)
+        }
       }
 
       if (action === 'decline') {
@@ -457,7 +664,8 @@ Deno.serve(async (req) => {
           landed_usd_at_submit: fxRate != null ? Math.round(pricing.total_landed * fxRate * 100) / 100 : null,
         }
 
-        if (bid?.id && ['submitted', 'revision_requested'].includes(bid.pricing_status)) {
+        const isRevision = Boolean(bid?.id && ['submitted', 'revision_requested'].includes(bid.pricing_status))
+        if (isRevision) {
           await sb.from('rfq_bids').update(bidRow).eq('id', bid.id)
         } else {
           await sb.from('rfq_bids').insert(bidRow)
@@ -475,6 +683,15 @@ Deno.serve(async (req) => {
         if (rfq.status === 'sent') {
           await sb.from('rfqs').update({ status: 'bidding' }).eq('id', rfq.id)
         }
+
+        await notifyInternalQuoteReceived(sb, {
+          rfqId: rfq.id,
+          vendorName: recipient.vendor?.company_name || 'A partner',
+          currency,
+          landed: pricing.total_landed,
+          leadTimeDays,
+          isRevision,
+        })
 
         return json({ ok: true, total_landed: pricing.total_landed, discount_pct: pricing.discount_pct })
       }

@@ -56,7 +56,7 @@ interface AppNotification {
   type: string;
   is_read: boolean;
   created_at: string;
-  metadata?: { threadId?: string; leadId?: string } | null;
+  metadata?: { threadId?: string; leadId?: string; rfqId?: string } | null;
 }
 
 export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
@@ -172,10 +172,12 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
             <div className="p-4 text-center text-sm text-muted-foreground">No notifications</div>
           ) : (
             notifications.map((notification) => {
-              const meta = notification.metadata as { threadId?: string; leadId?: string } | undefined;
+              const meta = notification.metadata as { threadId?: string; leadId?: string; rfqId?: string } | undefined;
               const inboxLink = notification.type === 'email' && meta?.leadId
                 ? `/leads/${meta.leadId}?tab=emails${meta.threadId ? `&thread=${meta.threadId}` : ''}`
-                : null;
+                : meta?.rfqId
+                  ? `/rfq/${meta.rfqId}?tab=bids`
+                  : null;
               return (
                 <DropdownMenuItem
                   key={notification.id}

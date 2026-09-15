@@ -21,7 +21,8 @@ export type RfqEmailKind =
   | 'remind'
   | 'award'
   | 'not_selected'
-  | 'pricing_decision';
+  | 'pricing_decision'
+  | 'quote_received';
 
 export interface Rfq {
   id: string;

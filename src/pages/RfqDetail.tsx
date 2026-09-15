@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -69,6 +69,7 @@ function devicesFromRfq(rfq: Rfq) {
 
 export default function RfqDetail() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
@@ -115,11 +116,13 @@ export default function RfqDetail() {
     setBids((b as any) || []);
     setEmails((e as any) || []);
     if (r && !tabInitialized.current) {
-      setTab(defaultTab((r as Rfq).status));
+      const q = searchParams.get('tab');
+      if (q && ['recipients', 'bids', 'emails', 'checklist'].includes(q)) setTab(q);
+      else setTab(defaultTab((r as Rfq).status));
       tabInitialized.current = true;
     }
     setLoading(false);
-  }, [id]);
+  }, [id, searchParams]);
 
   useEffect(() => {
     if (!user?.id) return;
