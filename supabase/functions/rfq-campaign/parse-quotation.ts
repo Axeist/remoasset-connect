@@ -49,6 +49,7 @@ async function claudeMessages(
     headers: {
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'pdfs-2024-09-25',
       'content-type': 'application/json',
     },
     body: JSON.stringify({
@@ -69,7 +70,14 @@ async function claudeMessages(
   }
   const payload = await res.json() as { content?: { type: string; text?: string }[] }
   const text = (payload.content || []).map((b) => (b.type === 'text' ? b.text || '' : '')).join('')
-  return asMapped(extractJson(text), cart)
+  const mapped = asMapped(extractJson(text), cart)
+  const priced = mapped.line_items.some((l) => l.unit_price != null && l.unit_price > 0)
+    || (mapped.quoted_price != null && mapped.quoted_price > 0)
+  if (!priced && model === MODEL && Array.isArray(content)) {
+    console.error('quote map haiku returned no prices, retrying sonnet')
+    return claudeMessages(content, cart, 'claude-sonnet-4-5-20250929')
+  }
+  return mapped
 }
 
 async function mapWithClaude(excerpt: string, cart: ReturnType<typeof cartSpecsFromRfqLines>): Promise<ParseQuotationResult> {

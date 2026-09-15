@@ -46,4 +46,8 @@ describe('pdfExtractIsUsable', () => {
       'PRODUCT QUOTATION Macintel Solutions India HP ProBook 440 G11 Offer Price INR Including GST ThinkPad E16 Total Offer Value devices warranty shipping delivery working days',
     )).toBe(true);
   });
+  it('rejects mixed ReportLab scrape even when random letter tokens appear', () => {
+    const junk = `${'abcd '.repeat(40)}endstream ReportLab PDF Library endobj trailer xref`;
+    expect(pdfExtractIsUsable(junk)).toBe(false);
+  });
 });

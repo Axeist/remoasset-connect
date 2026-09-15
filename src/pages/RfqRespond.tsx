@@ -30,6 +30,7 @@ import {
 } from '@/lib/rfq';
 import { fileToBase64, invokeRfqPublic, parsePartnerQuotation } from '@/lib/rfq-api';
 import { fieldFromMoney, fileForParse, type ParsedQuoteFill } from '@/lib/rfq-quote-parse';
+import { isModelStatusNote } from '@/lib/rfq-quote-map';
 import { convertToUsd, formatUsdRateLine, getRateToUsd } from '@/lib/fx-rates';
 import { FX_CURRENCY_OPTIONS } from '@/lib/country-currencies';
 import { Check, ChevronLeft, ChevronRight, CircleHelp, Clock, Loader2, Paperclip, Plus, Trash2 } from 'lucide-react';
@@ -374,7 +375,7 @@ export default function RfqRespond() {
       setLeadTime(String(Math.max(0, Math.round(mapped.lead_time_days))));
     }
     if (mapped.quote_valid_until) setValidUntil(mapped.quote_valid_until);
-    if (mapped.notes) setNotes(mapped.notes);
+    if (mapped.notes && !isModelStatusNote(mapped.notes)) setNotes(mapped.notes);
     const low = new Set<string>();
     setLineQuotes((prev) => {
       const next = { ...prev };

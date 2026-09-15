@@ -1,0 +1,14 @@
+---
+description: After finishing work, always commit, push, and deploy
+alwaysApply: true
+---
+
+# Commit, sync, and deploy
+
+When implementation in this repo is done, do all three without waiting to be asked:
+
+1. **Commit** with author `cuephoriatech` / `cuephoriatech@gmail.com` (see commit-author rule). Do not commit `supabase/.temp/` or secrets.
+2. **Sync** — `git push` the current branch to origin.
+3. **Deploy** — push to `main` is the Vercel app deploy. If `supabase/functions/` changed, also run `npx supabase functions deploy rfq-campaign --no-verify-jwt` (or the specific function that changed).
+
+Skip only if the user explicitly says not to commit, push, or deploy.

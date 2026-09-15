@@ -355,7 +355,11 @@ export function asMapped(raw: unknown, cart: CartSpec[]): ParseQuotationResult {
       return Number.isFinite(n) && n >= 0 ? Math.round(n) : null
     })(),
     quote_valid_until: until && /^\d{4}-\d{2}-\d{2}$/.test(until) ? until : null,
-    notes: o.notes != null && String(o.notes).trim() ? String(o.notes).trim().slice(0, 2000) : null,
+    notes: (() => {
+      const n = o.notes != null && String(o.notes).trim() ? String(o.notes).trim().slice(0, 2000) : null
+      if (!n || isModelStatusNote(n)) return null
+      return n
+    })(),
     line_items,
     extras: extras.slice(0, 12),
     source: 'claude',
@@ -416,13 +420,15 @@ export function sniffImageMedia(
 export function pdfExtractIsUsable(text: string): boolean {
   const t = (text || '').trim()
   if (t.length < 80) return false
-  if (/endstream|endobj|\/Type\s*\/Font|ReportLab PDF Library/i.test(t) && t.length < 8000) {
-    const words = t.match(/[A-Za-z]{4,}/g) || []
-    const real = words.filter((w) => !/^(opensource|anonymous|unspecified|reportlab|library|endstream|endobj)$/i.test(w))
-    if (real.length < 20) return false
-  }
+  if (/endstream|endobj|\bxref\b|\btrailer\b|ReportLab PDF Library|\/Type\s*\/Font/i.test(t)) return false
   const words = t.match(/[A-Za-z]{3,}/g) || []
-  return words.length >= 12
+  if (words.length < 12) return false
+  return /\b(price|quote|quotation|inr|usd|gst|mrp|total|warranty|laptop|probook|thinkpad|offer)\b/i.test(t)
+}
+
+export function isModelStatusNote(notes: string | null | undefined): boolean {
+  if (!notes) return false
+  return /corrupt|unreadable|encoded\/?binary|binary data|could not read|cannot extract|no selectable text|junk scrape/i.test(notes)
 }
 
 export const MAP_SYSTEM =
@@ -453,5 +459,6 @@ Rules:
 - If CPU/RAM/storage/model differs from the cart, still fill unit_price and set alternative { brand, device_model, processor, ram, storage }.
 - Unmatched billed rows go in extras.
 - Delivery in 10-12 days → lead_time_days 12.
+- notes: only vendor commercial terms from the quote. Never comment on file quality, encoding, or whether the extract is readable. Use null if there are no terms.
 - Dates ISO YYYY-MM-DD.`
 }
