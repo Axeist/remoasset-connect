@@ -70,17 +70,21 @@ export default function Auth() {
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const justLoggedInRef = useRef(false);
 
-  const { signIn, signUp, user, allowedEmailDomains } = useAuth();
+  const { signIn, signUp, signOut, user, allowedEmailDomains } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
+  const skipAutoNavRef = useRef(false);
+  const [handoffDone, setHandoffDone] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const p = new URLSearchParams(window.location.search);
+    const h = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const type = p.get('type') || h.get('type');
+    return !(p.has('code') || p.get('verified') === 'true' || type === 'signup' || type === 'email');
+  });
 
   useEffect(() => {
-    if (searchParams.get('verified') === 'true') {
-      toast({ title: 'Email verified!', description: 'Your account is ready. Please sign in.' });
-    }
-    // Listen for domain-blocked events from AuthContext
     const handler = (e: Event) => {
       const email = (e as CustomEvent).detail?.email ?? '';
       const blocked = (e as CustomEvent).detail?.allowedDomains as string[] | undefined;
@@ -93,13 +97,75 @@ export default function Auth() {
     };
     window.addEventListener('auth:domain-blocked', handler);
     return () => window.removeEventListener('auth:domain-blocked', handler);
+  }, [allowedEmailDomains, toast]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const params = searchParams;
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const code = params.get('code');
+    const type = params.get('type') || hash.get('type');
+    const verifiedFlag = params.get('verified') === 'true';
+    const isEmailConfirm = type === 'signup' || type === 'email' || verifiedFlag;
+
+    const stripAuthParams = () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('code');
+      url.searchParams.delete('verified');
+      url.searchParams.delete('type');
+      url.hash = '';
+      const next = url.pathname + (url.searchParams.toString() ? `?${url.searchParams}` : '');
+      window.history.replaceState({}, document.title, next);
+    };
+
+    const withTimeout = <T,>(promise: Promise<T>, ms: number) =>
+      Promise.race([
+        promise,
+        new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error('timeout')), ms)),
+      ]);
+
+    (async () => {
+      try {
+        if (code) {
+          try {
+            await withTimeout(supabase.auth.exchangeCodeForSession(window.location.href), 8000);
+          } catch {
+            /* exchange failed or timed out — still show the sign-in form */
+          }
+        }
+        if (cancelled) return;
+
+        const { data: { session } } = await supabase.auth.getSession();
+        const provider = session?.user?.app_metadata?.provider;
+        const confirmSession = isEmailConfirm || (!!code && provider === 'email');
+
+        if (confirmSession) {
+          skipAutoNavRef.current = true;
+          if (session) await signOut();
+          if (!cancelled) {
+            toast({ title: 'Email verified!', description: 'Your account is ready. Please sign in.' });
+          }
+        } else {
+          skipAutoNavRef.current = false;
+        }
+        stripAuthParams();
+      } finally {
+        if (!cancelled) setHandoffDone(true);
+      }
+    })();
+
+    return () => { cancelled = true; };
+    // Run once on landing from the email/OAuth redirect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    if (!handoffDone) return;
     if (!user) return;
-    if (showSuccessSplash) return; // email login handles its own redirect via SplashScreen
+    if (showSuccessSplash) return;
+    if (skipAutoNavRef.current) return;
     navigate(getPostLoginPath());
-  }, [user, navigate, showSuccessSplash]);
+  }, [user, navigate, showSuccessSplash, handoffDone]);
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);

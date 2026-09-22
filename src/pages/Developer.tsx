@@ -18,6 +18,7 @@ import {
   ChevronDown, ChevronRight, Zap, Database, ShieldCheck, Layers, Activity,
   Users, Lock, BookOpen, ListTodo, CalendarCheck, Bell, HelpCircle, ExternalLink,
   Download,
+  Building2, ClipboardList, Package, Warehouse, ArrowLeftRight,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -99,6 +100,29 @@ const ENDPOINTS: Endpoint[] = [
   { id: 'act-delete',  method: 'DELETE', path: '/activities/:id', title: 'Delete an activity',group: 'Activities',pathParams: ['id'] },
   { id: 'notif-list',  method: 'GET',    path: '/notifications', title: 'List notifications', group: 'Notifications', defaultQuery: 'user_id=' },
   { id: 'notif-create',method: 'POST',   path: '/notifications', title: 'Send a notification',group: 'Notifications', defaultBody: JSON.stringify({ user_id: '', title: 'Test notification', message: 'Hello from API tester', type: 'info' }, null, 2) },
+  { id: 'clients-list', method: 'GET',    path: '/clients',       title: 'List clients',        group: 'Clients', defaultQuery: 'limit=10&offset=0' },
+  { id: 'clients-get',  method: 'GET',    path: '/clients/:id',   title: 'Get a client',        group: 'Clients', pathParams: ['id'] },
+  { id: 'clients-create',method:'POST',   path: '/clients',       title: 'Create a client',     group: 'Clients', defaultBody: JSON.stringify({ name: 'Acme Corp', contact_email: 'ops@acme.com' }, null, 2) },
+  { id: 'clients-update',method:'PATCH',  path: '/clients/:id',   title: 'Update a client',     group: 'Clients', pathParams: ['id'], defaultBody: JSON.stringify({ notes: 'Updated from API' }, null, 2) },
+  { id: 'clients-delete',method:'DELETE', path: '/clients/:id',   title: 'Delete a client',     group: 'Clients', pathParams: ['id'] },
+  { id: 'cr-list',      method: 'GET',    path: '/client_requests', title: 'List client requests', group: 'Client requests', defaultQuery: 'limit=10' },
+  { id: 'cr-get',       method: 'GET',    path: '/client_requests/:id', title: 'Get a client request', group: 'Client requests', pathParams: ['id'] },
+  { id: 'cr-create',    method: 'POST',   path: '/client_requests', title: 'Create a client request', group: 'Client requests', defaultBody: JSON.stringify({ client_id: '', quantity: 1, status: 'pending' }, null, 2) },
+  { id: 'cr-update',    method: 'PATCH',  path: '/client_requests/:id', title: 'Update a client request', group: 'Client requests', pathParams: ['id'], defaultBody: JSON.stringify({ status: 'ordered' }, null, 2) },
+  { id: 'cr-delete',    method: 'DELETE', path: '/client_requests/:id', title: 'Delete a client request', group: 'Client requests', pathParams: ['id'] },
+  { id: 'dp-list',      method: 'GET',    path: '/device_pricing', title: 'List device pricing', group: 'Device pricing', defaultQuery: 'limit=10' },
+  { id: 'dp-get',       method: 'GET',    path: '/device_pricing/:id', title: 'Get device pricing', group: 'Device pricing', pathParams: ['id'] },
+  { id: 'dp-create',    method: 'POST',   path: '/device_pricing', title: 'Create device pricing', group: 'Device pricing', defaultBody: JSON.stringify({ vendor_id: '', brand: 'HP', device_model: 'ProBook 440' }, null, 2) },
+  { id: 'dp-update',    method: 'PATCH',  path: '/device_pricing/:id', title: 'Update device pricing', group: 'Device pricing', pathParams: ['id'], defaultBody: JSON.stringify({ brand: 'HP' }, null, 2) },
+  { id: 'dp-delete',    method: 'DELETE', path: '/device_pricing/:id', title: 'Delete device pricing', group: 'Device pricing', pathParams: ['id'] },
+  { id: 'wp-list',      method: 'GET',    path: '/warehouse_pricing', title: 'List warehouse pricing', group: 'Warehouse pricing', defaultQuery: 'limit=10' },
+  { id: 'wp-get',       method: 'GET',    path: '/warehouse_pricing/:id', title: 'Get warehouse pricing', group: 'Warehouse pricing', pathParams: ['id'] },
+  { id: 'wp-create',    method: 'POST',   path: '/warehouse_pricing', title: 'Create warehouse pricing', group: 'Warehouse pricing', defaultBody: JSON.stringify({ vendor_id: '', country_id: '' }, null, 2) },
+  { id: 'wp-update',    method: 'PATCH',  path: '/warehouse_pricing/:id', title: 'Update warehouse pricing', group: 'Warehouse pricing', pathParams: ['id'], defaultBody: JSON.stringify({ notes: '' }, null, 2) },
+  { id: 'wp-delete',    method: 'DELETE', path: '/warehouse_pricing/:id', title: 'Delete warehouse pricing', group: 'Warehouse pricing', pathParams: ['id'] },
+  { id: 'lt-list',      method: 'GET',    path: '/lead_transfers', title: 'List lead transfers', group: 'Lead transfers', defaultQuery: 'limit=10' },
+  { id: 'lt-get',       method: 'GET',    path: '/lead_transfers/:id', title: 'Get a lead transfer', group: 'Lead transfers', pathParams: ['id'] },
+  { id: 'lt-create',    method: 'POST',   path: '/lead_transfers', title: 'Transfer a lead', group: 'Lead transfers', defaultBody: JSON.stringify({ lead_id: '', to_user_id: '', transferred_by: '' }, null, 2) },
 ];
 
 const EP_GROUPS = [...new Set(ENDPOINTS.map((e) => e.group))];
@@ -114,7 +138,7 @@ const EDGE_FUNCTIONS = [
   { id: 'google-calendar',label:'google-calendar',desc: 'Calendar integration' },
 ];
 
-const LAST_UPDATED = 'March 5, 2026';
+const LAST_UPDATED = 'September 22, 2026';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -382,6 +406,11 @@ export default function Developer() {
     { id: 'follow-ups', label: 'Follow-ups', icon: CalendarCheck },
     { id: 'activities', label: 'Activities', icon: Activity },
     { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'clients', label: 'Clients', icon: Building2 },
+    { id: 'client-requests', label: 'Client requests', icon: ClipboardList },
+    { id: 'device-pricing', label: 'Device pricing', icon: Package },
+    { id: 'warehouse-pricing', label: 'Warehouse pricing', icon: Warehouse },
+    { id: 'lead-transfers', label: 'Lead transfers', icon: ArrowLeftRight },
     { id: 'reference', label: 'Reference data', icon: Database },
     { id: 'errors', label: 'Status codes', icon: AlertTriangle },
     { id: 'faq', label: 'FAQ', icon: HelpCircle },
@@ -393,7 +422,19 @@ export default function Developer() {
   };
 
   const downloadDocs = () => {
-    const content = `# RemoAsset Connect — API Documentation\nVersion 1.0  |  Last updated ${LAST_UPDATED}\n\nBase URL: ${BASE_URL}\n\nAuthentication: Authorization: Bearer <your_api_key>\n\nFull interactive docs: ${window.location.origin}/developer?tab=docs\n`;
+    const content = `# RemoAsset Connect — API Documentation
+Version 1.0  |  Last updated ${LAST_UPDATED}
+
+Base URL: ${BASE_URL}
+
+Authentication: Authorization: Bearer ra_<your_api_key>
+
+Resources: /leads, /tasks, /follow_ups, /activities, /documents, /notifications, /clients, /client_requests, /device_pricing, /warehouse_pricing, /lead_transfers, /team, /statuses, /countries, /profiles.
+
+GET ${BASE_URL} returns the live catalog.
+
+Full interactive docs: ${window.location.origin}/developer?tab=docs
+`;
     const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'remoasset-connect-api-docs.md'; a.click();
     toast({ title: 'Documentation downloaded' });
@@ -740,7 +781,7 @@ export default function Developer() {
                 <section id="doc-leads" className="scroll-mt-4 space-y-4">
                   <h2 className="text-base font-semibold flex items-center gap-2 border-b border-border/60 pb-2"><Users className="h-4 w-4 text-primary" />Leads</h2>
                   <Accordion type="multiple" className="space-y-2">
-                    <EndpointRow method="GET" path="/leads" title="List leads" queryParams={[{ name: 'limit', type: 'number', description: 'Max results' }, { name: 'offset', type: 'number', description: 'Pagination offset' }, { name: 'status_id', type: 'uuid', description: 'Filter by stage' }, { name: 'owner_id', type: 'uuid', description: 'Filter by owner' }, { name: 'country_ids', type: 'uuid[]', description: 'Filter by countries served (comma-separated or repeated)' }, { name: 'search', type: 'string', description: 'Full-text search' }]} responseExample={`{ "data": [ { "id": "uuid", "company_name": "Acme Corp", ... } ], "total": 42 }`} />
+                    <EndpointRow method="GET" path="/leads" title="List leads" queryParams={[{ name: 'limit', type: 'number', description: 'Max results' }, { name: 'offset', type: 'number', description: 'Pagination offset' }, { name: 'status_id', type: 'uuid', description: 'Filter by stage' }, { name: 'owner_id', type: 'uuid', description: 'Filter by owner' }, { name: 'country_id', type: 'uuid', description: 'Filter by country (alias of country_ids)' }, { name: 'country_ids', type: 'uuid[]', description: 'Filter by hq_country_id or countries served' }, { name: 'search', type: 'string', description: 'Full-text search' }]} responseExample={`{ "data": [ { "id": "uuid", "company_name": "Acme Corp", ... } ], "total": 42 }`} />
                     <EndpointRow method="GET" path="/leads/:id" title="Get a lead" responseExample={`{ "id": "uuid", "company_name": "Acme Corp", ... }`} />
                     <EndpointRow method="POST" path="/leads" title="Create a lead" bodyParams={[{ name: 'company_name', type: 'string', required: true, description: 'Company name' }, { name: 'contact_name', type: 'string', description: 'Primary contact' }, { name: 'email', type: 'string', description: 'Contact email' }, { name: 'status_id', type: 'uuid', description: 'Pipeline stage' }, { name: 'owner_id', type: 'uuid', description: 'Assigned member' }, { name: 'deal_value', type: 'number', description: 'Estimated value' }]} />
                     <EndpointRow method="PATCH" path="/leads/:id" title="Update a lead" bodyParams={[{ name: 'company_name', type: 'string', description: 'New name' }, { name: 'status_id', type: 'uuid', description: 'Move to stage' }, { name: 'owner_id', type: 'uuid', description: 'Reassign' }, { name: 'deal_value', type: 'number', description: 'Update value' }]} />
@@ -787,6 +828,59 @@ export default function Developer() {
                   <Accordion type="multiple" className="space-y-2">
                     <EndpointRow method="GET" path="/notifications" title="List notifications" queryParams={[{ name: 'user_id', type: 'uuid', required: true, description: 'Recipient member' }, { name: 'limit', type: 'number', description: 'Default 50' }]} />
                     <EndpointRow method="POST" path="/notifications" title="Send a notification" bodyParams={[{ name: 'user_id', type: 'uuid', required: true, description: 'Recipient' }, { name: 'title', type: 'string', required: true, description: 'Short title' }, { name: 'message', type: 'string', required: true, description: 'Full message' }, { name: 'type', type: 'string', description: 'info / warning / success / task / lead / email' }]} />
+                  </Accordion>
+                </section>
+
+                <section id="doc-clients" className="scroll-mt-4 space-y-4">
+                  <h2 className="text-base font-semibold flex items-center gap-2 border-b border-border/60 pb-2"><Building2 className="h-4 w-4 text-primary" />Clients</h2>
+                  <Accordion type="multiple" className="space-y-2">
+                    <EndpointRow method="GET" path="/clients" title="List clients" queryParams={[{ name: 'limit', type: 'number', description: 'Default 50' }, { name: 'offset', type: 'number', description: 'Pagination' }, { name: 'search / q', type: 'string', description: 'Name, contact, email' }]} />
+                    <EndpointRow method="GET" path="/clients/:id" title="Get a client" />
+                    <EndpointRow method="POST" path="/clients" title="Create a client" bodyParams={[{ name: 'name', type: 'string', required: true, description: 'Client name' }, { name: 'country_id', type: 'uuid', description: 'Country' }, { name: 'contact_email', type: 'string', description: 'Email' }]} />
+                    <EndpointRow method="PATCH" path="/clients/:id" title="Update a client" />
+                    <EndpointRow method="DELETE" path="/clients/:id" title="Delete a client" responseExample={`{ "success": true }`} />
+                  </Accordion>
+                </section>
+
+                <section id="doc-client-requests" className="scroll-mt-4 space-y-4">
+                  <h2 className="text-base font-semibold flex items-center gap-2 border-b border-border/60 pb-2"><ClipboardList className="h-4 w-4 text-primary" />Client requests</h2>
+                  <Accordion type="multiple" className="space-y-2">
+                    <EndpointRow method="GET" path="/client_requests" title="List client requests" queryParams={[{ name: 'client_id', type: 'uuid', description: 'Filter by client' }, { name: 'status', type: 'string', description: 'pending / vendor_allocated / ordered / in_transit / fulfilled / cancelled' }]} />
+                    <EndpointRow method="GET" path="/client_requests/:id" title="Get a client request" />
+                    <EndpointRow method="POST" path="/client_requests" title="Create a client request" bodyParams={[{ name: 'client_id', type: 'uuid', required: true, description: 'Owning client' }]} />
+                    <EndpointRow method="PATCH" path="/client_requests/:id" title="Update a client request" />
+                    <EndpointRow method="DELETE" path="/client_requests/:id" title="Delete a client request" />
+                  </Accordion>
+                </section>
+
+                <section id="doc-device-pricing" className="scroll-mt-4 space-y-4">
+                  <h2 className="text-base font-semibold flex items-center gap-2 border-b border-border/60 pb-2"><Package className="h-4 w-4 text-primary" />Device pricing</h2>
+                  <Accordion type="multiple" className="space-y-2">
+                    <EndpointRow method="GET" path="/device_pricing" title="List device pricing" queryParams={[{ name: 'vendor_id', type: 'uuid', description: 'Vendor lead' }, { name: 'country_id', type: 'uuid', description: 'Country' }, { name: 'brand', type: 'string', description: 'Partial match' }]} />
+                    <EndpointRow method="GET" path="/device_pricing/:id" title="Get device pricing" />
+                    <EndpointRow method="POST" path="/device_pricing" title="Create device pricing" bodyParams={[{ name: 'vendor_id', type: 'uuid', required: true, description: 'Vendor lead' }]} />
+                    <EndpointRow method="PATCH" path="/device_pricing/:id" title="Update device pricing" />
+                    <EndpointRow method="DELETE" path="/device_pricing/:id" title="Delete device pricing" />
+                  </Accordion>
+                </section>
+
+                <section id="doc-warehouse-pricing" className="scroll-mt-4 space-y-4">
+                  <h2 className="text-base font-semibold flex items-center gap-2 border-b border-border/60 pb-2"><Warehouse className="h-4 w-4 text-primary" />Warehouse pricing</h2>
+                  <Accordion type="multiple" className="space-y-2">
+                    <EndpointRow method="GET" path="/warehouse_pricing" title="List warehouse pricing" queryParams={[{ name: 'vendor_id', type: 'uuid', description: 'Vendor lead' }, { name: 'country_id', type: 'uuid', description: 'Country' }]} />
+                    <EndpointRow method="GET" path="/warehouse_pricing/:id" title="Get warehouse pricing" />
+                    <EndpointRow method="POST" path="/warehouse_pricing" title="Create warehouse pricing" bodyParams={[{ name: 'vendor_id', type: 'uuid', required: true, description: 'Vendor lead' }]} />
+                    <EndpointRow method="PATCH" path="/warehouse_pricing/:id" title="Update warehouse pricing" />
+                    <EndpointRow method="DELETE" path="/warehouse_pricing/:id" title="Delete warehouse pricing" />
+                  </Accordion>
+                </section>
+
+                <section id="doc-lead-transfers" className="scroll-mt-4 space-y-4">
+                  <h2 className="text-base font-semibold flex items-center gap-2 border-b border-border/60 pb-2"><ArrowLeftRight className="h-4 w-4 text-primary" />Lead transfers</h2>
+                  <Accordion type="multiple" className="space-y-2">
+                    <EndpointRow method="GET" path="/lead_transfers" title="List lead transfers" queryParams={[{ name: 'lead_id', type: 'uuid', description: 'Filter by lead' }]} />
+                    <EndpointRow method="GET" path="/lead_transfers/:id" title="Get a lead transfer" />
+                    <EndpointRow method="POST" path="/lead_transfers" title="Transfer a lead" bodyParams={[{ name: 'lead_id', type: 'uuid', required: true, description: 'Lead' }, { name: 'to_user_id', type: 'uuid', required: true, description: 'New owner' }, { name: 'transferred_by', type: 'uuid', required: true, description: 'Actor' }, { name: 'from_user_id', type: 'uuid', description: 'Previous owner' }, { name: 'notes', type: 'string', description: 'Comment' }]} />
                   </Accordion>
                 </section>
 

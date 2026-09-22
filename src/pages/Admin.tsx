@@ -649,6 +649,7 @@ GET ${baseUrl}/leads
 | offset     | number | Records to skip for pagination (default 0)      |
 | status_id  | uuid   | Filter by pipeline status                       |
 | owner_id   | uuid   | Filter by assigned team member                  |
+| country_id / country_ids | uuid | Filter by hq country or countries served        |
 | search / q | string | Full-text search on company name, contact, email|
 
 **Response**
@@ -985,6 +986,92 @@ Use this to push in-app notifications to team members from your workflows.
 | message   | string | Yes      | Full notification message                           |
 | type      | string |          | info (default), warning, success, task, lead, email |
 | metadata  | object |          | Any extra JSON data to attach                       |
+
+---
+
+### Clients
+
+\`\`\`
+GET ${baseUrl}/clients
+GET ${baseUrl}/clients/:id
+POST ${baseUrl}/clients
+PATCH ${baseUrl}/clients/:id
+DELETE ${baseUrl}/clients/:id
+\`\`\`
+
+List is ordered by name. Query: \`limit\`, \`offset\`, \`search\` or \`q\` (name, contact_name, contact_email).
+
+**POST body:** \`name\` (required), \`country_id\`, \`contact_name\`, \`contact_email\`, \`contact_phone\`, \`notes\`.
+
+---
+
+### Client requests
+
+\`\`\`
+GET ${baseUrl}/client_requests
+GET ${baseUrl}/client_requests/:id
+POST ${baseUrl}/client_requests
+PATCH ${baseUrl}/client_requests/:id
+DELETE ${baseUrl}/client_requests/:id
+\`\`\`
+
+Query: \`limit\`, \`offset\`, \`client_id\`, \`status\` (pending, vendor_allocated, ordered, in_transit, fulfilled, cancelled).
+
+**POST:** \`client_id\` is required.
+
+---
+
+### Device pricing
+
+Vendor device price rows (\`vendor_device_pricing\`).
+
+\`\`\`
+GET ${baseUrl}/device_pricing
+GET ${baseUrl}/device_pricing/:id
+POST ${baseUrl}/device_pricing
+PATCH ${baseUrl}/device_pricing/:id
+DELETE ${baseUrl}/device_pricing/:id
+\`\`\`
+
+Query: \`vendor_id\`, \`country_id\`, \`brand\` (partial match), plus pagination.
+
+---
+
+### Warehouse pricing
+
+Warehouse vendor price rows (\`warehouse_vendor_pricing\`).
+
+\`\`\`
+GET ${baseUrl}/warehouse_pricing
+GET ${baseUrl}/warehouse_pricing/:id
+POST ${baseUrl}/warehouse_pricing
+PATCH ${baseUrl}/warehouse_pricing/:id
+DELETE ${baseUrl}/warehouse_pricing/:id
+\`\`\`
+
+Query: \`vendor_id\`, \`country_id\`, plus pagination.
+
+---
+
+### Lead transfers
+
+\`\`\`
+GET ${baseUrl}/lead_transfers
+GET ${baseUrl}/lead_transfers/:id
+POST ${baseUrl}/lead_transfers
+\`\`\`
+
+Query: \`lead_id\`, plus pagination. POST transfers ownership and logs a lead activity.
+
+**POST body**
+
+| Field          | Type   | Required | Description |
+|----------------|--------|----------|-------------|
+| lead_id        | uuid   | Yes      | Lead to transfer |
+| to_user_id     | uuid   | Yes      | New owner |
+| transferred_by | uuid   | Yes      | Actor user_id |
+| from_user_id   | uuid   |          | Previous owner (defaults to current owner) |
+| notes          | string |          | Optional comment |
 
 ---
 

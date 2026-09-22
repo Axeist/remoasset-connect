@@ -156,9 +156,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       // Only set loading false here if onAuthStateChange hasn't already
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
 
-    return () => subscription.unsubscribe();
+    const loadingSafety = window.setTimeout(() => setLoading(false), 8000);
+
+    return () => {
+      window.clearTimeout(loadingSafety);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchUserAccess = async (userId: string) => {
@@ -191,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const domainList = allowedDomains.map((d) => `@${d}`).join(' or ');
       return { error: new Error(`Sign up is only allowed with a ${domainList} email address.`) };
     }
-    const redirectUrl = `${window.location.origin}/auth?verified=true`;
+    const redirectUrl = `${window.location.origin}/auth`;
 
     const { error } = await supabase.auth.signUp({
       email,

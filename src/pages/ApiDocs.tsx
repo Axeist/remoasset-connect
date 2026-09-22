@@ -12,11 +12,12 @@ import {
   Copy, Check, Download, ExternalLink, Terminal, Lock, Zap, BookOpen,
   Globe, FileText, ChevronRight, AlertTriangle, Key, Database,
   ListTodo, CalendarCheck, Activity, Bell, Users, Layers, HelpCircle,
+  Building2, ClipboardList, Package, Warehouse, ArrowLeftRight,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const BASE_URL = `${import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')}/functions/v1/api`;
-const LAST_UPDATED = 'March 26, 2026';
+const LAST_UPDATED = 'September 22, 2026';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -144,6 +145,11 @@ const NAV_SECTIONS = [
   { id: 'activities', label: 'Activities', icon: Activity },
   { id: 'documents', label: 'Documents', icon: FileText },
   { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'clients', label: 'Clients', icon: Building2 },
+  { id: 'client-requests', label: 'Client requests', icon: ClipboardList },
+  { id: 'device-pricing', label: 'Device pricing', icon: Package },
+  { id: 'warehouse-pricing', label: 'Warehouse pricing', icon: Warehouse },
+  { id: 'lead-transfers', label: 'Lead transfers', icon: ArrowLeftRight },
   { id: 'reference', label: 'Reference data', icon: Database },
   { id: 'workflows', label: 'Workflow examples', icon: Zap },
   { id: 'errors', label: 'Status codes', icon: AlertTriangle },
@@ -441,6 +447,107 @@ Requires \`user_id\` query param. Ordered by \`created_at\` descending.
 | message  | string | ✓        | Full notification message |
 | type     | string |          | info (default), warning, success, task, lead, or email |
 | metadata | object |          | Any additional JSON data to attach |
+
+---
+
+## Clients
+
+### GET /clients
+List clients ordered by name. Search uses \`search\` or \`q\` against name, contact name, and contact email.
+
+### GET /clients/:id
+Returns one client.
+
+### POST /clients
+Creates a client. Returns **201**.
+
+| Field          | Type   | Required | Description |
+|----------------|--------|----------|-------------|
+| name           | string | ✓        | Client company name |
+| country_id     | uuid   |          | Country — from GET /countries |
+| contact_name   | string |          | Primary contact |
+| contact_email  | string |          | Contact email |
+| contact_phone  | string |          | Contact phone |
+| notes          | string |          | Internal notes |
+
+### PATCH /clients/:id
+Partial update. Returns the updated client.
+
+### DELETE /clients/:id
+Returns \`{ "success": true }\`.
+
+---
+
+## Client requests
+
+### GET /client_requests
+Paginated. Filters: \`client_id\`, \`status\`.
+
+Statuses: pending, vendor_allocated, ordered, in_transit, fulfilled, cancelled.
+
+### GET /client_requests/:id
+
+### POST /client_requests
+Creates a request. \`client_id\` is required.
+
+### PATCH /client_requests/:id
+
+### DELETE /client_requests/:id
+
+---
+
+## Device pricing
+
+Vendor laptop/device price rows (\`vendor_device_pricing\`).
+
+### GET /device_pricing
+Filters: \`vendor_id\`, \`country_id\`, \`brand\` (partial match).
+
+### GET /device_pricing/:id
+
+### POST /device_pricing
+Creates a row. Typical fields: \`vendor_id\`, \`country_id\`, \`brand\`, \`device_model\`, prices, spec columns.
+
+### PATCH /device_pricing/:id
+
+### DELETE /device_pricing/:id
+
+---
+
+## Warehouse pricing
+
+Warehouse vendor price rows (\`warehouse_vendor_pricing\`).
+
+### GET /warehouse_pricing
+Filters: \`vendor_id\`, \`country_id\`.
+
+### GET /warehouse_pricing/:id
+
+### POST /warehouse_pricing
+
+### PATCH /warehouse_pricing/:id
+
+### DELETE /warehouse_pricing/:id
+
+---
+
+## Lead transfers
+
+### GET /lead_transfers
+Filter with \`lead_id\`. Ordered by \`created_at\` descending.
+
+### GET /lead_transfers/:id
+
+### POST /lead_transfers
+Transfers ownership and writes a lead activity.
+
+| Field           | Type   | Required | Description |
+|-----------------|--------|----------|-------------|
+| lead_id         | uuid   | ✓        | Lead to transfer |
+| to_user_id      | uuid   | ✓        | New owner |
+| transferred_by  | uuid   | ✓        | Actor (team user_id) |
+| from_user_id    | uuid   |          | Previous owner (defaults to current lead owner) |
+| notes           | string |          | Optional comment |
 
 ---
 
@@ -978,6 +1085,152 @@ curl "${BASE_URL}/leads?limit=25&offset=25" -H "Authorization: Bearer <key>"`} /
                     { name: 'message', type: 'string', required: true, description: 'Full notification message' },
                     { name: 'type', type: 'string', description: 'info (default), warning, success, task, lead, or email' },
                     { name: 'metadata', type: 'object', description: 'Any additional JSON data to attach' },
+                  ]}
+                />
+              </Accordion>
+            </section>
+
+            {/* Clients */}
+            <section id="clients" className="scroll-mt-4 space-y-4">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2 border-b border-border/60 pb-2">
+                <Building2 className="h-4 w-4 text-primary" />Clients
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">Buying organisations (not vendor leads). Search matches name, contact name, and contact email.</p>
+              <Accordion type="multiple" className="space-y-2">
+                <EndpointRow method="GET" path="/clients" title="List clients"
+                  queryParams={[
+                    { name: 'limit', type: 'number', description: 'Max results (default 50, max 100)' },
+                    { name: 'offset', type: 'number', description: 'Pagination offset' },
+                    { name: 'search / q', type: 'string', description: 'Search name, contact_name, contact_email' },
+                  ]}
+                  responseExample={`{ "data": [ { "id": "uuid", "name": "Acme Corp", "contact_email": "ops@acme.com" } ], "total": 12 }`}
+                />
+                <EndpointRow method="GET" path="/clients/:id" title="Get a client" />
+                <EndpointRow method="POST" path="/clients" title="Create a client"
+                  bodyParams={[
+                    { name: 'name', type: 'string', required: true, description: 'Client company name' },
+                    { name: 'country_id', type: 'uuid', description: 'From GET /countries' },
+                    { name: 'contact_name', type: 'string', description: 'Primary contact' },
+                    { name: 'contact_email', type: 'string', description: 'Contact email' },
+                    { name: 'contact_phone', type: 'string', description: 'Contact phone' },
+                    { name: 'notes', type: 'string', description: 'Internal notes' },
+                  ]}
+                />
+                <EndpointRow method="PATCH" path="/clients/:id" title="Update a client" />
+                <EndpointRow method="DELETE" path="/clients/:id" title="Delete a client" responseExample={`{ "success": true }`} />
+              </Accordion>
+            </section>
+
+            {/* Client requests */}
+            <section id="client-requests" className="scroll-mt-4 space-y-4">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2 border-b border-border/60 pb-2">
+                <ClipboardList className="h-4 w-4 text-primary" />Client requests
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">Fulfillment and related requests for a client. Status: pending, vendor_allocated, ordered, in_transit, fulfilled, cancelled.</p>
+              <Accordion type="multiple" className="space-y-2">
+                <EndpointRow method="GET" path="/client_requests" title="List client requests"
+                  queryParams={[
+                    { name: 'limit', type: 'number', description: 'Max results (default 50, max 100)' },
+                    { name: 'offset', type: 'number', description: 'Pagination offset' },
+                    { name: 'client_id', type: 'uuid', description: 'Filter by client' },
+                    { name: 'status', type: 'string', description: 'pending, vendor_allocated, ordered, in_transit, fulfilled, cancelled' },
+                  ]}
+                />
+                <EndpointRow method="GET" path="/client_requests/:id" title="Get a client request" />
+                <EndpointRow method="POST" path="/client_requests" title="Create a client request"
+                  bodyParams={[
+                    { name: 'client_id', type: 'uuid', required: true, description: 'Owning client' },
+                    { name: 'request_type', type: 'string', description: 'fulfillment, retrieval_redeployment, cross_border, itad' },
+                    { name: 'vendor_id', type: 'uuid', description: 'Allocated vendor lead id' },
+                    { name: 'quantity', type: 'number', description: 'Device quantity' },
+                    { name: 'status', type: 'string', description: 'Request status' },
+                    { name: 'notes', type: 'string', description: 'Internal notes' },
+                  ]}
+                />
+                <EndpointRow method="PATCH" path="/client_requests/:id" title="Update a client request" />
+                <EndpointRow method="DELETE" path="/client_requests/:id" title="Delete a client request" responseExample={`{ "success": true }`} />
+              </Accordion>
+            </section>
+
+            {/* Device pricing */}
+            <section id="device-pricing" className="scroll-mt-4 space-y-4">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2 border-b border-border/60 pb-2">
+                <Package className="h-4 w-4 text-primary" />Device pricing
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">Vendor laptop/device price rows (table vendor_device_pricing).</p>
+              <Accordion type="multiple" className="space-y-2">
+                <EndpointRow method="GET" path="/device_pricing" title="List device pricing"
+                  queryParams={[
+                    { name: 'limit', type: 'number', description: 'Max results (default 50, max 100)' },
+                    { name: 'offset', type: 'number', description: 'Pagination offset' },
+                    { name: 'vendor_id', type: 'uuid', description: 'Vendor lead id' },
+                    { name: 'country_id', type: 'uuid', description: 'Country' },
+                    { name: 'brand', type: 'string', description: 'Partial brand match' },
+                  ]}
+                />
+                <EndpointRow method="GET" path="/device_pricing/:id" title="Get a device pricing row" />
+                <EndpointRow method="POST" path="/device_pricing" title="Create device pricing"
+                  bodyParams={[
+                    { name: 'vendor_id', type: 'uuid', required: true, description: 'Vendor lead id' },
+                    { name: 'country_id', type: 'uuid', description: 'Country' },
+                    { name: 'brand', type: 'string', description: 'Brand' },
+                    { name: 'device_model', type: 'string', description: 'Model' },
+                  ]}
+                />
+                <EndpointRow method="PATCH" path="/device_pricing/:id" title="Update device pricing" />
+                <EndpointRow method="DELETE" path="/device_pricing/:id" title="Delete device pricing" responseExample={`{ "success": true }`} />
+              </Accordion>
+            </section>
+
+            {/* Warehouse pricing */}
+            <section id="warehouse-pricing" className="scroll-mt-4 space-y-4">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2 border-b border-border/60 pb-2">
+                <Warehouse className="h-4 w-4 text-primary" />Warehouse pricing
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">Warehouse vendor price rows (table warehouse_vendor_pricing).</p>
+              <Accordion type="multiple" className="space-y-2">
+                <EndpointRow method="GET" path="/warehouse_pricing" title="List warehouse pricing"
+                  queryParams={[
+                    { name: 'limit', type: 'number', description: 'Max results (default 50, max 100)' },
+                    { name: 'offset', type: 'number', description: 'Pagination offset' },
+                    { name: 'vendor_id', type: 'uuid', description: 'Vendor lead id' },
+                    { name: 'country_id', type: 'uuid', description: 'Country' },
+                  ]}
+                />
+                <EndpointRow method="GET" path="/warehouse_pricing/:id" title="Get a warehouse pricing row" />
+                <EndpointRow method="POST" path="/warehouse_pricing" title="Create warehouse pricing"
+                  bodyParams={[
+                    { name: 'vendor_id', type: 'uuid', required: true, description: 'Vendor lead id' },
+                    { name: 'country_id', type: 'uuid', description: 'Country' },
+                  ]}
+                />
+                <EndpointRow method="PATCH" path="/warehouse_pricing/:id" title="Update warehouse pricing" />
+                <EndpointRow method="DELETE" path="/warehouse_pricing/:id" title="Delete warehouse pricing" responseExample={`{ "success": true }`} />
+              </Accordion>
+            </section>
+
+            {/* Lead transfers */}
+            <section id="lead-transfers" className="scroll-mt-4 space-y-4">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2 border-b border-border/60 pb-2">
+                <ArrowLeftRight className="h-4 w-4 text-primary" />Lead transfers
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">POST transfers the lead owner and writes a transfer activity on the lead.</p>
+              <Accordion type="multiple" className="space-y-2">
+                <EndpointRow method="GET" path="/lead_transfers" title="List lead transfers"
+                  queryParams={[
+                    { name: 'limit', type: 'number', description: 'Max results (default 50, max 100)' },
+                    { name: 'offset', type: 'number', description: 'Pagination offset' },
+                    { name: 'lead_id', type: 'uuid', description: 'Filter by lead' },
+                  ]}
+                />
+                <EndpointRow method="GET" path="/lead_transfers/:id" title="Get a lead transfer" />
+                <EndpointRow method="POST" path="/lead_transfers" title="Transfer a lead"
+                  bodyParams={[
+                    { name: 'lead_id', type: 'uuid', required: true, description: 'Lead to transfer' },
+                    { name: 'to_user_id', type: 'uuid', required: true, description: 'New owner' },
+                    { name: 'transferred_by', type: 'uuid', required: true, description: 'Actor user_id' },
+                    { name: 'from_user_id', type: 'uuid', description: 'Previous owner (defaults to current owner)' },
+                    { name: 'notes', type: 'string', description: 'Optional comment' },
                   ]}
                 />
               </Accordion>

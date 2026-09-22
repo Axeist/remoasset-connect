@@ -51,6 +51,18 @@ const queryClient = new QueryClient();
 
 const WELCOME_SPLASH_DURATION = 3200;
 
+function shouldSkipWelcomeSplash() {
+  if (typeof window === 'undefined') return false;
+  const p = window.location.pathname;
+  return (
+    p.startsWith('/auth')
+    || p.startsWith('/reset-password')
+    || p.startsWith('/rfq/respond')
+    || p === '/privacy'
+    || p === '/terms'
+  );
+}
+
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -60,7 +72,7 @@ function ScrollToTop() {
 }
 
 const App = () => {
-  const [showWelcomeSplash, setShowWelcomeSplash] = useState(true);
+  const [showWelcomeSplash, setShowWelcomeSplash] = useState(() => !shouldSkipWelcomeSplash());
 
   return (
     <QueryClientProvider client={queryClient}>
