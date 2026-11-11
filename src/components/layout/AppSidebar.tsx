@@ -28,6 +28,9 @@ import {
   ChevronsUpDown,
   PanelLeftClose,
   Menu,
+  Crown,
+  ShieldCheck,
+  UserRound,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hasPreferencesConsent } from '@/lib/cookie-consent';
@@ -39,7 +42,6 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { BrandLogo } from '@/components/BrandLogo';
 
@@ -326,7 +328,7 @@ function SidebarNav({ collapsed = false, touch = false, onNavigate, onNavClick }
       <nav
         ref={navRef}
         className={cn(
-          'relative w-full flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 scrollbar-thin',
+          'sb-scroll relative w-full flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5',
           collapsed ? 'space-y-0.5 py-2' : 'space-y-0.5 py-3',
         )}
       >
@@ -425,35 +427,45 @@ function SidebarNav({ collapsed = false, touch = false, onNavigate, onNavClick }
       </nav>
 
       <div className="mt-auto shrink-0 border-t border-sidebar-border/50 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        {!collapsed && user && (
-          <div className="mb-3 rounded-2xl border border-sidebar-border/40 bg-gradient-to-br from-sidebar-primary/12 via-sidebar-accent/30 to-sidebar-accent/10 p-3.5 shadow-lg">
-            <div className="flex items-center gap-3">
+        {user && (
+          <NavLink
+            to="/settings"
+            onClick={handleClick}
+            title={[fullName || 'User', roleLabel(role), designation].filter(Boolean).join(' · ')}
+            aria-label={`${fullName || 'Your profile'}, ${roleLabel(role)}. Open settings`}
+            className={cn(
+              'sb-pill group mb-2 block outline-none transition-transform duration-300 hover:-translate-y-0.5 active:scale-[.98] focus-visible:ring-2 focus-visible:ring-sidebar-primary/70',
+              collapsed ? 'mx-auto w-11 rounded-full' : 'rounded-full',
+            )}
+          >
+            <span className={cn('sb-pill-inner flex items-center', collapsed ? 'justify-center p-0.5' : 'gap-3 py-2 pl-2 pr-4')}>
               <span className="relative shrink-0">
-                <Avatar className="h-10 w-10 rounded-full shadow-md ring-2 ring-sidebar-primary/40">
-                  <AvatarImage src={avatarUrl || undefined} alt={fullName || undefined} className="rounded-full" />
-                  <AvatarFallback className="rounded-full bg-gradient-to-br from-sidebar-primary to-sidebar-primary/80 text-sm font-semibold text-white">
+                <Avatar className={cn('rounded-full', collapsed ? 'h-10 w-10' : 'h-11 w-11')}>
+                  <AvatarImage src={avatarUrl || undefined} alt="" className="rounded-full object-cover" />
+                  <AvatarFallback className="rounded-full bg-gradient-to-br from-sidebar-primary to-sidebar-primary/70 text-sm font-semibold text-white">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-sidebar bg-success" aria-label="Online" />
+                <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-sidebar bg-success shadow-[0_0_0_3px_hsl(var(--success)/.2)]" aria-hidden="true" />
               </span>
-              <div className="min-w-0 flex-1">
-                <p className="mb-0.5 truncate text-sm font-bold text-sidebar-foreground">{fullName || 'User'}</p>
-                <div className="flex items-center gap-1.5">
-                  <Badge
-                    variant={isAdmin ? 'default' : 'secondary'}
+              {!collapsed && (
+                <span className="min-w-0 flex-1 leading-tight">
+                  <span className="block truncate text-[15px] font-semibold tracking-tight text-sidebar-foreground">{fullName || 'User'}</span>
+                  <span
                     className={cn(
-                      'h-5 px-2 text-[10.5px] font-bold tracking-wider',
-                      isAdmin && 'border-0 bg-gradient-to-r from-sidebar-primary to-sidebar-primary/90 text-white',
+                      'mt-1 inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider',
+                      isAdmin
+                        ? 'bg-gradient-to-r from-sidebar-primary/35 to-[#f7c3a3]/25 text-[#ffd9c2] ring-1 ring-sidebar-primary/40'
+                        : 'bg-sidebar-foreground/10 text-sidebar-foreground/75 ring-1 ring-sidebar-foreground/10',
                     )}
                   >
-                    {roleLabel(role)}
-                  </Badge>
-                  {designation && <span className="truncate text-xs font-medium text-sidebar-foreground/65">{designation}</span>}
-                </div>
-              </div>
-            </div>
-          </div>
+                    {isAdmin ? <Crown className="h-3 w-3 shrink-0" /> : role === 'csm' ? <ShieldCheck className="h-3 w-3 shrink-0" /> : <UserRound className="h-3 w-3 shrink-0" />}
+                    <span className="truncate">{roleLabel(role)}</span>
+                  </span>
+                </span>
+              )}
+            </span>
+          </NavLink>
         )}
         <Button
           variant="ghost"

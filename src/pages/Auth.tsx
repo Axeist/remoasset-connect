@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { SplashScreen } from '@/components/SplashScreen';
 import { BrandLogo } from '@/components/BrandLogo';
 import {
-  Loader2, Eye, EyeOff, ArrowLeft, ArrowRight, Sun, Moon, Lock, Mail, CheckCircle2, Clock, IndianRupee, ShieldCheck,
+  Loader2, Eye, EyeOff, ArrowLeft, ArrowRight, Sun, Moon, Lock, Mail, ShieldCheck,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -46,37 +46,86 @@ function GoogleIcon({ className }: { className?: string }) {
 
 type View = 'signin' | 'forgot' | 'sent';
 
-/** Floating product cards shown beside the form on large screens. */
-function ShowcaseCards() {
+function useCountUp(target: number, ms = 1400) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setV(target); return; }
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / ms);
+      setV(Math.round(target * (p === 1 ? 1 : 1 - Math.pow(2, -10 * p))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return v;
+}
+
+/** A live mini pipeline: a lead card glides from stage to stage. Scales with its container. */
+function HeroBoard({ chips = true }: { chips?: boolean }) {
+  return (
+    <div className="hb" aria-hidden="true">
+      <div className="hb-card">
+        <div className="hb-top">
+          <span className="hb-title">My pipeline</span>
+          <span className="hb-dots"><i /><i /><i /></span>
+        </div>
+        <div className="hb-board">
+          <div className="hb-col"><h5>Qualified <span>3</span></h5><div className="hb-ph" /><div className="hb-ph s" /><div className="hb-ph" /></div>
+          <div className="hb-col"><h5>NDA sent <span>2</span></h5><div className="hb-ph s" /><div className="hb-ph" /></div>
+          <div className="hb-col"><h5>Won <span>5</span></h5><div className="hb-ph" /><div className="hb-ph s" /></div>
+          <div className="hb-mover"><div>Acme Devices<small>United Kingdom</small></div></div>
+        </div>
+      </div>
+      {chips && (
+        <>
+          <div className="hb-chip" style={{ top: '-5cqw', right: '3cqw' }}>
+            <b style={{ background: 'hsl(var(--success) / .25)', color: 'hsl(var(--success))' }}>✓</b> Lead created
+          </div>
+          <div className="hb-chip" style={{ bottom: '-5cqw', left: '5cqw', animationDelay: '-2.5s' }}>
+            <b style={{ background: 'hsl(var(--primary) / .25)', color: 'hsl(var(--primary))' }}>₹</b> New RFQ bid · 42,500
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function StatStrip() {
+  const leads = useCountUp(128);
+  const rfqs = useCountUp(14);
+  const won = useCountUp(9);
   const items = [
-    { Icon: CheckCircle2, tone: 'bg-success/20 text-success', title: 'Lead created', sub: 'Acme Devices · United Kingdom', delay: '0s', offset: 'ml-0' },
-    { Icon: Clock, tone: 'bg-primary/20 text-primary', title: 'Follow-up due in 15 min', sub: 'Dell Technologies', delay: '.9s', offset: 'ml-10' },
-    { Icon: IndianRupee, tone: 'bg-accent/25 text-accent', title: 'New RFQ bid received', sub: 'Lenovo Nordics · ₹42,500', delay: '1.8s', offset: 'ml-4' },
+    { n: leads, l: 'Active leads' },
+    { n: rfqs, l: 'Open RFQs' },
+    { n: won, l: 'Won this month' },
   ];
   return (
-    <ul className="space-y-3.5" aria-hidden="true">
-      {items.map((it, i) => (
-        <li
-          key={it.title}
-          className={cn('auth2-in', it.offset)}
-          style={{ animationDelay: `${0.25 + i * 0.15}s` }}
-        >
-          <div
-            className="auth2-float flex max-w-sm items-center gap-3.5 rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 backdrop-blur-md"
-            style={{ animationDelay: it.delay }}
-          >
-            <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', it.tone)}>
-              <it.Icon className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">{it.title}</p>
-              <p className="truncate text-xs text-white/60">{it.sub}</p>
-            </div>
-          </div>
-        </li>
+    <dl className="grid grid-cols-3 gap-3" aria-hidden="true">
+      {items.map((it) => (
+        <div key={it.l} className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-md">
+          <dt className="sr-only">{it.l}</dt>
+          <dd className="font-display text-2xl font-bold tabular-nums text-white xl:text-3xl">{it.n}</dd>
+          <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wider text-white/50 xl:text-xs">{it.l}</p>
+        </div>
       ))}
-    </ul>
+    </dl>
   );
+}
+
+async function resolveDisplayName(u: { id?: string; email?: string | null; user_metadata?: Record<string, unknown> } | null | undefined): Promise<string> {
+  const meta = (u?.user_metadata ?? {}) as { full_name?: string; name?: string };
+  let name = (meta.full_name || meta.name || '').toString().trim();
+  if (u?.id) {
+    try {
+      const { data: profile } = await supabase.from('profiles').select('full_name').eq('user_id', u.id).maybeSingle();
+      if (profile?.full_name?.trim()) name = profile.full_name.trim();
+    } catch { /* use metadata */ }
+  }
+  if (!name) name = (u?.email ?? '').split('@')[0] || 'there';
+  return name;
 }
 
 const Auth = () => {
@@ -90,7 +139,9 @@ const Auth = () => {
   const [forgotEmail, setForgotEmail] = useState('');
   const [shake, setShake] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  const [greetName, setGreetName] = useState('');
   const justLoggedInRef = useRef(false);
+  const greetedRef = useRef(false);
 
   const { signIn, signOut, user, allowedEmailDomains } = useAuth();
   const navigate = useNavigate();
@@ -217,8 +268,19 @@ const Auth = () => {
     if (!user) return;
     if (showSuccessSplash) return;
     if (skipAutoNavRef.current) return;
+    // Returning from Google: greet by name with the success splash, like email sign-in does.
+    if (oauthReturnRef.current && !greetedRef.current) {
+      greetedRef.current = true;
+      justLoggedInRef.current = true;
+      void resolveDisplayName(user).then((name) => {
+        setGreetName(name);
+        setShowSuccessSplash(true);
+        toast({ title: `Welcome back, ${name}!` });
+      });
+      return;
+    }
     navigate(getPostLoginPath());
-  }, [user, navigate, showSuccessSplash, handoffDone]);
+  }, [user, navigate, showSuccessSplash, handoffDone, toast]);
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
@@ -266,14 +328,10 @@ const Auth = () => {
       return;
     }
     justLoggedInRef.current = true;
+    const displayName = await resolveDisplayName(signedInUser);
+    setGreetName(displayName);
     setShowSuccessSplash(true);
     setIsLoading(false);
-    let displayName = signedInUser?.user_metadata?.full_name || signedInUser?.email?.split('@')[0] || '';
-    if (signedInUser?.id) {
-      const { data: profile } = await supabase.from('profiles').select('full_name').eq('user_id', signedInUser.id).maybeSingle();
-      if (profile?.full_name?.trim()) displayName = profile.full_name.trim();
-    }
-    if (!displayName) displayName = 'there';
     toast({ title: `Welcome back, ${displayName}!` });
   };
 
@@ -307,6 +365,7 @@ const Auth = () => {
       {showSuccessSplash && (
         <SplashScreen
           variant="success"
+          name={greetName}
           duration={2200}
           onComplete={() => {
             justLoggedInRef.current = false;
@@ -324,20 +383,29 @@ const Auth = () => {
         </div>
 
         {/* ── Brand panel (large screens) ── */}
-        <aside className="relative z-10 hidden flex-col justify-between p-12 xl:p-16 lg:flex">
-          <div className="auth2-in"><BrandLogo tone="onDark" size={42} /></div>
-          <div className="space-y-9">
+        <aside className="relative z-10 hidden flex-col justify-between gap-10 p-10 xl:p-16 lg:flex">
+          <div className="auth2-grid pointer-events-none absolute inset-0" aria-hidden="true" />
+          <div className="auth2-in relative"><BrandLogo tone="onDark" size={42} /></div>
+          <div className="relative space-y-10">
             <div className="auth2-in space-y-4" style={{ animationDelay: '.1s' }}>
-              <h1 className="font-display text-4xl font-bold leading-[1.08] tracking-tight text-white xl:text-5xl">
-                Every vendor.<br />Every deal.<br /><span className="text-primary">One place.</span>
+              <h1
+                className="font-display font-bold leading-[1.04] tracking-tight text-white"
+                style={{ fontSize: 'clamp(2.2rem, 1.1rem + 2.5vw, 3.7rem)' }}
+              >
+                Every vendor.<br />Every deal.<br /><span className="auth2-gradient-text">One place.</span>
               </h1>
-              <p className="max-w-md text-lg leading-relaxed text-white/70">
-                RemoAsset's internal workspace for leads, pipeline, RFQs and follow-ups.
+              <p className="max-w-md text-[clamp(1rem,.85rem+.4vw,1.2rem)] leading-relaxed text-white/70">
+                RemoAsset's workspace for leads, pipeline, RFQs and follow-ups, built for speed.
               </p>
             </div>
-            <ShowcaseCards />
+            <div className="auth2-in max-w-[520px] pb-6 pt-4" style={{ animationDelay: '.25s' }}>
+              <HeroBoard />
+            </div>
+            <div className="auth2-in max-w-[520px]" style={{ animationDelay: '.4s' }}>
+              <StatStrip />
+            </div>
           </div>
-          <p className="auth2-in flex items-center gap-2 text-sm text-white/50" style={{ animationDelay: '.6s' }}>
+          <p className="auth2-in relative flex items-center gap-2 text-sm text-white/50" style={{ animationDelay: '.6s' }}>
             <ShieldCheck className="h-4 w-4" /> Private workspace · access by invitation only
           </p>
         </aside>
@@ -359,6 +427,14 @@ const Auth = () => {
               <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </Button>
           </header>
+
+          {/* phone / tablet hero: shown when there is room, hidden on short screens so the form stays in reach */}
+          <div className="auth2-in mx-auto hidden w-full max-w-[460px] px-6 pb-6 [@media(min-height:900px)]:block lg:!hidden" style={{ animationDelay: '.1s' }}>
+            <h1 className="mb-4 font-display text-[clamp(1.5rem,1rem+2.4vw,2.1rem)] font-bold leading-tight tracking-tight text-white">
+              Every vendor. Every deal. <span className="auth2-gradient-text">One place.</span>
+            </h1>
+            <HeroBoard chips={false} />
+          </div>
 
           <div className="mt-auto flex flex-1 flex-col justify-end lg:mt-0 lg:items-center lg:justify-center lg:px-10">
             <div

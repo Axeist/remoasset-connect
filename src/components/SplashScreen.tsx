@@ -7,9 +7,11 @@ interface SplashScreenProps {
   variant: SplashVariant;
   onComplete?: () => void;
   duration?: number;
+  /** Shown in the success variant: "Welcome back, <name>". */
+  name?: string;
 }
 
-export function SplashScreen({ variant, onComplete, duration = 3200 }: SplashScreenProps) {
+export function SplashScreen({ variant, onComplete, duration = 3200, name }: SplashScreenProps) {
   useEffect(() => {
     const t = setTimeout(() => onComplete?.(), duration);
     return () => clearTimeout(t);
@@ -53,7 +55,7 @@ export function SplashScreen({ variant, onComplete, duration = 3200 }: SplashScr
           </div>
 
           <h1 className="splash-success-title mt-8 font-display text-3xl sm:text-4xl font-bold tracking-tight">
-            Welcome back
+            Welcome back{name ? `, ${name}` : ''}
           </h1>
           <p className="mt-3 text-base text-white/80">
             Taking you to your dashboard…
