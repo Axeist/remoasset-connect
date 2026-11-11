@@ -117,7 +117,7 @@ export function CommandPalette() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Search leads, jump to a page…" value={query} onValueChange={setQuery} />
+      <CommandInput placeholder="Search leads, jump to a page…" value={query} onValueChange={setQuery} autoFocus />
       <CommandList className="max-h-[min(60dvh,420px)]">
         <CommandEmpty>
           <span className="flex items-center justify-center gap-2 text-muted-foreground">
@@ -132,6 +132,16 @@ export function CommandPalette() {
                   <Users className="mr-2 h-4 w-4" /> {l.company_name}
                 </CommandItem>
               ))}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
+        {query.trim().length >= 2 && (
+          <>
+            <CommandGroup heading="Search">
+              <CommandItem value={`search all leads for ${query}`} onSelect={() => go(`/leads?search=${encodeURIComponent(query.trim())}`)}>
+                <Search className="mr-2 h-4 w-4" /> Search all leads for “{query.trim()}”
+              </CommandItem>
             </CommandGroup>
             <CommandSeparator />
           </>

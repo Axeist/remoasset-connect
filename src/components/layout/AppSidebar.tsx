@@ -434,37 +434,27 @@ function SidebarNav({ collapsed = false, touch = false, onNavigate, onNavClick }
             title={[fullName || 'User', roleLabel(role), designation].filter(Boolean).join(' · ')}
             aria-label={`${fullName || 'Your profile'}, ${roleLabel(role)}. Open settings`}
             className={cn(
-              'sb-pill group mb-2 block outline-none transition-transform duration-300 hover:-translate-y-0.5 active:scale-[.98] focus-visible:ring-2 focus-visible:ring-sidebar-primary/70',
-              collapsed ? 'mx-auto w-11 rounded-full' : 'rounded-full',
+              'group mb-2 flex items-center rounded-full border border-sidebar-border/50 bg-sidebar-accent/35 outline-none transition-colors duration-200',
+              'hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-sidebar-primary/70',
+              collapsed ? 'mx-auto h-11 w-11 justify-center' : 'gap-3 py-1.5 pl-1.5 pr-4',
             )}
           >
-            <span className={cn('sb-pill-inner flex items-center', collapsed ? 'justify-center p-0.5' : 'gap-3 py-2 pl-2 pr-4')}>
-              <span className="relative shrink-0">
-                <Avatar className={cn('rounded-full', collapsed ? 'h-10 w-10' : 'h-11 w-11')}>
-                  <AvatarImage src={avatarUrl || undefined} alt="" className="rounded-full object-cover" />
-                  <AvatarFallback className="rounded-full bg-gradient-to-br from-sidebar-primary to-sidebar-primary/70 text-sm font-semibold text-white">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-sidebar bg-success shadow-[0_0_0_3px_hsl(var(--success)/.2)]" aria-hidden="true" />
-              </span>
-              {!collapsed && (
-                <span className="min-w-0 flex-1 leading-tight">
-                  <span className="block truncate text-[15px] font-semibold tracking-tight text-sidebar-foreground">{fullName || 'User'}</span>
-                  <span
-                    className={cn(
-                      'mt-1 inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider',
-                      isAdmin
-                        ? 'bg-gradient-to-r from-sidebar-primary/35 to-[#f7c3a3]/25 text-[#ffd9c2] ring-1 ring-sidebar-primary/40'
-                        : 'bg-sidebar-foreground/10 text-sidebar-foreground/75 ring-1 ring-sidebar-foreground/10',
-                    )}
-                  >
-                    {isAdmin ? <Crown className="h-3 w-3 shrink-0" /> : role === 'csm' ? <ShieldCheck className="h-3 w-3 shrink-0" /> : <UserRound className="h-3 w-3 shrink-0" />}
-                    <span className="truncate">{roleLabel(role)}</span>
-                  </span>
-                </span>
-              )}
+            <span className="relative shrink-0">
+              <Avatar className={cn('rounded-full', collapsed ? 'h-9 w-9' : 'h-10 w-10')}>
+                <AvatarImage src={avatarUrl || undefined} alt="" className="rounded-full object-cover" />
+                <AvatarFallback className="rounded-full bg-sidebar-primary/80 text-sm font-semibold text-white">{initials}</AvatarFallback>
+              </Avatar>
+              <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-sidebar bg-success" aria-hidden="true" />
             </span>
+            {!collapsed && (
+              <span className="min-w-0 flex-1 leading-tight">
+                <span className="block truncate text-sm font-semibold text-sidebar-foreground">{fullName || 'User'}</span>
+                <span className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-sidebar-foreground/60">
+                  {isAdmin ? <Crown className="h-3 w-3 shrink-0 text-sidebar-primary" /> : role === 'csm' ? <ShieldCheck className="h-3 w-3 shrink-0" /> : <UserRound className="h-3 w-3 shrink-0" />}
+                  <span className="truncate">{roleLabel(role)}</span>
+                </span>
+              </span>
+            )}
           </NavLink>
         )}
         <Button

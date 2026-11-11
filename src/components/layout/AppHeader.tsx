@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useTheme } from 'next-themes';
 import { Bell, Search, Sun, Moon, Menu, X } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -63,8 +62,6 @@ interface AppNotification {
 }
 
 export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const navigate = useNavigate();
   const { resolvedTheme, setTheme } = useTheme();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -184,28 +181,25 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   };
 
   return (
-    <header className="h-14 border-b border-border/50 bg-card px-4 md:px-5 flex items-center justify-between gap-2 md:gap-3">
+    <header className="glass sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b px-4 md:gap-3 md:px-5">
       {onMenuClick && isMobile && (
         <Button variant="ghost" size="icon" onClick={onMenuClick} className="shrink-0 h-9 w-9">
           <Menu className="h-[19px] w-[19px]" />
           <span className="sr-only">Open menu</span>
         </Button>
       )}
-      {/* Search */}
-      <div className="relative flex-1 max-w-md min-w-0">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          type="search"
-          placeholder="Search leads, tasks..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && searchQuery.trim()) {
-              navigate(`/leads?search=${encodeURIComponent(searchQuery.trim())}`);
-            }
-          }}
-          className="pl-10 h-9 text-sm bg-background"
-        />
+      {/* One search: opens the command palette (leads, pages, actions) */}
+      <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={openCommandPalette}
+          aria-label="Search leads, tasks and pages"
+          className="glass group hidden h-10 w-full max-w-md items-center gap-2.5 rounded-xl border px-3.5 text-left text-sm text-muted-foreground outline-none transition-[color,box-shadow,transform] hover:text-foreground hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring active:scale-[.99] md:flex"
+        >
+          <Search className="h-4 w-4 shrink-0" />
+          <span className="flex-1 truncate">Search leads, tasks, pages…</span>
+          <kbd className="hidden rounded-md border border-border/70 bg-background/60 px-1.5 py-0.5 text-[11px] font-medium lg:inline-flex">⌘K</kbd>
+        </button>
       </div>
 
       {/* Theme + Notifications */}
@@ -214,7 +208,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
           variant="ghost"
           size="icon"
           onClick={openCommandPalette}
-          className="relative h-9 w-9"
+          className="relative h-9 w-9 md:hidden"
           aria-label="Search and jump to (command palette)"
           title="Search ⌘K"
         >
