@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { TaskFormDialog, type TaskRecord } from '@/components/tasks/TaskFormDial
 import { TaskDetailDialog } from '@/components/tasks/TaskDetailDialog';
 import { useToast } from '@/hooks/use-toast';
 import { SwipeRow } from '@/components/SwipeRow';
+import { getProfiles } from '@/lib/refData';
 
 const priorityColors: Record<string, string> = {
   low: 'bg-muted text-muted-foreground',
@@ -31,11 +32,29 @@ interface TaskWithAssignee extends TaskRecord {
   assignee?: { full_name: string } | null;
 }
 
+type TaskFilters = { due: string; priority: string; status: string; lead_id: string };
+function filterTasks(list: TaskWithAssignee[], filters: TaskFilters): TaskWithAssignee[] {
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  const todayEnd = endOfDay(now);
+  const weekEnd = endOfDay(new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000));
+  let out = list;
+  if (filters.due === 'overdue') out = out.filter((t) => t.due_date && isBefore(new Date(t.due_date), todayStart) && !t.is_completed);
+  else if (filters.due === 'today') out = out.filter((t) => t.due_date && isWithinInterval(new Date(t.due_date), { start: todayStart, end: todayEnd }));
+  else if (filters.due === 'week') out = out.filter((t) => t.due_date && isWithinInterval(new Date(t.due_date), { start: todayStart, end: weekEnd }));
+  if (filters.priority !== 'all') out = out.filter((t) => t.priority === filters.priority);
+  if (filters.status === 'pending') out = out.filter((t) => !t.is_completed);
+  if (filters.status === 'completed') out = out.filter((t) => t.is_completed);
+  if (filters.lead_id !== 'all') out = out.filter((t) => t.lead_id === filters.lead_id);
+  return out;
+}
+
+
 export default function Tasks() {
   const { toast } = useToast();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [tasks, setTasks] = useState<TaskWithAssignee[]>([]);
+  const [rawTasks, setRawTasks] = useState<TaskWithAssignee[]>([]);
   const [leads, setLeads] = useState<{ id: string; company_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -54,6 +73,8 @@ export default function Tasks() {
     status: 'all',
     lead_id: 'all',
   });
+  // Filters apply locally: changing one never goes back to the network.
+  const tasks = useMemo(() => filterTasks(rawTasks, filters), [rawTasks, filters]);
 
   useEffect(() => {
     if (user) {
@@ -65,7 +86,7 @@ export default function Tasks() {
       }
       leadsQuery.then(({ data }) => setLeads(data ?? []));
     }
-  }, [user, filters, isAdmin]);
+  }, [user?.id, isAdmin]);
 
   const fetchTasks = async () => {
     if (!user) return;
@@ -96,12 +117,7 @@ export default function Tasks() {
       
       // Fetch assignee profiles for admin view
       if (isAdmin && data.length > 0) {
-        const assigneeIds = [...new Set(data.map(t => t.assignee_id))];
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name')
-          .in('user_id', assigneeIds);
-        
+        const profiles = await getProfiles().catch(() => []);
         const profileMap = (profiles || []).reduce((acc, p) => {
           acc[p.user_id] = { full_name: p.full_name };
           return acc;
@@ -113,41 +129,19 @@ export default function Tasks() {
         }));
       }
       
-      const now = new Date();
-      const todayStart = startOfDay(now);
-      const todayEnd = endOfDay(now);
-      const weekEnd = endOfDay(new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000));
-
-      if (filters.due === 'overdue') {
-        list = list.filter((t) => t.due_date && isBefore(new Date(t.due_date), todayStart) && !t.is_completed);
-      } else if (filters.due === 'today') {
-        list = list.filter((t) => t.due_date && isWithinInterval(new Date(t.due_date), { start: todayStart, end: todayEnd }));
-      } else if (filters.due === 'week') {
-        list = list.filter((t) => t.due_date && isWithinInterval(new Date(t.due_date), { start: todayStart, end: weekEnd }));
-      }
-
-      if (filters.priority !== 'all') {
-        list = list.filter((t) => t.priority === filters.priority);
-      }
-      if (filters.status === 'pending') list = list.filter((t) => !t.is_completed);
-      if (filters.status === 'completed') list = list.filter((t) => t.is_completed);
-      if (filters.lead_id !== 'all') {
-        list = list.filter((t) => t.lead_id === filters.lead_id);
-      }
-
-      setTasks(list);
+      setRawTasks(list);
     }
     setLoading(false);
   };
 
   const toggleTask = async (taskId: string, completed: boolean) => {
     // Optimistic: update the UI first, roll back if the save fails.
-    const previous = tasks.find((t) => t.id === taskId);
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, is_completed: completed } : t)));
+    const previous = rawTasks.find((t) => t.id === taskId);
+    setRawTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, is_completed: completed } : t)));
     if (detailTask?.id === taskId) setDetailTask((t) => (t ? { ...t, is_completed: completed } : null));
     const { error } = await supabase.from('tasks').update({ is_completed: completed }).eq('id', taskId);
     if (error) {
-      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, is_completed: !completed } : t)));
+      setRawTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, is_completed: !completed } : t)));
       if (detailTask?.id === taskId) setDetailTask((t) => (t ? { ...t, is_completed: !completed } : null));
       toast({ variant: 'destructive', title: 'Could not update task', description: error.message });
       return;

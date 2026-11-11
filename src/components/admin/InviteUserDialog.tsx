@@ -46,7 +46,7 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
     }
     setSubmitting(true);
     try {
-      const { error } = await supabase.functions.invoke('invite-user', {
+      const { data, error } = await supabase.functions.invoke('invite-user', {
         body: { email: email.trim(), role, full_name: fullName.trim() || null },
       });
 
@@ -62,7 +62,19 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
       }
 
       const label = fullName.trim() ? `${fullName.trim()} (${email.trim()})` : email.trim();
-      toast({ title: 'Invite sent!', description: `An invitation email has been sent to ${label}.` });
+      if (data?.email_sent === false && data?.invite_link) {
+        // The account exists but the email service failed: hand the admin the link so the invite is never lost.
+        try { await navigator.clipboard.writeText(data.invite_link); } catch { /* ignore */ }
+        toast({
+          variant: 'destructive',
+          title: 'Email could not be sent',
+          description: `${label} was added, but the email failed. The invite link is copied: send it to them directly.`,
+          duration: 12000,
+          action: { label: 'Copy link', onClick: () => { void navigator.clipboard.writeText(data.invite_link); } },
+        });
+      } else {
+        toast({ title: 'Invite sent!', description: `An invitation email has been sent to ${label}.` });
+      }
       onSuccess();
       handleClose(false);
     } catch (err) {

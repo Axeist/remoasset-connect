@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/select';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { getProfiles } from '@/lib/refData';
+import { getProfiles, getCountries } from '@/lib/refData';
 
 type SortField = 'company_name' | 'created_at' | 'lead_score' | 'contact_name';
 type SortOrder = 'asc' | 'desc';
@@ -102,11 +102,12 @@ export default function Leads() {
   useEffect(() => {
     const search = searchParams.get('search');
     const owner = searchParams.get('owner');
-    setFilters((f) => ({
-      ...f,
-      ...(search != null ? { search: search ?? '' } : {}),
-      ...(owner != null ? { owner: owner ?? '' } : {}),
-    }));
+    setFilters((f) => {
+      const nextSearch = search != null ? search : f.search;
+      const nextOwner = owner != null ? owner : f.owner;
+      // Same values: keep the same object so the list is not fetched a second time on mount.
+      return nextSearch === f.search && nextOwner === f.owner ? f : { ...f, search: nextSearch, owner: nextOwner };
+    });
   }, [searchParams]);
 
   useEffect(() => {
@@ -266,30 +267,12 @@ export default function Leads() {
       data = data.filter((l) => !excludeSet.has(l.id));
     }
 
-    const ownerIds = [...new Set(data.map((l) => l.owner_id).filter(Boolean))] as string[];
-    let ownerMap: Record<string, { full_name: string | null }> = {};
-    if (ownerIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, full_name')
-        .in('user_id', ownerIds);
-      ownerMap = (profiles ?? []).reduce(
-        (acc, p) => {
-          acc[p.user_id] = { full_name: p.full_name };
-          return acc;
-        },
-        {} as Record<string, { full_name: string | null }>
-      );
-    }
-
-    // Resolve countries from hq_country_id and country_ids arrays
-    const hqIds = data.map((l) => (l as any).hq_country_id).filter(Boolean) as string[];
-    const allCountryIds = [...new Set([...hqIds, ...data.flatMap((l) => (l as any).country_ids ?? [])])] as string[];
-    let countryMap: Record<string, { name: string; code: string }> = {};
-    if (allCountryIds.length > 0) {
-      const { data: countryRows } = await supabase.from('countries').select('id, name, code').in('id', allCountryIds);
-      countryMap = (countryRows ?? []).reduce((acc, c) => { acc[c.id] = { name: c.name, code: c.code }; return acc; }, {} as Record<string, { name: string; code: string }>);
-    }
+    // Owners and countries come from the shared cache: no extra round trips per page of leads.
+    const [profileRows, countryRows] = await Promise.all([getProfiles().catch(() => []), getCountries().catch(() => [])]);
+    const ownerMap: Record<string, { full_name: string | null }> = {};
+    profileRows.forEach((p) => { ownerMap[p.user_id] = { full_name: p.full_name }; });
+    const countryMap: Record<string, { name: string; code: string }> = {};
+    (countryRows as { id: string; name: string; code: string }[]).forEach((c) => { countryMap[c.id] = { name: c.name, code: c.code }; });
 
     const leadsWithOwner = data.map((l) => ({
       ...l,

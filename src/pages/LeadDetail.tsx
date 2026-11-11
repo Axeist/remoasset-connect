@@ -37,6 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { getCountries, getProfiles } from '@/lib/refData';
 
 const activityTypeConfig = {
   call: { icon: Phone, label: 'Call', color: 'bg-primary/10 text-primary', score: 6 },
@@ -206,20 +207,17 @@ export default function LeadDetail() {
       navigate('/leads');
       return;
     }
-    // Fetch HQ country
+    // Countries come from the shared cache (no extra round trips)
+    const allCountries = (await getCountries().catch(() => [])) as { id: string; name: string; code: string }[];
+    const byId = new Map(allCountries.map((c) => [c.id, c]));
     const hqId: string | null = (data as any).hq_country_id ?? null;
-    let hqCountry: { name: string; code: string } | null = null;
-    if (hqId) {
-      const { data: hData } = await supabase.from('countries').select('name, code').eq('id', hqId).single();
-      if (hData) hqCountry = hData;
-    }
-    // Fetch served countries separately from country_ids array
+    const hqHit = hqId ? byId.get(hqId) : undefined;
+    const hqCountry: { name: string; code: string } | null = hqHit ? { name: hqHit.name, code: hqHit.code } : null;
     const countryIds: string[] = Array.isArray((data as any).country_ids) ? (data as any).country_ids : [];
-    let countriesData: { name: string; code: string }[] = [];
-    if (countryIds.length > 0) {
-      const { data: cData } = await supabase.from('countries').select('name, code').in('id', countryIds);
-      if (cData) countriesData = cData;
-    }
+    const countriesData: { name: string; code: string }[] = countryIds
+      .map((cid) => byId.get(cid))
+      .filter((c): c is { id: string; name: string; code: string } => !!c)
+      .map((c) => ({ name: c.name, code: c.code }));
     setLead({ ...data, hq_country: hqCountry, countries: countriesData } as unknown as Lead);
   };
 
@@ -231,11 +229,7 @@ export default function LeadDetail() {
       .eq('lead_id', id)
       .order('created_at', { ascending: true });
     if (data?.length) {
-      const userIds = [...new Set(data.map((a) => a.user_id))];
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, full_name')
-        .in('user_id', userIds);
+      const profiles = await getProfiles().catch(() => []);
       const profileMap = (profiles ?? []).reduce(
         (acc, p) => {
           acc[p.user_id] = p;

@@ -58,7 +58,7 @@ export default function ResetPassword() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionReady, setSessionReady] = useState(() => typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('token_hash'));
   const [showSplash, setShowSplash] = useState(false);
   const [userName, setUserName] = useState('');
 
@@ -68,8 +68,21 @@ export default function ResetPassword() {
   const { theme, setTheme } = useTheme();
 
   const isInvite = searchParams.get('invite') === 'true';
+  // Invite links carry a one-time token; it is only used when the person submits their new password,
+  // so mail scanners that pre-open links cannot use it up.
+  const inviteTokenHash = searchParams.get('token_hash');
+  const [tokenVerified, setTokenVerified] = useState(false);
 
   useEffect(() => {
+    // Older-style links put the session tokens in the URL hash; the pkce client ignores those, so set them directly.
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const at = hash.get('access_token');
+    const rt = hash.get('refresh_token');
+    if (at && rt) {
+      void supabase.auth.setSession({ access_token: at, refresh_token: rt }).then(() => {
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+      });
+    }
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
         setSessionReady(true);
@@ -123,6 +136,17 @@ export default function ResetPassword() {
     }
 
     setIsLoading(true);
+    if (inviteTokenHash && !tokenVerified) {
+      const { data: verified, error: verifyError } = await supabase.auth.verifyOtp({ token_hash: inviteTokenHash, type: 'invite' });
+      if (verifyError || !verified?.session) {
+        setIsLoading(false);
+        toast({ variant: 'destructive', title: 'Invitation link expired', description: 'This link was already used or has expired. Ask your administrator to send a new invite.' });
+        return;
+      }
+      setTokenVerified(true);
+      const vname = (verified.user?.user_metadata as { full_name?: string } | undefined)?.full_name || verified.user?.email?.split('@')[0] || '';
+      if (vname) setUserName(vname);
+    }
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {

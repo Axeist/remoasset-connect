@@ -13,6 +13,7 @@ import { formatVendorTypeLabel, VENDOR_TYPE_OPTIONS } from '@/lib/vendorTypes';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { LEGACY_DATE_PRESETS as DATE_PRESETS, getPresetRange } from '@/lib/datePresets';
+import { getStatuses, getCountries } from '@/lib/refData';
 
 /** Region codes for filtering (ANZ, MENA, LATAM, EU, NA, APAC) */
 export const REGIONS = [
@@ -74,15 +75,21 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
   const [statuses, setStatuses] = useState<{ id: string; name: string; color: string }[]>([]);
   const [countries, setCountries] = useState<{ id: string; name: string; region: string | null }[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // Search is debounced: one request per pause in typing, not one per keystroke.
+  const [searchInput, setSearchInput] = useState(filters.search);
+  useEffect(() => { setSearchInput(filters.search); }, [filters.search]);
+  useEffect(() => {
+    if (searchInput === filters.search) return;
+    const t = setTimeout(() => update({ search: searchInput }), 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
 
   useEffect(() => {
     (async () => {
-      const [statusRes, countryRes] = await Promise.all([
-        supabase.from('lead_statuses').select('id, name, color').order('sort_order'),
-        supabase.from('countries').select('id, name, region').order('name'),
-      ]);
-      if (statusRes.data) setStatuses(statusRes.data);
-      if (countryRes.data) setCountries(countryRes.data);
+      const [st, co] = await Promise.all([getStatuses().catch(() => []), getCountries().catch(() => [])]);
+      setStatuses(st);
+      setCountries(co as { id: string; name: string; region: string | null }[]);
     })();
   }, []);
 
@@ -154,8 +161,8 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search leads..."
-              value={filters.search}
-              onChange={(e) => update({ search: e.target.value })}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="pl-10"
             />
           </div>

@@ -44,7 +44,19 @@ export default function Notifications() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
-        () => fetchNotifications()
+        (payload) => {
+          // Apply the change directly instead of re-downloading the whole list.
+          if (payload.eventType === 'INSERT') {
+            const n = payload.new as AppNotification;
+            setNotifications((prev) => (prev.some((x) => x.id === n.id) ? prev : [n, ...prev].slice(0, 100)));
+          } else if (payload.eventType === 'UPDATE') {
+            const n = payload.new as AppNotification;
+            setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, ...n } : x)));
+          } else if (payload.eventType === 'DELETE') {
+            const old = payload.old as { id?: string };
+            setNotifications((prev) => prev.filter((x) => x.id !== old.id));
+          }
+        }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };

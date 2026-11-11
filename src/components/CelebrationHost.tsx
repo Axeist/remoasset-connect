@@ -23,113 +23,83 @@ function useSparks(count: number, minDist: number, spread: number) {
   );
 }
 
-function Typewriter({ text, delay }: { text: string; delay: number }) {
-  return (
-    <span aria-label={text}>
-      {text.split('').map((ch, i) => (
-        <m.span key={i} aria-hidden="true" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: delay + i * 0.03, duration: 0.01 }}>
-          {ch === ' ' ? ' ' : ch}
-        </m.span>
-      ))}
-    </span>
-  );
-}
-
-/** Lead created: a check ring draws, sparks burst, the lead card builds itself, then actions rise in. */
+/** Lead created: the lead card draws itself (outline, fill, avatar, lines, chips), a check badge lands, ripples spread, then actions rise in. */
 function LeadScene({ detail, onView, onAnother }: { detail: CelebrateDetail; onView: () => void; onAnother: () => void }) {
-  const sparks = useSparks(26, 110, 110);
   const name = detail.subtitle || detail.title;
+  const chips = (detail.chips ?? []).slice(0, 3);
+  const spring = { type: 'spring' as const, stiffness: 420, damping: 18 };
   return (
-    <div className="relative w-[min(90vw,372px)]">
+    <m.div
+      className="glass-strong relative w-[min(92vw,380px)] overflow-hidden rounded-[28px] border px-7 pb-6 pt-8 text-center shadow-2xl"
+      initial={{ scale: 0.88, y: 24, opacity: 0 }}
+      animate={{ scale: 1, y: 0, opacity: 1 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+    >
+      {/* soft light that blooms behind the card */}
       <m.div
-        className="pointer-events-none absolute left-1/2 top-[52px] h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/45 blur-3xl"
-        initial={{ scale: 0.2, opacity: 0 }}
-        animate={{ scale: [0.2, 2.6, 1.7], opacity: [0, 0.95, 0.4] }}
-        transition={{ duration: 1.5, ease: 'easeOut' }}
+        className="pointer-events-none absolute left-1/2 top-[96px] h-52 w-52 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/30 blur-3xl"
+        initial={{ scale: 0.3, opacity: 0 }}
+        animate={{ scale: [0.3, 1.5, 1.15], opacity: [0, 0.8, 0.5] }}
+        transition={{ duration: 1.6, ease: 'easeOut' }}
       />
-      {sparks.map((s, i) => (
-        <m.i
-          key={i}
-          className={cn('pointer-events-none absolute left-1/2 top-[52px] block h-2 w-2', s.round ? 'rounded-full' : 'rounded-[2px]')}
-          style={{ background: s.c }}
-          initial={{ x: 0, y: 0, opacity: 0, scale: 0 }}
-          animate={{ x: s.x, y: s.y, opacity: [0, 1, 0], scale: [0, 1.1, 0.3], rotate: s.r }}
-          transition={{ duration: 1.15, delay: 0.38 + s.delay, ease: [0.2, 0.8, 0.3, 1] }}
-        />
-      ))}
-
-      <div className="relative mx-auto mb-5 flex h-[104px] w-[104px] items-center justify-center">
-        <m.span className="absolute inset-0 rounded-full border-2 border-success/70" initial={{ scale: 1, opacity: 0.7 }} animate={{ scale: 2, opacity: 0 }} transition={{ delay: 0.8, duration: 0.9, ease: 'easeOut' }} />
-        <m.span className="absolute inset-3 rounded-full bg-success/15 backdrop-blur-sm" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 18, delay: 0.1 }} />
-        <svg viewBox="0 0 104 104" className="absolute inset-0" aria-hidden="true">
-          <m.circle cx="52" cy="52" r="42" fill="none" stroke="hsl(var(--success))" strokeWidth="5" strokeLinecap="round" style={{ rotate: -90, transformOrigin: '52px 52px' }} initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.6, ease: 'easeOut' }} />
-          <m.path d="M32 53l14 14 27-30" fill="none" stroke="hsl(var(--success))" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: 0.55, duration: 0.35, ease: 'easeOut' }} />
+      <m.div animate={{ y: [0, -4, 0] }} transition={{ delay: 2.1, duration: 3.4, repeat: Infinity, ease: 'easeInOut' }} className="relative mx-auto w-[260px]">
+        <svg viewBox="0 0 260 156" className="h-auto w-full overflow-visible" aria-hidden="true">
+          <defs>
+            <linearGradient id="lc-fill" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="hsl(var(--card))" />
+              <stop offset="1" stopColor="hsl(var(--primary) / .10)" />
+            </linearGradient>
+            <linearGradient id="lc-sheen" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#fff" stopOpacity="0" />
+              <stop offset=".5" stopColor="#fff" stopOpacity=".55" />
+              <stop offset="1" stopColor="#fff" stopOpacity="0" />
+            </linearGradient>
+            <clipPath id="lc-clip"><rect x="6" y="14" width="240" height="132" rx="18" /></clipPath>
+          </defs>
+          {/* card body */}
+          <m.rect x="6" y="14" width="240" height="132" rx="18" fill="url(#lc-fill)" stroke="hsl(var(--border))" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45, duration: 0.35 }} />
+          {/* outline that draws itself */}
+          <m.rect x="6" y="14" width="240" height="132" rx="18" fill="none" stroke="hsl(var(--primary))" strokeWidth="2.2" strokeLinecap="round" initial={{ pathLength: 0, opacity: 1 }} animate={{ pathLength: 1, opacity: [1, 1, 0.25] }} transition={{ pathLength: { duration: 0.7, ease: 'easeInOut' }, opacity: { duration: 1.1, times: [0, 0.7, 1] } }} />
+          {/* avatar */}
+          <m.circle cx="52" cy="62" r="24" fill="hsl(var(--primary) / .16)" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.75, ...spring }} style={{ transformBox: 'fill-box', transformOrigin: 'center' }} />
+          <m.circle cx="52" cy="62" r="24" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" initial={{ scale: 1, opacity: 0.8 }} animate={{ scale: 2, opacity: 0 }} transition={{ delay: 0.9, duration: 0.85, ease: 'easeOut' }} style={{ transformBox: 'fill-box', transformOrigin: 'center' }} />
+          <m.text x="52" y="68" textAnchor="middle" fontSize="16" fontWeight="800" fill="hsl(var(--primary))" fontFamily="Outfit, sans-serif" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.95, duration: 0.2 }}>{initials(name)}</m.text>
+          {/* text lines that grow in */}
+          <m.rect x="90" y="46" height="11" rx="5.5" fill="hsl(var(--foreground) / .78)" initial={{ width: 0 }} animate={{ width: 104 }} transition={{ delay: 0.95, duration: 0.5, ease: [0.22, 1, 0.36, 1] }} />
+          <m.rect x="90" y="66" height="8" rx="4" fill="hsl(var(--primary) / .30)" initial={{ width: 0 }} animate={{ width: 70 }} transition={{ delay: 1.1, duration: 0.45, ease: [0.22, 1, 0.36, 1] }} />
+          <m.rect x="24" y="100" height="7" rx="3.5" fill="hsl(var(--border))" initial={{ width: 0 }} animate={{ width: 150 }} transition={{ delay: 1.2, duration: 0.5, ease: [0.22, 1, 0.36, 1] }} />
+          <m.rect x="24" y="116" height="7" rx="3.5" fill="hsl(var(--border) / .7)" initial={{ width: 0 }} animate={{ width: 110 }} transition={{ delay: 1.28, duration: 0.5, ease: [0.22, 1, 0.36, 1] }} />
+          {/* sheen sweeping across the finished card */}
+          <g clipPath="url(#lc-clip)">
+            <m.rect y="14" width="70" height="132" fill="url(#lc-sheen)" initial={{ x: -90 }} animate={{ x: 300 }} transition={{ delay: 1.45, duration: 0.9, ease: 'easeInOut' }} style={{ transform: 'skewX(-14deg)', transformOrigin: 'center' }} />
+          </g>
+          {/* success badge */}
+          <m.circle cx="236" cy="22" r="17" fill="hsl(var(--success))" initial={{ scale: 0 }} animate={{ scale: [0, 1.25, 1] }} transition={{ delay: 1.15, duration: 0.5, times: [0, 0.65, 1] }} style={{ transformBox: 'fill-box', transformOrigin: 'center' }} />
+          <m.circle cx="236" cy="22" r="17" fill="none" stroke="hsl(var(--success))" strokeWidth="2" initial={{ scale: 1, opacity: 0.7 }} animate={{ scale: 2.2, opacity: 0 }} transition={{ delay: 1.35, duration: 0.9, ease: 'easeOut' }} style={{ transformBox: 'fill-box', transformOrigin: 'center' }} />
+          <m.path d="M228 22l6 6 11-12" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: 1.35, duration: 0.3 }} />
         </svg>
-      </div>
+      </m.div>
 
-      <m.div
-        className="glass-strong relative overflow-hidden rounded-[22px] border p-4 text-left shadow-2xl"
-        style={{ transformPerspective: 900 }}
-        initial={{ y: 46, opacity: 0, rotateX: -20, scale: 0.92 }}
-        animate={{ y: 0, opacity: 1, rotateX: 0, scale: 1 }}
-        transition={{ delay: 0.72, type: 'spring', stiffness: 260, damping: 22 }}
-      >
-        <m.div
-          className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/30 to-transparent"
-          initial={{ x: '-30%' }}
-          animate={{ x: '330%' }}
-          transition={{ delay: 1.25, duration: 1.1, ease: 'easeInOut' }}
-        />
-        <div className="relative flex items-center gap-3">
-          <m.span
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent font-display text-base font-bold text-white shadow-lg"
-            initial={{ scale: 0, rotate: -30 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ delay: 0.88, type: 'spring', stiffness: 420, damping: 15 }}
-          >
-            {initials(name)}
-          </m.span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-display text-lg font-bold leading-tight text-foreground"><Typewriter text={name} delay={1} /></p>
-            <p className="text-xs text-muted-foreground">Added to Leads · just now</p>
-          </div>
-          <m.span
-            className="rounded-md bg-primary px-2 py-1 text-[10px] font-extrabold tracking-wider text-primary-foreground shadow-md"
-            initial={{ scale: 0, rotate: -24 }}
-            animate={{ scale: 1, rotate: 6 }}
-            transition={{ delay: 1.3, type: 'spring', stiffness: 520, damping: 13 }}
-          >
-            NEW
-          </m.span>
+      <m.div className="relative mt-4 space-y-1" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.2, duration: 0.45, ease: EASE }}>
+        <p className="font-display text-2xl font-bold tracking-tight text-foreground">Lead created</p>
+        <p className="truncate text-sm text-muted-foreground">{name} was added to Leads</p>
+      </m.div>
+
+      {chips.length > 0 && (
+        <div className="relative mt-3 flex flex-wrap justify-center gap-1.5">
+          {chips.map((c, i) => (
+            <m.span key={c} className="rounded-full border border-border/70 bg-background/60 px-2.5 py-1 text-[11px] font-semibold text-foreground/80" initial={{ opacity: 0, y: 8, scale: 0.92 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 1.4 + i * 0.08, type: 'spring', stiffness: 400, damping: 24 }}>{c}</m.span>
+          ))}
         </div>
-        {(detail.chips?.length ?? 0) > 0 && (
-          <div className="relative mt-3 flex flex-wrap gap-1.5">
-            {detail.chips!.map((c, i) => (
-              <m.span
-                key={c}
-                className="rounded-full border border-border/70 bg-background/60 px-2.5 py-1 text-[11px] font-semibold text-foreground/80"
-                initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ delay: 1.2 + i * 0.09, type: 'spring', stiffness: 400, damping: 22 }}
-              >
-                {c}
-              </m.span>
-            ))}
-          </div>
-        )}
-      </m.div>
+      )}
 
-      <m.div className="mt-4 flex gap-2" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.55, duration: 0.4, ease: EASE }}>
+      <m.div className="relative mt-5 flex gap-2" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.6, duration: 0.4, ease: EASE }}>
         {detail.leadId && (
-          <button type="button" onClick={onView} className="h-11 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-transform active:scale-[.97]">
-            View lead
-          </button>
+          <button type="button" onClick={onView} className="h-11 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-transform active:scale-[.97]">View lead</button>
         )}
-        <button type="button" onClick={onAnother} className="glass-strong h-11 flex-1 rounded-xl border text-sm font-semibold text-foreground transition-transform active:scale-[.97]">
-          Add another
-        </button>
+        <button type="button" onClick={onAnother} className="glass h-11 flex-1 rounded-xl border text-sm font-semibold text-foreground transition-transform active:scale-[.97]">Add another</button>
       </m.div>
-    </div>
+    </m.div>
   );
 }
 

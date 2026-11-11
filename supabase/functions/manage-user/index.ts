@@ -256,9 +256,15 @@ Deno.serve(async (req) => {
           })
         }
 
+        const { data: targetAuth } = await supabaseAdmin.auth.admin.getUserById(target_user_id)
+        const targetEmail = targetAuth?.user?.email?.toLowerCase()
         await supabaseAdmin.from('user_roles').delete().eq('user_id', target_user_id)
         await supabaseAdmin.from('profiles').delete().eq('user_id', target_user_id)
         const { error } = await supabaseAdmin.auth.admin.deleteUser(target_user_id)
+        if (!error && targetEmail) {
+          // Deleted people lose their invitation too, so they cannot sign back in with Google.
+          await supabaseAdmin.from('invited_emails').delete().eq('email', targetEmail)
+        }
         if (error) {
           return new Response(JSON.stringify({ error: error.message }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400,

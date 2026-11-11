@@ -121,7 +121,9 @@ export function useMailNotificationPoller() {
         const isFirstRun = Object.keys(lastMap).length === 0;
         const newLastMap: LastMessageMap = { ...lastMap };
 
-        const leadsArray = Array.from(leadMap.values()).slice(0, MAX_LEADS);
+        // Tab hidden: skip this round of Gmail checks (the next tick is still scheduled below).
+        const hidden = typeof document !== 'undefined' && document.hidden;
+        const leadsArray = hidden ? [] : Array.from(leadMap.values()).slice(0, MAX_LEADS);
 
         for (const lead of leadsArray) {
           try {

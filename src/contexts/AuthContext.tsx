@@ -44,6 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  // Role + permissions arrive after the session; pages wait for them so they load once, not twice.
+  const [accessReady, setAccessReady] = useState(false);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [allowedEmailDomain, setAllowedEmailDomain] = useState('remoasset.com');
   // Ref keeps the auth subscription from capturing a stale value
@@ -104,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(null);
             setRole(null);
             setPermissions(new Set());
+            setAccessReady(false);
             setGoogleAccessToken(null);
             setLoading(false);
             return;
@@ -121,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setRole(null);
           setPermissions(new Set());
+          setAccessReady(false);
           setGoogleAccessToken(null);
           setLoading(false);
           return;
@@ -137,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setRole(null);
           setPermissions(new Set());
+          setAccessReady(false);
         }
         // Always mark loading done once we have an auth state
         setLoading(false);
@@ -167,26 +172,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchUserAccess = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .maybeSingle();
+    try {
+      // One parallel round trip: the user's role and the (small) permission matrix; filter by role locally.
+      const [roleRes, permRes] = await Promise.all([
+        supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
+        supabase.from('role_permissions').select('role, permission, enabled'),
+      ]);
 
-    const nextRole = !error ? normalizeRole(data?.role ?? null) : null;
-    setRole(nextRole);
+      const nextRole = !roleRes.error ? normalizeRole(roleRes.data?.role ?? null) : null;
+      setRole(nextRole);
 
-    if (!nextRole) {
-      setPermissions(new Set());
-      return;
+      if (!nextRole) {
+        setPermissions(new Set());
+        return;
+      }
+      const rows = (permRes.data ?? []) as { role: string; permission: string; enabled: boolean }[];
+      setPermissions(new Set(rows.filter((p) => p.enabled && normalizeRole(p.role) === nextRole).map((p) => p.permission)));
+    } finally {
+      setAccessReady(true);
     }
-
-    const { data: permRows } = await supabase
-      .from('role_permissions')
-      .select('permission, enabled')
-      .eq('role', nextRole);
-
-    setPermissions(new Set((permRows ?? []).filter((p) => p.enabled).map((p) => p.permission)));
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
@@ -260,7 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, session, role, permissions, can, isAdmin, isSuperAdmin,
-      seesAllLeads, seesClosedWonAll, scopeOwnLeads, loading,
+      seesAllLeads, seesClosedWonAll, scopeOwnLeads, loading: loading || (!!user && !accessReady),
       googleAccessToken, allowedEmailDomain, allowedEmailDomains: parseDomains(allowedEmailDomain),
       signUp, signIn, signOut, connectGoogleCalendar, disconnectGoogleCalendar,
     }}>
