@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Package, MapPin, Settings, RefreshCw } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
+import { BrandLoader } from '@/components/BrandLoader';
 
 type SplashVariant = 'welcome' | 'success';
 
@@ -74,76 +74,28 @@ export function SplashScreen({ variant, onComplete, duration = 3200, name }: Spl
     );
   }
 
-  // Welcome (first load) – exotic loading
+  // Welcome (first load): the R mark breathing inside an orbit ring, then the lockup. Calm and centred.
   return (
     <div
-      className="splash-wrap fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-splash-dark"
+      className="welcome-splash fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden"
       aria-live="polite"
       aria-label="Loading Connect"
     >
-      {/* Animated mesh / gradient background */}
-      <div className="splash-mesh-bg" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-30%,hsl(var(--primary)/0.3),transparent_50%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_70%_at_100%_0%,hsl(var(--accent)/0.15),transparent)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_0%_100%,hsl(250_80%_50%/0.12),transparent)]" />
-
-      {/* Grid overlay */}
-      <div className="splash-grid" />
-
-      {/* Floating orbs */}
-      <div className="splash-orb splash-orb-1" />
-      <div className="splash-orb splash-orb-2" />
-      <div className="splash-orb splash-orb-3" />
-      <div className="splash-orb splash-orb-4" />
-
-      {/* Floating geometric shapes */}
-      <div className="splash-shape splash-shape-1" />
-      <div className="splash-shape splash-shape-2" />
-      <div className="splash-shape splash-shape-3" />
-
-      <div className="relative z-10 flex flex-col items-center justify-center px-6 text-center">
-        {/* Logo in glass card with glow */}
-        <div className="splash-logo-wrap">
-          <div className="splash-logo-glow" />
-          <BrandLogo tone="onDark" size={68} className="splash-logo-img relative z-10 drop-shadow-lg" />
+      <div className="relative z-10 flex flex-col items-center px-6 text-center">
+        <BrandLoader size={104} className="welcome-rise" />
+        <div className="welcome-rise mt-8 flex flex-col items-center" style={{ animationDelay: '.25s' }}>
+          <p className="font-display text-[2.6rem] font-semibold leading-none tracking-tight text-white">Connect</p>
+          <p className="mt-2 font-display text-sm font-medium tracking-wide text-white/60">
+            by <span className="font-semibold text-white/85">Remoasset</span>
+          </p>
         </div>
-
-        <h1 className="splash-headline mt-8 font-display text-2xl font-bold tracking-tight sm:text-3xl">
-          Connect
-        </h1>
-        <p className="splash-tagline mt-3 max-w-md text-sm leading-relaxed text-white/75 sm:text-base">
-          RemoAsset’s internal vendor resource management. Manage leads, pipeline, and team performance.
+        <p className="welcome-rise mt-10 text-xs font-medium uppercase tracking-[0.22em] text-white/45" style={{ animationDelay: '.5s' }}>
+          Getting your workspace ready
         </p>
-
-        {/* Icon pills */}
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-          {[
-            { Icon: Package, label: 'Leads' },
-            { Icon: MapPin, label: 'Pipeline' },
-            { Icon: Settings, label: 'Tasks' },
-            { Icon: RefreshCw, label: 'Reports' },
-          ].map(({ Icon, label }, i) => (
-            <div key={label} className="splash-pill" style={{ animationDelay: `${i * 120}ms` }}>
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm sm:h-12 sm:w-12">
-                <Icon className="h-5 w-5 text-primary sm:h-6 sm:w-6" />
-              </div>
-              <span className="text-xs font-medium text-white/80">{label}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Custom loader */}
-        <div className="mt-12 flex flex-col items-center gap-5">
-          <div className="splash-loader-ring">
-            <div className="splash-loader-ring-inner" />
-          </div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-white/60">Loading</p>
-        </div>
       </div>
 
-      {/* Bottom progress */}
-      <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 overflow-hidden">
-        <div className="splash-progress h-full bg-gradient-to-r from-primary via-accent to-primary" style={{ animationDuration: `${duration}ms` }} />
+      <div className="absolute bottom-0 left-0 right-0 h-[3px] overflow-hidden bg-white/10">
+        <div className="splash-progress h-full bg-gradient-to-r from-primary to-accent" style={{ animationDuration: `${duration}ms` }} />
       </div>
     </div>
   );

@@ -1,20 +1,15 @@
 import { cn } from '@/lib/utils';
 
-/** The RemoAsset mark drawing itself, used wherever a page or panel is loading. */
+/**
+ * The RemoAsset "R" mark itself as the loader: it breathes while a soft ring orbits it.
+ * Used for page loads, pull-to-refresh and the first-load splash.
+ */
 export function BrandLoader({ size = 56, className, label = 'Loading' }: { size?: number; className?: string; label?: string }) {
   return (
-    <svg
-      className={cn('brand-loader', className)}
-      width={size}
-      height={size}
-      viewBox="0 0 56 56"
-      role="img"
-      aria-label={label}
-    >
-      <rect x="4" y="4" width="21" height="21" rx="6" />
-      <rect x="31" y="4" width="21" height="21" rx="6" />
-      <rect x="4" y="31" width="21" height="21" rx="6" />
-      <rect x="31" y="31" width="21" height="21" rx="6" />
-    </svg>
+    <span role="img" aria-label={label} className={cn('r-loader relative inline-flex items-center justify-center', className)} style={{ width: size, height: size }}>
+      <span className="r-loader-glow" aria-hidden="true" />
+      <span className="r-loader-ring" aria-hidden="true" />
+      <img src="/brand-mark.png" alt="" draggable={false} className="r-loader-mark relative h-[62%] w-[62%] select-none object-contain" />
+    </span>
   );
 }

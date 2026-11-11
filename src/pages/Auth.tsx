@@ -105,9 +105,9 @@ function StatStrip() {
   return (
     <dl className="grid grid-cols-3 gap-3" aria-hidden="true">
       {items.map((it) => (
-        <div key={it.l} className="glass rounded-2xl border px-4 py-3">
+        <div key={it.l} className="glass rounded-2xl border px-3.5 py-2.5">
           <dt className="sr-only">{it.l}</dt>
-          <dd className="font-display text-2xl font-bold tabular-nums text-foreground xl:text-3xl">{it.n}</dd>
+          <dd className="font-display text-xl font-bold tabular-nums text-foreground">{it.n}</dd>
           <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground xl:text-xs">{it.l}</p>
         </div>
       ))}
@@ -385,10 +385,10 @@ const Auth = () => {
           <div className="auth2-blob right-[-60px] top-[46%] h-72 w-72 bg-accent/20" style={{ animationDuration: '26s', animationDelay: '-8s' }} />
         </div>
 
-        <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[1480px] flex-col px-4 sm:px-8 lg:px-12 xl:px-16">
+        <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[1320px] flex-col px-4 sm:px-8 lg:px-10 xl:px-14">
           {/* top bar */}
-          <header className="flex items-center justify-between pb-3 pt-[max(1.25rem,env(safe-area-inset-top))] lg:pt-8">
-            <div className="auth2-in"><BrandLogo tone="adaptive" size={40} /></div>
+          <header className="flex items-center justify-between pb-2 pt-[max(1.25rem,env(safe-area-inset-top))] lg:pt-6">
+            <div className="auth2-in"><BrandLogo tone="adaptive" size={34} /></div>
             <Button
               type="button"
               variant="ghost"
@@ -402,25 +402,25 @@ const Auth = () => {
             </Button>
           </header>
 
-          <div className="grid flex-1 items-center gap-6 lg:grid-cols-[minmax(0,1.12fr)_minmax(440px,500px)] lg:gap-14 xl:gap-24">
+          <div className="grid flex-1 items-center gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(400px,440px)] lg:gap-12 xl:gap-20">
             {/* ── Hero (large screens): centred in its column, board tilts toward the card ── */}
             <section className="hidden lg:block">
-              <div className="mx-auto max-w-[660px] space-y-10 py-8">
-                <div className="auth2-in space-y-5" style={{ animationDelay: '.1s' }}>
-                  <p className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/50 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground backdrop-blur-md">
+              <div className="mx-auto max-w-[560px] space-y-6 py-2">
+                <div className="auth2-in space-y-4" style={{ animationDelay: '.1s' }}>
+                  <p className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground backdrop-blur-md">
                     <span className="h-1.5 w-1.5 rounded-full bg-primary" /> Connect <span className="text-foreground/70">by RemoAsset</span>
                   </p>
                   <h1
                     className="font-display font-bold leading-[1.03] tracking-tight text-foreground"
-                    style={{ fontSize: 'clamp(2.4rem, 1.1rem + 2.9vw, 4.1rem)' }}
+                    style={{ fontSize: 'clamp(2rem, 1rem + 1.9vw, 3rem)' }}
                   >
                     Every vendor. Every deal.<br /><span className="auth2-gradient-text">One place.</span>
                   </h1>
-                  <p className="max-w-lg text-[clamp(1rem,.85rem+.4vw,1.2rem)] leading-relaxed text-muted-foreground">
+                  <p className="max-w-md text-[clamp(.9rem,.8rem+.25vw,1.05rem)] leading-relaxed text-muted-foreground">
                     The workspace for leads, pipeline, RFQs and follow-ups, built for speed.
                   </p>
                 </div>
-                <div className="auth2-in pb-6 pt-2" style={{ animationDelay: '.25s' }}>
+                <div className="auth2-in pb-4" style={{ animationDelay: '.25s' }}>
                   <div className="auth2-tilt"><HeroBoard /></div>
                 </div>
                 <div className="auth2-in" style={{ animationDelay: '.4s' }}><StatStrip /></div>
@@ -438,17 +438,17 @@ const Auth = () => {
             {/* ── Sign-in card ── */}
             <main className="flex w-full items-end justify-center lg:items-center">
               <div
-                className="auth2-in auth2-glass -mx-4 w-[calc(100%+2rem)] rounded-t-[2rem] px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8 sm:mx-0 sm:w-full sm:max-w-[480px] sm:rounded-[2rem] sm:px-9 sm:pb-9 lg:max-w-[500px]"
+                className="auth2-in auth2-glass -mx-4 w-[calc(100%+2rem)] rounded-t-[2rem] px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8 sm:mx-0 sm:w-full sm:max-w-[460px] sm:rounded-[2rem] sm:px-8 sm:pb-8 lg:max-w-[440px] lg:pt-7"
                 style={{ animationDelay: '.15s' }}
               >
                 <div key={view + shake} className={cn('auth2-view relative z-[2]', shake > 0 && view !== 'sent' && 'auth2-shake')}>
                   {view === 'signin' && (
-                    <div className="space-y-6">
-                      <div className="space-y-2.5">
+                    <div className="space-y-5">
+                      <div className="space-y-2">
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
                           <Lock className="h-3.5 w-3.5" /> Invite-only workspace
                         </span>
-                        <h2 className="font-display text-[clamp(1.75rem,1.4rem+1vw,2.15rem)] font-bold tracking-tight text-foreground">Welcome back</h2>
+                        <h2 className="font-display text-[clamp(1.5rem,1.25rem+.6vw,1.85rem)] font-bold tracking-tight text-foreground">Welcome back</h2>
                         <p className="text-[15px] text-muted-foreground">Sign in with the account you were invited with.</p>
                       </div>
 
@@ -461,7 +461,7 @@ const Auth = () => {
                       <Button
                         type="button"
                         variant="outline"
-                        className="glass h-12 w-full gap-3 rounded-xl border text-[15px] font-semibold text-foreground transition-all hover:-translate-y-0.5 hover:bg-card/90 hover:text-foreground hover:shadow-md active:translate-y-0 active:scale-[.98]"
+                        className="glass h-12 w-full gap-3 rounded-xl border text-[15px] lg:h-11 font-semibold text-foreground transition-all hover:-translate-y-0.5 hover:bg-card/90 hover:text-foreground hover:shadow-md active:translate-y-0 active:scale-[.98]"
                         onClick={handleGoogleSignIn}
                         disabled={isGoogleLoading || isLoading}
                       >
@@ -489,7 +489,7 @@ const Auth = () => {
                               onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                               aria-invalid={!!errors.email}
                               aria-describedby={errors.email ? 'login-email-err' : undefined}
-                              className={cn('h-12 rounded-xl border-border/70 bg-background/50 pl-11 text-base backdrop-blur-sm transition-shadow focus-visible:shadow-[0_0_0_4px_hsl(var(--primary)/.15)]', errors.email && 'border-destructive')}
+                              className={cn('h-12 lg:h-11 rounded-xl border-border/70 bg-background/50 pl-11 text-base backdrop-blur-sm transition-shadow focus-visible:shadow-[0_0_0_4px_hsl(var(--primary)/.15)]', errors.email && 'border-destructive')}
                             />
                           </div>
                           {errors.email && <p id="login-email-err" className="text-sm text-destructive-ink">{errors.email}</p>}
@@ -517,7 +517,7 @@ const Auth = () => {
                               onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                               aria-invalid={!!errors.password}
                               aria-describedby={errors.password ? 'login-password-err' : undefined}
-                              className={cn('h-12 rounded-xl border-border/70 bg-background/50 pl-11 pr-12 text-base backdrop-blur-sm transition-shadow focus-visible:shadow-[0_0_0_4px_hsl(var(--primary)/.15)]', errors.password && 'border-destructive')}
+                              className={cn('h-12 lg:h-11 rounded-xl border-border/70 bg-background/50 pl-11 pr-12 text-base backdrop-blur-sm transition-shadow focus-visible:shadow-[0_0_0_4px_hsl(var(--primary)/.15)]', errors.password && 'border-destructive')}
                             />
                             <button
                               type="button"
@@ -533,7 +533,7 @@ const Auth = () => {
 
                         <Button
                           type="submit"
-                          className="group h-12 w-full rounded-xl text-[15px] font-semibold shadow-lg shadow-primary/30 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/35 active:translate-y-0 active:scale-[.98]"
+                          className="group h-12 w-full rounded-xl text-[15px] lg:h-11 font-semibold shadow-lg shadow-primary/30 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/35 active:translate-y-0 active:scale-[.98]"
                           disabled={isLoading || isGoogleLoading}
                         >
                           {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
@@ -558,7 +558,7 @@ const Auth = () => {
                         <ArrowLeft className="h-4 w-4" /> Back to sign in
                       </button>
                       <div className="space-y-2.5">
-                        <h2 className="font-display text-[clamp(1.75rem,1.4rem+1vw,2.15rem)] font-bold tracking-tight text-foreground">Reset your password</h2>
+                        <h2 className="font-display text-[clamp(1.5rem,1.25rem+.6vw,1.85rem)] font-bold tracking-tight text-foreground">Reset your password</h2>
                         <p className="text-[15px] text-muted-foreground">Enter your email and we'll send you a link to choose a new password.</p>
                       </div>
                       <div className="auth2-field space-y-2">
@@ -575,7 +575,7 @@ const Auth = () => {
                             value={forgotEmail}
                             onChange={(e) => setForgotEmail(e.target.value)}
                             aria-invalid={!!errors.forgotEmail}
-                            className={cn('h-12 rounded-xl border-border/70 bg-background/50 pl-11 text-base backdrop-blur-sm', errors.forgotEmail && 'border-destructive')}
+                            className={cn('h-12 lg:h-11 rounded-xl border-border/70 bg-background/50 pl-11 text-base backdrop-blur-sm', errors.forgotEmail && 'border-destructive')}
                           />
                         </div>
                         {errors.forgotEmail && <p className="text-sm text-destructive-ink">{errors.forgotEmail}</p>}
@@ -595,7 +595,7 @@ const Auth = () => {
                         </svg>
                       </div>
                       <div className="space-y-2">
-                        <h2 className="font-display text-[clamp(1.75rem,1.4rem+1vw,2.15rem)] font-bold tracking-tight text-foreground">Check your inbox</h2>
+                        <h2 className="font-display text-[clamp(1.5rem,1.25rem+.6vw,1.85rem)] font-bold tracking-tight text-foreground">Check your inbox</h2>
                         <p className="text-[15px] text-muted-foreground">
                           If <span className="font-semibold text-foreground">{forgotEmail}</span> belongs to an invited account, a reset link is on its way.
                         </p>
@@ -616,7 +616,7 @@ const Auth = () => {
             </main>
           </div>
 
-          <p className="hidden items-center justify-center gap-2 py-6 text-sm text-muted-foreground lg:flex">
+          <p className="hidden items-center justify-center gap-2 py-4 text-sm text-muted-foreground lg:flex">
             <ShieldCheck className="h-4 w-4" /> Private workspace · access by invitation only
           </p>
         </div>
