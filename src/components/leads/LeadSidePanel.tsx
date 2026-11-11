@@ -392,7 +392,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                   No activities yet. Log your first interaction above.
                 </p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2" data-animate-list>
                   {activities.map((a) => {
                     const config = activityTypeConfig[a.activity_type as keyof typeof activityTypeConfig] ?? activityTypeConfig.note;
                     const Icon = config.icon;

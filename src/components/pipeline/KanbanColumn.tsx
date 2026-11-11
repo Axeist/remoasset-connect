@@ -29,7 +29,7 @@ export function KanbanColumn({ id, title, color, count, totalScore, children }: 
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
             <span className="text-sm font-semibold text-foreground truncate">{title}</span>
-            <span className="flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-foreground/10 text-[11px] font-semibold text-foreground/70">
+            <span key={count} className="count-bump flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-foreground/10 text-[11px] font-semibold text-foreground/70">
               {count}
             </span>
           </div>

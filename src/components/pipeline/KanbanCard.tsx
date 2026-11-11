@@ -119,6 +119,7 @@ function KanbanCardBase({ lead, onClick, onAddActivity, isDragOverlay, disableDr
   return (
     <div
       ref={setNodeRef}
+      data-lead-id={lead.id}
       style={isDragOverlay ? undefined : style}
       {...attributes}
       {...(!disableDrag && !isDragOverlay ? listeners : {})}

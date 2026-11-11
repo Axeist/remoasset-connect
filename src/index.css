@@ -949,3 +949,33 @@ textarea:focus-visible,
 
 /* Long lists: skip layout/paint work for cards that are off-screen */
 .cv-auto { content-visibility: auto; contain-intrinsic-size: auto 96px; }
+
+/* ---- Micro-interactions ---- */
+/* strike-through that draws across the text */
+.strike-draw { background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat; background-position: 0 58%; background-size: 0% 1.6px; transition: background-size .32s cubic-bezier(.22,1,.36,1), color .2s; }
+.strike-draw[data-done="true"] { background-size: 100% 1.6px; color: hsl(var(--muted-foreground)); }
+/* checkbox pop on check */
+@keyframes cb-pop { 0% { transform: scale(.7); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+.cb-pop[data-state="checked"] { animation: cb-pop .3s cubic-bezier(.34,1.56,.64,1); }
+/* count bump on kanban column counts */
+@keyframes count-bump { 0% { transform: scale(1); } 40% { transform: scale(1.4); } 100% { transform: scale(1); } }
+.count-bump { animation: count-bump .38s cubic-bezier(.34,1.56,.64,1); }
+/* shake: rejected moves and invalid fields */
+@keyframes shake-x { 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
+.shake-x { animation: shake-x .38s ease; }
+input[aria-invalid="true"], textarea[aria-invalid="true"], [data-radix-select-trigger][aria-invalid="true"] { animation: shake-x .38s ease; border-color: hsl(var(--destructive)) !important; }
+/* tilt + magnetic + hover lift (use the individual transform properties so they compose with Tailwind transforms) */
+.tilt-card { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .25s cubic-bezier(.22,1,.36,1), translate .25s, box-shadow .25s; will-change: transform; }
+.tilt-card:hover { translate: 0 -4px; }
+.magnetic { transition: translate .3s cubic-bezier(.22,1,.36,1), background-color .2s, box-shadow .2s; }
+.glass.glow-card::after { background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 0%), hsl(var(--primary) / .09), transparent 62%); }
+.dark .glass.glow-card::after { background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 0%), hsl(var(--primary) / .14), transparent 62%); }
+/* ambient light behind pages (desktop only) */
+.ambient { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.ambient i { position: absolute; border-radius: 9999px; filter: blur(80px); opacity: .5; will-change: transform; animation: auth2-drift 26s ease-in-out infinite alternate; }
+.ambient i:nth-child(1) { width: 420px; height: 320px; left: 8%; top: -6%; background: hsl(var(--primary) / .10); }
+.ambient i:nth-child(2) { width: 380px; height: 300px; right: 4%; top: 30%; background: hsl(214 80% 60% / .07); animation-duration: 32s; animation-delay: -9s; }
+.dark .ambient i:nth-child(1) { background: hsl(var(--primary) / .12); }
+.dark .ambient i:nth-child(2) { background: hsl(214 80% 60% / .06); }
+@media (max-width: 1023px) { .ambient { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ambient i, .count-bump, .shake-x, .cb-pop, input[aria-invalid="true"] { animation: none !important; } .tilt-card { transform: none; } }

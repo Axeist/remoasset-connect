@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { TaskFormDialog, type TaskRecord } from '@/components/tasks/TaskFormDialog';
 import { TaskDetailDialog } from '@/components/tasks/TaskDetailDialog';
 import { useToast } from '@/hooks/use-toast';
+import { SwipeRow } from '@/components/SwipeRow';
 
 const priorityColors: Record<string, string> = {
   low: 'bg-muted text-muted-foreground',
@@ -279,18 +280,19 @@ export default function Tasks() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 min-h-[200px]">
+                <div className="space-y-3 min-h-[200px]" data-animate-list>
                   {pendingTasks.length === 0 ? (
                     <p className="text-muted-foreground text-sm">No pending tasks</p>
                   ) : (
                     pendingTasks.map((task) => (
-                      <TaskCard
-                        key={task.id}
-                        task={task}
-                        onToggle={toggleTask}
-                        onClick={() => { if (task.lead_id) navigate(`/leads/${task.lead_id}`); else { setDetailTask(task); setDetailOpen(true); } }}
-                        isAdmin={isAdmin}
-                      />
+                      <SwipeRow key={task.id} onSwipeRight={() => toggleTask(task.id, true)} rightLabel="Complete">
+                        <TaskCard
+                          task={task}
+                          onToggle={toggleTask}
+                          onClick={() => { if (task.lead_id) navigate(`/leads/${task.lead_id}`); else { setDetailTask(task); setDetailOpen(true); } }}
+                          isAdmin={isAdmin}
+                        />
+                      </SwipeRow>
                     ))
                   )}
                 </div>
@@ -304,7 +306,7 @@ export default function Tasks() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 min-h-[200px]">
+                <div className="space-y-3 min-h-[200px]" data-animate-list>
                   {completedTasks.length === 0 ? (
                     <p className="text-muted-foreground text-sm">No completed tasks</p>
                   ) : (
@@ -424,7 +426,7 @@ function TaskItem({
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className={cn('font-medium', task.is_completed && 'line-through')}>{task.title}</p>
+          <p className="strike-draw font-medium" data-done={task.is_completed ? 'true' : 'false'}>{task.title}</p>
           {isAdmin && task.assignee?.full_name && (
             <Badge variant="outline" className="text-xs">
               {task.assignee.full_name}
@@ -489,7 +491,7 @@ function TaskCard({
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className={cn('font-medium text-sm', task.is_completed && 'line-through')}>{task.title}</p>
+            <p className="strike-draw font-medium text-sm" data-done={task.is_completed ? 'true' : 'false'}>{task.title}</p>
             {isAdmin && task.assignee?.full_name && (
               <Badge variant="outline" className="text-xs">
                 {task.assignee.full_name}

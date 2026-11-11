@@ -1,6 +1,7 @@
 import { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PointerEvent } from 'react';
+import { CountUp } from '@/components/CountUp';
 
 interface KPICardProps {
   title: string;
@@ -30,7 +31,7 @@ export function KPICard({ title, value, change, icon: Icon, variant }: KPICardPr
 
   return (
     <div onPointerMove={onMove} className={cn(
-      "glow-card relative overflow-hidden rounded-xl p-6 text-white card-shadow-lg transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-xl",
+      "glow-card tilt-card relative overflow-hidden rounded-xl p-6 text-white card-shadow-lg hover:shadow-xl",
       variantStyles[variant]
     )}>
       {/* Background decoration */}
@@ -52,7 +53,7 @@ export function KPICard({ title, value, change, icon: Icon, variant }: KPICardPr
         </div>
         
         <div>
-          <p className="text-3xl font-display font-bold">{value}</p>
+          <p className="text-3xl font-display font-bold"><CountUp value={value} /></p>
           <p className="text-white/80 text-sm mt-1">{title}</p>
         </div>
       </div>

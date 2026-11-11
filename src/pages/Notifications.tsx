@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { safeFormat } from '@/lib/date';
 import { Bell, CheckCheck, Loader2 } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
+import { SwipeRow } from '@/components/SwipeRow';
 
 interface AppNotification {
   id: string;
@@ -103,12 +104,19 @@ export default function Notifications() {
             {notifications.length === 0 ? (
               <EmptyState illustration="bell" title="You're all caught up" description="New leads, tasks and replies will show up here." />
             ) : (
-              <ul className="divide-y divide-border">
+              <ul className="divide-y divide-border" data-animate-list>
                 {notifications.map((n) => (
                   <li
                     key={n.id}
                     className={`py-4 first:pt-0 ${!n.is_read ? 'bg-primary/5 -mx-2 px-2 rounded-lg' : ''}`}
                   >
+                    <SwipeRow
+                      leftLabel="Delete"
+                      onSwipeLeft={async () => {
+                        setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+                        await supabase.from('notifications').delete().eq('id', n.id);
+                      }}
+                    >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -128,6 +136,7 @@ export default function Notifications() {
                         </Button>
                       )}
                     </div>
+                    </SwipeRow>
                   </li>
                 ))}
               </ul>

@@ -1,4 +1,4 @@
-import { ReactNode, createContext, useContext, useState, useEffect } from 'react';
+import { ReactNode, createContext, useContext, useState, useEffect, useRef } from 'react';
 import { AppSidebar, MobileTabBar } from './AppSidebar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AppHeader } from './AppHeader';
@@ -9,6 +9,9 @@ import { AlertTriangle, X } from 'lucide-react';
 import { CommandPalette } from '@/components/CommandPalette';
 import { StackedTables } from '@/components/StackedTables';
 import { prefetchCommonRoutes } from '@/lib/prefetch';
+import { AutoAnimateLists } from '@/components/AutoAnimateLists';
+import { FuturisticEffects } from '@/components/FuturisticEffects';
+import { PullToRefresh } from '@/components/PullToRefresh';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -66,20 +69,25 @@ export function AppLayout({ children }: AppLayoutProps) {
 function AppLayoutShell({ children }: AppLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
+  const mainRef = useRef<HTMLElement>(null);
   useEffect(() => { prefetchCommonRoutes(); }, []);
   useMailNotificationPoller();
   // Task/follow-up reminders are now created server-side (send_due_reminders, every minute).
   return (
     <div className="min-h-dvh flex w-full bg-background">
       <AppSidebar mobileOpen={mobileMenuOpen} onMobileOpenChange={setMobileMenuOpen} />
-      <div className="page-bg flex-1 flex flex-col min-h-dvh min-w-0">
+      <div className="page-bg relative flex-1 flex flex-col min-h-dvh min-w-0">
+        <div className="ambient" aria-hidden="true"><i /><i /></div>
         <AppHeader onMenuClick={() => setMobileMenuOpen(true)} />
         <GoogleReconnectBanner />
-        <main className={`flex-1 p-4 md:p-6 overflow-auto ${isMobile ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : ""}`}>
+        <main ref={mainRef} className={`relative z-10 flex-1 p-4 md:p-6 overflow-auto ${isMobile ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : ""}`}>
           {children}
         </main>
       </div>
       <CommandPalette />
+      <AutoAnimateLists />
+      <FuturisticEffects />
+      {isMobile && <PullToRefresh target={mainRef} />}
       <StackedTables />
       {isMobile && <MobileTabBar onMore={() => setMobileMenuOpen(true)} />}
     </div>

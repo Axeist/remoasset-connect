@@ -123,6 +123,14 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
   const [countries, setCountries] = useState<(CountryOption & { region?: string | null })[]>([]);
   const [refReady, setRefReady] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const shakeCard = (id: string) => {
+    const el = document.querySelector<HTMLElement>(`[data-lead-id="${id}"]`);
+    if (!el) return;
+    el.classList.remove('shake-x');
+    void el.offsetWidth;
+    el.classList.add('shake-x');
+    setTimeout(() => el.classList.remove('shake-x'), 450);
+  };
   // Boards can hold hundreds of leads per stage: render in pages of 30 so the page stays fast.
   const [shown, setShown] = useState<Record<string, number>>({});
   const PAGE = 30;
@@ -315,6 +323,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
         if (!fullLead.email) missing.push('Email');
         if (!fullLead.website) missing.push('Website');
         if (missing.length > 0) {
+          shakeCard(leadId);
           toast({ variant: 'destructive', title: 'Cannot move to Closed Won', description: `Missing required fields: ${missing.join(', ')}. Edit the lead first.` });
           return;
         }
