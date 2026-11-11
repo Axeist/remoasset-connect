@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, X } from 'lucide-react';
 import { CommandPalette } from '@/components/CommandPalette';
+import { StackedTables } from '@/components/StackedTables';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -77,6 +78,7 @@ function AppLayoutShell({ children }: AppLayoutProps) {
         </main>
       </div>
       <CommandPalette />
+      <StackedTables />
       {isMobile && <MobileTabBar onMore={() => setMobileMenuOpen(true)} />}
     </div>
   );

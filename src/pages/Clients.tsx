@@ -218,7 +218,7 @@ export default function Clients() {
                 <p className="text-sm text-muted-foreground mt-1">{search ? 'Try a different search.' : 'Add your first client to get started.'}</p>
               </div>
             ) : (
-              <Table>
+              <Table mobileCards>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Client Name</TableHead>

@@ -186,7 +186,7 @@ export default function RfqHub() {
         </div>
 
         <Card className="overflow-hidden border-border/80">
-          <Table>
+          <Table mobileCards>
             <TableHeader>
               <TableRow>
                 <TableHead>Campaign</TableHead>

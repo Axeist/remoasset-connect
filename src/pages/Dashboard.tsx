@@ -197,7 +197,7 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">No leads yet.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="rt-cards w-full text-sm">
                     <thead>
                       <tr className="border-b">
                         <th className="text-left py-2 font-medium">Company</th>

@@ -1344,7 +1344,7 @@ curl -X POST ${baseUrl}/notifications \\
                   </div>
                 </div>
                 <div className="rounded-xl border overflow-hidden">
-                  <Table>
+                  <Table mobileCards>
                     <TableHeader>
                       <TableRow className="bg-muted/30 hover:bg-muted/30">
                         <TableHead>Member</TableHead>
@@ -1869,7 +1869,7 @@ curl -X POST ${baseUrl}/notifications \\
                   ) : apiKeys.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-6 text-center">No API keys yet. Create one to let external apps access the API.</p>
                   ) : (
-                    <Table>
+                    <Table mobileCards>
                       <TableHeader>
                         <TableRow className="bg-muted/20 hover:bg-muted/20">
                           <TableHead>Name</TableHead>

@@ -336,7 +336,7 @@ export default function ClientDetail() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <Table>
+                <Table mobileCards>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-8" />

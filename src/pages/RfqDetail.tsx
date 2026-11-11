@@ -518,7 +518,7 @@ export default function RfqDetail() {
 
           <TabsContent value="recipients" className="mt-3">
             <Card className="card-shadow overflow-hidden">
-              <Table>
+              <Table mobileCards>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Vendor</TableHead>

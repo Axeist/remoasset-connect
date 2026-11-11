@@ -90,7 +90,7 @@ export default function CsmCoverage() {
         </div>
 
         <div className="rounded-xl border overflow-hidden">
-          <Table>
+          <Table mobileCards>
             <TableHeader>
               <TableRow>
                 <TableHead>Country</TableHead>

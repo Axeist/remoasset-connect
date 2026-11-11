@@ -2,10 +2,15 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
+interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  /** Render rows as stacked cards on phones (below 768px). Best for record lists, not wide comparison grids. */
+  mobileCards?: boolean;
+}
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, mobileCards, ...props }, ref) => (
     <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+      <table ref={ref} className={cn("w-full caption-bottom text-sm", mobileCards && "rt-cards", className)} {...props} />
     </div>
   ),
 );

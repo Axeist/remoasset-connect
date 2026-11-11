@@ -114,7 +114,7 @@ export function LeadsTable({
   return (
     <Card className="card-shadow overflow-hidden rounded-xl border-border/80 animate-inner-card-hover">
       <CardContent className="p-0">
-        <Table>
+        <Table mobileCards>
           <TableHeader>
             <TableRow className="bg-muted/50">
               {onSelectionChange && (

@@ -766,7 +766,7 @@ export function VendorDirectory() {
 
               {isExpanded && (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="rt-cards w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/20 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       <th className="px-4 py-2.5 text-left">Company</th>
