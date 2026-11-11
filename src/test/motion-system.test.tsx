@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { LazyMotion, domAnimation } from 'framer-motion';
+import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('sonner', () => {
   const fn = Object.assign(vi.fn(() => 'id1'), { success: vi.fn(() => 'id2'), error: vi.fn(() => 'id3'), dismiss: vi.fn() });
@@ -16,10 +17,12 @@ import { toast } from '@/hooks/use-toast';
 describe('motion system', () => {
   it('plays the lead-created moment and respects the celebrations setting', () => {
     setCelebrationMode('full');
-    render(<LazyMotion features={domAnimation}><CelebrationHost /></LazyMotion>);
-    act(() => celebrate({ kind: 'lead', title: 'Lead created', subtitle: 'Acme Devices' }));
-    expect(screen.getByText('Lead created')).toBeInTheDocument();
-    expect(screen.getByText('Acme Devices')).toBeInTheDocument();
+    render(<MemoryRouter><LazyMotion features={domAnimation}><CelebrationHost /></LazyMotion></MemoryRouter>);
+    act(() => celebrate({ kind: 'lead', title: 'Lead created', subtitle: 'Acme Devices', leadId: 'l1', chips: ['New'] }));
+    expect(screen.getByLabelText('Acme Devices')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /view lead/i })).toBeInTheDocument();
+    act(() => celebrate({ kind: 'followup', title: 'Follow-up scheduled', subtitle: '12 Nov 2026' }));
+    expect(screen.getByText('Follow-up scheduled')).toBeInTheDocument();
   });
 
   it('renders an empty state with copy', () => {
@@ -35,7 +38,6 @@ describe('motion system', () => {
   });
 });
 
-import { MemoryRouter } from 'react-router-dom';
 import { fireEvent } from '@testing-library/react';
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ can: () => true, signOut: vi.fn(), user: { id: 'u' } }) }));
 vi.mock('@/integrations/supabase/client', () => ({

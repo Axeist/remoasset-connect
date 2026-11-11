@@ -56,6 +56,14 @@ export default function Leads() {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
+  useEffect(() => {
+    if (searchParams.get('new')) {
+      setFormOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('new');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [importOpen, setImportOpen] = useState(false);
   const [bulkAction, setBulkAction] = useState<'status' | 'owner' | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());

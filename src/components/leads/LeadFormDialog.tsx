@@ -320,10 +320,10 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
         return;
       }
       toast({ title: 'Lead created', description: 'New lead added successfully.' });
-      celebrate({ kind: 'lead', title: 'Lead created', subtitle: values.company_name });
       // Fire Slack notification (non-blocking)
       const selectedStatus = statuses.find((s) => s.id === values.status_id);
       const firstCountry = countries.find((c) => c.id === values.country_ids[0]);
+      celebrate({ kind: 'lead', title: 'Lead created', subtitle: values.company_name, leadId: newLead?.id, chips: [selectedStatus?.name, firstCountry?.name, 'Score 0'].filter(Boolean) as string[] });
       supabase.functions.invoke('slack-notify', {
         body: {
           event: 'lead_created',

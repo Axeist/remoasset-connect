@@ -25,6 +25,7 @@ import {
 import { vendorsForCountry as filterVendorsForCountry } from '@/components/clients/shared/client-request-form-utils';
 import { cn } from '@/lib/utils';
 import { Loader2, TrendingUp, Package, UserRound, CreditCard, Tag, Check } from 'lucide-react';
+import { celebrate } from '@/lib/celebrate';
 
 interface Props {
   open: boolean;
@@ -227,6 +228,7 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
         ? `${devices.length} devices`
         : `${devices[0].brand} ${devices[0].device_model}`;
       toast({ title: 'Request added', description: `${title.trim()} request created.` });
+    celebrate({ kind: 'request', title: 'Request created' });
       onOpenChange(false);
       onSuccess();
     }

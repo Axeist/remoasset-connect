@@ -32,6 +32,7 @@ import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 import { useGmail, fileToEmailAttachment } from '@/hooks/useGmail';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Plus, Trash2, Link as LinkIcon, Paperclip, Mail, MessageCircle, ShieldCheck, Linkedin, CalendarDays, FileText } from 'lucide-react';
+import { celebrate } from '@/lib/celebrate';
 
 export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'whatsapp' | 'nda' | 'linkedin' | 'quotation';
 
@@ -653,6 +654,7 @@ export function AddActivityDialog({
     onOpenChange(false);
 
     const ndaAutoWon = isNda && ndaSubActivity === 'nda_received' && ndaFile && !isAlreadyWon;
+    if (isNda && ndaSubActivity === 'nda_received' && ndaFile) celebrate({ kind: 'nda', title: 'NDA signed', subtitle: leadCompanyName });
     toast({
       title: ndaAutoWon
         ? 'NDA Received — Lead marked as Closed Won!'

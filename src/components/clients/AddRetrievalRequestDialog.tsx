@@ -20,6 +20,7 @@ import {
   type RetrievalEndpointType, type VendorWithCountries,
 } from '@/components/clients/shared/client-request-form-utils';
 import { ServiceRequestPricingFields } from '@/components/clients/shared/ServiceRequestPricingFields';
+import { celebrate } from '@/lib/celebrate';
 
 interface Props {
   open: boolean;
@@ -312,6 +313,7 @@ export function AddRetrievalRequestDialog({ open, onOpenChange, onSuccess, clien
       return;
     }
     toast({ title: 'Retrieval request added', description: 'Retrieval, storage & redeployment request created.' });
+    celebrate({ kind: 'request', title: 'Request created' });
     onOpenChange(false);
     onSuccess();
   };

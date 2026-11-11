@@ -15,6 +15,7 @@ import {
   fetchAllVendors, parseMoney, SERVICE_SPEC_PLACEHOLDERS, uploadClientRequestFiles,
 } from '@/components/clients/shared/client-request-form-utils';
 import { ServiceRequestPricingFields } from '@/components/clients/shared/ServiceRequestPricingFields';
+import { celebrate } from '@/lib/celebrate';
 
 interface Props {
   open: boolean;
@@ -141,6 +142,7 @@ export function AddCrossBorderRequestDialog({ open, onOpenChange, onSuccess, cli
       return;
     }
     toast({ title: 'Cross-border request added', description: 'International device move recorded.' });
+    celebrate({ kind: 'request', title: 'Request created' });
     onOpenChange(false);
     onSuccess();
   };

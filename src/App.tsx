@@ -89,7 +89,6 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Sonner />
-        <CelebrationHost />
         <VersionReloader />
         {showWelcomeSplash && (
           <SplashScreen
@@ -103,6 +102,7 @@ const App = () => {
         )}
         <BrowserRouter>
           <AuthProvider>
+            <CelebrationHost />
             <ScrollToTop />
             <PageVisitTracker />
             <CookieConsentBanner />

@@ -1,9 +1,16 @@
-/** Success moments: a short full-screen animation for big wins (lead created, RFQ sent, deal won). */
-export type CelebrateKind = 'lead' | 'rfq' | 'won';
+/** Success moments: a short animation for things worth noticing (lead created, RFQ sent, deal won, ...). */
+export type CelebrateKind = 'lead' | 'rfq' | 'won' | 'followup' | 'transfer' | 'upload' | 'request' | 'nda';
 export interface CelebrateDetail {
   kind: CelebrateKind;
   title: string;
   subtitle?: string;
+  /** lead: id for the "View lead" button. */
+  leadId?: string;
+  /** lead: small tags shown on the card (status, country, ...). */
+  chips?: string[];
+  /** transfer: names shown on the two avatars. */
+  from?: string;
+  to?: string;
 }
 
 export const CELEBRATE_EVENT = 'remoasset:celebrate';

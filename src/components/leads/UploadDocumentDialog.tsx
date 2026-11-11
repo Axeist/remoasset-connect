@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { celebrate } from '@/lib/celebrate';
 
 const DOCUMENT_TYPE_OPTIONS = [
   { value: 'nda', label: 'NDA' },
@@ -93,6 +94,7 @@ export function UploadDocumentDialog({
       },
     }).catch(() => {});
     toast({ title: 'Document uploaded' });
+    celebrate({ kind: 'upload', title: 'Document uploaded' });
     resetForm();
     onSuccess();
     onOpenChange(false);

@@ -20,6 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowRightLeft } from 'lucide-react';
+import { celebrate } from '@/lib/celebrate';
 
 interface TransferLeadDialogProps {
   open: boolean;
@@ -119,6 +120,7 @@ export function TransferLeadDialog({
       }).catch(() => {});
 
       toast({ title: 'Lead transferred', description: `${leadCompanyName} transferred to ${toName}.` });
+      celebrate({ kind: 'transfer', title: 'Lead transferred', subtitle: `${leadCompanyName} → ${toName}`, from: 'You', to: toName });
       onOpenChange(false);
       onSuccess();
     } catch (err) {

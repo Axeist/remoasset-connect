@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 import { safeFormat } from '@/lib/date';
 import { Loader2, CalendarDays } from 'lucide-react';
+import { celebrate } from '@/lib/celebrate';
 
 interface AddFollowUpDialogProps {
   open: boolean;
@@ -156,6 +157,7 @@ export function AddFollowUpDialog({
 
     setSubmitting(false);
     toast({ title: addToCalendar ? 'Follow-up scheduled & added to calendar' : 'Follow-up scheduled' });
+    celebrate({ kind: 'followup', title: 'Follow-up scheduled', subtitle: scheduledDate.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) });
     resetForm();
     onSuccess();
     onOpenChange(false);

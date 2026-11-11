@@ -15,6 +15,7 @@ import {
   fetchAllVendors, filterItadVendors, parseMoney, SERVICE_SPEC_PLACEHOLDERS,
 } from '@/components/clients/shared/client-request-form-utils';
 import { ServiceRequestPricingFields } from '@/components/clients/shared/ServiceRequestPricingFields';
+import { celebrate } from '@/lib/celebrate';
 
 interface Props {
   open: boolean;
@@ -97,6 +98,7 @@ export function AddItadRequestDialog({ open, onOpenChange, onSuccess, clientId }
       return;
     }
     toast({ title: 'ITAD request added', description: `Disposal request for ${qty} device(s) created.` });
+    celebrate({ kind: 'request', title: 'Request created' });
     onOpenChange(false);
     onSuccess();
   };
