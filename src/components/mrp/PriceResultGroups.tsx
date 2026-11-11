@@ -53,11 +53,11 @@ function HitList({ hits, countryCode }: { hits: PublicPriceHit[]; countryCode: s
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
               <p className="text-sm font-semibold truncate">{hit.retailer}</p>
-              <Badge variant="outline" className={cn('rounded-md text-[10px] uppercase', PRICE_BADGE[hit.price_type])}>
+              <Badge variant="outline" className={cn('rounded-md text-[11px] uppercase', PRICE_BADGE[hit.price_type])}>
                 {PRICE_TYPE_LABEL[hit.price_type]}
               </Badge>
               {hit.match_quality === 'near' && (
-                <Badge variant="outline" className="rounded-md text-[10px] uppercase bg-amber-500/10 text-amber-800 border-amber-500/25 dark:text-amber-300">
+                <Badge variant="outline" className="rounded-md text-[11px] uppercase bg-amber-500/10 text-amber-800 border-amber-500/25 dark:text-amber-300">
                   Nearby
                 </Badge>
               )}
@@ -173,7 +173,7 @@ export function PriceResultGroups({
         {!!queries?.length && (
           <div className="flex flex-wrap justify-center gap-1.5 pt-2">
             {queries.map((q) => (
-              <code key={q} className="text-[10px] px-2 py-1 rounded-md bg-muted/80 text-muted-foreground max-w-full truncate">
+              <code key={q} className="text-[11px] px-2 py-1 rounded-md bg-muted/80 text-muted-foreground max-w-full truncate">
                 {q.replace(/^(shopping|search):\s*/i, '')}
               </code>
             ))}

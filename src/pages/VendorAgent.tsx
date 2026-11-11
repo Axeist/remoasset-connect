@@ -890,7 +890,7 @@ export default function VendorAgent() {
 
           {/* Chat Tab */}
           <TabsContent value="chat" className="mt-4">
-            <div className="flex gap-3 h-[calc(100vh-220px)] sm:h-[calc(100vh-260px)] min-h-[420px] sm:min-h-[500px] relative">
+            <div className="flex gap-3 h-[calc(100dvh-220px)] sm:h-[calc(100dvh-260px)] min-h-[420px] sm:min-h-[500px] relative">
 
               {/* History Sidebar — absolute overlay on mobile, inline on sm+ */}
               {historyOpen && (
@@ -933,7 +933,7 @@ export default function VendorAgent() {
                           </div>
                         )}
                         <button
-                          className="absolute top-2 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:text-destructive"
+                          className="absolute top-2 right-1.5 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity p-0.5 hover:text-destructive"
                           onClick={(e) => { e.stopPropagation(); deleteSession(s.id); }}
                         >
                           <Trash2 className="h-3 w-3" />
@@ -1374,7 +1374,7 @@ export default function VendorAgent() {
 
         {/* Edit draft dialog */}
         <Dialog open={editDraftOpen} onOpenChange={setEditDraftOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit draft</DialogTitle>
             </DialogHeader>

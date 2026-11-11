@@ -169,7 +169,7 @@ export default function RfqHub() {
                   <Icon className="h-3.5 w-3.5" /> {k.label}
                 </div>
                 <p className={cn('text-2xl font-bold tabular-nums mt-1', k.key === 'overdue' && kpis.overdue > 0 && 'text-amber-700')}>{k.value}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{k.hint}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{k.hint}</p>
               </button>
             );
           })}

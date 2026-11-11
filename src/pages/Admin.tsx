@@ -1369,7 +1369,7 @@ curl -X POST ${baseUrl}/notifications \\
                                   <div className="flex items-center gap-2">
                                     <p className="font-medium text-sm">{member.full_name || 'Unknown'}</p>
                                     {isPending && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20">
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20">
                                         Pending
                                       </span>
                                     )}
@@ -1465,7 +1465,7 @@ curl -X POST ${baseUrl}/notifications \\
                             <div className="h-3 w-3 rounded-full shrink-0 ring-2 ring-white/10" style={{ backgroundColor: status.color }} />
                             <span className="text-sm flex-1 font-medium">{status.name}</span>
                             <span className="text-xs text-muted-foreground/50 font-mono">#{status.sort_order}</span>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-1 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity">
                               <button onClick={() => { setEditingStatus(status); setStatusFormOpen(true); }} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
                                 <Edit2 className="h-3.5 w-3.5" />
                               </button>
@@ -1499,7 +1499,7 @@ curl -X POST ${baseUrl}/notifications \\
                           <div key={country.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors group">
                             <span className="text-xs font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono w-10 text-center">{country.code}</span>
                             <span className="text-sm flex-1">{country.name}</span>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-1 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity">
                               <button onClick={() => { setEditingCountry(country); setCountryFormOpen(true); }} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
                                 <Edit2 className="h-3.5 w-3.5" />
                               </button>

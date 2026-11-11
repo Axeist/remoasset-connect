@@ -481,7 +481,7 @@ export default function Settings() {
                     <div className="flex items-center gap-2">
                       <Shield className="h-4 w-4 text-primary" />
                       <span className="text-sm font-semibold">Allowed sign-in domains</span>
-                      <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5">Admin</span>
+                      <span className="ml-auto text-[11px] font-semibold uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5">Admin</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Only Google accounts from these domains can sign in via Google OAuth. Add multiple domains to allow access from different Google Workspaces. Password sign-in is not affected.

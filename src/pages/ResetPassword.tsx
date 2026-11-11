@@ -10,6 +10,7 @@ import { SplashScreen } from '@/components/SplashScreen';
 import { Loader2, Lock, Eye, EyeOff, CheckCircle2, ShieldCheck, X, Sun, Moon } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
+import { BrandLogo } from '@/components/BrandLogo';
 
 const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[\]{};':"\\|,.<>/?]).{8,}$/;
 
@@ -157,7 +158,7 @@ export default function ResetPassword() {
 
   if (!sessionReady && !success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="min-h-dvh flex items-center justify-center bg-background p-6">
         <div className="w-full max-w-[420px]">
           <div className="rounded-2xl border border-border/80 bg-card/80 backdrop-blur-sm shadow-xl shadow-black/5 p-8 sm:p-10 text-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
@@ -175,7 +176,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-dvh flex bg-background">
 
       {/* Left branding pane — mirrors Auth.tsx */}
       <div className="hidden lg:flex lg:w-[48%] xl:w-[52%] relative overflow-hidden auth-left-pane flex-col justify-between p-12 xl:p-16">
@@ -185,7 +186,7 @@ export default function ResetPassword() {
         <div className="absolute bottom-1/3 -right-20 w-64 h-64 rounded-full bg-accent/15 blur-[70px] pointer-events-none" />
         <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.2) 1px, transparent 0)', backgroundSize: '28px 28px' }} />
         <div className="relative z-10 animate-fade-in-right">
-          <img src="/logo.png" alt="RemoAsset Connect" className="h-11 w-auto object-contain drop-shadow-md" />
+          <BrandLogo tone="onDark" size={42} />
         </div>
         <div className="relative z-10 space-y-6 animate-fade-in-right animate-fade-in-right-delay-1">
           {isInvite ? (
@@ -254,9 +255,7 @@ export default function ResetPassword() {
 
             {/* Mobile logo */}
             <div className="lg:hidden mb-6 flex justify-center">
-              <div className="rounded-xl bg-sidebar/90 px-5 py-2.5 inline-flex items-center justify-center border border-white/10">
-                <img src="/logo.png" alt="RemoAsset Connect" className="h-9 w-auto object-contain" />
-              </div>
+              <BrandLogo size={34} />
             </div>
 
             {success && !isInvite ? (

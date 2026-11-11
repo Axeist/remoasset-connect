@@ -115,7 +115,7 @@ export default function CsmCoverage() {
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {r.types.length === 0 ? '—' : r.types.map((t) => (
-                          <Badge key={t} variant="secondary" className="text-[10px]">{formatVendorTypeLabel(t)}</Badge>
+                          <Badge key={t} variant="secondary" className="text-[11px]">{formatVendorTypeLabel(t)}</Badge>
                         ))}
                       </div>
                     </TableCell>

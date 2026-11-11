@@ -149,7 +149,7 @@ function MethodBadge({ method }: { method: Method }) {
     PATCH:  'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
     DELETE: 'bg-destructive/10 text-destructive border-destructive/20',
   };
-  return <span className={cn('inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold font-mono tracking-wider shrink-0', s[method])}>{method}</span>;
+  return <span className={cn('inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-bold font-mono tracking-wider shrink-0', s[method])}>{method}</span>;
 }
 
 function StatusPill({ status }: { status: number | null }) {
@@ -202,7 +202,7 @@ function ParamTable({ rows }: { rows: { name: string; type: string; required?: b
               <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">{r.type}</td>
               <td className="px-4 py-2.5">
                 {r.required
-                  ? <span className="inline-flex items-center rounded-full bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 text-[10px] font-semibold">required</span>
+                  ? <span className="inline-flex items-center rounded-full bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 text-[11px] font-semibold">required</span>
                   : <span className="text-xs text-muted-foreground/60">optional</span>}
               </td>
               <td className="px-4 py-2.5 text-xs text-muted-foreground leading-relaxed">{r.description}</td>
@@ -682,7 +682,7 @@ Full interactive docs: ${window.location.origin}/developer?tab=docs
                           <div className="flex items-center gap-2 shrink-0">
                             {log.status !== null ? <StatusPill status={log.status} /> : <span className="text-xs text-destructive flex items-center gap-1"><XCircle className="h-3 w-3" />Error</span>}
                             <span className="text-xs text-muted-foreground w-14 text-right">{log.duration}ms</span>
-                            <span className="text-[10px] text-muted-foreground/60 w-20 text-right">{log.ts.toLocaleTimeString()}</span>
+                            <span className="text-[11px] text-muted-foreground/60 w-20 text-right">{log.ts.toLocaleTimeString()}</span>
                           </div>
                         </div>
                       ))}
@@ -724,7 +724,7 @@ Full interactive docs: ${window.location.origin}/developer?tab=docs
               {/* sticky sidebar */}
               <aside className="hidden lg:block w-48 shrink-0 sticky top-4">
                 <Card className="card-shadow border-border/60 p-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1.5">Contents</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1.5">Contents</p>
                   <nav className="space-y-0.5">
                     {DOC_SECTIONS.map((item) => (
                       <button key={item.id} onClick={() => scrollDoc(item.id)}

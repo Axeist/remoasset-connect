@@ -168,7 +168,7 @@ export function LeadsFilters({ filters, onFiltersChange, ownerOptions }: LeadsFi
             <SlidersHorizontal className="h-4 w-4" />
             Filters
             {activeFilterCount > 0 && (
-              <Badge variant="default" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-[10px] rounded-full">
+              <Badge variant="default" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-[11px] rounded-full">
                 {activeFilterCount}
               </Badge>
             )}

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Shield } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
 
 const LAST_UPDATED = 'September 9, 2026';
 
@@ -16,12 +17,12 @@ const Section = ({ num, title, children }: { num: string; title: string; childre
 
 const Privacy = () => {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-dvh bg-background text-foreground">
       {/* Top bar */}
       <header className="border-b border-border/60 bg-card/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="RemoAsset Connect" className="h-7 w-auto object-contain" />
+            <BrandLogo size={30} />
           </div>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
             <Link to="/terms" className="hover:text-primary transition-colors">Terms</Link>

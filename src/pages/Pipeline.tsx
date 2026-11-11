@@ -460,7 +460,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
+      <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden">
         {/* Header */}
         <div className="shrink-0 px-1 pb-4 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -531,7 +531,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
                 <SlidersHorizontal className="h-4 w-4" />
                 <span className="hidden sm:inline">Filters</span>
                 {activeFilterCount > 0 && (
-                  <Badge className="h-5 w-5 p-0 justify-center text-[10px] bg-accent text-white">{activeFilterCount}</Badge>
+                  <Badge className="h-5 w-5 p-0 justify-center text-[11px] bg-accent text-white">{activeFilterCount}</Badge>
                 )}
               </Button>
               {activeFilterCount > 0 && (

@@ -34,7 +34,7 @@ export function KanbanColumn({ id, title, color, count, totalScore, children }: 
             </span>
           </div>
           {totalScore > 0 && (
-            <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded px-1.5 py-0.5">
+            <span className="text-[11px] font-medium text-muted-foreground bg-muted rounded px-1.5 py-0.5">
               {totalScore} pts
             </span>
           )}

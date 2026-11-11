@@ -252,7 +252,7 @@ export function CloudTalkSettingsCard() {
               ) : (
                 <Input value={fromNumber} onChange={(e) => setFromNumber(e.target.value)} placeholder="+442012345678" />
               )}
-              <p className="text-[11px] text-muted-foreground">Used as <code className="text-[10px]">from=</code> on ct+tel links. Must be assigned to the agent in CloudTalk.</p>
+              <p className="text-[11px] text-muted-foreground">Used as <code className="text-[11px]">from=</code> on ct+tel links. Must be assigned to the agent in CloudTalk.</p>
             </div>
 
             <div className="space-y-3">

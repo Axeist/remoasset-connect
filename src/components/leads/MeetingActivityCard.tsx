@@ -75,12 +75,12 @@ export function MeetingActivityCard({ description, attachments, createdAt }: Mee
           Scheduled Meeting
         </span>
         {isUpcoming && (
-          <Badge className="ml-auto bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-[10px] font-semibold border-0 px-1.5 py-0">
+          <Badge className="ml-auto bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-[11px] font-semibold border-0 px-1.5 py-0">
             Upcoming
           </Badge>
         )}
         {isPast && !isUpcoming && (
-          <Badge className="ml-auto bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 text-[10px] font-semibold border-0 px-1.5 py-0">
+          <Badge className="ml-auto bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 text-[11px] font-semibold border-0 px-1.5 py-0">
             Completed
           </Badge>
         )}
@@ -192,16 +192,16 @@ export function MeetingActivityCardCompact({ description, attachments, createdAt
     <div className="rounded-md border border-primary/20 bg-primary/5 dark:bg-primary/10 dark:border-primary/20 overflow-hidden">
       <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 dark:bg-primary/20 border-b border-primary/20 dark:border-primary/20">
         <Video className="h-3 w-3 text-primary dark:text-primary" />
-        <span className="text-[10px] font-semibold text-primary dark:text-primary uppercase tracking-wider">
+        <span className="text-[11px] font-semibold text-primary dark:text-primary uppercase tracking-wider">
           Meeting
         </span>
         {isUpcoming && (
-          <Badge className="ml-auto bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-[9px] font-medium border-0 px-1 py-0">
+          <Badge className="ml-auto bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-[11px] font-medium border-0 px-1 py-0">
             Upcoming
           </Badge>
         )}
         {isPast && !isUpcoming && (
-          <Badge className="ml-auto bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 text-[9px] font-medium border-0 px-1 py-0">
+          <Badge className="ml-auto bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 text-[11px] font-medium border-0 px-1 py-0">
             Done
           </Badge>
         )}
@@ -221,7 +221,7 @@ export function MeetingActivityCardCompact({ description, attachments, createdAt
           <p className="text-[11px] text-muted-foreground truncate">{cleanDesc}</p>
         )}
         {attendees.length > 0 && (
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             {attendees.length} attendee{attendees.length !== 1 ? 's' : ''}
           </p>
         )}
@@ -231,7 +231,7 @@ export function MeetingActivityCardCompact({ description, attachments, createdAt
               href={meetLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded bg-[#00897B] hover:bg-[#00796B] text-white text-[10px] font-medium px-2 py-0.5 transition-colors"
+              className="inline-flex items-center gap-1 rounded bg-[#00897B] hover:bg-[#00796B] text-white text-[11px] font-medium px-2 py-0.5 transition-colors"
             >
               <Video className="h-2.5 w-2.5" />
               Join Meet
@@ -242,7 +242,7 @@ export function MeetingActivityCardCompact({ description, attachments, createdAt
               href={calendarLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[10px] text-primary dark:text-primary hover:underline"
+              className="inline-flex items-center gap-1 text-[11px] text-primary dark:text-primary hover:underline"
             >
               <CalendarDays className="h-2.5 w-2.5" />
               Calendar

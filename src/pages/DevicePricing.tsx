@@ -236,7 +236,7 @@ export default function DevicePricing() {
             className="gap-1.5"
           >
             <Filter className="h-3.5 w-3.5" /> Filters
-            {hasActiveFilters && <span className="ml-1 h-4 w-4 rounded-full bg-primary-foreground/20 text-[10px] flex items-center justify-center">!</span>}
+            {hasActiveFilters && <span className="ml-1 h-4 w-4 rounded-full bg-primary-foreground/20 text-[11px] flex items-center justify-center">!</span>}
           </Button>
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground">

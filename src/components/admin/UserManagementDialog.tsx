@@ -192,12 +192,12 @@ export function UserManagementDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               Manage User
               {isBanned && (
-                <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Restricted</Badge>
+                <Badge variant="destructive" className="text-[11px] px-1.5 py-0">Restricted</Badge>
               )}
             </DialogTitle>
             <DialogDescription>

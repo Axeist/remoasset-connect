@@ -286,10 +286,9 @@ textarea:focus-visible,
   box-shadow: 0 0 0 3px rgba(234, 110, 53, 0.15);
 }
 
-/* Logo: make black pixels in PNG show background (removes black fill) */
-img[src="/logo.png"] {
-  mix-blend-mode: multiply;
-}
+/* Native controls and scrollbars follow the theme */
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
 
 /* Auth form: subtle dot pattern (light and dark) */
 .auth-form-dots {

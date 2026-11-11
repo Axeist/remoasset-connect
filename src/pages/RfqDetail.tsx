@@ -464,7 +464,7 @@ export default function RfqDetail() {
           <Card className="p-3 border-primary/20 bg-primary/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">Quoted</div>
             <p className="text-xl font-bold tabular-nums">{roll.quoted}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{bids.length} bid file{bids.length === 1 ? '' : 's'}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{bids.length} bid file{bids.length === 1 ? '' : 's'}</p>
           </Card>
           <Card className="p-3 border-border/80">
             <div className="text-muted-foreground text-xs font-medium mb-1">Declined</div>

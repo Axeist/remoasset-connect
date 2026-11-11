@@ -175,10 +175,10 @@ export function ServiceRequestExpanded({ req, onStatusChange, onRequestUpdated }
           <span className="text-xs text-muted-foreground">Request date: {req.service_request_date}</span>
         )}
         {type === 'retrieval_redeployment' && req.qc_required && (
-          <Badge variant="secondary" className="text-[10px]">QC</Badge>
+          <Badge variant="secondary" className="text-[11px]">QC</Badge>
         )}
         {type === 'retrieval_redeployment' && req.data_wipe_required && (
-          <Badge variant="secondary" className="text-[10px]">Data wipe</Badge>
+          <Badge variant="secondary" className="text-[11px]">Data wipe</Badge>
         )}
         {type === 'retrieval_redeployment' && req.pickup_date && (
           <span className="text-xs text-muted-foreground">Pickup: {req.pickup_date}</span>

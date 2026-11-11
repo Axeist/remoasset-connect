@@ -78,7 +78,7 @@ export function EmailSignaturesDialog({
             Add or edit signatures to insert when composing emails. Stored locally in your browser.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+        <div className="space-y-4 max-h-[60dvh] overflow-y-auto">
           {signatures.map((sig) => (
             <div key={sig.id} className="rounded-lg border p-3 space-y-2">
               {editingId === sig.id ? (

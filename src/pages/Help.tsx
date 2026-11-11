@@ -57,7 +57,7 @@ function StepList({ steps }: { steps: string[] }) {
     <ol className="space-y-2">
       {steps.map((s, i) => (
         <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] font-bold mt-0.5">{i + 1}</span>
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-[11px] font-bold mt-0.5">{i + 1}</span>
           <span className="leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeHtml(s) }} />
         </li>
       ))}
@@ -690,7 +690,7 @@ export default function Help() {
                         { n: '8', tip: 'Check Reports weekly for pipeline health and velocity' },
                       ].map(({ n, tip }) => (
                         <div key={n} className="flex items-center gap-3 rounded-lg border border-border/40 bg-card px-3.5 py-2.5 text-sm">
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold shrink-0">{n}</span>
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold shrink-0">{n}</span>
                           <span className="text-muted-foreground">{tip}</span>
                         </div>
                       ))}

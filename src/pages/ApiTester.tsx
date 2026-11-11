@@ -117,7 +117,7 @@ function MethodBadge({ method }: { method: Method }) {
     DELETE: 'bg-destructive/10 text-destructive border-destructive/20',
   };
   return (
-    <span className={cn('inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold font-mono tracking-wider shrink-0', styles[method])}>
+    <span className={cn('inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-bold font-mono tracking-wider shrink-0', styles[method])}>
       {method}
     </span>
   );
@@ -466,7 +466,7 @@ export default function ApiTester() {
                           ? <StatusPill status={log.status} />
                           : <span className="text-xs text-destructive flex items-center gap-1"><XCircle className="h-3 w-3" />Error</span>}
                         <span className="text-xs text-muted-foreground w-14 text-right">{log.duration}ms</span>
-                        <span className="text-[10px] text-muted-foreground/60 w-20 text-right">
+                        <span className="text-[11px] text-muted-foreground/60 w-20 text-right">
                           {log.ts.toLocaleTimeString()}
                         </span>
                       </div>

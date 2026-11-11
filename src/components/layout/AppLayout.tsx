@@ -66,9 +66,9 @@ function AppLayoutShell({ children }: AppLayoutProps) {
   useMailNotificationPoller();
   // Task/follow-up reminders are now created server-side (send_due_reminders, every minute).
   return (
-    <div className="min-h-screen flex w-full bg-background">
+    <div className="min-h-dvh flex w-full bg-background">
       <AppSidebar mobileOpen={mobileMenuOpen} onMobileOpenChange={setMobileMenuOpen} />
-      <div className="flex-1 flex flex-col min-h-screen min-w-0">
+      <div className="flex-1 flex flex-col min-h-dvh min-w-0">
         <AppHeader onMenuClick={() => setMobileMenuOpen(true)} />
         <GoogleReconnectBanner />
         <main className={`flex-1 p-4 md:p-6 overflow-auto page-bg ${isMobile ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : ""}`}>

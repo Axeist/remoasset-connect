@@ -37,7 +37,7 @@ function Widget({ icon: Icon, label, value, subLabel, color = 'text-primary' }: 
       <div className="min-w-0">
         <p className="text-lg font-bold text-foreground leading-tight truncate">{value}</p>
         <p className="text-[11px] text-muted-foreground leading-tight truncate">{label}</p>
-        {subLabel && <p className="text-[10px] text-muted-foreground/70 truncate">{subLabel}</p>}
+        {subLabel && <p className="text-[11px] text-muted-foreground/70 truncate">{subLabel}</p>}
       </div>
     </div>
   );
@@ -69,7 +69,7 @@ function MiniBar({ segments, total }: { segments: MiniBarSegment[]; total: numbe
           {segments.filter((s) => s.count > 0).map((seg, i) => (
             <div key={i} className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
-              <span className="text-[10px] text-muted-foreground">{seg.label} {seg.count}</span>
+              <span className="text-[11px] text-muted-foreground">{seg.label} {seg.count}</span>
             </div>
           ))}
         </div>

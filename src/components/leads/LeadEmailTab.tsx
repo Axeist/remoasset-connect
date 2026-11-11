@@ -344,7 +344,7 @@ function MessageBubble({
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold">{senderName}</span>
             {isFromLead && (
-              <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-normal">Lead</Badge>
+              <Badge variant="secondary" className="text-[11px] py-0 px-1.5 font-normal">Lead</Badge>
             )}
             <span className="text-xs text-muted-foreground ml-auto shrink-0">{formatFullDate(msg.date)}</span>
           </div>
@@ -1016,7 +1016,7 @@ export function LeadEmailTab({
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t.snippet}</p>
                     )}
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-2 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity" />
                 </button>
               );
             })}

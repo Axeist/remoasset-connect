@@ -1021,7 +1021,7 @@ export function LeadProductivityReport() {
             )}
           </div>
 
-          <p className="text-[10px] text-muted-foreground text-right">
+          <p className="text-[11px] text-muted-foreground text-right">
             Data from RemoAsset · {format(new Date(), 'yyyy-MM-dd')}
           </p>
         </>

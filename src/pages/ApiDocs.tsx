@@ -76,7 +76,7 @@ function ParamTable({ rows }: { rows: { name: string; type: string; required?: b
               <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">{r.type}</td>
               <td className="px-4 py-2.5">
                 {r.required
-                  ? <span className="inline-flex items-center rounded-full bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 text-[10px] font-semibold">required</span>
+                  ? <span className="inline-flex items-center rounded-full bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 text-[11px] font-semibold">required</span>
                   : <span className="text-xs text-muted-foreground/60">optional</span>}
               </td>
               <td className="px-4 py-2.5 text-xs text-muted-foreground leading-relaxed">{r.description}</td>
@@ -720,7 +720,7 @@ curl -X PATCH ${BASE_URL}/leads/bulk \\
           {/* ── sticky sidebar nav ── */}
           <aside className="hidden lg:block w-52 shrink-0 sticky top-4">
             <Card className="card-shadow border-border/60 p-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1.5">Contents</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1.5">Contents</p>
               <nav className="space-y-0.5">
                 {NAV_SECTIONS.map((item) => (
                   <button

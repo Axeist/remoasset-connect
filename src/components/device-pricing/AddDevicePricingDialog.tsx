@@ -204,7 +204,7 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid h-[min(92vh,880px)] max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:w-full sm:rounded-xl">
+      <DialogContent className="grid h-[min(92dvh,880px)] max-h-[92dvh] w-[calc(100vw-1.5rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:w-full sm:rounded-xl">
         <DialogHeader className="shrink-0 space-y-4 border-b border-border/60 px-6 pb-4 pr-14 pt-6">
           <div>
             <DialogTitle className="text-xl">{isEdit ? 'Edit device pricing' : 'Add device pricing'}</DialogTitle>
@@ -240,7 +240,7 @@ export function AddDevicePricingDialog({ open, onOpenChange, onSuccess, editItem
                     {done && <Check className="hidden h-3 w-3 shrink-0 text-primary sm:block" aria-hidden />}
                     <span
                       className={cn(
-                        'truncate text-[10px] font-semibold uppercase tracking-wide sm:text-xs',
+                        'truncate text-[11px] font-semibold uppercase tracking-wide sm:text-xs',
                         active && 'text-primary',
                       )}
                     >

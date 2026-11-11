@@ -459,7 +459,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          'grid h-[min(92vh,900px)] max-h-[92vh] w-[calc(100vw-1.5rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:w-full sm:rounded-xl',
+          'grid h-[min(92dvh,900px)] max-h-[92dvh] w-[calc(100vw-1.5rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:w-full sm:rounded-xl',
           step === 3 ? 'max-w-5xl' : 'max-w-3xl',
         )}
       >
@@ -493,7 +493,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                   <div className="flex items-center gap-1">
                     <Icon className="hidden h-3 w-3 shrink-0 text-primary sm:block" aria-hidden />
                     {done && <Check className="h-3 w-3 text-primary sm:hidden" aria-hidden />}
-                    <span className={cn('truncate text-[10px] font-semibold uppercase tracking-wide sm:text-[11px]', active && 'text-primary')}>
+                    <span className={cn('truncate text-[11px] font-semibold uppercase tracking-wide sm:text-[11px]', active && 'text-primary')}>
                       {s.label}
                     </span>
                   </div>
@@ -608,7 +608,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                 </p>
                 <div
                   ref={countryListScrollRef}
-                  className="max-h-[min(42vh,360px)] space-y-4 overflow-y-auto rounded-xl border border-border/80 bg-muted/20 p-3 scroll-pb-4"
+                  className="max-h-[min(42dvh,360px)] space-y-4 overflow-y-auto rounded-xl border border-border/80 bg-muted/20 p-3 scroll-pb-4"
                 >
                   {groupedCountries.length === 0 ? (
                     <p className="py-6 text-center text-sm text-muted-foreground">No countries match your search.</p>
@@ -707,7 +707,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                         <th className="w-[min(55%,320px)] px-3 py-2.5 text-left align-bottom font-semibold">Service</th>
                         <th className="px-2 py-2.5 text-right align-bottom font-semibold whitespace-nowrap">
                           <span className="block">Partner cost</span>
-                          <span className="block text-[10px] font-normal text-muted-foreground">{landingCurrency === 'USD' ? 'USD' : `${landingCurrency} → USD`}</span>
+                          <span className="block text-[11px] font-normal text-muted-foreground">{landingCurrency === 'USD' ? 'USD' : `${landingCurrency} → USD`}</span>
                         </th>
                       </tr>
                     </thead>
@@ -724,7 +724,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                             </td>
                             <td className="px-2 py-2 align-top text-right">
                               <div className="relative ml-auto max-w-[7.5rem]">
-                                <span className="pointer-events-none absolute left-2 top-1/2 z-[1] -translate-y-1/2 text-[10px] font-medium text-muted-foreground">
+                                <span className="pointer-events-none absolute left-2 top-1/2 z-[1] -translate-y-1/2 text-[11px] font-medium text-muted-foreground">
                                   {landingCurrency === 'USD' ? '$' : landingCurrency}
                                 </span>
                                 <Input
@@ -740,7 +740,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                                 />
                               </div>
                               {landingCurrency !== 'USD' && fxMultiplier > 0 && (
-                                <div className="mt-1 text-[10px] text-muted-foreground tabular-nums">
+                                <div className="mt-1 text-[11px] text-muted-foreground tabular-nums">
                                   stored ${wUsd.toFixed(2)}
                                 </div>
                               )}

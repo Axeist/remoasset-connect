@@ -162,17 +162,17 @@ export default function Clients() {
           <Card className="p-3 border-primary/20 bg-primary/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><DollarSign className="h-3.5 w-3.5" /> Quoted (Σ)</div>
             <p className="text-xl font-bold tabular-nums">${totals.quoted.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">client price × qty</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">client price × qty</p>
           </Card>
           <Card className="p-3 border-primary/20 bg-primary/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><TrendingUp className="h-3.5 w-3.5" /> Profit (Σ)</div>
             <p className="text-xl font-bold tabular-nums">${totals.profit.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{totals.quoted > 0 ? `${totals.marginPct.toFixed(1)}% of quoted` : 'add pricing on lines'}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{totals.quoted > 0 ? `${totals.marginPct.toFixed(1)}% of quoted` : 'add pricing on lines'}</p>
           </Card>
           <Card className="p-3 border-border/80">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><CreditCard className="h-3.5 w-3.5" /> Paid lines</div>
             <p className="text-xl font-bold">{totals.paid}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{totals.unpaid} unpaid</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{totals.unpaid} unpaid</p>
           </Card>
           <Card className="p-3 border-green-500/20 bg-green-500/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><CheckCircle2 className="h-3.5 w-3.5" /> Fulfilled</div>

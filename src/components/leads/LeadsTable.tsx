@@ -196,7 +196,7 @@ export function LeadsTable({
                   <div className="flex flex-col gap-0.5">
                     {(lead as any).hq_country && (
                       <span className="flex items-center gap-1">
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-primary/10 text-primary rounded">HQ</span>
+                        <span className="text-[11px] font-semibold px-1.5 py-0.5 bg-primary/10 text-primary rounded">HQ</span>
                         <span className="text-xs font-medium px-2 py-0.5 bg-muted rounded">{(lead as any).hq_country.code}</span>
                       </span>
                     )}

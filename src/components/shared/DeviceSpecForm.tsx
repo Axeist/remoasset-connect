@@ -150,7 +150,7 @@ function AddonsDialogButton({
           )}
         </Button>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+          <DialogContent className="max-w-lg max-h-[80dvh] flex flex-col">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Package className="h-5 w-5" />
@@ -226,7 +226,7 @@ function AddonsDialogButton({
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+        <DialogContent className="max-w-lg max-h-[80dvh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />

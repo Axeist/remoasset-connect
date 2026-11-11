@@ -9,7 +9,7 @@ export default function NotFound() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
+      <div className="flex flex-col items-center justify-center min-h-[60dvh] px-4">
         <Card className="card-shadow max-w-md w-full">
           <CardContent className="pt-8 pb-8 text-center">
             <p className="text-6xl font-bold text-muted-foreground/50">404</p>

@@ -265,17 +265,17 @@ export default function ClientDetail() {
           <Card className="p-3 border-primary/20 bg-primary/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><TrendingUp className="h-3.5 w-3.5" /> Profit Σ</div>
             <p className="text-xl font-bold tabular-nums">${stats.profit.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{stats.totalSpend > 0 ? `${stats.marginOnQuoted.toFixed(1)}% of quoted` : ''}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{stats.totalSpend > 0 ? `${stats.marginOnQuoted.toFixed(1)}% of quoted` : ''}</p>
           </Card>
           <Card className="p-3 border-primary/15 bg-primary/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Tag className="h-3.5 w-3.5" /> vs MRP</div>
             <p className="text-xl font-bold tabular-nums">{stats.avgPctOfMrp != null ? `${stats.avgPctOfMrp.toFixed(0)}%` : '—'}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{stats.mrpRows ? `avg quoted / MRP · ${stats.mrpRows} lines` : 'add MRP on requests'}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{stats.mrpRows ? `avg quoted / MRP · ${stats.mrpRows} lines` : 'add MRP on requests'}</p>
           </Card>
           <Card className="p-3 border-border/80">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><CreditCard className="h-3.5 w-3.5" /> Paid</div>
             <p className="text-xl font-bold">{stats.paid}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{stats.unpaid} unpaid</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{stats.unpaid} unpaid</p>
           </Card>
           <Card className="p-3 border-green-500/20 bg-green-500/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><CheckCircle2 className="h-3.5 w-3.5" /> Fulfilled</div>
@@ -294,7 +294,7 @@ export default function ClientDetail() {
             <p className="text-xl font-bold tabular-nums">
               {stats.total ? `$${(stats.profit / stats.total).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">profit</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">profit</p>
           </Card>
         </div>
 
@@ -461,7 +461,7 @@ function RequestRows({
           {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </TableCell>
         <TableCell>
-          <Badge className="text-[10px] border whitespace-nowrap" style={clientRequestTypeBadgeStyle(requestType)}>
+          <Badge className="text-[11px] border whitespace-nowrap" style={clientRequestTypeBadgeStyle(requestType)}>
             {typeMeta.shortLabel}
           </Badge>
         </TableCell>
@@ -480,7 +480,7 @@ function RequestRows({
               <>
                 <span className="text-xs font-medium block">{req.employee_name}</span>
                 {req.employee_address && (
-                  <div className="text-[10px] text-muted-foreground line-clamp-2 max-w-[180px]">{req.employee_address}</div>
+                  <div className="text-[11px] text-muted-foreground line-clamp-2 max-w-[180px]">{req.employee_address}</div>
                 )}
               </>
             ) : req.employee_address ? (
@@ -505,10 +505,10 @@ function RequestRows({
         <TableCell className="text-center">{req.quantity}</TableCell>
         <TableCell>{req.vendor?.company_name || <span className="text-muted-foreground text-xs">—</span>}</TableCell>
         <TableCell>
-          <Badge variant={pay === 'paid' ? 'default' : 'secondary'} className="text-[10px] capitalize">
+          <Badge variant={pay === 'paid' ? 'default' : 'secondary'} className="text-[11px] capitalize">
             {pay}
           </Badge>
-          {req.client_payment_date && <div className="text-[10px] text-muted-foreground mt-0.5">{req.client_payment_date}</div>}
+          {req.client_payment_date && <div className="text-[11px] text-muted-foreground mt-0.5">{req.client_payment_date}</div>}
         </TableCell>
         <TableCell className="text-right tabular-nums text-sm">
           {req.client_price_usd != null
@@ -520,12 +520,12 @@ function RequestRows({
             <span>
               ${lineProfit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               {req.quantity > 1 && profit != null && (
-                <span className="block text-[10px] text-muted-foreground">
+                <span className="block text-[11px] text-muted-foreground">
                   ${profit.profitAmount.toFixed(2)} × {req.quantity}
                 </span>
               )}
               {profit?.profitPctOnProcurement != null && (
-                <span className="block text-[10px] text-muted-foreground">{profit.profitPctOnProcurement.toFixed(2)}%</span>
+                <span className="block text-[11px] text-muted-foreground">{profit.profitPctOnProcurement.toFixed(2)}%</span>
               )}
             </span>
           ) : (
@@ -541,7 +541,7 @@ function RequestRows({
               <span className="block tabular-nums text-muted-foreground">Del: {req.delivery_date}</span>
             ) : null}
             {req.serial_number ? (
-              <span className="block text-[10px] text-muted-foreground truncate" title={req.serial_number}>
+              <span className="block text-[11px] text-muted-foreground truncate" title={req.serial_number}>
                 S/N: {req.serial_number}
               </span>
             ) : null}
@@ -907,7 +907,7 @@ function ExpandedRequest({
             <div className="space-y-1">
               <span className="text-xs text-muted-foreground">Service cost (USD)</span>
               <Input type="number" step="0.01" value={serviceCost} onChange={(e) => setServiceCost(e.target.value)} className="h-9 text-sm tabular-nums" placeholder="0.00" />
-              <p className="text-[10px] text-muted-foreground">Tracked only — fulfillment profit uses landing cost.</p>
+              <p className="text-[11px] text-muted-foreground">Tracked only — fulfillment profit uses landing cost.</p>
             </div>
             <div className="space-y-1">
               <span className="text-xs text-muted-foreground">Wire cost</span>

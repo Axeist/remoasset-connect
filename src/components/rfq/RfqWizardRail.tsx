@@ -46,7 +46,7 @@ export function RfqWizardRail({
               {done && <Check className="h-3 w-3 text-primary shrink-0 hidden sm:block" aria-hidden />}
               <span
                 className={cn(
-                  'text-[10px] sm:text-xs font-semibold uppercase tracking-wide truncate',
+                  'text-[11px] sm:text-xs font-semibold uppercase tracking-wide truncate',
                   active && 'text-primary',
                 )}
               >

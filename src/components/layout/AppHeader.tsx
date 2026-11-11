@@ -230,7 +230,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
             {unreadCount > 0 && (
               <Badge
                 key={unreadCount}
-                className={`absolute -top-1 -right-1 h-4 min-w-4 px-1 flex items-center justify-center text-[10px] gradient-accent border-0 ${ringing ? 'animate-badge-pulse' : ''}`}
+                className={`absolute -top-1 -right-1 h-4 min-w-4 px-1 flex items-center justify-center text-[11px] gradient-accent border-0 ${ringing ? 'animate-badge-pulse' : ''}`}
               >
                 {unreadCount > 9 ? '9+' : unreadCount}
               </Badge>
@@ -250,7 +250,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
               </button>
             )}
           </div>
-          <div className="max-h-[60vh] overflow-y-auto">
+          <div className="max-h-[60dvh] overflow-y-auto">
           {notifications.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">No notifications</div>
           ) : (

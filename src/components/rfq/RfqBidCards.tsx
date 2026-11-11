@@ -231,7 +231,7 @@ export function RfqBidCards({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-base truncate">{b.vendor?.company_name || '—'}</p>
-                  {isRecommended && <Badge className="text-[10px] uppercase tracking-wide">Lowest USD</Badge>}
+                  {isRecommended && <Badge className="text-[11px] uppercase tracking-wide">Lowest USD</Badge>}
                   {b.award_status === 'won' && <Badge className="bg-emerald-600">Won</Badge>}
                   {b.award_status === 'lost' && <Badge variant="secondary">Lost</Badge>}
                   <Badge variant="outline" className="capitalize">{b.pricing_status.replace(/_/g, ' ')}</Badge>
@@ -248,32 +248,32 @@ export function RfqBidCards({
                 </div>
                 <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
                   <div className="rounded-lg border bg-background px-2.5 py-1.5">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Landed USD</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Landed USD</p>
                     <p className="text-lg font-bold tabular-nums leading-tight">{money('USD', usdLanded)}</p>
                     {bestUsd != null && usdLanded != null && usdLanded > bestUsd && (
-                      <p className="text-[10px] text-amber-700">+{money('USD', usdLanded - bestUsd)} vs lowest</p>
+                      <p className="text-[11px] text-amber-700">+{money('USD', usdLanded - bestUsd)} vs lowest</p>
                     )}
                   </div>
                   <div className="rounded-lg border bg-background px-2.5 py-1.5">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Goods</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Goods</p>
                     <p className="text-sm font-semibold tabular-nums">{money(b.currency, b.quoted_price)}</p>
                   </div>
                   <div className="rounded-lg border bg-background px-2.5 py-1.5">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">vs MRP</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">vs MRP</p>
                     <p className="text-sm font-semibold tabular-nums">{b.discount_pct != null ? `${b.discount_pct}% off` : '—'}</p>
                   </div>
                   <div className="rounded-lg border bg-background px-2.5 py-1.5">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Lead</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Lead</p>
                     <p className="text-sm font-semibold">{b.lead_time_days != null ? `${b.lead_time_days} days` : '—'}</p>
                   </div>
                   <div className="rounded-lg border bg-background px-2.5 py-1.5">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Fees</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Fees</p>
                     <p className="text-sm font-semibold tabular-nums">
                       {money(b.currency, (Number(b.shipping_fee) || 0) + (Number(b.tax_fee) || 0) + (Number(b.other_fees) || 0))}
                     </p>
                   </div>
                   <div className="rounded-lg border bg-background px-2.5 py-1.5">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Valid</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Valid</p>
                     <p className="text-sm font-semibold">{b.quote_valid_until || '—'}</p>
                   </div>
                 </div>
@@ -323,7 +323,7 @@ export function RfqBidSpreadsheet({
     );
   }
   return (
-    <div className="rounded-xl border overflow-auto max-h-[calc(100vh-220px)]">
+    <div className="rounded-xl border overflow-auto max-h-[calc(100dvh-220px)]">
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>

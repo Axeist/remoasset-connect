@@ -236,7 +236,7 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid h-[min(92vh,880px)] max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:w-full sm:rounded-xl">
+      <DialogContent className="grid h-[min(92dvh,880px)] max-h-[92dvh] w-[calc(100vw-1.5rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:w-full sm:rounded-xl">
         <DialogHeader className="px-6 pt-6 pb-4 pr-14 space-y-4 shrink-0 border-b border-border/60">
           <div>
             <DialogTitle className="text-xl">Device fulfillment request</DialogTitle>
@@ -273,7 +273,7 @@ export function AddRequestDialog({ open, onOpenChange, onSuccess, clientId }: Pr
                     {done && <Check className="h-3 w-3 text-primary shrink-0 hidden sm:block" aria-hidden />}
                     <span
                       className={cn(
-                        'text-[10px] sm:text-xs font-semibold uppercase tracking-wide truncate',
+                        'text-[11px] sm:text-xs font-semibold uppercase tracking-wide truncate',
                         active && 'text-primary',
                       )}
                     >

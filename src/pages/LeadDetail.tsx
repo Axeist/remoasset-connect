@@ -1061,7 +1061,7 @@ function LeadActivityTab({
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <Badge className={cn(
-                                  'border-0 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0',
+                                  'border-0 text-[11px] font-semibold uppercase tracking-wider px-1.5 py-0',
                                   isMeeting
                                     ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
                                     : `${config.color} bg-opacity-20`
@@ -1069,7 +1069,7 @@ function LeadActivityTab({
                                   {config.label}
                                 </Badge>
                                 {isAutomation && (
-                                  <Badge variant="outline" className="text-[10px] font-normal px-1.5 py-0 border-amber-500/50 text-amber-700 dark:text-amber-400">
+                                  <Badge variant="outline" className="text-[11px] font-normal px-1.5 py-0 border-amber-500/50 text-amber-700 dark:text-amber-400">
                                     Synced
                                   </Badge>
                                 )}

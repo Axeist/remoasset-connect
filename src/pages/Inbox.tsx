@@ -288,7 +288,7 @@ export default function Inbox() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-[calc(100vh-7rem)] rounded-xl border bg-card overflow-hidden">
+      <div className="flex flex-col h-[calc(100dvh-7rem)] rounded-xl border bg-card overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/30">
           <Button
@@ -397,7 +397,7 @@ export default function Inbox() {
                           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t.snippet}</p>
                         )}
                       </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-2 opacity-0 group-hover:opacity-100" />
+                      <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-2 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100" />
                     </button>
                   );
                 })}

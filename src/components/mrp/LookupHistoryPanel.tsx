@@ -55,7 +55,7 @@ export function LookupHistoryPanel({
           Your searches land here. Restore a range without spending tokens.
         </p>
       ) : (
-        <div className="relative space-y-0 max-h-[70vh] overflow-y-auto pr-1">
+        <div className="relative space-y-0 max-h-[70dvh] overflow-y-auto pr-1">
           <div className="absolute left-[11px] top-3 bottom-3 w-px bg-border/80" />
           {rows.map((row) => {
             const q = row.query;
@@ -90,7 +90,7 @@ export function LookupHistoryPanel({
                     )}
                   </p>
                 </button>
-                <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
+                <div className="flex items-center gap-1 mt-1 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
                   <Button
                     type="button"
                     variant="ghost"

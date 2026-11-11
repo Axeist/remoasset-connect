@@ -346,7 +346,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Lead' : 'Add Lead'}</DialogTitle>
           <DialogDescription>
@@ -407,7 +407,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
           {/* Primary Contact */}
           <div className="space-y-3 rounded-lg border p-4">            <div className="flex items-center gap-2">
               <Label className="text-sm font-semibold">Primary Contact</Label>
-              <Badge variant="secondary" className="text-[10px]">Used for communication</Badge>
+              <Badge variant="secondary" className="text-[11px]">Used for communication</Badge>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">

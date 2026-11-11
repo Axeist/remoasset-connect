@@ -267,7 +267,7 @@ export function DevicePricingTab() {
         <Card className="p-3 border-border/80">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Package className="h-3.5 w-3.5" /> Line value</div>
           <p className="text-xl font-bold tabular-nums">${stats.lineValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Σ quote × qty</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Σ quote × qty</p>
         </Card>
         <Card className="p-3 border-border/80">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><DollarSign className="h-3.5 w-3.5" /> Avg quote</div>
@@ -276,7 +276,7 @@ export function DevicePricingTab() {
         <Card className="p-3 border-primary/20 bg-primary/5">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Tag className="h-3.5 w-3.5" /> vs MRP</div>
           <p className="text-xl font-bold tabular-nums">{stats.avgPctOffMrp != null ? `${stats.avgPctOffMrp}%` : '—'}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{stats.mrpRows ? `avg off list · ${stats.mrpRows} rows` : 'add MRP on lines'}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{stats.mrpRows ? `avg off list · ${stats.mrpRows} rows` : 'add MRP on lines'}</p>
         </Card>
         <Card className="p-3 border-green-500/20 bg-green-500/5">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">Valid quotes</div>
@@ -300,7 +300,7 @@ export function DevicePricingTab() {
       <div className="flex items-center gap-2 flex-wrap">
         <Button variant={showFilters ? 'default' : 'outline'} size="sm" onClick={() => setShowFilters(!showFilters)} className="gap-1.5">
           <Filter className="h-3.5 w-3.5" /> Filters
-          {hasActiveFilters && <span className="ml-1 h-4 w-4 rounded-full bg-primary-foreground/20 text-[10px] flex items-center justify-center">!</span>}
+          {hasActiveFilters && <span className="ml-1 h-4 w-4 rounded-full bg-primary-foreground/20 text-[11px] flex items-center justify-center">!</span>}
         </Button>
         {hasActiveFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground"><X className="h-3.5 w-3.5" /> Clear all</Button>
@@ -400,7 +400,7 @@ export function DevicePricingTab() {
                                   <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                                     {group.country}
                                   </span>
-                                  <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                                  <Badge variant="secondary" className="text-[11px] h-4 px-1.5">
                                     {filtered.filter((d) => (d.country?.name || 'Unknown') === group.country).length}
                                   </Badge>
                                 </div>
@@ -426,7 +426,7 @@ export function DevicePricingTab() {
                                   {(() => {
                                     const d = discountVsMrp(Number(row.mrp_usd), Number(row.price_usd));
                                     return d ? (
-                                      <span className="block text-[10px] text-green-600 dark:text-green-400">
+                                      <span className="block text-[11px] text-green-600 dark:text-green-400">
                                         −{d.pctOffMrp.toFixed(0)}%
                                       </span>
                                     ) : null;

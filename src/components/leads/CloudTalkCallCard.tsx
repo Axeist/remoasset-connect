@@ -188,7 +188,7 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
         <span className="text-[11px] font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">
           {inbound ? 'Inbound call' : 'Outbound call'}
         </span>
-        <Badge className={cn('ml-auto border-0 text-[10px] font-semibold', statusTone(outcome))}>
+        <Badge className={cn('ml-auto border-0 text-[11px] font-semibold', statusTone(outcome))}>
           {outcome}
         </Badge>
       </div>
@@ -208,7 +208,7 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
         )}
 
         {!expanded && (
-          <p className="text-[10px] text-muted-foreground">Expand for recording, numbers, and details</p>
+          <p className="text-[11px] text-muted-foreground">Expand for recording, numbers, and details</p>
         )}
 
         {expanded && (
@@ -245,7 +245,7 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
               <div className="flex flex-wrap items-center gap-1">
                 <Tags className="h-3 w-3 text-violet-500" />
                 {meta.tags.map((t) => (
-                  <span key={t} className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">
+                  <span key={t} className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300">
                     {t}
                   </span>
                 ))}
@@ -296,7 +296,7 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
                 <div className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
                   <Sparkles className="h-3.5 w-3.5 text-violet-500" />
                   Conversation intelligence
-                  {sent && <Badge className={cn('ml-auto border-0 text-[10px] capitalize', sent.className)}>{sent.label}</Badge>}
+                  {sent && <Badge className={cn('ml-auto border-0 text-[11px] capitalize', sent.className)}>{sent.label}</Badge>}
                 </div>
                 {summary && <p className="text-xs text-foreground leading-relaxed">{summary}</p>}
                 {smart && typeof smart === 'object' && (
@@ -352,7 +352,7 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
                 </a>
               )}
               {meta.callId && (
-                <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[140px]" title={meta.callId}>
+                <span className="text-[11px] text-muted-foreground font-mono truncate max-w-[140px]" title={meta.callId}>
                   ID {meta.callId}
                 </span>
               )}
@@ -379,7 +379,7 @@ function Stat({
     <div className="flex items-start gap-1.5 min-w-0">
       <Icon className={cn('h-3.5 w-3.5 mt-0.5 shrink-0', muted ? 'text-muted-foreground' : 'text-violet-500')} />
       <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
         <p className="text-xs font-medium truncate">{value}</p>
       </div>
     </div>

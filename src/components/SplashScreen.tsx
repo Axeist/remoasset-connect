@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Package, MapPin, Settings, RefreshCw } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
 
 type SplashVariant = 'welcome' | 'success';
 
@@ -60,7 +61,7 @@ export function SplashScreen({ variant, onComplete, duration = 3200, name }: Spl
           <p className="mt-3 text-base text-white/80">
             Taking you to your dashboard…
           </p>
-          <img src="/logo.png" alt="RemoAsset Connect" className="mt-8 h-8 w-auto object-contain opacity-80" />
+          <BrandLogo tone="onDark" size={30} className="mt-8 opacity-80" />
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 overflow-hidden">
@@ -101,7 +102,7 @@ export function SplashScreen({ variant, onComplete, duration = 3200, name }: Spl
         {/* Logo in glass card with glow */}
         <div className="splash-logo-wrap">
           <div className="splash-logo-glow" />
-          <img src="/logo.png" alt="RemoAsset Connect" className="splash-logo-img relative z-10 h-16 w-auto object-contain drop-shadow-lg sm:h-20" />
+          <BrandLogo tone="onDark" size={68} className="splash-logo-img relative z-10 drop-shadow-lg" />
         </div>
 
         <h1 className="splash-headline mt-8 font-display text-2xl font-bold tracking-tight sm:text-3xl">

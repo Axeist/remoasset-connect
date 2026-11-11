@@ -303,7 +303,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
             <TabsTrigger value="activity">
               Activity
               {activities.length > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
                   {activities.length > 99 ? '99+' : activities.length}
                 </span>
               )}
@@ -434,15 +434,15 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                                   <span className={cn(
-                                    'text-[10px] font-semibold uppercase tracking-wider',
+                                    'text-[11px] font-semibold uppercase tracking-wider',
                                     isMeeting ? 'text-primary dark:text-primary' : 'text-muted-foreground'
                                   )}>
                                     {config.label}
                                   </span>
                                   {isAutomation && (
-                                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Synced</span>
+                                    <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">Synced</span>
                                   )}
-                                  <span className="text-[10px] text-muted-foreground">
+                                  <span className="text-[11px] text-muted-foreground">
                                     · {safeFormat(a.created_at, 'MMM d, h:mm a')}
                                   </span>
                                 </div>
@@ -462,7 +462,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                                       </p>
                                     )}
                                     {meetingMeta.attendees && meetingMeta.attendees.length > 0 && (
-                                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                                         <Users className="h-3 w-3 text-primary shrink-0" />
                                         {meetingMeta.attendees.length} attendee{meetingMeta.attendees.length !== 1 ? 's' : ''}
                                       </p>
@@ -481,13 +481,13 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                                 {!expanded && (nonMetaAttachments.length > 0 || isMeetingWithCalendar) && (
                                   <div className="flex items-center gap-2 mt-1">
                                     {isMeetingWithCalendar && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] text-primary dark:text-primary font-medium">
+                                      <span className="inline-flex items-center gap-1 text-[11px] text-primary dark:text-primary font-medium">
                                         <Video className="h-2.5 w-2.5" />
                                         Meet
                                       </span>
                                     )}
                                     {nonMetaAttachments.length > 0 && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                                      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                                         <Paperclip className="h-2.5 w-2.5" />
                                         {nonMetaAttachments.length}
                                       </span>

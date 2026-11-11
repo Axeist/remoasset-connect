@@ -778,7 +778,7 @@ export default function Leads() {
 
   return (
     <AppLayout>
-      <div className={`flex gap-0 min-h-0 ${sidePanelLead ? 'h-[calc(100vh-4rem)]' : ''}`}>
+      <div className={`flex gap-0 min-h-0 ${sidePanelLead ? 'h-[calc(100dvh-4rem)]' : ''}`}>
         {/* Main content */}
         <div className={`flex flex-col space-y-8 min-w-0 transition-all duration-300 ${sidePanelLead ? 'flex-1 overflow-y-auto pr-2' : 'flex-1'}`}>
           {/* Header */}

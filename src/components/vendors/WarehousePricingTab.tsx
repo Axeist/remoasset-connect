@@ -124,7 +124,7 @@ export function WarehousePricingTab() {
         <Card className="p-3 border-primary/20 bg-primary/5">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><DollarSign className="h-3.5 w-3.5" /> Σ Grand totals</div>
           <p className="text-xl font-bold tabular-nums">${stats.sumPipeline.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Filter-aware sum</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Filter-aware sum</p>
         </Card>
         <Card className="p-3 border-border/80">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">Avg / service bundle</div>
@@ -151,7 +151,7 @@ export function WarehousePricingTab() {
         <Card className="p-3 border-border/80">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Globe2 className="h-3.5 w-3.5" /> Countries</div>
           <p className="text-xl font-bold">{stats.countries}</p>
-          {stats.noExpiry > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">{stats.noExpiry} no expiry date</p>}
+          {stats.noExpiry > 0 && <p className="text-[11px] text-muted-foreground mt-0.5">{stats.noExpiry} no expiry date</p>}
         </Card>
       </div>
 

@@ -365,7 +365,7 @@ export function CallingReport() {
                 <div className="grid gap-px" style={{ gridTemplateColumns: `48px repeat(24, minmax(0, 1fr))` }}>
                   <div />
                   {HOURS.map((h) => (
-                    <div key={h} className="text-[9px] text-muted-foreground text-center">{h}</div>
+                    <div key={h} className="text-[11px] text-muted-foreground text-center">{h}</div>
                   ))}
                   {DOW.map((day, di) => (
                     <Fragment key={day}>

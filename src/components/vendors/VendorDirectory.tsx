@@ -756,7 +756,7 @@ export function VendorDirectory() {
                   <h3 className="text-sm font-bold text-foreground">{group.country}</h3>
                   <Badge variant="secondary" className="text-xs">{group.vendors.length} vendor{group.vendors.length !== 1 ? 's' : ''}</Badge>
                   {group.vendors.some((v) => v.hq_country?.code?.toUpperCase() === group.code) && (
-                    <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold bg-primary/15 text-primary border border-primary/25">
+                    <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-bold bg-primary/15 text-primary border border-primary/25">
                       HQ of {group.vendors.filter((v) => v.hq_country?.code?.toUpperCase() === group.code).length}
                     </span>
                   )}
@@ -794,7 +794,7 @@ export function VendorDirectory() {
                                 {v.company_name}
                               </button>
                               {isHq && (
-                                <span className="shrink-0 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold bg-primary/15 text-primary border border-primary/25">HQ</span>
+                                <span className="shrink-0 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-bold bg-primary/15 text-primary border border-primary/25">HQ</span>
                               )}
                             </div>
                             {v.website && (
@@ -813,7 +813,7 @@ export function VendorDirectory() {
                               </div>
                             )}
                             {Array.isArray(v.additional_contacts) && v.additional_contacts.length > 0 && (
-                              <p className="text-[10px] text-primary/70 mt-1 font-medium">+{v.additional_contacts.length} more contact{v.additional_contacts.length !== 1 ? 's' : ''}</p>
+                              <p className="text-[11px] text-primary/70 mt-1 font-medium">+{v.additional_contacts.length} more contact{v.additional_contacts.length !== 1 ? 's' : ''}</p>
                             )}
                           </td>
                           <td className="px-4 py-3 max-w-[180px]">
