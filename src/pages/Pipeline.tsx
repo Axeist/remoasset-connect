@@ -5,7 +5,8 @@ import {
   DragOverlay,
   closestCorners,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragStartEvent,
@@ -130,7 +131,9 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
   const [activityLead, setActivityLead] = useState<Lead | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    // Long-press to drag on touch so horizontal scrolling between stages still works.
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
     useSensor(KeyboardSensor)
   );
 
@@ -639,7 +642,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
         )}
 
         {/* Kanban board */}
-        <div className="flex-1 overflow-x-auto overflow-y-hidden">
+        <div className="flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-px-1 sm:snap-none">
           {loading ? (
             <div className="flex gap-4 px-1 h-full">
               {[1, 2, 3, 4, 5].map((i) => (

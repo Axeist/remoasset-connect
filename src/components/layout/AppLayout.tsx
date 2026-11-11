@@ -6,6 +6,7 @@ import { useMailNotificationPoller } from '@/hooks/useMailNotificationPoller';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, X } from 'lucide-react';
+import { CommandPalette } from '@/components/CommandPalette';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -75,6 +76,7 @@ function AppLayoutShell({ children }: AppLayoutProps) {
           {children}
         </main>
       </div>
+      <CommandPalette />
       {isMobile && <MobileTabBar onMore={() => setMobileMenuOpen(true)} />}
     </div>
   );

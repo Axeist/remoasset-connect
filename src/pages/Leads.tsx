@@ -40,6 +40,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 type SortField = 'company_name' | 'created_at' | 'lead_score' | 'contact_name';
 type SortOrder = 'asc' | 'desc';
@@ -65,6 +67,7 @@ export default function Leads() {
   const [deleting, setDeleting] = useState(false);
   const [exportingAll, setExportingAll] = useState(false);
   const [sidePanelLead, setSidePanelLead] = useState<Lead | null>(null);
+  const isMobile = useIsMobile();
   const defaultOwner = searchParams.get('owner') ?? (scopeOwnLeads && user ? user.id : '');
   const [filters, setFilters] = useState<LeadsFiltersState>({
     search: searchParams.get('search') ?? '',
@@ -778,9 +781,9 @@ export default function Leads() {
 
   return (
     <AppLayout>
-      <div className={`flex gap-0 min-h-0 ${sidePanelLead ? 'h-[calc(100dvh-4rem)]' : ''}`}>
+      <div className={`flex gap-0 min-h-0 ${sidePanelLead && !isMobile ? 'h-[calc(100dvh-4rem)]' : ''}`}>
         {/* Main content */}
-        <div className={`flex flex-col space-y-8 min-w-0 transition-all duration-300 ${sidePanelLead ? 'flex-1 overflow-y-auto pr-2' : 'flex-1'}`}>
+        <div className={`flex flex-col space-y-8 min-w-0 transition-all duration-300 ${sidePanelLead && !isMobile ? 'flex-1 overflow-y-auto pr-2' : 'flex-1'}`}>
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="animate-fade-in-up">
@@ -929,7 +932,14 @@ export default function Leads() {
         </div>
 
         {/* Side panel */}
-        {sidePanelLead && (
+        {sidePanelLead && isMobile && (
+          <Sheet open onOpenChange={(o) => { if (!o) setSidePanelLead(null); }}>
+            <SheetContent side="bottom" className="flex h-[92dvh] flex-col overflow-hidden rounded-t-[24px] p-0">
+              <LeadSidePanel lead={sidePanelLead} onClose={() => setSidePanelLead(null)} onLeadUpdated={fetchLeads} />
+            </SheetContent>
+          </Sheet>
+        )}
+        {sidePanelLead && !isMobile && (
           <div className="w-[400px] shrink-0 border-l border-border overflow-hidden flex flex-col animate-in slide-in-from-right duration-200">
             <LeadSidePanel
               lead={sidePanelLead}

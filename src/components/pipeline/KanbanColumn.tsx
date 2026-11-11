@@ -18,7 +18,7 @@ export function KanbanColumn({ id, title, color, count, totalScore, children }: 
     <div
       ref={setNodeRef}
       className={cn(
-        'w-[290px] shrink-0 flex flex-col rounded-xl transition-all duration-200',
+        'w-[84vw] max-w-[320px] snap-start sm:w-[290px] shrink-0 flex flex-col rounded-xl transition-all duration-200',
         'bg-muted/30 border border-border/60',
         isOver && 'ring-2 ring-primary/40 bg-primary/5 border-primary/30 scale-[1.01]'
       )}

@@ -34,3 +34,23 @@ describe('motion system', () => {
     expect(sonner.error).toHaveBeenCalled();
   });
 });
+
+import { MemoryRouter } from 'react-router-dom';
+import { fireEvent } from '@testing-library/react';
+vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ can: () => true, signOut: vi.fn(), user: { id: 'u' } }) }));
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: { from: () => ({ select: () => ({ ilike: () => ({ limit: () => Promise.resolve({ data: [{ id: 'l1', company_name: 'Acme Devices' }] }) }) }) }) },
+}));
+import { CommandPalette } from '@/components/CommandPalette';
+
+describe('command palette', () => {
+  it('opens with Ctrl+K and lists destinations', () => {
+    class RO { observe() {} unobserve() {} disconnect() {} }
+    (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = RO;
+    Element.prototype.scrollIntoView = vi.fn();
+    render(<MemoryRouter><CommandPalette /></MemoryRouter>);
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    expect(screen.getByPlaceholderText(/search leads/i)).toBeInTheDocument();
+    expect(screen.getByText('Leads')).toBeInTheDocument();
+  });
+});

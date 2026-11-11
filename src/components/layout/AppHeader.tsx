@@ -16,6 +16,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { toggleThemeWithReveal } from '@/lib/theme-transition';
+import { openCommandPalette } from '@/components/CommandPalette';
 
 type NotifPrefs = {
   sound?: boolean;
@@ -63,7 +65,7 @@ interface AppNotification {
 export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -211,8 +213,19 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          onClick={openCommandPalette}
           className="relative h-9 w-9"
+          aria-label="Search and jump to (command palette)"
+          title="Search ⌘K"
+        >
+          <Search className="h-[19px] w-[19px]" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={(e) => toggleThemeWithReveal(resolvedTheme, setTheme, e)}
+          className="relative h-9 w-9"
+          aria-label="Toggle light and dark theme"
         >
           <Sun className="h-[19px] w-[19px] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
           <Moon className="absolute h-[19px] w-[19px] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
