@@ -52,6 +52,7 @@ import { StaticKanbanColumn } from '@/components/pipeline/StaticKanbanColumn';
 import { PipelineWidgets } from '@/components/pipeline/PipelineWidgets';
 import { MoveCommentDialog, getTransitionMode, type TransitionMode, type StageTransitionResult } from '@/components/pipeline/MoveCommentDialog';
 import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
+import { celebrate } from '@/lib/celebrate';
 
 // ------- Activity columns config -------
 
@@ -397,6 +398,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     }
 
     toast({ title: 'Lead moved', description: `${lead.company_name} → ${toStatusName}` });
+    if (/\bwon\b/i.test(toStatusName)) celebrate({ kind: 'won', title: 'Deal won!', subtitle: lead.company_name });
     // Fire Slack notification (non-blocking)
     supabase.functions.invoke('slack-notify', {
       body: {

@@ -31,6 +31,7 @@ import { Loader2, Plus, Trash2, UserPlus, ChevronDown, X, AlertTriangle, Globe }
 import { Badge } from '@/components/ui/badge';
 import { VENDOR_TYPE_OPTIONS, VENDOR_TYPE_VALUES } from '@/lib/vendorTypes';
 import { normalizePhoneE164 } from '@/lib/phone';
+import { celebrate } from '@/lib/celebrate';
 
 const WON_PATTERNS = ['won', 'closed won', 'closed-won'];
 
@@ -321,6 +322,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
         return;
       }
       toast({ title: 'Lead created', description: 'New lead added successfully.' });
+      celebrate({ kind: 'lead', title: 'Lead created', subtitle: values.company_name });
       // Fire Slack notification (non-blocking)
       const selectedStatus = statuses.find((s) => s.id === values.status_id);
       const firstCountry = countries.find((c) => c.id === values.country_ids[0]);

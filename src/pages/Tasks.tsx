@@ -13,6 +13,7 @@ import { format, startOfDay, endOfDay, isBefore, isAfter, isWithinInterval } fro
 import { cn } from '@/lib/utils';
 import { TaskFormDialog, type TaskRecord } from '@/components/tasks/TaskFormDialog';
 import { TaskDetailDialog } from '@/components/tasks/TaskDetailDialog';
+import { useToast } from '@/hooks/use-toast';
 
 const priorityColors: Record<string, string> = {
   low: 'bg-muted text-muted-foreground',
@@ -30,6 +31,7 @@ interface TaskWithAssignee extends TaskRecord {
 }
 
 export default function Tasks() {
+  const { toast } = useToast();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<TaskWithAssignee[]>([]);
@@ -138,9 +140,25 @@ export default function Tasks() {
   };
 
   const toggleTask = async (taskId: string, completed: boolean) => {
-    await supabase.from('tasks').update({ is_completed: completed }).eq('id', taskId);
+    // Optimistic: update the UI first, roll back if the save fails.
+    const previous = tasks.find((t) => t.id === taskId);
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, is_completed: completed } : t)));
     if (detailTask?.id === taskId) setDetailTask((t) => (t ? { ...t, is_completed: completed } : null));
+    const { error } = await supabase.from('tasks').update({ is_completed: completed }).eq('id', taskId);
+    if (error) {
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, is_completed: !completed } : t)));
+      if (detailTask?.id === taskId) setDetailTask((t) => (t ? { ...t, is_completed: !completed } : null));
+      toast({ variant: 'destructive', title: 'Could not update task', description: error.message });
+      return;
+    }
+    if (completed) {
+      toast({
+        title: 'Task completed',
+        description: previous?.title,
+        duration: 5000,
+        action: { label: 'Undo', onClick: () => { void toggleTask(taskId, false); } },
+      });
+    }
     // Fire Slack notification when task is marked complete
     if (completed) {
       const task = tasks.find((t) => t.id === taskId);

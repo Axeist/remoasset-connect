@@ -1,5 +1,6 @@
 import { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { PointerEvent } from 'react';
 
 interface KPICardProps {
   title: string;
@@ -21,9 +22,15 @@ export function KPICard({ title, value, change, icon: Icon, variant }: KPICardPr
   const isNeutral = change === '0';
   const showChange = change !== undefined && change !== '';
 
+  const onMove = (e: PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty('--mx', `${e.clientX - r.left}px`);
+    e.currentTarget.style.setProperty('--my', `${e.clientY - r.top}px`);
+  };
+
   return (
-    <div className={cn(
-      "relative overflow-hidden rounded-xl p-6 text-white card-shadow-lg transition-transform duration-200 hover:scale-[1.02]",
+    <div onPointerMove={onMove} className={cn(
+      "glow-card relative overflow-hidden rounded-xl p-6 text-white card-shadow-lg transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-xl",
       variantStyles[variant]
     )}>
       {/* Background decoration */}

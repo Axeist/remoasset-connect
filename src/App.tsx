@@ -43,6 +43,7 @@ const Terms = lazy(() => import("./pages/Terms"));
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { PageVisitTracker } from "@/components/PageVisitTracker";
 import { VersionReloader } from "@/components/VersionReloader";
+import { CelebrationHost } from "@/components/CelebrationHost";
 const Clients = lazy(() => import("./pages/Clients"));
 const ClientDetail = lazy(() => import("./pages/ClientDetail"));
 const MrpLookup = lazy(() => import("./pages/MrpLookup"));
@@ -88,6 +89,7 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Sonner />
+        <CelebrationHost />
         <VersionReloader />
         {showWelcomeSplash && (
           <SplashScreen

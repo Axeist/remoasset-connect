@@ -15,6 +15,7 @@ import { safeFormat } from '@/lib/date';
 import { CloudTalkPhoneLink } from '@/components/leads/CloudTalkPhoneLink';
 import { ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { EmptyState } from '@/components/EmptyState';
 
 type SortField = 'company_name' | 'created_at' | 'lead_score' | 'contact_name';
 type SortOrder = 'asc' | 'desc';
@@ -104,7 +105,7 @@ export function LeadsTable({
     return (
       <Card className="card-shadow">
         <CardContent className="py-12 text-center">
-          <p className="text-muted-foreground">No leads found. Add your first lead to get started!</p>
+          <EmptyState illustration="leads" title="No leads found" description="Try a different filter, or add your first lead to get started." />
         </CardContent>
       </Card>
     );

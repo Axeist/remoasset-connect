@@ -39,6 +39,7 @@ import {
   validateDeviceLines,
 } from '@/lib/device-spec-utils';
 import { sanitizeHtml } from '@/lib/sanitize';
+import { celebrate } from '@/lib/celebrate';
 
 export default function RfqNew() {
   const navigate = useNavigate();
@@ -371,6 +372,7 @@ export default function RfqNew() {
         body_text: bodyText,
       });
       toast({ title: 'RFQ campaign sent', description: `Emailed ${selectedVendorIds.size} Closed partners.` });
+      celebrate({ kind: 'rfq', title: 'RFQ sent', subtitle: `Emailed ${selectedVendorIds.size} partners` });
       navigate(`/rfq/${rfqId}`);
     } catch (e) {
       toast({

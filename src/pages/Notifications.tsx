@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { safeFormat } from '@/lib/date';
 import { Bell, CheckCheck, Loader2 } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
 
 interface AppNotification {
   id: string;
@@ -100,7 +101,7 @@ export default function Notifications() {
           </CardHeader>
           <CardContent>
             {notifications.length === 0 ? (
-              <p className="text-muted-foreground text-sm py-8 text-center">No notifications yet.</p>
+              <EmptyState illustration="bell" title="You're all caught up" description="New leads, tasks and replies will show up here." />
             ) : (
               <ul className="divide-y divide-border">
                 {notifications.map((n) => (
