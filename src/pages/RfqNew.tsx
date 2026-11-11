@@ -38,6 +38,7 @@ import {
   flattenPrimaryDevice,
   validateDeviceLines,
 } from '@/lib/device-spec-utils';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 export default function RfqNew() {
   const navigate = useNavigate();
@@ -626,7 +627,7 @@ export default function RfqNew() {
             </div>
             <div className="rounded-xl border bg-muted/30 p-3 overflow-auto max-h-[320px]">
               <p className="text-xs font-semibold text-muted-foreground mb-2">Preview</p>
-              <div dangerouslySetInnerHTML={{ __html: bodyHtml.replaceAll('{{magic_link}}', '#') }} />
+              <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(bodyHtml.replaceAll('{{magic_link}}', '#')) }} />
             </div>
             {missingMagicLink && (
               <p className="text-sm text-amber-700 dark:text-amber-400">

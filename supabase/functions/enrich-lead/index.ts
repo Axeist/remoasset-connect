@@ -1,3 +1,4 @@
+import { requireCaller } from '../_shared/guard.ts'
 /**
  * enrich-lead
  *
@@ -28,6 +29,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  const auth = await requireCaller(req, corsHeaders, { allow: ['user', 'service'] })
+  if ('response' in auth) return auth.response
 
   try {
     const supabase = createClient(

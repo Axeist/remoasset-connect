@@ -1,3 +1,4 @@
+import { requireCaller } from '../_shared/guard.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const corsHeaders = {
@@ -350,6 +351,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  const auth = await requireCaller(req, corsHeaders, { allow: ['user', 'service'] })
+  if ('response' in auth) return auth.response
 
   try {
     const supabaseAdmin = createClient(

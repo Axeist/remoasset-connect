@@ -1,3 +1,4 @@
+import { requireCaller } from '../_shared/guard.ts'
 /**
  * vendor-agent-chat
  *
@@ -166,6 +167,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  const auth = await requireCaller(req, corsHeaders, { allow: ['user'], permissions: ['vendors.use', 'app.full_edit', 'admin.panel'] })
+  if ('response' in auth) return auth.response
 
   const { message, conversation = [] } = await req.json()
 

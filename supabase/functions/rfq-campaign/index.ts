@@ -708,6 +708,13 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'send' || action === 'test_send' || action === 'remind' || action === 'award_emails') {
+      // Require RFQ permission (or leadership) for every authenticated action.
+      let rfqAllowed = false
+      for (const permission of ['rfq.use', 'app.full_edit', 'admin.panel']) {
+        const { data: ok } = await sb.rpc('has_permission', { _user_id: user.id, _permission: permission })
+        if (ok === true) { rfqAllowed = true; break }
+      }
+      if (!rfqAllowed) return json({ error: 'Forbidden' }, 403)
       const rfqId = body.rfq_id as string
       const { data: rfq } = await sb.from('rfqs').select('*').eq('id', rfqId).single()
       if (!rfq) return json({ error: 'RFQ not found' }, 404)
@@ -720,7 +727,8 @@ Deno.serve(async (req) => {
       ].filter(Boolean).map((e: string) => e.trim().toLowerCase())))
 
       if (action === 'test_send') {
-        const to = body.to || ownerEmail
+        // Test sends go to the caller only; never to an arbitrary address.
+        const to = user.email || ownerEmail
         if (!to) return json({ error: 'No test recipient' }, 400)
 
         // Use a real recipient token so the magic link works end-to-end when testing

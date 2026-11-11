@@ -1,3 +1,4 @@
+import { requireCaller } from '../_shared/guard.ts'
 /**
  * slack-digest — Scheduled Edge Function
  *
@@ -109,6 +110,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  const auth = await requireCaller(req, corsHeaders, { allow: ['user', 'service'], permissions: ['admin.panel', 'app.full_edit', 'integrations.manage'] })
+  if ('response' in auth) return auth.response
 
   try {
     const supabaseAdmin = createClient(

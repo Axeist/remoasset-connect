@@ -1,3 +1,4 @@
+import { requireCaller } from '../_shared/guard.ts'
 /**
  * create-vendor-lead
  *
@@ -126,6 +127,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  const auth = await requireCaller(req, corsHeaders, { allow: ['user', 'service'], permissions: ['vendors.use', 'app.full_edit', 'admin.panel'] })
+  if ('response' in auth) return auth.response
 
   try {
     const { vendor, email_result, settings, token_usage_discovery, token_usage_email, region, vendor_type, job_id } = await req.json()

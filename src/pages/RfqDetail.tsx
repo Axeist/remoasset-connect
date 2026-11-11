@@ -46,6 +46,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 function defaultTab(status: RfqStatus): string {
   if (status === 'bidding') return 'bids';
@@ -595,7 +596,7 @@ export default function RfqDetail() {
                       <span className="block mt-1">Resend id: {e.resend_message_id}</span>
                     )}
                   </div>
-                  <div className="mt-2 max-h-64 overflow-auto border rounded-lg p-3 bg-muted/20" dangerouslySetInnerHTML={{ __html: e.body_html }} />
+                  <div className="mt-2 max-h-64 overflow-auto border rounded-lg p-3 bg-muted/20" dangerouslySetInnerHTML={{ __html: sanitizeHtml(e.body_html) }} />
                 </details>
               ))}
             </Card>

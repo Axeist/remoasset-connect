@@ -14,6 +14,7 @@ import {
   Trash2, CheckCircle2, Clock, Kanban, MapPin, Phone, Link as LinkIcon,
   Paperclip, ShieldCheck, Linkedin, Info, ArrowRight, Inbox,
 } from 'lucide-react';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 // ─── tiny reusable pieces ──────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ function StepList({ steps }: { steps: string[] }) {
       {steps.map((s, i) => (
         <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] font-bold mt-0.5">{i + 1}</span>
-          <span className="leading-relaxed" dangerouslySetInnerHTML={{ __html: s }} />
+          <span className="leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeHtml(s) }} />
         </li>
       ))}
     </ol>

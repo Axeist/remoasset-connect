@@ -48,6 +48,24 @@ Deno.serve(async (req) => {
   }
   if (!callId) return json({ error: 'call_id required' }, 400)
 
+  // Authorize: the caller must be allowed to see the lead this call belongs to.
+  const { data: callRow } = await supabase
+    .from('cloudtalk_calls')
+    .select('lead_id')
+    .eq('cloudtalk_call_id', String(callId))
+    .maybeSingle()
+  const { data: fullEdit } = await supabase.rpc('has_permission', { _user_id: user.id, _permission: 'app.full_edit' })
+  if (fullEdit !== true) {
+    if (!callRow?.lead_id) return json({ error: 'Forbidden' }, 403)
+    const userClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } },
+    )
+    const { data: canSee } = await userClient.rpc('can_select_lead', { _lead_id: callRow.lead_id })
+    if (canSee !== true) return json({ error: 'Forbidden' }, 403)
+  }
+
   const auth = basicAuth()
   if (!auth) return json({ error: 'CloudTalk API keys are not configured' }, 500)
 

@@ -23,3 +23,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Secrets and local tooling (never commit)
+.env
+.env.*
+!.env.example
+.vercel
+supabase/.temp
+mcp-server/.env
+mcp-server/dist
+mcp-server/node_modules

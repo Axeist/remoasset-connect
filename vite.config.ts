@@ -52,6 +52,23 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/recharts|d3-|victory/.test(id)) return 'charts';
+          if (/@tiptap|prosemirror|linkifyjs|markdown-it/.test(id)) return 'editor';
+          if (/react-simple-maps|topojson|d3-geo/.test(id)) return 'maps';
+          if (/@dnd-kit/.test(id)) return 'dnd';
+          if (/@radix-ui/.test(id)) return 'radix';
+          if (/@supabase/.test(id)) return 'supabase';
+          if (/react-dom|react-router|scheduler|\/react\//.test(id)) return 'react';
+          return undefined;
+        },
+      },
+    },
+  },
   plugins: [react(), appVersionPlugin(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {

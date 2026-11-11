@@ -24,6 +24,7 @@ import {
   XCircle, Sparkles, Settings2, Play, RefreshCw, DollarSign, Zap, BarChart3,
   TrendingUp, Plus, Trash2, History, ChevronLeft, Clock, Mail, Pencil, ThumbsUp, ThumbsDown,
 } from 'lucide-react';
+import { sanitizeHtml, escapeHtml } from '@/lib/sanitize';
 
 export interface EmailDraft {
   index: number;
@@ -101,7 +102,7 @@ function formatRelativeTime(date: Date): string {
 }
 
 function parseMarkdown(text: string): string {
-  return text
+  return escapeHtml(text)
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/`(.*?)`/g, '<code class="bg-muted px-1 rounded text-xs">$1</code>')
@@ -246,7 +247,7 @@ function AssistantMessage({
           {message.content && (
             <p
               className="text-sm leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: parseMarkdown(message.content) }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(parseMarkdown(message.content)) }}
             />
           )}
           {!message.content && !message.progress?.length && (

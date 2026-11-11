@@ -98,10 +98,22 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Only a Super Admin may act on another Super Admin's account.
+    const { data: targetRoles } = await supabaseAdmin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', target_user_id)
+    const targetIsSuperAdmin = (targetRoles ?? []).some((r: { role?: string }) => r.role === 'super_admin')
+    if (targetIsSuperAdmin && !roleNames.includes('super_admin') && target_user_id !== user.id) {
+      return new Response(JSON.stringify({ error: 'Only a Super Admin can modify a Super Admin account' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403,
+      })
+    }
+
     switch (action) {
       case 'reset_password': {
-        if (!new_password || new_password.length < 6) {
-          return new Response(JSON.stringify({ error: 'Password must be at least 6 characters' }), {
+        if (!new_password || new_password.length < 10) {
+          return new Response(JSON.stringify({ error: 'Password must be at least 10 characters' }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400,
           })
         }

@@ -46,9 +46,14 @@ if (!url || !serviceRoleKey) {
   process.exit(1);
 }
 
-const ADMIN_EMAIL = 'ranjith@remoasset.com';
-const ADMIN_PASSWORD = 'Sisacropole2198$';
-const ADMIN_NAME = 'Ranjith';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ADMIN_NAME = process.env.ADMIN_NAME || 'Admin';
+
+if (!ADMIN_EMAIL || !ADMIN_PASSWORD || ADMIN_PASSWORD.length < 12) {
+  console.error('Set ADMIN_EMAIL and ADMIN_PASSWORD (12+ chars) in the environment. Credentials are never stored in the repo.');
+  process.exit(1);
+}
 
 const supabase = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 

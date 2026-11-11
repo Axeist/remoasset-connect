@@ -1,3 +1,4 @@
+import { requireCaller } from '../_shared/guard.ts'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -112,6 +113,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  const auth = await requireCaller(req, corsHeaders, { allow: ['user'] })
+  if ('response' in auth) return auth.response
 
   try {
     let body: Record<string, unknown>

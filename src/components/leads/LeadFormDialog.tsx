@@ -280,10 +280,9 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
       warehouse_notes: values.warehouse_available ? (values.warehouse_notes || null) : null,
       warehouse_price: values.warehouse_available && values.warehouse_price ? parseFloat(values.warehouse_price) : null,
       warehouse_currency: values.warehouse_available ? values.warehouse_currency : null,
-      lead_score: 0,
       notes: values.notes?.trim() || null,
       additional_contacts: cleanContacts,
-      ...(lead ? {} : { owner_id: user?.id ?? null }),
+      ...(lead ? {} : { owner_id: user?.id ?? null, lead_score: 0 }),
     };
 
     if (lead) {

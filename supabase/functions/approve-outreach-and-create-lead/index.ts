@@ -1,3 +1,4 @@
+import { requireCaller } from '../_shared/guard.ts'
 /**
  * approve-outreach-and-create-lead
  *
@@ -39,6 +40,9 @@ async function callFunction(fnName: string, body: unknown): Promise<any> {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+
+  const auth = await requireCaller(req, corsHeaders, { allow: ['user', 'service'], permissions: ['vendors.use', 'app.full_edit', 'admin.panel'] })
+  if ('response' in auth) return auth.response
 
   try {
     const { vendor, prepared_draft } = await req.json()

@@ -1,3 +1,4 @@
+import { requireCaller, isCompanyEmail, clampAi } from '../_shared/guard.ts'
 /**
  * vendor-outreach-email
  *
@@ -207,6 +208,9 @@ async function sendViaResend(
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
+  const auth = await requireCaller(req, corsHeaders, { allow: ['user', 'service'], permissions: ['vendors.use', 'app.full_edit', 'admin.panel'] })
+  if ('response' in auth) return auth.response
+
   try {
     const { vendor, settings, draft_only, prepared_draft } = await req.json()
 
@@ -218,19 +222,25 @@ Deno.serve(async (req) => {
     }
 
     const {
-      from_name  = 'RemoAsset Procurement',
-      from_address = 'outreach@remoasset.in',
-      reply_to,
-      cc = 'ranjith@remoasset.com',
+      from_name: rawFromName = 'RemoAsset Procurement',
+      from_address: rawFromAddress = 'outreach@remoasset.in',
+      reply_to: rawReplyTo,
+      cc = '',
       tone = 'professional',
-      ai_model = 'claude-haiku-4-5-20251001',
-      ai_max_tokens = 2048,
+      ai_model: rawModel,
+      ai_max_tokens: rawMaxTokens,
       ai_temperature = 0.7,
     } = settings ?? {}
 
-    const ccList: string[] = typeof cc === 'string'
+    // Never trust sender details from the request: company-owned addresses only.
+    const from_name = String(rawFromName).replace(/[\r\n<>"]/g, '').slice(0, 80) || 'RemoAsset Procurement'
+    const from_address = isCompanyEmail(rawFromAddress) ? String(rawFromAddress).trim() : 'outreach@remoasset.in'
+    const reply_to = isCompanyEmail(rawReplyTo) ? String(rawReplyTo).trim() : undefined
+    const { model: ai_model, maxTokens: ai_max_tokens } = clampAi(rawModel, rawMaxTokens)
+
+    const ccList: string[] = (typeof cc === 'string'
       ? cc.split(',').map((e: string) => e.trim()).filter(Boolean)
-      : Array.isArray(cc) ? cc : []
+      : Array.isArray(cc) ? cc : []).filter(isCompanyEmail).slice(0, 5)
 
     // Send a pre-approved draft (no Claude) — used when user approves in chat
     if (prepared_draft?.subject && prepared_draft?.body_html && prepared_draft?.body_text) {

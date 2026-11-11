@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, createContext, useContext, useState, useEffect } from 'react';
 import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { useMailNotificationPoller } from '@/hooks/useMailNotificationPoller';
@@ -50,7 +50,17 @@ function GoogleReconnectBanner() {
   );
 }
 
+/** True for pages rendered inside the persistent shell (see PersistentShell). */
+export const ShellContext = createContext(false);
+
 export function AppLayout({ children }: AppLayoutProps) {
+  const insideShell = useContext(ShellContext);
+  // Already inside the persistent shell: render only the page content.
+  if (insideShell) return <>{children}</>;
+  return <AppLayoutShell>{children}</AppLayoutShell>;
+}
+
+function AppLayoutShell({ children }: AppLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   useMailNotificationPoller();
   useTaskAndFollowUpNotificationPoller();

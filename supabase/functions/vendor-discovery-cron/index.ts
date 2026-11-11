@@ -1,3 +1,4 @@
+import { requireCaller } from '../_shared/guard.ts'
 /**
  * vendor-discovery-cron
  *
@@ -54,6 +55,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  const auth = await requireCaller(req, corsHeaders, { allow: ['user', 'service'], permissions: ['vendors.use', 'app.full_edit', 'admin.panel'] })
+  if ('response' in auth) return auth.response
 
   const supabase = initSupabase()
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''

@@ -1,3 +1,4 @@
+import { requireCaller, clampAi } from '../_shared/guard.ts'
 /**
  * vendor-discovery
  *
@@ -380,16 +381,21 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  const auth = await requireCaller(req, corsHeaders, { allow: ['user', 'service'], permissions: ['vendors.use', 'app.full_edit', 'admin.panel'] })
+  if ('response' in auth) return auth.response
+
   try {
     const {
       region,
       vendor_types,
-      count = 10,
+      count: rawCount = 10,
       context,
-      ai_model = 'claude-haiku-4-5-20251001',
-      ai_max_tokens = 4096,
+      ai_model: rawModel,
+      ai_max_tokens: rawMaxTokens,
       ai_temperature = 0.7,
     } = await req.json()
+    const count = Math.min(Math.max(Math.floor(Number(rawCount)) || 10, 1), 25)
+    const { model: ai_model, maxTokens: ai_max_tokens } = clampAi(rawModel, rawMaxTokens ?? 4096)
 
     if (!region || !vendor_types || !Array.isArray(vendor_types) || vendor_types.length === 0) {
       return new Response(

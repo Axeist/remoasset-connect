@@ -56,6 +56,7 @@ export function normalizePhoneE164(
   if (!digits || digits.length < 6) return trimmed;
 
   if (international) {
+    if (trimmed.startsWith('00')) digits = digits.slice(2);
     if (digits.length < 8 || digits.length > 15) return trimmed;
     return `+${digits}`;
   }
