@@ -60,6 +60,9 @@ const supabase = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: f
 async function main() {
   console.log('Creating admin user:', ADMIN_EMAIL);
 
+  // Invite-only: the email must be on the allow-list before the account can be created.
+  await supabase.from('invited_emails').upsert({ email: ADMIN_EMAIL.toLowerCase() }, { onConflict: 'email' });
+
   const { data: user, error: createError } = await supabase.auth.admin.createUser({
     email: ADMIN_EMAIL,
     password: ADMIN_PASSWORD,

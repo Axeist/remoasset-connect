@@ -1,5 +1,6 @@
 import { ReactNode, createContext, useContext, useState, useEffect } from 'react';
-import { AppSidebar } from './AppSidebar';
+import { AppSidebar, MobileTabBar } from './AppSidebar';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { AppHeader } from './AppHeader';
 import { useMailNotificationPoller } from '@/hooks/useMailNotificationPoller';
 import { useAuth } from '@/contexts/AuthContext';
@@ -61,6 +62,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
 function AppLayoutShell({ children }: AppLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isMobile = useIsMobile();
   useMailNotificationPoller();
   // Task/follow-up reminders are now created server-side (send_due_reminders, every minute).
   return (
@@ -69,10 +71,11 @@ function AppLayoutShell({ children }: AppLayoutProps) {
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
         <AppHeader onMenuClick={() => setMobileMenuOpen(true)} />
         <GoogleReconnectBanner />
-        <main className="flex-1 p-4 md:p-6 overflow-auto page-bg">
+        <main className={`flex-1 p-4 md:p-6 overflow-auto page-bg ${isMobile ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : ""}`}>
           {children}
         </main>
       </div>
+      {isMobile && <MobileTabBar onMore={() => setMobileMenuOpen(true)} />}
     </div>
   );
 }

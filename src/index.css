@@ -680,3 +680,48 @@ img[src="/logo.png"] {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* ---- Theme reveal (View Transitions) ---- */
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+
+/* ---- Sign-in (auth2) ---- */
+.auth2-bg {
+  background:
+    radial-gradient(900px 520px at 12% -10%, hsl(var(--primary) / .38), transparent 60%),
+    radial-gradient(700px 520px at 100% 100%, hsl(var(--accent) / .22), transparent 55%),
+    #1d1618;
+}
+.auth2-blob { position: absolute; border-radius: 9999px; filter: blur(70px); will-change: transform; pointer-events: none; animation: auth2-drift 20s ease-in-out infinite alternate; }
+@keyframes auth2-drift { from { transform: translate3d(-24px,-12px,0) scale(1); } to { transform: translate3d(40px,26px,0) scale(1.15); } }
+@keyframes auth2-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes auth2-view { from { opacity: 0; transform: translateX(14px); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes auth2-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes auth2-shake { 20% { transform: translateX(-7px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
+@keyframes auth2-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes auth2-draw { to { stroke-dashoffset: 0; } }
+.auth2-in { animation: auth2-in .6s cubic-bezier(.22,1,.36,1) both; }
+.auth2-view { animation: auth2-view .38s cubic-bezier(.22,1,.36,1) both; }
+.auth2-float { animation: auth2-float 6s ease-in-out infinite; }
+.auth2-shake { animation: auth2-shake .4s ease; }
+.auth2-field:focus-within label { color: hsl(var(--primary)); }
+.auth2-card { box-shadow: 0 30px 60px -30px rgb(0 0 0 / .45), 0 0 0 1px hsl(var(--border) / .6); }
+@media (prefers-reduced-motion: reduce) {
+  .auth2-blob, .auth2-float { animation: none !important; }
+}
+
+/* ---- Sidebar ---- */
+.sb-indicator {
+  background: linear-gradient(135deg, hsl(var(--sidebar-primary)), hsl(var(--sidebar-primary) / .8));
+  box-shadow: 0 10px 24px -12px hsl(var(--sidebar-primary) / .95), inset 0 1px 0 rgb(255 255 255 / .2);
+}
+@keyframes sb-down { from { height: 0; opacity: 0; } to { height: var(--radix-collapsible-content-height); opacity: 1; } }
+@keyframes sb-up { from { height: var(--radix-collapsible-content-height); opacity: 1; } to { height: 0; opacity: 0; } }
+.sb-collapsible[data-state="open"] { animation: sb-down .28s cubic-bezier(.22, 1, .36, 1); }
+.sb-collapsible[data-state="closed"] { animation: sb-up .2s ease-in; }
+@media (prefers-reduced-motion: reduce) {
+  .sb-collapsible[data-state] { animation: none; }
+  .sb-indicator { transition: none !important; }
+}

@@ -73,6 +73,12 @@ Deno.serve(async (req) => {
       userRole = 'super_admin'
     }
 
+    // Invite-only: register the email as allowed before the account is created.
+    await supabaseAdmin.from('invited_emails').upsert(
+      { email: String(email).trim().toLowerCase(), invited_by: user.id },
+      { onConflict: 'email' },
+    )
+
     const { data: newUserData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,

@@ -102,6 +102,12 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Invite-only: register the email as allowed before the account is created.
+    await supabaseClient.from('invited_emails').upsert(
+      { email: trimmedEmail.toLowerCase(), invited_by: user.id },
+      { onConflict: 'email' },
+    )
+
     // inviteUserByEmail sends the actual email via configured SMTP (Resend)
     const { data: inviteData, error: inviteError } = await supabaseClient.auth.admin.inviteUserByEmail(
       trimmedEmail,
