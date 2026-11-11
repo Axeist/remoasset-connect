@@ -33,3 +33,4 @@ supabase/.temp
 mcp-server/.env
 mcp-server/dist
 mcp-server/node_modules
+.env*
