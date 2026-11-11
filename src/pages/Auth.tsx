@@ -14,6 +14,8 @@ import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { getPostLoginPath } from '@/lib/cookie-consent';
 
+const OAUTH_PENDING_KEY = 'remoasset:oauth-pending';
+
 const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[\]{};':"\\|,.<>/?]).{8,}$/;
 export const PASSWORD_REQUIREMENTS = [
   'At least 8 characters',
@@ -76,6 +78,18 @@ export default function Auth() {
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const skipAutoNavRef = useRef(false);
+  // True when this page load is the return leg of a Google sign-in that we started.
+  // (Accounts created with email+password keep app_metadata.provider === 'email' even
+  // after signing in with Google, so the provider alone cannot tell the two apart.)
+  const oauthReturnRef = useRef<boolean | null>(null);
+  if (oauthReturnRef.current === null) {
+    let flagged = false;
+    try {
+      flagged = sessionStorage.getItem(OAUTH_PENDING_KEY) === 'google';
+      sessionStorage.removeItem(OAUTH_PENDING_KEY);
+    } catch { /* storage unavailable */ }
+    oauthReturnRef.current = flagged;
+  }
   const [handoffDone, setHandoffDone] = useState(() => {
     if (typeof window === 'undefined') return true;
     const p = new URLSearchParams(window.location.search);
@@ -137,7 +151,7 @@ export default function Auth() {
 
         const { data: { session } } = await supabase.auth.getSession();
         const provider = session?.user?.app_metadata?.provider;
-        const confirmSession = isEmailConfirm || (!!code && provider === 'email');
+        const confirmSession = isEmailConfirm || (!!code && provider === 'email' && !oauthReturnRef.current);
 
         if (confirmSession) {
           skipAutoNavRef.current = true;
@@ -169,6 +183,7 @@ export default function Auth() {
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
+    try { sessionStorage.setItem(OAUTH_PENDING_KEY, 'google'); } catch { /* ignore */ }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -179,6 +194,7 @@ export default function Auth() {
     });
     if (error) {
       setIsGoogleLoading(false);
+      try { sessionStorage.removeItem(OAUTH_PENDING_KEY); } catch { /* ignore */ }
       toast({ variant: 'destructive', title: 'Google sign-in failed', description: error.message });
     }
   };
