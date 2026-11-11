@@ -44,6 +44,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { BrandLogo } from '@/components/BrandLogo';
+import { prefetchRoute } from '@/lib/prefetch';
 
 const PIN_KEY = 'sidebar.pinned';
 function loadPinned(): boolean {
@@ -204,6 +205,9 @@ function NavLinkRow({
     <NavLink
       to={item.url}
       onClick={onClick}
+      onMouseEnter={() => prefetchRoute(item.url)}
+      onFocus={() => prefetchRoute(item.url)}
+      onTouchStart={() => prefetchRoute(item.url)}
       title={collapsed ? item.title : undefined}
       data-nav-active={isActive ? 'true' : undefined}
       aria-current={isActive ? 'page' : undefined}
@@ -627,6 +631,8 @@ export function MobileTabBar({ onMore }: { onMore: () => void }) {
             <NavLink
               key={item.url}
               to={item.url}
+              onTouchStart={() => prefetchRoute(item.url)}
+              onMouseEnter={() => prefetchRoute(item.url)}
               aria-current={active ? 'page' : undefined}
               className={cn(
                 'relative z-10 flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-2xl text-[11px] font-semibold outline-none transition-colors active:scale-95 focus-visible:ring-2 focus-visible:ring-primary',

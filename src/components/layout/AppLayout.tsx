@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, X } from 'lucide-react';
 import { CommandPalette } from '@/components/CommandPalette';
 import { StackedTables } from '@/components/StackedTables';
+import { prefetchCommonRoutes } from '@/lib/prefetch';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -65,6 +66,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 function AppLayoutShell({ children }: AppLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
+  useEffect(() => { prefetchCommonRoutes(); }, []);
   useMailNotificationPoller();
   // Task/follow-up reminders are now created server-side (send_due_reminders, every minute).
   return (

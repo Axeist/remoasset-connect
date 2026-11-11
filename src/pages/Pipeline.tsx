@@ -54,6 +54,7 @@ import { PipelineWidgets } from '@/components/pipeline/PipelineWidgets';
 import { MoveCommentDialog, getTransitionMode, type TransitionMode, type StageTransitionResult } from '@/components/pipeline/MoveCommentDialog';
 import { AddActivityDialog } from '@/components/leads/AddActivityDialog';
 import { celebrate } from '@/lib/celebrate';
+import { getStatuses, getCountries, getProfiles } from '@/lib/refData';
 
 // ------- Activity columns config -------
 
@@ -122,6 +123,12 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
   const [countries, setCountries] = useState<(CountryOption & { region?: string | null })[]>([]);
   const [refReady, setRefReady] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Boards can hold hundreds of leads per stage: render in pages of 30 so the page stays fast.
+  const [shown, setShown] = useState<Record<string, number>>({});
+  const PAGE = 30;
+  const visibleOf = (id: string, list: Lead[]) => list.slice(0, shown[id] ?? PAGE);
+  const moreOf = (id: string, total: number) => Math.max(0, total - (shown[id] ?? PAGE));
+  const showMore = (id: string) => setShown((m) => ({ ...m, [id]: (m[id] ?? PAGE) + PAGE }));
 
   // Move comment dialog state
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
@@ -137,20 +144,21 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     useSensor(KeyboardSensor)
   );
 
-  // Fetch reference data
+  // Fetch reference data (shared cache: statuses, countries, team profiles)
   useEffect(() => {
-    const fetchRef = async () => {
-      const [statusRes, countryRes, ownerRes] = await Promise.all([
-        supabase.from('lead_statuses').select('id, name, color, sort_order').order('sort_order'),
-        supabase.from('countries').select('id, name, code, region').order('name'),
-        supabase.from('profiles').select('user_id, full_name'),
-      ]);
-      if (statusRes.data) setStatuses(statusRes.data);
-      if (countryRes.data) setCountries(countryRes.data as (CountryOption & { region?: string | null })[]);
-      if (ownerRes.data) setOwners(ownerRes.data.map((p) => ({ id: p.user_id, full_name: p.full_name })));
-      setRefReady(true);
-    };
-    fetchRef();
+    let cancelled = false;
+    (async () => {
+      try {
+        const [st, co, pr] = await Promise.all([getStatuses(), getCountries(), getProfiles()]);
+        if (cancelled) return;
+        setStatuses(st);
+        setCountries(co as (CountryOption & { region?: string | null })[]);
+        setOwners(pr.map((p) => ({ id: p.user_id, full_name: p.full_name })));
+      } finally {
+        if (!cancelled) setRefReady(true);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Fetch leads + last activity per lead
@@ -158,7 +166,7 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     setLoading(true);
     let query = supabase
       .from('leads')
-      .select('id, company_name, contact_name, email, phone, lead_score, status_id, owner_id, hq_country_id, country_ids, created_at, updated_at, website, contact_designation, notes, status:lead_statuses(name, color)')
+      .select('id, company_name, contact_name, email, phone, lead_score, status_id, owner_id, hq_country_id, country_ids, created_at, updated_at, website, contact_designation, status:lead_statuses(name, color)')
       .order('lead_score', { ascending: false });
 
     if (scopeOwnLeads && user) {
@@ -207,11 +215,9 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     // Resolve countries from hq_country_id and country_ids arrays
     const hqIds = rawLeads.map((l) => (l as any).hq_country_id).filter(Boolean) as string[];
     const allCountryIds = [...new Set([...hqIds, ...rawLeads.flatMap((l) => (l as any).country_ids ?? [])])] as string[];
-    let pipelineCountryMap: Record<string, { name: string; code: string }> = {};
-    if (allCountryIds.length > 0) {
-      const { data: cRows } = await supabase.from('countries').select('id, name, code').in('id', allCountryIds);
-      pipelineCountryMap = (cRows ?? []).reduce((acc: Record<string, { name: string; code: string }>, c: { id: string; name: string; code: string }) => { acc[c.id] = { name: c.name, code: c.code }; return acc; }, {});
-    }
+    const pipelineCountryMap: Record<string, { name: string; code: string }> = {};
+    (countries as { id: string; name: string; code: string }[]).forEach((c) => { pipelineCountryMap[c.id] = { name: c.name, code: c.code }; });
+    void allCountryIds;
 
     const enrichedLeads = rawLeads.map((l) => ({
       ...l,
@@ -221,31 +227,26 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
     }));
     setLeads(enrichedLeads);
 
-    const leadIds = enrichedLeads.map((l) => l.id);
-    if (leadIds.length > 0) {
-      // Fetch only the single latest activity per lead by limiting to 1 row per lead_id.
-      // We use a large-enough limit relative to lead count to get one per lead cheaply,
-      // and stop collecting once every lead is covered.
-      const { data: activityRows } = await supabase
+    // Show the board now; fill in last-activity icons in the background with a single small request.
+    setLoading(false);
+    if (enrichedLeads.length > 0) {
+      const wanted = new Set(enrichedLeads.map((l) => l.id));
+      supabase
         .from('lead_activities')
         .select('lead_id, activity_type')
-        .in('lead_id', leadIds)
         .order('created_at', { ascending: false })
-        .limit(leadIds.length * 2);
-
-      const actMap: Record<string, string> = {};
-      (activityRows ?? []).forEach((row) => {
-        if (!actMap[row.lead_id]) {
-          actMap[row.lead_id] = row.activity_type;
-        }
-      });
-      setLastActivityMap(actMap);
+        .limit(Math.min(enrichedLeads.length * 3, 3000))
+        .then(({ data: activityRows }) => {
+          const actMap: Record<string, string> = {};
+          (activityRows ?? []).forEach((row) => {
+            if (wanted.has(row.lead_id) && !actMap[row.lead_id]) actMap[row.lead_id] = row.activity_type;
+          });
+          setLastActivityMap(actMap);
+        });
     } else {
       setLastActivityMap({});
     }
-
-    setLoading(false);
-  }, [filters, user, scopeOwnLeads, toast, owners]);
+  }, [filters, user, scopeOwnLeads, toast, owners, countries]);
 
   useEffect(() => { if (refReady) fetchLeads(); }, [fetchLeads, refReady]);
 
@@ -673,8 +674,8 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
                     count={statusColumns[status.id]?.length ?? 0}
                     totalScore={statusColumns[status.id]?.reduce((s, l) => s + (l.lead_score ?? 0), 0) ?? 0}
                   >
-                    <SortableContext items={(statusColumns[status.id] ?? []).map((l) => l.id)} strategy={verticalListSortingStrategy}>
-                      {(statusColumns[status.id] ?? []).map((lead) => (
+                    <SortableContext items={visibleOf(status.id, statusColumns[status.id] ?? []).map((l) => l.id)} strategy={verticalListSortingStrategy}>
+                      {visibleOf(status.id, statusColumns[status.id] ?? []).map((lead) => (
                         <KanbanCard
                           key={lead.id}
                           lead={lead}
@@ -684,6 +685,15 @@ export default function Pipeline({ pageTitle, adminOnly }: PipelineProps) {
                         />
                       ))}
                     </SortableContext>
+                    {moreOf(status.id, (statusColumns[status.id] ?? []).length) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => showMore(status.id)}
+                        className="mx-1 rounded-lg border border-dashed border-border py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+                      >
+                        Show {Math.min(PAGE, moreOf(status.id, (statusColumns[status.id] ?? []).length))} more · {moreOf(status.id, (statusColumns[status.id] ?? []).length)} hidden
+                      </button>
+                    )}
                     {(statusColumns[status.id] ?? []).length === 0 && (
                       <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
                         <p className="text-xs">No leads</p>

@@ -32,6 +32,7 @@ import { Badge } from '@/components/ui/badge';
 import { VENDOR_TYPE_OPTIONS, VENDOR_TYPE_VALUES } from '@/lib/vendorTypes';
 import { normalizePhoneE164 } from '@/lib/phone';
 import { celebrate } from '@/lib/celebrate';
+import { getStatuses, getCountries } from '@/lib/refData';
 
 const WON_PATTERNS = ['won', 'closed won', 'closed-won'];
 
@@ -150,12 +151,9 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
   useEffect(() => {
     if (!open) return;
     (async () => {
-      const [sRes, cRes] = await Promise.all([
-        supabase.from('lead_statuses').select('id, name, color, sort_order').order('sort_order'),
-        supabase.from('countries').select('id, name, code').order('name'),
-      ]);
-      if (sRes.data) setStatuses(sRes.data);
-      if (cRes.data) setCountries(cRes.data);
+      const [sRes, cRes] = await Promise.all([getStatuses().catch(() => []), getCountries().catch(() => [])]);
+      setStatuses(sRes);
+      setCountries(cRes as { id: string; name: string; code: string }[]);
     })();
   }, [open]);
 

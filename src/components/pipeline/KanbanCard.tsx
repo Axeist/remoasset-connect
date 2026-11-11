@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
@@ -100,7 +101,7 @@ interface KanbanCardProps {
   disableDrag?: boolean;
 }
 
-export function KanbanCard({ lead, onClick, onAddActivity, isDragOverlay, disableDrag }: KanbanCardProps) {
+function KanbanCardBase({ lead, onClick, onAddActivity, isDragOverlay, disableDrag }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -167,3 +168,5 @@ export function StaticKanbanCard({ lead, onClick, onAddActivity }: StaticKanbanC
     </div>
   );
 }
+
+export const KanbanCard = memo(KanbanCardBase);

@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/select';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getProfiles } from '@/lib/refData';
 
 type SortField = 'company_name' | 'created_at' | 'lead_score' | 'contact_name';
 type SortOrder = 'asc' | 'desc';
@@ -102,9 +103,7 @@ export default function Leads() {
 
   useEffect(() => {
     (async () => {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, full_name');
+      const profiles = await getProfiles().catch(() => []);
       setOwnerOptions((profiles ?? []).map((p) => ({ id: p.user_id, full_name: p.full_name })));
     })();
   }, []);
