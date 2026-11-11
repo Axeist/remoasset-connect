@@ -434,13 +434,13 @@ function SidebarNav({ collapsed = false, touch = false, onNavigate, onNavClick }
             title={[fullName || 'User', roleLabel(role), designation].filter(Boolean).join(' · ')}
             aria-label={`${fullName || 'Your profile'}, ${roleLabel(role)}. Open settings`}
             className={cn(
-              'group mb-2 flex items-center rounded-full border border-sidebar-border/50 bg-sidebar-accent/35 outline-none transition-colors duration-200',
-              'hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-sidebar-primary/70',
+              'group mb-2 flex items-center rounded-full border border-white/15 bg-white/[0.09] shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] outline-none transition-all duration-200',
+              'hover:border-white/25 hover:bg-white/[0.14] focus-visible:ring-2 focus-visible:ring-sidebar-primary/70',
               collapsed ? 'mx-auto h-11 w-11 justify-center' : 'gap-3 py-1.5 pl-1.5 pr-4',
             )}
           >
             <span className="relative shrink-0">
-              <Avatar className={cn('rounded-full', collapsed ? 'h-9 w-9' : 'h-10 w-10')}>
+              <Avatar className={cn('rounded-full ring-2 ring-sidebar-primary/50', collapsed ? 'h-9 w-9' : 'h-10 w-10')}>
                 <AvatarImage src={avatarUrl || undefined} alt="" className="rounded-full object-cover" />
                 <AvatarFallback className="rounded-full bg-sidebar-primary/80 text-sm font-semibold text-white">{initials}</AvatarFallback>
               </Avatar>
@@ -449,7 +449,7 @@ function SidebarNav({ collapsed = false, touch = false, onNavigate, onNavClick }
             {!collapsed && (
               <span className="min-w-0 flex-1 leading-tight">
                 <span className="block truncate text-sm font-semibold text-sidebar-foreground">{fullName || 'User'}</span>
-                <span className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-sidebar-foreground/60">
+                <span className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-sidebar-foreground/70">
                   {isAdmin ? <Crown className="h-3 w-3 shrink-0 text-sidebar-primary" /> : role === 'csm' ? <ShieldCheck className="h-3 w-3 shrink-0" /> : <UserRound className="h-3 w-3 shrink-0" />}
                   <span className="truncate">{roleLabel(role)}</span>
                 </span>

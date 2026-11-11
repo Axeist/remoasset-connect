@@ -268,6 +268,8 @@ const Auth = () => {
     if (!user) return;
     if (showSuccessSplash) return;
     if (skipAutoNavRef.current) return;
+    // Email sign-in is greeting the user (splash is about to show): do not redirect yet.
+    if (justLoggedInRef.current && !oauthReturnRef.current) return;
     // Returning from Google: greet by name with the success splash, like email sign-in does.
     if (oauthReturnRef.current && !greetedRef.current) {
       greetedRef.current = true;

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Package, MapPin, Settings, RefreshCw } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
 
@@ -13,10 +13,13 @@ interface SplashScreenProps {
 }
 
 export function SplashScreen({ variant, onComplete, duration = 3200, name }: SplashScreenProps) {
+  // Keep the latest callback in a ref so parent re-renders never restart the timer.
+  const done = useRef(onComplete);
+  done.current = onComplete;
   useEffect(() => {
-    const t = setTimeout(() => onComplete?.(), duration);
+    const t = setTimeout(() => done.current?.(), duration);
     return () => clearTimeout(t);
-  }, [onComplete, duration]);
+  }, [duration]);
 
   if (variant === 'success') {
     return (

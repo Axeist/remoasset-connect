@@ -47,7 +47,7 @@
     --secondary-foreground: 340 9% 17%;
 
     --muted: 228 33% 95%;
-    --muted-foreground: 228 7% 47%;
+    --muted-foreground: 228 9% 34%;
 
     --accent: 18 80% 69%;
     --accent-foreground: 0 0% 100%;
@@ -236,9 +236,8 @@
   /* App pages: match login theme - subtle gradient background */
   .page-bg {
     background:
-      radial-gradient(900px 520px at 6% -8%, hsl(var(--primary) / .10), transparent 62%),
-      radial-gradient(760px 520px at 100% 2%, hsl(var(--accent) / .10), transparent 58%),
-      radial-gradient(800px 560px at 55% 112%, hsl(var(--primary) / .06), transparent 62%),
+      radial-gradient(900px 520px at 6% -8%, hsl(var(--primary) / .045), transparent 62%),
+      radial-gradient(760px 520px at 100% 2%, hsl(214 60% 60% / .045), transparent 58%),
       hsl(var(--background));
   }
   .dark .page-bg {
@@ -717,9 +716,9 @@ textarea:focus-visible,
 .auth2-bg {
   --hb-ink: 46 30 34;
   background:
-    radial-gradient(1000px 620px at 6% -12%, hsl(var(--primary) / .26), transparent 60%),
-    radial-gradient(820px 620px at 104% 104%, hsl(var(--accent) / .26), transparent 55%),
-    #fff4ec;
+    radial-gradient(1000px 620px at 6% -12%, hsl(var(--primary) / .14), transparent 60%),
+    radial-gradient(820px 620px at 104% 104%, hsl(214 70% 62% / .12), transparent 55%),
+    #f4f6fb;
 }
 .dark .auth2-bg {
   --hb-ink: 255 255 255;
@@ -896,16 +895,16 @@ textarea:focus-visible,
 }
 
 /* ---- Glass system ---- */
-:root { --glass-edge: 24 35% 76% / .6; --glass-hi: 0 0% 100% / .95; --glass-lo: 24 30% 55% / .14; --glass-shadow: 20 40% 22%; }
-.dark { --glass-edge: 0 0% 100% / .1; --glass-hi: 0 0% 100% / .11; --glass-lo: 0 0% 0% / .4; --glass-shadow: 0 0% 0%; }
+:root { --auth-glass-a: .94; --glass-alpha: .94; --glass-alpha-strong: .97; --glass-edge: 220 18% 80% / .9; --glass-hi: 0 0% 100% / .95; --glass-lo: 24 30% 55% / .14; --glass-shadow: 20 40% 22%; }
+.dark { --auth-glass-a: .8; --glass-alpha: .72; --glass-alpha-strong: .86; --glass-edge: 0 0% 100% / .1; --glass-hi: 0 0% 100% / .11; --glass-lo: 0 0% 0% / .4; --glass-shadow: 0 0% 0%; }
 @layer components {
   .glass, .glass-strong {
-    background: hsl(var(--card) / .72);
+    background: hsl(var(--card) / var(--glass-alpha, .72));
     -webkit-backdrop-filter: blur(14px) saturate(1.5);
     backdrop-filter: blur(14px) saturate(1.5);
     border-color: hsl(var(--glass-edge));
   }
-  .glass-strong { background: hsl(var(--card) / .86); -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6); }
+  .glass-strong { background: hsl(var(--card) / var(--glass-alpha-strong, .86)); -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6); }
   /* embossed edge: a light line on top, a dark one underneath, so the surface looks lifted off the page */
   .glass:not(.fixed):not(.absolute):not(.sticky):not(.relative),
   .glass-strong:not(.fixed):not(.absolute):not(.sticky):not(.relative) { position: relative; }
@@ -926,7 +925,7 @@ textarea:focus-visible,
 /* ---- Sign-in glass card: lifted, embossed ---- */
 .auth2-glass {
   position: relative;
-  background: linear-gradient(155deg, hsl(var(--card) / .8), hsl(var(--card) / .56));
+  background: linear-gradient(155deg, hsl(var(--card) / var(--auth-glass-a, .78)), hsl(var(--card) / calc(var(--auth-glass-a, .78) - .22)));
   -webkit-backdrop-filter: blur(28px) saturate(1.7); backdrop-filter: blur(28px) saturate(1.7);
   border: 1px solid hsl(var(--glass-edge));
   box-shadow: 0 50px 100px -50px rgb(0 0 0 / .55), 0 24px 48px -28px hsl(var(--primary) / .25);
@@ -936,3 +935,15 @@ textarea:focus-visible,
 .auth2-tilt { transform: perspective(1500px) rotateY(-7deg) rotateX(3deg); transform-origin: 30% 50%; transition: transform .6s cubic-bezier(.22,1,.36,1); }
 .auth2-tilt:hover { transform: perspective(1500px) rotateY(-2deg) rotateX(1deg); }
 @media (prefers-reduced-motion: reduce) { .auth2-tilt { transform: none; transition: none; } }
+
+/* ---- Toasts: glass card, close button tucked inside the corner ---- */
+[data-sonner-toast] { padding: 14px 44px 14px 14px !important; border-radius: 18px !important; }
+[data-sonner-toast] [data-close-button] {
+  position: absolute !important; top: 10px !important; right: 10px !important; left: auto !important; transform: none !important;
+  width: 24px; height: 24px; border: 0 !important; border-radius: 8px !important;
+  background: hsl(var(--muted)) !important; color: hsl(var(--muted-foreground)) !important; opacity: 0; transition: opacity .15s, background .15s;
+}
+[data-sonner-toast]:hover [data-close-button], [data-sonner-toast] [data-close-button]:focus-visible { opacity: 1; }
+[data-sonner-toast] [data-close-button]:hover { background: hsl(var(--border)) !important; color: hsl(var(--foreground)) !important; }
+@media (hover: none) { [data-sonner-toast] [data-close-button] { opacity: 1; } }
+[data-sonner-toast] [data-icon] { width: 32px !important; height: 32px !important; margin: 0 !important; align-self: flex-start; }
