@@ -75,12 +75,12 @@ export function MeetingActivityCard({ description, attachments, createdAt }: Mee
           Scheduled Meeting
         </span>
         {isUpcoming && (
-          <Badge className="ml-auto bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-[11px] font-semibold border-0 px-1.5 py-0">
+          <Badge className="ml-auto bg-success/15 text-success-ink text-[11px] font-semibold border-0 px-1.5 py-0">
             Upcoming
           </Badge>
         )}
         {isPast && !isUpcoming && (
-          <Badge className="ml-auto bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 text-[11px] font-semibold border-0 px-1.5 py-0">
+          <Badge className="ml-auto bg-muted text-muted-foreground text-[11px] font-semibold border-0 px-1.5 py-0">
             Completed
           </Badge>
         )}
@@ -149,7 +149,7 @@ export function MeetingActivityCard({ description, attachments, createdAt }: Mee
               className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
               onClick={handleCopyLink}
             >
-              {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+              {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
               {copied ? 'Copied!' : 'Copy link'}
             </Button>
           </div>
@@ -196,12 +196,12 @@ export function MeetingActivityCardCompact({ description, attachments, createdAt
           Meeting
         </span>
         {isUpcoming && (
-          <Badge className="ml-auto bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-[11px] font-medium border-0 px-1 py-0">
+          <Badge className="ml-auto bg-success/15 text-success-ink text-[11px] font-medium border-0 px-1 py-0">
             Upcoming
           </Badge>
         )}
         {isPast && !isUpcoming && (
-          <Badge className="ml-auto bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 text-[11px] font-medium border-0 px-1 py-0">
+          <Badge className="ml-auto bg-muted text-muted-foreground text-[11px] font-medium border-0 px-1 py-0">
             Done
           </Badge>
         )}

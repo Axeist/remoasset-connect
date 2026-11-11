@@ -80,7 +80,7 @@ const ACTIVITY_TABLE_COLUMNS: TableColumn[] = [
   { id: 'meeting', name: 'Meetings', color: '#3B9B6D' },
   { id: 'whatsapp', name: 'WhatsApp', color: '#25d366' },
   { id: 'linkedin', name: 'LinkedIn', color: '#0ea5e9' },
-  { id: 'nda', name: 'NDA', color: '#30282B' },
+  { id: 'nda', name: 'NDA', color: '#8A7B83' },
   { id: 'quotation', name: 'Quotation', color: '#d97706' },
   { id: 'note', name: 'Notes', color: '#6E7180' },
 ];
@@ -756,48 +756,48 @@ export function LeadProductivityReport() {
               value={kpis.proposal}
               subLabel={kpis.total ? `${((kpis.proposal / kpis.total) * 100).toFixed(1)}% of total` : undefined}
               icon={Target}
-              accent="text-sky-500"
-              iconBg="bg-sky-500/10"
+              accent="text-info"
+              iconBg="bg-info/10"
             />
             <KpiCard
               label="Closed won"
               value={kpis.won}
               subLabel={kpis.total ? `${((kpis.won / kpis.total) * 100).toFixed(1)}% win rate` : undefined}
               icon={Trophy}
-              accent="text-emerald-500"
-              iconBg="bg-emerald-500/10"
+              accent="text-success"
+              iconBg="bg-success/10"
             />
             <KpiCard
               label="Countries"
               value={kpis.countryCount}
               subLabel={`${kpis.regionCount} region${kpis.regionCount !== 1 ? 's' : ''}`}
               icon={Globe}
-              iconBg="bg-violet-500/10"
-              accent="text-violet-500"
+              iconBg="bg-violet/10"
+              accent="text-violet"
             />
             <KpiCard
               label="Lost"
               value={kpis.lost}
               subLabel={kpis.total ? `${((kpis.lost / kpis.total) * 100).toFixed(1)}% loss rate` : undefined}
               icon={XCircle}
-              accent="text-rose-500"
-              iconBg="bg-rose-500/10"
+              accent="text-destructive"
+              iconBg="bg-destructive/10"
             />
             <KpiCard
               label="Leads / day"
               value={kpis.leadsPerDay.toFixed(1)}
               subLabel="Avg in period"
               icon={TrendingUp}
-              iconBg="bg-amber-500/10"
-              accent="text-amber-600"
+              iconBg="bg-warning/10"
+              accent="text-warning-ink"
             />
             <KpiCard
               label="Period change"
               value={kpis.periodDelta != null ? `${kpis.periodDelta > 0 ? '+' : ''}${kpis.periodDelta}%` : '—'}
               subLabel="vs prev. period"
               icon={kpis.periodDelta != null && kpis.periodDelta >= 0 ? TrendingUp : TrendingDown}
-              accent={kpis.periodDelta != null && kpis.periodDelta >= 0 ? 'text-emerald-500' : 'text-rose-500'}
-              iconBg={kpis.periodDelta != null && kpis.periodDelta >= 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10'}
+              accent={kpis.periodDelta != null && kpis.periodDelta >= 0 ? 'text-success' : 'text-destructive'}
+              iconBg={kpis.periodDelta != null && kpis.periodDelta >= 0 ? 'bg-success/10' : 'bg-destructive/10'}
             />
           </div>
 

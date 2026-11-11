@@ -34,7 +34,7 @@ export function GoogleCalendarCard() {
 
         <CardContent className="relative p-6">
           <div className="flex items-start gap-4 mb-5">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white shadow-md ring-1 ring-black/[0.08]">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-card shadow-md ring-1 ring-black/[0.08]">
               <GoogleCalendarIcon className="h-7 w-7" />
             </div>
             <div>

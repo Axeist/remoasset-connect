@@ -148,7 +148,7 @@ export default function WarehousePricing() {
                       ))}
                       <TableHead className="text-right font-bold">Grand Total</TableHead>
                       <TableHead className="text-right font-semibold text-primary">Client PAYG Σ</TableHead>
-                      <TableHead className="text-right font-semibold text-amber-600 dark:text-amber-400">Client Sub Σ</TableHead>
+                      <TableHead className="text-right font-semibold text-warning-ink">Client Sub Σ</TableHead>
                       <TableHead>Quote Status</TableHead>
                       <TableHead className="w-10" />
                     </TableRow>
@@ -171,7 +171,7 @@ export default function WarehousePricing() {
                           <TableCell className="text-right tabular-nums text-sm font-semibold text-primary">
                             ${Number((row as any).client_grand_total ?? 0).toFixed(2)}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums text-sm font-semibold text-amber-600 dark:text-amber-400">
+                          <TableCell className="text-right tabular-nums text-sm font-semibold text-warning-ink">
                             ${Number((row as any).client_sub_grand_total ?? 0).toFixed(2)}
                           </TableCell>
                           <TableCell>

@@ -589,7 +589,7 @@ export default function Reports() {
                 { label: 'Task Rate', value: `${productivityMetrics.taskCompletionRate}%`, icon: CheckCircle2, color: 'text-accent', bg: 'bg-accent/10' },
                 { label: 'Daily Activity', value: `${productivityMetrics.dailyActivityAvg}`, icon: Zap, color: 'text-warning', bg: 'bg-warning/10' },
                 { label: 'Leads / Day', value: `${productivityMetrics.leadsPerDay}`, icon: TrendingUp, color: 'text-primary', bg: 'bg-primary/10' },
-                { label: 'Activity / Lead', value: `${productivityMetrics.activitiesPerLead}`, icon: Activity, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+                { label: 'Activity / Lead', value: `${productivityMetrics.activitiesPerLead}`, icon: Activity, color: 'text-violet', bg: 'bg-violet/10' },
               ].map((item) => (
                 <Card key={item.label} className="card-shadow rounded-xl border-border/80 animate-inner-card-hover">
                   <CardContent className="p-4 flex flex-col gap-3">
@@ -883,7 +883,7 @@ export default function Reports() {
                           {topPerformers.map((p, idx) => (
                             <tr key={idx} className="border-b last:border-0 hover:bg-accent/10">
                               <td className="py-3 px-2 font-medium">
-                                {idx === 0 && <Award className="inline h-4 w-4 text-yellow-500 mr-2" />}
+                                {idx === 0 && <Award className="inline h-4 w-4 text-warning mr-2" />}
                                 {p.name}
                               </td>
                               <td className="py-3 px-2 text-right">{p.activities}</td>

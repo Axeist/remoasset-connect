@@ -41,14 +41,14 @@ const META: Record<ActivityKey, { label: string; color: string; icon: React.Elem
   meeting:      { label: 'Meetings',  color: '#3B9B6D', icon: Calendar },
   linkedin:     { label: 'LinkedIn',  color: '#6E7180', icon: Linkedin },
   whatsapp:     { label: 'WhatsApp',  color: '#25d366', icon: MessageCircle },
-  nda:          { label: 'NDAs',      color: '#30282B', icon: ShieldCheck },
+  nda:          { label: 'NDAs',      color: '#8A7B83', icon: ShieldCheck },
   deal_closed:  { label: 'Deals Won', color: '#ec4899', icon: Trophy },
 };
 
 const CATEGORY_META: Record<TargetCategoryKey, { label: string; color: string; icon: React.ElementType }> = {
   outreach:     { label: 'Outreach',  color: '#EA6E35', icon: Mail },
   meeting:      { label: 'Meetings',  color: '#3B9B6D', icon: Calendar },
-  nda:          { label: 'NDAs',      color: '#30282B', icon: ShieldCheck },
+  nda:          { label: 'NDAs',      color: '#8A7B83', icon: ShieldCheck },
   deal_closed:  { label: 'Deals Won', color: '#ec4899', icon: Trophy },
 };
 
@@ -161,9 +161,9 @@ function ProgressRing({ pct, color, size = 44 }: { pct: number; color: string; s
 }
 
 function TrendIcon({ pct }: { pct: number }) {
-  if (pct >= 100) return <TrendingUp className="h-4 w-4 text-green-500" />;
-  if (pct >= 70) return <Minus className="h-4 w-4 text-amber-500" />;
-  return <TrendingDown className="h-4 w-4 text-red-500" />;
+  if (pct >= 100) return <TrendingUp className="h-4 w-4 text-success" />;
+  if (pct >= 70) return <Minus className="h-4 w-4 text-warning" />;
+  return <TrendingDown className="h-4 w-4 text-destructive" />;
 }
 
 export function ProductivityReport() {
@@ -494,7 +494,7 @@ export function ProductivityReport() {
                   </div>
                   <div className="flex items-center gap-1">
                     <TrendIcon pct={pct} />
-                    <span className={cn('text-sm font-semibold', pct >= 100 ? 'text-green-600' : pct >= 70 ? 'text-amber-600' : 'text-red-500')}>
+                    <span className={cn('text-sm font-semibold', pct >= 100 ? 'text-success-ink' : pct >= 70 ? 'text-warning-ink' : 'text-destructive')}>
                       {pct}%
                     </span>
                   </div>
@@ -614,7 +614,7 @@ export function ProductivityReport() {
                       return (
                         <tr key={emp.userId} className="border-b last:border-0 hover:bg-muted/30">
                           <td className="py-2.5 px-2 font-medium whitespace-nowrap">
-                            {idx === 0 && isAdmin && <Trophy className="inline h-3.5 w-3.5 text-yellow-500 mr-1" />}
+                            {idx === 0 && isAdmin && <Trophy className="inline h-3.5 w-3.5 text-warning mr-1" />}
                             {emp.name}
                           </td>
                           {TARGET_CATEGORIES.map((cat) => {
@@ -625,9 +625,9 @@ export function ProductivityReport() {
                               <td key={cat} className="text-center py-2.5 px-1.5">
                                 <span className={cn(
                                   'inline-block min-w-[30px] rounded px-1.5 py-0.5 text-xs font-semibold',
-                                  pctCell >= 100 ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400'
-                                    : pctCell >= 70 ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
-                                    : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400'
+                                  pctCell >= 100 ? 'bg-success/15 text-success-ink'
+                                    : pctCell >= 70 ? 'bg-warning/15 text-warning-ink'
+                                    : 'bg-destructive/15 text-destructive-ink'
                                 )}>
                                   {actual}
                                 </span>

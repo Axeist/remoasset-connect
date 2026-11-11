@@ -1272,9 +1272,9 @@ curl -X POST ${baseUrl}/notifications \\
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { icon: Users, label: 'Team Members', value: teamMembers.length, sub: `${activeCount} active`, color: 'text-primary', bg: 'bg-primary/10' },
-            { icon: TrendingUp, label: 'Total Leads', value: totalLeads, sub: `${analytics.byStatus.length} statuses`, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-            { icon: MapPin, label: 'Countries', value: countries.length, sub: 'In the system', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-            { icon: Activity, label: 'Activities', value: analytics.totalActivities, sub: 'All time', color: 'text-purple-500', bg: 'bg-purple-500/10' },
+            { icon: TrendingUp, label: 'Total Leads', value: totalLeads, sub: `${analytics.byStatus.length} statuses`, color: 'text-warning', bg: 'bg-warning/10' },
+            { icon: MapPin, label: 'Countries', value: countries.length, sub: 'In the system', color: 'text-success', bg: 'bg-success/10' },
+            { icon: Activity, label: 'Activities', value: analytics.totalActivities, sub: 'All time', color: 'text-violet', bg: 'bg-violet/10' },
           ].map((stat) => (
             <div key={stat.label} className="rounded-xl border bg-card p-4 flex items-center gap-3">
               <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg shrink-0', stat.bg)}>
@@ -1369,7 +1369,7 @@ curl -X POST ${baseUrl}/notifications \\
                                   <div className="flex items-center gap-2">
                                     <p className="font-medium text-sm">{member.full_name || 'Unknown'}</p>
                                     {isPending && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20">
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning-ink ring-1 ring-warning/20">
                                         Pending
                                       </span>
                                     )}
@@ -1390,7 +1390,7 @@ curl -X POST ${baseUrl}/notifications \\
                               {isBanned ? (
                                 <Badge variant="destructive" className="gap-1"><Ban className="h-3 w-3" />Restricted</Badge>
                               ) : (
-                                <Badge variant="outline" className="gap-1 border-emerald-300 text-emerald-700 dark:border-emerald-600 dark:text-emerald-400">
+                                <Badge variant="outline" className="gap-1 border-success/30 text-success-ink">
                                   <ShieldCheck className="h-3 w-3" />Active
                                 </Badge>
                               )}
@@ -1404,7 +1404,7 @@ curl -X POST ${baseUrl}/notifications \\
                                     onClick={() => resendInvite(member)}
                                     disabled={resendingInviteId === member.user_id}
                                     title="Resend invite"
-                                    className="text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                                    className="text-warning-ink hover:text-warning-ink hover:bg-warning/10"
                                   >
                                     {resendingInviteId === member.user_id
                                       ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -1547,7 +1547,7 @@ curl -X POST ${baseUrl}/notifications \\
                   <div className="p-4 grid sm:grid-cols-2 gap-3">
                     <div className="rounded-lg border p-4 space-y-2">
                       <div className="flex items-center gap-2">
-                        <CalendarCheck className="h-4 w-4 text-orange-500" />
+                        <CalendarCheck className="h-4 w-4 text-warning" />
                         <span className="text-sm font-medium">Complete Overdue Follow-ups</span>
                       </div>
                       <p className="text-xs text-muted-foreground">Mark all incomplete follow-ups scheduled up to now as completed.</p>
@@ -1586,7 +1586,7 @@ curl -X POST ${baseUrl}/notifications \\
                   <div className="relative p-6">
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-start gap-4">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white shadow-md ring-1 ring-black/[0.08]">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-card shadow-md ring-1 ring-black/[0.08]">
                           <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none"><path d="M18.316 5.684H5.684v12.632h12.632V5.684z" fill="#fff" /><path d="M18.316 24l5.684-5.684h-5.684V24z" fill="#EA4335" /><path d="M24 5.684V0h-5.684v5.684H24z" fill="#188038" /><path d="M18.316 18.316H24V5.684h-5.684v12.632z" fill="#34A853" /><path d="M0 18.316v5.684h5.684v-5.684H0z" fill="#4285F4" /><path d="M0 5.684h5.684V0H0v5.684z" fill="#FBBC04" /><path d="M0 18.316h5.684V5.684H0v12.632z" fill="#FBBC04" /><path d="M5.684 5.684h12.632V0H5.684v5.684z" fill="#EA4335" opacity=".25" /><path d="M8.954 16.087c-.618-.42-1.044-1.032-1.278-1.836l1.272-.522c.132.504.36.9.684 1.188.324.288.714.432 1.17.432.468 0 .864-.156 1.188-.468.324-.312.486-.702.486-1.17 0-.48-.168-.87-.504-1.176-.336-.306-.756-.456-1.26-.456h-.78v-1.254h.702c.432 0 .798-.138 1.098-.414.3-.276.45-.636.45-1.08 0-.396-.138-.72-.414-.972s-.63-.378-1.062-.378c-.42 0-.756.126-1.008.378-.252.252-.432.564-.54.936l-1.254-.522c.168-.552.492-1.026.972-1.422.48-.396 1.086-.594 1.818-.594.54 0 1.026.114 1.458.342.432.228.768.546 1.008.954.24.408.36.87.36 1.386 0 .528-.114.984-.342 1.368a2.38 2.38 0 01-.882.888v.072c.42.216.77.54 1.05.972.28.432.42.93.42 1.494 0 .564-.144 1.068-.432 1.512a3.01 3.01 0 01-1.17 1.05c-.492.258-1.044.384-1.656.384-.72 0-1.362-.21-1.98-.63zM16.17 8.646l-1.398 1.008-.696-1.056 2.466-1.776h.96V16.2h-1.332V8.646z" fill="#4285F4" /></svg>
                         </div>
                         <div>
@@ -1671,8 +1671,8 @@ curl -X POST ${baseUrl}/notifications \\
                       </div>
                       <div className="flex items-center gap-2">
                         {slackEnabled && slackWebhookUrl ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-500/20 shrink-0">
-                            <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />Connected
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success-ink ring-1 ring-success/20 shrink-0">
+                            <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />Connected
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground ring-1 ring-border shrink-0">
@@ -1999,9 +1999,9 @@ curl -X POST ${baseUrl}/notifications \\
                 {/* Mini stats */}
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { label: 'Total leads', value: totalLeads, icon: Building2, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+                    { label: 'Total leads', value: totalLeads, icon: Building2, color: 'text-warning', bg: 'bg-warning/10' },
                     { label: 'Status groups', value: analytics.byStatus.length, icon: Tag, color: 'text-primary', bg: 'bg-primary/10' },
-                    { label: 'Countries active', value: analytics.byCountry.length, icon: Globe, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+                    { label: 'Countries active', value: analytics.byCountry.length, icon: Globe, color: 'text-success', bg: 'bg-success/10' },
                   ].map((s) => (
                     <div key={s.label} className="rounded-xl border p-4 flex items-center gap-3">
                       <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg shrink-0', s.bg)}>
@@ -2265,7 +2265,7 @@ curl -X POST ${baseUrl}/notifications \\
                               {s.status === 'idle' && <span className="text-xs text-muted-foreground">—</span>}
                               {s.status === 'loading' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                               {s.status === 'ok' && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-xs font-semibold">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-success/10 text-success-ink border border-success/20 px-2 py-0.5 text-xs font-semibold">
                                   <CheckCircle2 className="h-3 w-3" />Online{s.ms !== undefined && ` · ${s.ms}ms`}
                                 </span>
                               )}
@@ -2306,7 +2306,7 @@ curl -X POST ${baseUrl}/notifications \\
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 {job.status === 'completed' && (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-xs font-semibold">
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-success/10 text-success-ink border border-success/20 px-2 py-0.5 text-xs font-semibold">
                                     <CheckCircle2 className="h-3 w-3" />Completed
                                   </span>
                                 )}
@@ -2316,7 +2316,7 @@ curl -X POST ${baseUrl}/notifications \\
                                   </span>
                                 )}
                                 {job.status === 'running' && (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-2 py-0.5 text-xs font-semibold">
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-info/10 text-info-ink border border-info/20 px-2 py-0.5 text-xs font-semibold">
                                     <Loader2 className="h-3 w-3 animate-spin" />Running
                                   </span>
                                 )}

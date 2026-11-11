@@ -14,9 +14,9 @@ interface KanbanCardContentProps {
 
 function scoreColor(score: number | null): string {
   if (!score || score === 0) return 'text-muted-foreground bg-muted';
-  if (score >= 70) return 'text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-500/15';
-  if (score >= 40) return 'text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-500/15';
-  return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-500/15';
+  if (score >= 70) return 'text-success-ink bg-success/15';
+  if (score >= 40) return 'text-warning-ink bg-warning/15';
+  return 'text-destructive-ink bg-destructive/15';
 }
 
 function CardContent({ lead, onClick, onAddActivity, isDragOverlay, showGrip }: KanbanCardContentProps) {

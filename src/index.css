@@ -60,6 +60,16 @@
 
     --warning: 31 80% 57%;
     --warning-foreground: 0 0% 100%;
+    /* Status ink = readable text colour on the matching tint (AA on light surfaces) */
+    --success-ink: 148 60% 26%;
+    --warning-ink: 28 90% 32%;
+    --destructive-ink: 0 70% 40%;
+    --info: 214 80% 52%;
+    --info-foreground: 0 0% 100%;
+    --info-ink: 214 75% 38%;
+    --violet: 262 70% 58%;
+    --violet-foreground: 0 0% 100%;
+    --violet-ink: 262 55% 42%;
 
     --border: 228 20% 85%;
     --input: 228 20% 85%;
@@ -120,6 +130,15 @@
 
     --warning: 31 80% 57%;
     --warning-foreground: 0 0% 100%;
+    --success-ink: 148 55% 64%;
+    --warning-ink: 38 92% 66%;
+    --destructive-ink: 0 85% 74%;
+    --info: 214 85% 62%;
+    --info-foreground: 0 0% 100%;
+    --info-ink: 214 90% 76%;
+    --violet: 262 80% 70%;
+    --violet-foreground: 0 0% 100%;
+    --violet-ink: 262 90% 82%;
 
     --border: 340 12% 20%;
     --input: 340 12% 20%;

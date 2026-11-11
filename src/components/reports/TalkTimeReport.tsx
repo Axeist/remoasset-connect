@@ -259,10 +259,10 @@ export function TalkTimeReport() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[
           { label: 'Talk time', value: formatTalk(kpis.talk), icon: Clock, color: 'text-primary' },
-          { label: 'Avg answered', value: formatTalk(kpis.avg), icon: Phone, color: 'text-violet-500' },
-          { label: 'Answered', value: `${kpis.answeredPct}%`, icon: Phone, color: 'text-emerald-500' },
-          { label: 'Wrap-up', value: formatTalk(kpis.wrap), icon: Voicemail, color: 'text-amber-500' },
-          { label: 'Lead owners', value: String(kpis.callers), icon: Users, color: 'text-sky-500' },
+          { label: 'Avg answered', value: formatTalk(kpis.avg), icon: Phone, color: 'text-violet' },
+          { label: 'Answered', value: `${kpis.answeredPct}%`, icon: Phone, color: 'text-success' },
+          { label: 'Wrap-up', value: formatTalk(kpis.wrap), icon: Voicemail, color: 'text-warning' },
+          { label: 'Lead owners', value: String(kpis.callers), icon: Users, color: 'text-info' },
         ].map((k) => (
           <Card key={k.label} className="card-shadow rounded-xl border-border/80">
             <CardContent className="p-4">
@@ -306,7 +306,7 @@ export function TalkTimeReport() {
       </div>
 
       {unmappedCount > 0 && (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-warning-ink">
           {unmappedCount} call{unmappedCount === 1 ? '' : 's'} not on US / SG / UK — save the three numbers in Admin → CloudTalk.
         </p>
       )}

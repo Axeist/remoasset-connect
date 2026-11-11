@@ -43,11 +43,11 @@ const activityTypeConfig = {
   email: { icon: Mail, label: 'Email', color: 'bg-accent/10 text-accent', score: 3 },
   meeting: { icon: Calendar, label: 'Meeting', color: 'bg-success/10 text-success', score: 5 },
   note: { icon: FileText, label: 'Note', color: 'bg-warning/10 text-warning', score: 2 },
-  whatsapp: { icon: MessageCircle, label: 'WhatsApp', color: 'bg-green-500/10 text-green-600', score: 5 },
-  linkedin: { icon: Linkedin, label: 'LinkedIn', color: 'bg-sky-500/10 text-sky-600', score: 4 },
+  whatsapp: { icon: MessageCircle, label: 'WhatsApp', color: 'bg-success/10 text-success-ink', score: 5 },
+  linkedin: { icon: Linkedin, label: 'LinkedIn', color: 'bg-info/10 text-info-ink', score: 4 },
   nda: { icon: ShieldCheck, label: 'NDA', color: 'bg-primary/10 text-primary', score: 8 },
-  quotation: { icon: FileText, label: 'Quotation', color: 'bg-amber-500/10 text-amber-600', score: 7 },
-  transfer: { icon: ArrowRightLeft, label: 'Transfer', color: 'bg-indigo-500/10 text-indigo-600', score: 0 },
+  quotation: { icon: FileText, label: 'Quotation', color: 'bg-warning/10 text-warning-ink', score: 7 },
+  transfer: { icon: ArrowRightLeft, label: 'Transfer', color: 'bg-info/10 text-info-ink', score: 0 },
 };
 
 /** Lead score points for activity types. Notes get score from description (Task/Follow-up/Lead updated). */
@@ -1069,7 +1069,7 @@ function LeadActivityTab({
                                   {config.label}
                                 </Badge>
                                 {isAutomation && (
-                                  <Badge variant="outline" className="text-[11px] font-normal px-1.5 py-0 border-amber-500/50 text-amber-700 dark:text-amber-400">
+                                  <Badge variant="outline" className="text-[11px] font-normal px-1.5 py-0 border-warning/50 text-warning-ink">
                                     Synced
                                   </Badge>
                                 )}
@@ -1642,7 +1642,7 @@ function LeadDocumentsTab({ leadId, isAdmin, canEdit, leadCompanyName }: { leadI
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                        className="h-7 w-7 text-success-ink hover:text-success-ink hover:bg-success/10"
                         onClick={() => saveEdit(doc.id)}
                         disabled={savingEdit}
                       >

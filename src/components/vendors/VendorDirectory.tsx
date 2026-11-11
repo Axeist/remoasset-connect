@@ -500,7 +500,7 @@ export function VendorDirectory() {
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warning/10 text-warning-ink">
               <DollarSign className="h-5 w-5" />
             </div>
             <div>
@@ -511,7 +511,7 @@ export function VendorDirectory() {
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-500/10 text-teal-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10 text-success-ink">
               <Warehouse className="h-5 w-5" />
             </div>
             <div>
@@ -829,7 +829,7 @@ export function VendorDirectory() {
                           </td>
                           <td className="px-4 py-3 text-center">
                             {v.lead_score != null && v.lead_score > 0 ? (
-                              <span className="inline-flex items-center gap-0.5 text-xs font-bold text-amber-600 dark:text-amber-400"><Star className="h-3 w-3 fill-current" />{v.lead_score}</span>
+                              <span className="inline-flex items-center gap-0.5 text-xs font-bold text-warning-ink"><Star className="h-3 w-3 fill-current" />{v.lead_score}</span>
                             ) : <span className="text-xs text-muted-foreground/40">—</span>}
                           </td>
                           <td className="px-4 py-3 max-w-[280px]">
@@ -843,7 +843,7 @@ export function VendorDirectory() {
                                   </button>
                                 ))}
                                 {pricingDocs.map((d) => (
-                                  <button key={d.id} onClick={() => handleViewDoc(d)} className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-all">
+                                  <button key={d.id} onClick={() => handleViewDoc(d)} className="inline-flex items-center gap-1 rounded-md border border-warning/30 bg-warning/10 px-2 py-1 text-[11px] font-semibold text-warning-ink hover:bg-warning/20 transition-all">
                                     <DollarSign className="h-3 w-3" />{d.custom_name || 'Pricing'}<ExternalLink className="h-2.5 w-2.5 opacity-50" />
                                   </button>
                                 ))}

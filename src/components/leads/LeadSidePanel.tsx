@@ -59,10 +59,10 @@ const activityTypeConfig = {
   email: { icon: Mail, label: 'Email', color: 'bg-accent/10 text-accent' },
   meeting: { icon: Calendar, label: 'Meeting', color: 'bg-success/10 text-success' },
   note: { icon: FileText, label: 'Note', color: 'bg-warning/10 text-warning' },
-  whatsapp: { icon: MessageCircle, label: 'WhatsApp', color: 'bg-green-500/10 text-green-600' },
-  linkedin: { icon: Linkedin, label: 'LinkedIn', color: 'bg-sky-500/10 text-sky-600' },
+  whatsapp: { icon: MessageCircle, label: 'WhatsApp', color: 'bg-success/10 text-success-ink' },
+  linkedin: { icon: Linkedin, label: 'LinkedIn', color: 'bg-info/10 text-info-ink' },
   nda: { icon: ShieldCheck, label: 'NDA', color: 'bg-primary/10 text-primary' },
-  quotation: { icon: FileText, label: 'Quotation', color: 'bg-amber-500/10 text-amber-600' },
+  quotation: { icon: FileText, label: 'Quotation', color: 'bg-warning/10 text-warning-ink' },
 };
 
 interface LeadSidePanelProps {
@@ -278,7 +278,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
             href={`https://wa.me/${displayLead.phone.replace(/[^0-9]/g, '')}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md hover:bg-green-50 transition-colors text-green-700 border border-green-500/20"
+            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md hover:bg-success/10 transition-colors text-success-ink border border-success/20"
           >
             <MessageCircle className="h-3 w-3" />
             WhatsApp
@@ -440,7 +440,7 @@ export function LeadSidePanel({ lead, onClose, onLeadUpdated }: LeadSidePanelPro
                                     {config.label}
                                   </span>
                                   {isAutomation && (
-                                    <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">Synced</span>
+                                    <span className="text-[11px] text-warning-ink font-medium">Synced</span>
                                   )}
                                   <span className="text-[11px] text-muted-foreground">
                                     · {safeFormat(a.created_at, 'MMM d, h:mm a')}

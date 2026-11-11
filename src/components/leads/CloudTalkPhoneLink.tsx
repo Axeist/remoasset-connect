@@ -68,7 +68,7 @@ export function CloudTalkPhoneLink({ phone, iso2, leadId, className, compact }: 
         }
       }}
     >
-      <Phone className={cn('shrink-0 text-violet-500', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
+      <Phone className={cn('shrink-0 text-violet', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
       <span>{display}</span>
     </a>
   );

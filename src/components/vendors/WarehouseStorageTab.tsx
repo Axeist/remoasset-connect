@@ -126,11 +126,11 @@ export function WarehouseStorageTab() {
           </div>
           <p className="text-xl font-bold">{stats.locations}</p>
         </Card>
-        <Card className="p-3 border-blue-500/20 bg-blue-500/5">
+        <Card className="p-3 border-info/20 bg-info/5">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">
             <Truck className="h-3.5 w-3.5" /> Incoming
           </div>
-          <p className="text-xl font-bold text-blue-700 dark:text-blue-400 tabular-nums">{stats.incomingDevices}</p>
+          <p className="text-xl font-bold text-info-ink tabular-nums">{stats.incomingDevices}</p>
         </Card>
       </div>
 
@@ -176,7 +176,7 @@ export function WarehouseStorageTab() {
                           <TableCell className="font-semibold text-sm py-3.5">{row.clientName}</TableCell>
                           <TableCell className="text-sm py-3.5">{row.clientCountry ?? '—'}</TableCell>
                           <TableCell className="text-right text-base font-bold tabular-nums py-3.5">{row.storedDevices}</TableCell>
-                          <TableCell className="text-right text-base tabular-nums text-blue-600 dark:text-blue-400 py-3.5">{row.incomingDevices || '—'}</TableCell>
+                          <TableCell className="text-right text-base tabular-nums text-info-ink py-3.5">{row.incomingDevices || '—'}</TableCell>
                           <TableCell className="text-right text-sm tabular-nums py-3.5">{row.entries.length}</TableCell>
                           <TableCell className="py-3">
                             <Button

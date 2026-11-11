@@ -29,7 +29,7 @@ function highlightText(text: string, query: string): React.ReactNode {
   const parts = text.split(regex);
   return parts.map((part, i) =>
     regex.test(part) ? (
-      <mark key={i} className="bg-yellow-200 dark:bg-yellow-700/60 text-foreground rounded-sm px-0.5">{part}</mark>
+      <mark key={i} className="bg-warning/25 text-foreground rounded-sm px-0.5">{part}</mark>
     ) : (
       <span key={i}>{part}</span>
     )

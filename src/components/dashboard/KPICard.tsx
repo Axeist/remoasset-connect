@@ -14,7 +14,7 @@ const variantStyles = {
   primary: 'gradient-primary',
   success: 'gradient-success',
   accent: 'gradient-accent',
-  warning: 'bg-gradient-to-br from-amber-500 to-orange-500',
+  warning: 'bg-gradient-to-br from-warning to-warning',
 };
 
 export function KPICard({ title, value, change, icon: Icon, variant }: KPICardProps) {

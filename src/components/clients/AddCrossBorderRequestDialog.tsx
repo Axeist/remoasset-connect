@@ -150,7 +150,7 @@ export function AddCrossBorderRequestDialog({ open, onOpenChange, onSuccess, cli
       <DialogContent className="max-w-2xl max-h-[92dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Ship className="h-5 w-5 text-blue-500" />
+            <Ship className="h-5 w-5 text-info" />
             Cross-border shipping
           </DialogTitle>
           <DialogDescription>

@@ -166,12 +166,12 @@ export function CloudTalkSettingsCard() {
   }
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-violet-500/20 h-full">
-      <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/[0.06] rounded-full -translate-y-1/3 translate-x-1/3" />
+    <div className="relative overflow-hidden rounded-xl border border-violet/20 h-full">
+      <div className="absolute top-0 right-0 w-64 h-64 bg-violet/[0.06] rounded-full -translate-y-1/3 translate-x-1/3" />
       <div className="relative p-5 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md shadow-violet-600/25">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet text-white shadow-md shadow-violet/25">
               <Phone className="h-6 w-6" />
             </div>
             <div>
@@ -181,8 +181,8 @@ export function CloudTalkSettingsCard() {
           </div>
           <div className="flex items-center gap-2">
             {enabled ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/10 px-3 py-1 text-xs font-semibold text-violet-700 dark:text-violet-300 ring-1 ring-violet-500/20">
-                <span className="h-1.5 w-1.5 rounded-full bg-violet-500 animate-pulse" />On
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-violet/10 px-3 py-1 text-xs font-semibold text-violet-ink ring-1 ring-violet/20">
+                <span className="h-1.5 w-1.5 rounded-full bg-violet animate-pulse" />On
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground ring-1 ring-border">
@@ -200,8 +200,8 @@ export function CloudTalkSettingsCard() {
             'Listen or download recordings in the browser',
           ].map((text) => (
             <div key={text} className="flex items-start gap-2 text-sm text-muted-foreground">
-              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-violet-500/10 mt-0.5">
-                <Check className="h-3 w-3 text-violet-600" />
+              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-violet/10 mt-0.5">
+                <Check className="h-3 w-3 text-violet-ink" />
               </div>
               {text}
             </div>
@@ -209,9 +209,9 @@ export function CloudTalkSettingsCard() {
         </div>
 
         {enabled && (
-          <div className="space-y-3 pt-2 border-t border-violet-500/15">
+          <div className="space-y-3 pt-2 border-t border-violet/15">
             <p className="text-xs text-muted-foreground">
-              <a className="underline font-medium text-violet-700 dark:text-violet-300" href="https://chromewebstore.google.com/detail/cloudtalk-click-to-call/mbgbeafnenfaffpbpkincpgpepjhekbm" target="_blank" rel="noreferrer">
+              <a className="underline font-medium text-violet-ink" href="https://chromewebstore.google.com/detail/cloudtalk-click-to-call/mbgbeafnenfaffpbpkincpgpepjhekbm" target="_blank" rel="noreferrer">
                 Click to Call extension
               </a>
               {' '}and CloudTalk Desktop required. Numbers need a leading + country code.
@@ -292,7 +292,7 @@ export function CloudTalkSettingsCard() {
             )}
 
             <div className="flex gap-2">
-              <Button onClick={save} disabled={saving} className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
+              <Button onClick={save} disabled={saving} className="gap-2 bg-violet hover:bg-violet text-white">
                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 Save CloudTalk
               </Button>
@@ -326,7 +326,7 @@ function CopyField({
       <div className="flex gap-2">
         <Input readOnly value={value} type={secret ? 'password' : 'text'} className="font-mono text-xs" />
         <Button type="button" variant="outline" size="icon" onClick={onCopy} disabled={!value} title="Copy">
-          {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+          {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
         </Button>
       </div>
     </div>

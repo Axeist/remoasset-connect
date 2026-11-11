@@ -258,10 +258,10 @@ export function CallingReport() {
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         {[
           { label: 'Calls', value: kpis.total, icon: Phone, color: 'text-primary' },
-          { label: 'Outbound', value: kpis.outbound, icon: PhoneOutgoing, color: 'text-violet-500' },
-          { label: 'Inbound', value: kpis.inbound, icon: PhoneIncoming, color: 'text-sky-500' },
-          { label: 'Answer rate', value: `${kpis.answeredPct}%`, icon: Phone, color: 'text-emerald-500' },
-          { label: 'Missed', value: kpis.missed, icon: PhoneOff, color: 'text-amber-500' },
+          { label: 'Outbound', value: kpis.outbound, icon: PhoneOutgoing, color: 'text-violet' },
+          { label: 'Inbound', value: kpis.inbound, icon: PhoneIncoming, color: 'text-info' },
+          { label: 'Answer rate', value: `${kpis.answeredPct}%`, icon: Phone, color: 'text-success' },
+          { label: 'Missed', value: kpis.missed, icon: PhoneOff, color: 'text-warning' },
           { label: 'No lead', value: kpis.unmatched, icon: Phone, color: 'text-muted-foreground' },
         ].map((k) => (
           <Card key={k.label} className="card-shadow rounded-xl border-border/80">
@@ -303,7 +303,7 @@ export function CallingReport() {
       </div>
 
       {unmappedCount > 0 && (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-warning-ink">
           {unmappedCount} call{unmappedCount === 1 ? '' : 's'} not matched to US / SG / UK — save the three numbers in Admin → CloudTalk.
         </p>
       )}

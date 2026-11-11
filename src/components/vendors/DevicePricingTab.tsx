@@ -34,7 +34,7 @@ function highlightText(text: string, query: string): React.ReactNode {
   const parts = text.split(regex);
   return parts.map((part, i) =>
     regex.test(part) ? (
-      <mark key={i} className="bg-yellow-200 dark:bg-yellow-700/60 text-foreground rounded-sm px-0.5">{part}</mark>
+      <mark key={i} className="bg-warning/25 text-foreground rounded-sm px-0.5">{part}</mark>
     ) : (
       <span key={i}>{part}</span>
     )
@@ -278,9 +278,9 @@ export function DevicePricingTab() {
           <p className="text-xl font-bold tabular-nums">{stats.avgPctOffMrp != null ? `${stats.avgPctOffMrp}%` : '—'}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">{stats.mrpRows ? `avg off list · ${stats.mrpRows} rows` : 'add MRP on lines'}</p>
         </Card>
-        <Card className="p-3 border-green-500/20 bg-green-500/5">
+        <Card className="p-3 border-success/20 bg-success/5">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">Valid quotes</div>
-          <p className="text-xl font-bold text-green-700 dark:text-green-400">{stats.validCt}</p>
+          <p className="text-xl font-bold text-success-ink">{stats.validCt}</p>
         </Card>
         <Card className="p-3 border-destructive/20 bg-destructive/5">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1">Expired</div>
@@ -426,7 +426,7 @@ export function DevicePricingTab() {
                                   {(() => {
                                     const d = discountVsMrp(Number(row.mrp_usd), Number(row.price_usd));
                                     return d ? (
-                                      <span className="block text-[11px] text-green-600 dark:text-green-400">
+                                      <span className="block text-[11px] text-success-ink">
                                         −{d.pctOffMrp.toFixed(0)}%
                                       </span>
                                     ) : null;

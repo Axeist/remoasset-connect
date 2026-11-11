@@ -568,7 +568,7 @@ export default function RfqNew() {
               </div>
             </div>
             {matched.length === 0 && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-sm">
+              <div className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm">
                 <p>
                   No Closed vendors with email for these types in {countryName}. Status must be Closed/Won, country coverage must include {countryName}, and types must overlap ({vendorTypes.join(', ') || 'none'}).
                 </p>
@@ -632,7 +632,7 @@ export default function RfqNew() {
               <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(bodyHtml.replaceAll('{{magic_link}}', '#')) }} />
             </div>
             {missingMagicLink && (
-              <p className="text-sm text-amber-700 dark:text-amber-400">
+              <p className="text-sm text-warning-ink">
                 Keep {'{{magic_link}}'} in the body so each partner gets a quote link.
               </p>
             )}

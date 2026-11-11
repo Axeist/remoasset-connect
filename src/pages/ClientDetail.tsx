@@ -277,17 +277,17 @@ export default function ClientDetail() {
             <p className="text-xl font-bold">{stats.paid}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">{stats.unpaid} unpaid</p>
           </Card>
-          <Card className="p-3 border-green-500/20 bg-green-500/5">
+          <Card className="p-3 border-success/20 bg-success/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><CheckCircle2 className="h-3.5 w-3.5" /> Fulfilled</div>
-            <p className="text-xl font-bold text-green-600">{stats.fulfilled}</p>
+            <p className="text-xl font-bold text-success-ink">{stats.fulfilled}</p>
           </Card>
-          <Card className="p-3 border-blue-500/20 bg-blue-500/5">
+          <Card className="p-3 border-info/20 bg-info/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Truck className="h-3.5 w-3.5" /> In Transit</div>
-            <p className="text-xl font-bold text-blue-600">{stats.inTransit}</p>
+            <p className="text-xl font-bold text-info-ink">{stats.inTransit}</p>
           </Card>
-          <Card className="p-3 border-amber-500/20 bg-amber-500/5">
+          <Card className="p-3 border-warning/20 bg-warning/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Clock className="h-3.5 w-3.5" /> Pending</div>
-            <p className="text-xl font-bold text-amber-600">{stats.pending}</p>
+            <p className="text-xl font-bold text-warning-ink">{stats.pending}</p>
           </Card>
           <Card className="p-3 border-border/80">
             <div className="text-muted-foreground text-xs font-medium mb-1">Avg / request</div>

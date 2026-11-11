@@ -777,15 +777,15 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                           {clientSheetTitle}
                         </th>
                       </tr>
-                      <tr className="bg-[#ffeb3b] text-black">
-                        <th className="border border-amber-700/40 px-3 py-2.5 text-left align-bottom font-semibold">
+                      <tr className="bg-[#ffeb3b] text-foreground">
+                        <th className="border border-warning/40 px-3 py-2.5 text-left align-bottom font-semibold">
                           Description
                         </th>
-                        <th className="border border-amber-700/40 px-2 py-2 text-center align-bottom font-semibold">
+                        <th className="border border-warning/40 px-2 py-2 text-center align-bottom font-semibold">
                           <span className="block">(Pay As You Go)</span>
                           <span className="mt-1 block text-[11px] font-normal normal-case">Costing (USD) Tax Included</span>
                         </th>
-                        <th className="border border-amber-700/40 px-2 py-2 text-center align-bottom font-semibold">
+                        <th className="border border-warning/40 px-2 py-2 text-center align-bottom font-semibold">
                           <span className="block">(Subscription) 1499$/Annum</span>
                           <span className="mt-1 block text-[11px] font-normal normal-case">Costing (USD) Tax Included</span>
                         </th>
@@ -824,7 +824,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                                     min={0}
                                     value={clientCharges[line.key]}
                                     onChange={(e) => setClientCharges((p) => ({ ...p, [line.key]: e.target.value }))}
-                                    className="h-9 rounded-md border-amber-900/20 bg-background pl-6 pr-2 text-right text-sm tabular-nums"
+                                    className="h-9 rounded-md border-warning/20 bg-background pl-6 pr-2 text-right text-sm tabular-nums"
                                     placeholder={line.key === 'repair_upgrade_charges' ? '0' : undefined}
                                   />
                                 </div>
@@ -841,7 +841,7 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                                     min={0}
                                     value={clientSubCharges[line.key]}
                                     onChange={(e) => setClientSubCharges((p) => ({ ...p, [line.key]: e.target.value }))}
-                                    className="h-9 rounded-md border-amber-900/20 bg-background pl-6 pr-2 text-right text-sm tabular-nums"
+                                    className="h-9 rounded-md border-warning/20 bg-background pl-6 pr-2 text-right text-sm tabular-nums"
                                     placeholder={line.key === 'repair_upgrade_charges' ? '0' : undefined}
                                   />
                                 </div>
@@ -855,10 +855,10 @@ export function AddWarehousePricingDialog({ open, onOpenChange, onSuccess, editI
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr className="bg-[#ffeb3b]/50 font-bold text-black">
-                        <td className="border border-amber-800/30 px-3 py-2.5">Total (USD)</td>
-                        <td className="border border-amber-800/30 px-2 py-2.5 text-right tabular-nums">${clientGrand.toFixed(2)}</td>
-                        <td className="border border-amber-800/30 px-2 py-2.5 text-right tabular-nums">${clientSubGrand.toFixed(2)}</td>
+                      <tr className="bg-[#ffeb3b]/50 font-bold text-foreground">
+                        <td className="border border-warning/30 px-3 py-2.5">Total (USD)</td>
+                        <td className="border border-warning/30 px-2 py-2.5 text-right tabular-nums">${clientGrand.toFixed(2)}</td>
+                        <td className="border border-warning/30 px-2 py-2.5 text-right tabular-nums">${clientSubGrand.toFixed(2)}</td>
                       </tr>
                     </tfoot>
                   </table>

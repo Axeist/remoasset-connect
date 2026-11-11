@@ -312,7 +312,7 @@ export function UserManagementDialog({
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium">
                 {isBanned ? (
-                  <ShieldCheck className="h-4 w-4 text-green-600" />
+                  <ShieldCheck className="h-4 w-4 text-success-ink" />
                 ) : (
                   <ShieldAlert className="h-4 w-4 text-muted-foreground" />
                 )}
@@ -329,7 +329,7 @@ export function UserManagementDialog({
                   size="sm"
                   onClick={handleToggleBan}
                   disabled={togglingBan}
-                  className={`shrink-0 gap-1.5 ${!isBanned ? 'border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-600 dark:text-orange-400 dark:hover:bg-orange-500/10' : ''}`}
+                  className={`shrink-0 gap-1.5 ${!isBanned ? 'border-warning/30 text-warning-ink hover:bg-warning/10' : ''}`}
                 >
                   {togglingBan ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

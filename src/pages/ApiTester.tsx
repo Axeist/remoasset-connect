@@ -111,9 +111,9 @@ const GROUPS = [...new Set(ENDPOINTS.map((e) => e.group))];
 
 function MethodBadge({ method }: { method: Method }) {
   const styles: Record<Method, string> = {
-    GET:    'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-    POST:   'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    PATCH:  'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    GET:    'bg-info/10 text-info-ink border-info/20',
+    POST:   'bg-success/10 text-success-ink border-success/20',
+    PATCH:  'bg-warning/10 text-warning-ink border-warning/20',
     DELETE: 'bg-destructive/10 text-destructive border-destructive/20',
   };
   return (
@@ -129,7 +129,7 @@ function StatusPill({ status }: { status: number | null }) {
   return (
     <span className={cn(
       'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold border',
-      ok ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+      ok ? 'bg-success/10 text-success-ink border-success/20'
          : 'bg-destructive/10 text-destructive border-destructive/20'
     )}>
       {ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
@@ -301,7 +301,7 @@ export default function ApiTester() {
           </div>
           {!apiKey && (
             <p className="mt-2 text-xs text-muted-foreground flex items-center gap-1.5">
-              <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+              <AlertTriangle className="h-3 w-3 text-warning shrink-0" />
               Requires a <code className="font-mono bg-muted px-1 rounded">ra_...</code> API key — <strong>not</strong> a session token. Create one in Admin → API tab.
             </p>
           )}

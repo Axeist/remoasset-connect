@@ -106,7 +106,7 @@ export function AddItadRequestDialog({ open, onOpenChange, onSuccess, clientId }
       <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Recycle className="h-5 w-5 text-green-500" />
+            <Recycle className="h-5 w-5 text-success" />
             ITAD — IT asset disposal
           </DialogTitle>
           <DialogDescription>

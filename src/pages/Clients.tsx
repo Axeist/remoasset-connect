@@ -174,13 +174,13 @@ export default function Clients() {
             <p className="text-xl font-bold">{totals.paid}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">{totals.unpaid} unpaid</p>
           </Card>
-          <Card className="p-3 border-green-500/20 bg-green-500/5">
+          <Card className="p-3 border-success/20 bg-success/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><CheckCircle2 className="h-3.5 w-3.5" /> Fulfilled</div>
-            <p className="text-xl font-bold text-green-600">{totals.fulfilled}</p>
+            <p className="text-xl font-bold text-success-ink">{totals.fulfilled}</p>
           </Card>
-          <Card className="p-3 border-blue-500/20 bg-blue-500/5">
+          <Card className="p-3 border-info/20 bg-info/5">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><Truck className="h-3.5 w-3.5" /> In transit</div>
-            <p className="text-xl font-bold text-blue-600">{totals.inTransit}</p>
+            <p className="text-xl font-bold text-info-ink">{totals.inTransit}</p>
           </Card>
           <Card className="p-3 border-border/80 opacity-90">
             <div className="text-muted-foreground text-xs font-medium mb-1">Avg profit / client</div>
@@ -247,13 +247,13 @@ export default function Clients() {
                       <TableCell className="text-sm text-muted-foreground">{c.contact_name || '-'}</TableCell>
                       <TableCell className="text-center"><Badge variant="secondary">{c.totalRequests}</Badge></TableCell>
                       <TableCell className="text-center">
-                        {c.fulfilled > 0 ? <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">{c.fulfilled}</Badge> : <span className="text-muted-foreground">0</span>}
+                        {c.fulfilled > 0 ? <Badge className="bg-success/15 text-success-ink">{c.fulfilled}</Badge> : <span className="text-muted-foreground">0</span>}
                       </TableCell>
                       <TableCell className="text-center">
-                        {c.inTransit > 0 ? <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">{c.inTransit}</Badge> : <span className="text-muted-foreground">0</span>}
+                        {c.inTransit > 0 ? <Badge className="bg-info/15 text-info-ink">{c.inTransit}</Badge> : <span className="text-muted-foreground">0</span>}
                       </TableCell>
                       <TableCell className="text-center">
-                        {c.pending > 0 ? <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">{c.pending}</Badge> : <span className="text-muted-foreground">0</span>}
+                        {c.pending > 0 ? <Badge className="bg-warning/15 text-warning-ink">{c.pending}</Badge> : <span className="text-muted-foreground">0</span>}
                       </TableCell>
                       <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
                     </TableRow>

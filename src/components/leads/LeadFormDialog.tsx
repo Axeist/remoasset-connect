@@ -387,20 +387,20 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSuccess }: LeadForm
           </div>
 
           {!isEditing && similarLeads.length > 0 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/40">
+            <div className="rounded-lg border border-warning/30 bg-warning/10 p-3">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <AlertTriangle className="h-4 w-4 shrink-0 text-warning-ink mt-0.5" />
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Similar leads found</p>
+                  <p className="text-sm font-medium text-warning-ink">Similar leads found</p>
                   <ul className="mt-1 space-y-0.5">
                     {similarLeads.map((l) => (
-                      <li key={l.id} className="text-xs text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                      <li key={l.id} className="text-xs text-warning-ink flex items-center gap-1.5">
                         <span className="font-medium truncate">{l.company_name}</span>
-                        {l.website && <span className="text-amber-600 dark:text-amber-400 truncate">— {l.website}</span>}
+                        {l.website && <span className="text-warning-ink truncate">— {l.website}</span>}
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">You may be creating a duplicate. Review before saving.</p>
+                  <p className="mt-1 text-xs text-warning-ink">You may be creating a duplicate. Review before saving.</p>
                 </div>
               </div>
             </div>

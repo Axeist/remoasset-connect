@@ -25,9 +25,9 @@ export interface StageTransitionResult {
 
 const CONTACT_ACTIVITY_OPTIONS = [
   { value: 'call', label: 'Call', icon: Phone, activeClass: 'border-primary/50 bg-primary/10 text-primary ring-2 ring-primary/20' },
-  { value: 'email', label: 'Email', icon: Mail, activeClass: 'border-orange-500/50 bg-orange-500/10 text-orange-700 ring-2 ring-orange-500/20' },
-  { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, activeClass: 'border-green-500/50 bg-green-500/10 text-green-700 ring-2 ring-green-500/20' },
-  { value: 'linkedin', label: 'LinkedIn', icon: Linkedin, activeClass: 'border-sky-500/50 bg-sky-500/10 text-sky-700 ring-2 ring-sky-500/20' },
+  { value: 'email', label: 'Email', icon: Mail, activeClass: 'border-warning/50 bg-warning/10 text-warning-ink ring-2 ring-warning/20' },
+  { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, activeClass: 'border-success/50 bg-success/10 text-success-ink ring-2 ring-success/20' },
+  { value: 'linkedin', label: 'LinkedIn', icon: Linkedin, activeClass: 'border-info/50 bg-info/10 text-info-ink ring-2 ring-info/20' },
 ];
 
 const WON_REASONS = [
@@ -153,9 +153,9 @@ export function MoveCommentDialog({
           <span className={cn(
             'rounded-md border px-3 py-1.5 text-sm font-medium',
             transitionMode === 'won'
-              ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+              ? 'border-success/30 bg-success/10 text-success-ink'
               : transitionMode === 'lost'
-                ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950/40 dark:text-red-300'
+                ? 'border-destructive/30 bg-destructive/10 text-destructive-ink'
                 : 'border-primary/30 bg-primary/10 text-primary'
           )}>
             {transitionMode === 'won' && <Trophy className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />}
@@ -252,8 +252,8 @@ export function MoveCommentDialog({
               disabled={submitting || !isFormValid}
               className={cn(
                 'gap-2',
-                transitionMode === 'won' && 'bg-emerald-600 hover:bg-emerald-700 text-white',
-                transitionMode === 'lost' && 'bg-red-600 hover:bg-red-700 text-white',
+                transitionMode === 'won' && 'bg-success hover:bg-success text-white',
+                transitionMode === 'lost' && 'bg-destructive hover:bg-destructive text-white',
               )}
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}

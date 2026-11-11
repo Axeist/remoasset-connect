@@ -658,7 +658,7 @@ export default function RfqDetail() {
               </p>
             )}
             {weakCompetition && (
-              <label className="flex items-start gap-2 text-sm rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 cursor-pointer">
+              <label className="flex items-start gap-2 text-sm rounded-lg border border-warning/30 bg-warning/10 p-3 cursor-pointer">
                 <Checkbox checked={weakOk} onCheckedChange={(c) => setWeakOk(c === true)} className="mt-0.5" />
                 <span>Fewer than two quotes — award anyway.</span>
               </label>

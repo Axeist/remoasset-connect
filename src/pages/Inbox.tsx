@@ -382,7 +382,7 @@ export default function Inbox() {
                           {togglingStar === t.threadId ? (
                             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                           ) : (
-                            <Star className={cn('h-4 w-4', isStarred ? 'fill-amber-400 text-amber-500' : 'text-muted-foreground/50 group-hover:text-amber-500')} />
+                            <Star className={cn('h-4 w-4', isStarred ? 'fill-warning text-warning' : 'text-muted-foreground/50 group-hover:text-warning')} />
                           )}
                         </button>
                         <span className={cn('w-2 h-2 rounded-full shrink-0 mt-1.5', isUnread ? 'bg-primary' : 'bg-transparent')} />
@@ -495,7 +495,7 @@ export default function Inbox() {
                           key={msg.id}
                           className={cn(
                             'flex gap-3 rounded-lg p-3',
-                            isFromLead ? 'bg-orange-500/5 dark:bg-orange-500/10' : 'bg-muted/30'
+                            isFromLead ? 'bg-warning/5' : 'bg-muted/30'
                           )}
                         >
                           {isFromCurrentUser && currentUserAvatarUrl ? (
@@ -513,7 +513,7 @@ export default function Inbox() {
                               className={cn(
                                 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium',
                                 isFromLead
-                                  ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
+                                  ? 'bg-warning/15 text-warning-ink'
                                   : 'bg-primary/10 text-primary'
                               )}
                             >

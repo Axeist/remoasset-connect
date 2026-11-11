@@ -19,10 +19,10 @@ import { cn } from '@/lib/utils';
 import { ExternalLink, Search } from 'lucide-react';
 
 const PRICE_BADGE: Record<PublicPriceType, string> = {
-  mrp: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/25 dark:text-emerald-300',
-  msrp: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/25 dark:text-emerald-300',
-  list: 'bg-sky-500/15 text-sky-700 border-sky-500/25 dark:text-sky-300',
-  street: 'bg-amber-500/15 text-amber-800 border-amber-500/25 dark:text-amber-300',
+  mrp: 'bg-success/15 text-success-ink border-success/25',
+  msrp: 'bg-success/15 text-success-ink border-success/25',
+  list: 'bg-info/15 text-info-ink border-info/25',
+  street: 'bg-warning/15 text-warning-ink border-warning/25',
   unknown: 'bg-muted text-muted-foreground border-border',
 };
 
@@ -57,7 +57,7 @@ function HitList({ hits, countryCode }: { hits: PublicPriceHit[]; countryCode: s
                 {PRICE_TYPE_LABEL[hit.price_type]}
               </Badge>
               {hit.match_quality === 'near' && (
-                <Badge variant="outline" className="rounded-md text-[11px] uppercase bg-amber-500/10 text-amber-800 border-amber-500/25 dark:text-amber-300">
+                <Badge variant="outline" className="rounded-md text-[11px] uppercase bg-warning/10 text-warning-ink border-warning/25">
                   Nearby
                 </Badge>
               )}

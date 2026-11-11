@@ -768,7 +768,7 @@ export function AddActivityDialog({
           )}
 
           {type === 'whatsapp' && (
-            <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 space-y-2">
+            <div className="rounded-lg border border-success/30 bg-success/5 p-3 space-y-2">
               {whatsappUrl ? (
                 <>
                   <p className="text-sm text-muted-foreground">
@@ -778,7 +778,7 @@ export function AddActivityDialog({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="gap-2 border-green-500/40 text-green-700 hover:bg-green-50"
+                    className="gap-2 border-success/40 text-success-ink hover:bg-success/10"
                     onClick={() => window.open(whatsappUrl, '_blank')}
                   >
                     <MessageCircle className="h-4 w-4" />
@@ -919,8 +919,8 @@ export function AddActivityDialog({
           )}
 
           {type === 'linkedin' && (
-            <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-4 space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-sky-700">
+            <div className="rounded-lg border border-info/30 bg-info/5 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-info-ink">
                 <Linkedin className="h-4 w-4" />
                 LinkedIn Outreach
               </div>
@@ -951,7 +951,7 @@ export function AddActivityDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-2 border-sky-500/40 text-sky-700 hover:bg-sky-50"
+                  className="gap-2 border-info/40 text-info-ink hover:bg-info/10"
                   onClick={() => window.open(linkedinProfileUrl.trim(), '_blank')}
                 >
                   <Linkedin className="h-4 w-4" />
@@ -962,8 +962,8 @@ export function AddActivityDialog({
           )}
 
           {type === 'quotation' && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+            <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-warning-ink">
                 <FileText className="h-4 w-4" />
                 Quotation
               </div>
@@ -994,7 +994,7 @@ export function AddActivityDialog({
                     setQuotationFiles((prev) => [...prev, ...allowed].slice(0, MAX_FILES));
                     e.target.value = '';
                   }}
-                  className="h-10 file:mr-2 file:rounded-md file:border-0 file:bg-amber-600 file:px-3 file:py-1 file:text-white"
+                  className="h-10 file:mr-2 file:rounded-md file:border-0 file:bg-warning file:px-3 file:py-1 file:text-white"
                 />
                 {quotationFiles.length > 0 && (
                   <ul className="space-y-1">

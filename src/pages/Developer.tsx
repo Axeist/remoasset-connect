@@ -144,9 +144,9 @@ const LAST_UPDATED = 'September 22, 2026';
 
 function MethodBadge({ method }: { method: Method }) {
   const s: Record<Method, string> = {
-    GET:    'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-    POST:   'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    PATCH:  'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    GET:    'bg-info/10 text-info-ink border-info/20',
+    POST:   'bg-success/10 text-success-ink border-success/20',
+    PATCH:  'bg-warning/10 text-warning-ink border-warning/20',
     DELETE: 'bg-destructive/10 text-destructive border-destructive/20',
   };
   return <span className={cn('inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-bold font-mono tracking-wider shrink-0', s[method])}>{method}</span>;
@@ -157,7 +157,7 @@ function StatusPill({ status }: { status: number | null }) {
   const ok = status >= 200 && status < 300;
   return (
     <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold border',
-      ok ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+      ok ? 'bg-success/10 text-success-ink border-success/20'
          : 'bg-destructive/10 text-destructive border-destructive/20')}>
       {ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}{status}
     </span>
@@ -574,7 +574,7 @@ Full interactive docs: ${window.location.origin}/developer?tab=docs
               </div>
               {!apiKey && (
                 <p className="mt-2 text-xs text-muted-foreground flex items-center gap-1.5">
-                  <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+                  <AlertTriangle className="h-3 w-3 text-warning shrink-0" />
                   Requires a <code className="font-mono bg-muted px-1 rounded">ra_...</code> API key — <strong>not</strong> a session token. Create one in the API Keys tab.
                 </p>
               )}
@@ -1033,7 +1033,7 @@ Full interactive docs: ${window.location.origin}/developer?tab=docs
                       <div className="flex items-center gap-2 shrink-0">
                         {s.status === 'idle' && <span className="text-xs text-muted-foreground">—</span>}
                         {s.status === 'loading' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                        {s.status === 'ok' && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-xs font-semibold"><CheckCircle2 className="h-3 w-3" />Online{s.ms !== undefined && ` · ${s.ms}ms`}</span>}
+                        {s.status === 'ok' && <span className="inline-flex items-center gap-1 rounded-full bg-success/10 text-success-ink border border-success/20 px-2 py-0.5 text-xs font-semibold"><CheckCircle2 className="h-3 w-3" />Online{s.ms !== undefined && ` · ${s.ms}ms`}</span>}
                         {s.status === 'error' && <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 text-xs font-semibold"><XCircle className="h-3 w-3" />{s.body ?? 'Error'}{s.ms !== undefined && ` · ${s.ms}ms`}</span>}
                         <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => pingFunction(fn.id)}><RefreshCw className="h-3 w-3" /></Button>
                       </div>

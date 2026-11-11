@@ -10,9 +10,9 @@ import {
 } from 'lucide-react';
 
 const STATE_BADGE: Record<string, { label: string; className: string }> = {
-  stored: { label: 'In storage', className: 'bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30' },
-  incoming: { label: 'Incoming', className: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30' },
-  outbound: { label: 'Outbound', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30' },
+  stored: { label: 'In storage', className: 'bg-success/15 text-success-ink border-success/30' },
+  incoming: { label: 'Incoming', className: 'bg-info/15 text-info-ink border-info/30' },
+  outbound: { label: 'Outbound', className: 'bg-warning/15 text-warning-ink border-warning/30' },
 };
 
 function fmtDate(value: string | null | undefined): string | null {

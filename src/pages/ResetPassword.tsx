@@ -43,11 +43,11 @@ const REQUIREMENTS: Requirement[] = [
 function getStrength(pw: string): { score: number; label: string; color: string } {
   const passed = REQUIREMENTS.filter((r) => r.test(pw)).length;
   if (pw.length === 0) return { score: 0, label: '', color: '' };
-  if (passed <= 1) return { score: 1, label: 'Weak', color: 'bg-red-500' };
-  if (passed <= 2) return { score: 2, label: 'Fair', color: 'bg-orange-400' };
-  if (passed <= 3) return { score: 3, label: 'Good', color: 'bg-yellow-400' };
-  if (passed <= 4) return { score: 4, label: 'Strong', color: 'bg-emerald-400' };
-  return { score: 5, label: 'Very strong', color: 'bg-emerald-500' };
+  if (passed <= 1) return { score: 1, label: 'Weak', color: 'bg-destructive' };
+  if (passed <= 2) return { score: 2, label: 'Fair', color: 'bg-warning' };
+  if (passed <= 3) return { score: 3, label: 'Good', color: 'bg-warning/60' };
+  if (passed <= 4) return { score: 4, label: 'Strong', color: 'bg-success/60' };
+  return { score: 5, label: 'Very strong', color: 'bg-success' };
 }
 
 export default function ResetPassword() {
@@ -261,8 +261,8 @@ export default function ResetPassword() {
             {success && !isInvite ? (
               /* Password reset success state */
               <div className="text-center py-4 space-y-5 animate-fade-in">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                  <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success/10 border border-success/20">
+                  <CheckCircle2 className="h-8 w-8 text-success" />
                 </div>
                 <div>
                   <h3 className="text-xl font-bold">Password updated</h3>
@@ -350,10 +350,9 @@ export default function ResetPassword() {
                         </div>
                         {strength.label && (
                           <p className={cn('text-xs font-medium', {
-                            'text-red-500': strength.score <= 1,
-                            'text-orange-500': strength.score === 2,
-                            'text-yellow-500': strength.score === 3,
-                            'text-emerald-500': strength.score >= 4,
+                            'text-destructive-ink': strength.score <= 1,
+                            'text-warning-ink': strength.score === 2 || strength.score === 3,
+                            'text-success-ink': strength.score >= 4,
                           })}>
                             {strength.label}
                           </p>
@@ -366,7 +365,7 @@ export default function ResetPassword() {
                       {REQUIREMENTS.map((req) => {
                         const met = req.test(password);
                         return (
-                          <li key={req.label} className={cn('flex items-center gap-2 text-xs transition-colors', met ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+                          <li key={req.label} className={cn('flex items-center gap-2 text-xs transition-colors', met ? 'text-success-ink' : 'text-muted-foreground')}>
                             {met
                               ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                               : <X className="h-3.5 w-3.5 shrink-0 opacity-40" />}
@@ -392,7 +391,7 @@ export default function ResetPassword() {
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         className={cn(
                           'pl-10 pr-10 h-11 rounded-xl border-border/70 bg-background/80 hover:bg-background focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:border-primary/30 transition-all duration-200',
-                          confirmPassword && password === confirmPassword && 'border-emerald-400/60'
+                          confirmPassword && password === confirmPassword && 'border-success/60'
                         )}
                       />
                       <button
@@ -405,7 +404,7 @@ export default function ResetPassword() {
                       </button>
                     </div>
                     {confirmPassword && password === confirmPassword && (
-                      <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                      <p className="text-xs text-success-ink flex items-center gap-1.5">
                         <CheckCircle2 className="h-3.5 w-3.5" /> Passwords match
                       </p>
                     )}

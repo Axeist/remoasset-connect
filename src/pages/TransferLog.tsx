@@ -236,8 +236,8 @@ export default function TransferLog() {
                     className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg border bg-card hover:shadow-sm transition-shadow"
                   >
                     <div className="flex items-center gap-3 shrink-0">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-500/10">
-                        <ArrowRightLeft className="h-4 w-4 text-indigo-600" />
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-info/10">
+                        <ArrowRightLeft className="h-4 w-4 text-info-ink" />
                       </div>
                     </div>
                     <div className="flex-1 min-w-0 space-y-1">

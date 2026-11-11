@@ -23,8 +23,8 @@ const LAST_UPDATED = 'September 22, 2026';
 
 function MethodBadge({ method }: { method: string }) {
   const styles: Record<string, string> = {
-    GET: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-    POST: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    GET: 'bg-info/10 text-info-ink border-info/20',
+    POST: 'bg-success/10 text-success-ink border-success/20',
     PATCH: 'bg-warning/10 text-warning border-warning/20',
     DELETE: 'bg-destructive/10 text-destructive border-destructive/20',
   };

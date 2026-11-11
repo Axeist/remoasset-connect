@@ -112,11 +112,11 @@ function parseMarkdown(text: string): string {
 function ResultCard({ result, onViewLeads }: { result: DiscoveryResult; onViewLeads: () => void }) {
   const isDraftMode = (result.drafts_count ?? 0) > 0;
   return (
-    <Card className={cn('mt-3', isDraftMode ? 'border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-950/20' : 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20')}>
+    <Card className={cn('mt-3', isDraftMode ? 'border-warning/30 bg-warning/30' : 'border-success/30 bg-success/50')}>
       <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-3">
-          {isDraftMode ? <Mail className="h-4 w-4 text-amber-600" /> : <CheckCircle2 className="h-4 w-4 text-green-600" />}
-          <span className={cn('font-semibold text-sm', isDraftMode ? 'text-amber-700 dark:text-amber-400' : 'text-green-700 dark:text-green-400')}>
+          {isDraftMode ? <Mail className="h-4 w-4 text-warning-ink" /> : <CheckCircle2 className="h-4 w-4 text-success-ink" />}
+          <span className={cn('font-semibold text-sm', isDraftMode ? 'text-warning-ink' : 'text-success-ink')}>
             {isDraftMode ? 'Drafts ready for approval' : 'Discovery Complete'}
           </span>
         </div>
@@ -141,7 +141,7 @@ function ResultCard({ result, onViewLeads }: { result: DiscoveryResult; onViewLe
           ))}
         </div>
         {result.email_note && (
-          <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded px-2 py-1.5 mb-3">
+          <div className="flex items-center gap-1.5 text-xs text-warning-ink bg-warning/10 rounded px-2 py-1.5 mb-3">
             <XCircle className="h-3.5 w-3.5 flex-shrink-0" />
             {result.email_note}
           </div>
@@ -174,7 +174,7 @@ function DraftCard({
   return (
     <Card className={cn(
       'mt-2 text-left',
-      isSent && 'border-green-200 dark:border-green-800 bg-green-50/30 dark:bg-green-950/20',
+      isSent && 'border-success/30 bg-success/30',
       isRejected && 'opacity-60 border-muted',
     )}>
       <CardContent className="p-3">
@@ -187,14 +187,14 @@ function DraftCard({
             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{draft.body_preview}</p>
           </div>
           <div className="flex flex-col gap-1 shrink-0">
-            {isSent && <Badge className="bg-green-600 text-xs">Sent</Badge>}
+            {isSent && <Badge className="bg-success text-xs">Sent</Badge>}
             {isRejected && <Badge variant="secondary" className="text-xs">Rejected</Badge>}
             {isPending && (
               <>
                 <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={onEdit} disabled={disabled}>
                   <Pencil className="h-3 w-3" /> Edit
                 </Button>
-                <Button size="sm" className="h-7 text-xs gap-1 bg-green-600 hover:bg-green-700" onClick={onApprove} disabled={disabled}>
+                <Button size="sm" className="h-7 text-xs gap-1 bg-success hover:bg-success" onClick={onApprove} disabled={disabled}>
                   <ThumbsUp className="h-3 w-3" /> Approve
                 </Button>
                 <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-muted-foreground" onClick={onReject} disabled={disabled}>
@@ -239,7 +239,7 @@ function AssistantMessage({
                 <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>{p.icon}</span>
                   <span className={cn(p.done ? 'line-through opacity-50' : '')}>{p.step}</span>
-                  {p.done && <CheckCircle2 className="h-3 w-3 text-green-500 ml-auto" />}
+                  {p.done && <CheckCircle2 className="h-3 w-3 text-success ml-auto" />}
                 </div>
               ))}
             </div>
@@ -264,7 +264,7 @@ function AssistantMessage({
           <div className="mt-3 space-y-1">
             <p className="text-xs font-medium text-muted-foreground mb-1">Outreach drafts — approve, edit, or reject</p>
             {onApproveAllDrafts && message.drafts.some((d) => (d.status ?? 'pending') === 'pending') && (
-              <Button size="sm" className="mb-2 gap-1.5 bg-green-600 hover:bg-green-700" onClick={onApproveAllDrafts}>
+              <Button size="sm" className="mb-2 gap-1.5 bg-success hover:bg-success" onClick={onApproveAllDrafts}>
                 <ThumbsUp className="h-3.5 w-3.5" /> Approve all
               </Button>
             )}
@@ -969,7 +969,7 @@ export default function VendorAgent() {
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                         {savingSession
                           ? <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>
-                          : <><CheckCircle2 className="h-3 w-3 text-green-500" /> Saved</>
+                          : <><CheckCircle2 className="h-3 w-3 text-success" /> Saved</>
                         }
                       </span>
                     )}
@@ -1173,7 +1173,7 @@ export default function VendorAgent() {
                       <Card>
                         <CardContent className="pt-5">
                           <div className="flex items-center gap-2 mb-1">
-                            <DollarSign className="h-4 w-4 text-green-600" />
+                            <DollarSign className="h-4 w-4 text-success-ink" />
                             <span className="text-xs text-muted-foreground">Cost (filtered)</span>
                           </div>
                           <div className="text-2xl font-bold">${f.totalCost.toFixed(4)}</div>
@@ -1183,7 +1183,7 @@ export default function VendorAgent() {
                       <Card>
                         <CardContent className="pt-5">
                           <div className="flex items-center gap-2 mb-1">
-                            <TrendingUp className="h-4 w-4 text-blue-600" />
+                            <TrendingUp className="h-4 w-4 text-info-ink" />
                             <span className="text-xs text-muted-foreground">All Time Total</span>
                           </div>
                           <div className="text-2xl font-bold">${usageStats.totalCostAllTime.toFixed(4)}</div>
@@ -1193,7 +1193,7 @@ export default function VendorAgent() {
                       <Card>
                         <CardContent className="pt-5">
                           <div className="flex items-center gap-2 mb-1">
-                            <Zap className="h-4 w-4 text-yellow-600" />
+                            <Zap className="h-4 w-4 text-warning-ink" />
                             <span className="text-xs text-muted-foreground">Tokens Used</span>
                           </div>
                           <div className="text-2xl font-bold">{(f.totalTokens / 1000).toFixed(1)}K</div>
@@ -1203,7 +1203,7 @@ export default function VendorAgent() {
                       <Card>
                         <CardContent className="pt-5">
                           <div className="flex items-center gap-2 mb-1">
-                            <DollarSign className="h-4 w-4 text-purple-600" />
+                            <DollarSign className="h-4 w-4 text-violet-ink" />
                             <span className="text-xs text-muted-foreground">Cost per Lead</span>
                           </div>
                           <div className="text-2xl font-bold">${usageStats.costPerLead.toFixed(4)}</div>
@@ -1287,7 +1287,7 @@ export default function VendorAgent() {
                                   <span className="font-medium">${r.cost.toFixed(4)}</span>
                                 </div>
                                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                                  <div className="h-full bg-orange-500 rounded-full" style={{ width: `${pct}%` }} />
+                                  <div className="h-full bg-warning rounded-full" style={{ width: `${pct}%` }} />
                                 </div>
                               </div>
                             );
@@ -1339,13 +1339,13 @@ export default function VendorAgent() {
                     </Card>
 
                     {/* Haiku model note */}
-                    <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+                    <Card className="border-info/30 bg-info/50">
                       <CardContent className="pt-4 pb-4">
                         <div className="flex items-start gap-3">
-                          <Zap className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <Zap className="h-4 w-4 text-info-ink mt-0.5 flex-shrink-0" />
                           <div>
-                            <p className="text-sm font-medium text-blue-900 dark:text-blue-300">Cost-efficiency note</p>
-                            <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                            <p className="text-sm font-medium text-info-ink">Cost-efficiency note</p>
+                            <p className="text-xs text-info-ink mt-1">
                               Using <strong>claude-haiku-4-5-20251001</strong> — the most cost-efficient Claude model.
                               At $0.80/M input + $4.00/M output tokens, typical daily cron (60 vendors) costs ~$0.15–0.20/day.
                               Haiku matches Sonnet accuracy for structured data extraction and email drafting tasks.

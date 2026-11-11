@@ -149,7 +149,7 @@ export default function RfqHub() {
           {[
             { key: 'open' as const, label: 'Open', value: kpis.open, hint: 'Draft, sent, bidding', icon: FileText, accent: '' },
             { key: 'bidding' as const, label: 'Bidding', value: kpis.awarding, hint: 'Quotes in', icon: Send, accent: 'border-primary/20 bg-primary/5' },
-            { key: 'overdue' as const, label: 'Overdue', value: kpis.overdue, hint: 'Past deadline', icon: AlertTriangle, accent: kpis.overdue ? 'border-amber-500/25 bg-amber-500/5' : '' },
+            { key: 'overdue' as const, label: 'Overdue', value: kpis.overdue, hint: 'Past deadline', icon: AlertTriangle, accent: kpis.overdue ? 'border-warning/25 bg-warning/5' : '' },
             { key: 'all' as const, label: 'Total', value: kpis.total, hint: 'All campaigns', icon: Megaphone, accent: '' },
           ].map((k) => {
             const Icon = k.icon;
@@ -168,7 +168,7 @@ export default function RfqHub() {
                 <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
                   <Icon className="h-3.5 w-3.5" /> {k.label}
                 </div>
-                <p className={cn('text-2xl font-bold tabular-nums mt-1', k.key === 'overdue' && kpis.overdue > 0 && 'text-amber-700')}>{k.value}</p>
+                <p className={cn('text-2xl font-bold tabular-nums mt-1', k.key === 'overdue' && kpis.overdue > 0 && 'text-warning-ink')}>{k.value}</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">{k.hint}</p>
               </button>
             );
@@ -268,7 +268,7 @@ export default function RfqHub() {
                       </Tooltip>
                     </TableCell>
                     <TableCell className="text-sm">
-                      <span className={cn('inline-flex items-center gap-1', overdue && 'text-amber-700 font-medium')}>
+                      <span className={cn('inline-flex items-center gap-1', overdue && 'text-warning-ink font-medium')}>
                         <Clock className="h-3.5 w-3.5" />
                         {formatCountdown(r.deadline)}
                       </span>

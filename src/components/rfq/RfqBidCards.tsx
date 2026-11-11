@@ -87,17 +87,17 @@ function BidLinesTable({
                 key={v.id}
                 className={cn(
                   'border-t',
-                  v.isAlternative && 'bg-amber-50/80 dark:bg-amber-950/25',
-                  v.kind === 'extra' && !v.isAlternative && 'bg-sky-50/60 dark:bg-sky-950/20',
+                  v.isAlternative && 'bg-warning/80',
+                  v.kind === 'extra' && !v.isAlternative && 'bg-info/60',
                 )}
               >
                 <td className="px-3 py-1.5 whitespace-nowrap">
                   <span className={cn(
                     'inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-semibold',
-                    v.isAlternative && 'bg-amber-200/80 text-amber-950',
-                    v.kind === 'extra' && !v.isAlternative && 'bg-sky-200/80 text-sky-950',
+                    v.isAlternative && 'bg-warning/80 text-warning-ink',
+                    v.kind === 'extra' && !v.isAlternative && 'bg-info/80 text-info-ink',
                     v.kind === 'addon' && !v.isAlternative && 'bg-muted text-muted-foreground',
-                    v.kind === 'device' && !v.isAlternative && 'bg-emerald-100 text-emerald-900',
+                    v.kind === 'device' && !v.isAlternative && 'bg-success/15 text-success-ink',
                   )}>
                     {kindLabel(v)}
                   </span>
@@ -224,7 +224,7 @@ export function RfqBidCards({
             className={cn(
               'overflow-hidden border-border/80',
               isRecommended && 'ring-1 ring-primary/35',
-              b.award_status === 'won' && 'ring-1 ring-emerald-500/50',
+              b.award_status === 'won' && 'ring-1 ring-success/50',
             )}
           >
             <div className="flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 border-b bg-muted/20">
@@ -232,16 +232,16 @@ export function RfqBidCards({
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-base truncate">{b.vendor?.company_name || '—'}</p>
                   {isRecommended && <Badge className="text-[11px] uppercase tracking-wide">Lowest USD</Badge>}
-                  {b.award_status === 'won' && <Badge className="bg-emerald-600">Won</Badge>}
+                  {b.award_status === 'won' && <Badge className="bg-success">Won</Badge>}
                   {b.award_status === 'lost' && <Badge variant="secondary">Lost</Badge>}
                   <Badge variant="outline" className="capitalize">{b.pricing_status.replace(/_/g, ' ')}</Badge>
                   {match !== 'as_requested' && (
-                    <Badge variant="outline" className="text-amber-800 border-amber-300 bg-amber-50">
+                    <Badge variant="outline" className="text-warning-ink border-warning/30 bg-warning/10">
                       {bidMatchLabel(match)}{altCount > 0 ? ` · ${altCount}` : ''}
                     </Badge>
                   )}
                   {extraCount > 0 && (
-                    <Badge variant="outline" className="text-sky-800 border-sky-300 bg-sky-50">
+                    <Badge variant="outline" className="text-info-ink border-info/30 bg-info/10">
                       {extraCount} extra{extraCount === 1 ? '' : 's'}
                     </Badge>
                   )}
@@ -251,7 +251,7 @@ export function RfqBidCards({
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Landed USD</p>
                     <p className="text-lg font-bold tabular-nums leading-tight">{money('USD', usdLanded)}</p>
                     {bestUsd != null && usdLanded != null && usdLanded > bestUsd && (
-                      <p className="text-[11px] text-amber-700">+{money('USD', usdLanded - bestUsd)} vs lowest</p>
+                      <p className="text-[11px] text-warning-ink">+{money('USD', usdLanded - bestUsd)} vs lowest</p>
                     )}
                   </div>
                   <div className="rounded-lg border bg-background px-2.5 py-1.5">
@@ -352,7 +352,7 @@ export function RfqBidSpreadsheet({
             return lineRows.map((v, i) => (
               <TableRow
                 key={`${b.id}-${v?.id || i}`}
-                className={cn(stripe && 'bg-muted/20', v?.isAlternative && 'bg-amber-50/70 dark:bg-amber-950/20')}
+                className={cn(stripe && 'bg-muted/20', v?.isAlternative && 'bg-warning/70')}
               >
                 {i === 0 ? (
                   <TableCell className="align-top sticky left-0 z-10 bg-inherit font-medium" rowSpan={lineRows.length}>

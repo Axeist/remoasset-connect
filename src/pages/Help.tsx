@@ -41,8 +41,8 @@ function Tip({ children }: { children: React.ReactNode }) {
 
 function Note({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20 px-3.5 py-3 text-sm">
-      <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+    <div className="flex items-start gap-2.5 rounded-lg bg-warning/5 border border-warning/20 px-3.5 py-3 text-sm">
+      <AlertCircle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
       <p className="text-muted-foreground leading-relaxed">{children}</p>
     </div>
   );
@@ -82,7 +82,7 @@ function ScoreRow({ type, points, desc }: { type: string; points: string; desc: 
   return (
     <div className="flex items-center justify-between py-2 border-b border-border/40 last:border-0 text-sm gap-3">
       <span className="text-foreground font-medium w-28 shrink-0">{type}</span>
-      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 w-12 shrink-0">{points}</span>
+      <span className="font-mono font-bold text-success-ink w-12 shrink-0">{points}</span>
       <span className="text-muted-foreground text-xs">{desc}</span>
     </div>
   );
@@ -154,12 +154,12 @@ export default function Help() {
         {/* ── quick nav cards ── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { icon: LayoutDashboard, label: 'Getting started', id: 'getting-started', color: 'text-blue-500 bg-blue-500/10' },
-            { icon: Users,           label: 'Leads',           id: 'leads',           color: 'text-violet-500 bg-violet-500/10' },
+            { icon: LayoutDashboard, label: 'Getting started', id: 'getting-started', color: 'text-info bg-info/10' },
+            { icon: Users,           label: 'Leads',           id: 'leads',           color: 'text-violet bg-violet/10' },
             { icon: Activity,        label: 'Activities',      id: 'activities',      color: 'text-primary bg-primary/10' },
-            { icon: CheckSquare,     label: 'Tasks',           id: 'tasks-followups', color: 'text-emerald-500 bg-emerald-500/10' },
-            { icon: BarChart3,       label: 'Reports',         id: 'reports',         color: 'text-amber-500 bg-amber-500/10' },
-            { icon: Shield,          label: 'Admin',           id: 'admin',           color: 'text-rose-500 bg-rose-500/10' },
+            { icon: CheckSquare,     label: 'Tasks',           id: 'tasks-followups', color: 'text-success bg-success/10' },
+            { icon: BarChart3,       label: 'Reports',         id: 'reports',         color: 'text-warning bg-warning/10' },
+            { icon: Shield,          label: 'Admin',           id: 'admin',           color: 'text-destructive bg-destructive/10' },
           ].map(({ icon: Icon, label, id, color }) => (
             <button key={id} onClick={() => scrollTo(id)}
               className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border/60 bg-card/50 hover:bg-card hover:border-primary/30 hover:shadow-sm transition-all group text-center">
@@ -326,13 +326,13 @@ export default function Help() {
                     <SubHeading>Special activity types</SubHeading>
                     <div className="grid sm:grid-cols-2 gap-3">
                       {[
-                        { icon: Mail,        color: 'bg-blue-500/10 text-blue-500',   title: 'Email',     desc: 'Send via Gmail directly or just log it. Supports Cc/Bcc, rich text, file attachments, and auto-links to the Gmail thread.' },
-                        { icon: Calendar,    color: 'bg-violet-500/10 text-violet-500',title: 'Meeting',  desc: 'Set event name, start/end time, attendees. Optionally sync to Google Calendar with a Meet link and email invites.' },
+                        { icon: Mail,        color: 'bg-info/10 text-info',   title: 'Email',     desc: 'Send via Gmail directly or just log it. Supports Cc/Bcc, rich text, file attachments, and auto-links to the Gmail thread.' },
+                        { icon: Calendar,    color: 'bg-violet/10 text-violet',title: 'Meeting',  desc: 'Set event name, start/end time, attendees. Optionally sync to Google Calendar with a Meet link and email invites.' },
                         { icon: ShieldCheck, color: 'bg-primary/10 text-primary',     title: 'NDA',       desc: 'Choose NDA Sent or Received. Upload the signed document — it saves to the Documents tab. NDA Received auto-moves the lead to Closed Won.' },
-                        { icon: FileText,    color: 'bg-amber-500/10 text-amber-500', title: 'Quotation', desc: 'Upload quotation files (PDF, Word, Excel, images). Files save to the Documents tab automatically.' },
-                        { icon: Linkedin,    color: 'bg-sky-500/10 text-sky-500',     title: 'LinkedIn',  desc: 'Enter the contact\'s LinkedIn URL and the message you sent. Opens the profile in a new tab.' },
-                        { icon: MessageCircle, color:'bg-emerald-500/10 text-emerald-500', title: 'WhatsApp', desc: 'Log the conversation. If the lead has a phone number, opens WhatsApp chat directly.' },
-                        { icon: Phone, color:'bg-violet-500/10 text-violet-500', title: 'CloudTalk', desc: 'Lead phones are E.164 so Click-to-Call can detect them. Completed CloudTalk calls (with recording) land on the lead timeline automatically.' },
+                        { icon: FileText,    color: 'bg-warning/10 text-warning', title: 'Quotation', desc: 'Upload quotation files (PDF, Word, Excel, images). Files save to the Documents tab automatically.' },
+                        { icon: Linkedin,    color: 'bg-info/10 text-info',     title: 'LinkedIn',  desc: 'Enter the contact\'s LinkedIn URL and the message you sent. Opens the profile in a new tab.' },
+                        { icon: MessageCircle, color:'bg-success/10 text-success', title: 'WhatsApp', desc: 'Log the conversation. If the lead has a phone number, opens WhatsApp chat directly.' },
+                        { icon: Phone, color:'bg-violet/10 text-violet', title: 'CloudTalk', desc: 'Lead phones are E.164 so Click-to-Call can detect them. Completed CloudTalk calls (with recording) land on the lead timeline automatically.' },
                       ].map(({ icon: Icon, color, title, desc }) => (
                         <div key={title} className="flex gap-3 rounded-xl border border-border/60 bg-card p-3.5">
                           <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg shrink-0 mt-0.5', color)}>
@@ -385,7 +385,7 @@ export default function Help() {
                         ].map(([col, req, note]) => (
                           <div key={col} className="flex items-start gap-3 px-4 py-2.5 text-sm">
                             <code className="font-mono text-xs text-primary w-32 shrink-0 mt-0.5">{col}</code>
-                            <span className={cn('text-xs shrink-0 w-16', req === 'Required' ? 'text-rose-500 font-semibold' : 'text-muted-foreground')}>{req}</span>
+                            <span className={cn('text-xs shrink-0 w-16', req === 'Required' ? 'text-destructive font-semibold' : 'text-muted-foreground')}>{req}</span>
                             <span className="text-muted-foreground text-xs">{note}</span>
                           </div>
                         ))}
@@ -414,7 +414,7 @@ export default function Help() {
                   <div className="pt-4 space-y-5">
                     <div className="grid sm:grid-cols-2 gap-5">
                       <div className="space-y-3">
-                        <SubHeading><CheckSquare className="h-4 w-4 text-emerald-500" />Tasks</SubHeading>
+                        <SubHeading><CheckSquare className="h-4 w-4 text-success" />Tasks</SubHeading>
                         <BulletList items={[
                           'Create from My Tasks or from a lead\'s Tasks tab.',
                           <>Set title, description, due date, priority (<strong className="text-foreground">low / medium / high / urgent</strong>), link to a lead.</>,
@@ -425,7 +425,7 @@ export default function Help() {
                         ]} />
                       </div>
                       <div className="space-y-3">
-                        <SubHeading><Clock className="h-4 w-4 text-amber-500" />Follow-ups</SubHeading>
+                        <SubHeading><Clock className="h-4 w-4 text-warning" />Follow-ups</SubHeading>
                         <BulletList items={[
                           'Schedule from a lead\'s Follow-ups tab or the main Follow-ups page.',
                           'Set date/time, reminder type (one-time or recurring), and notes.',
@@ -612,9 +612,9 @@ export default function Help() {
                   <div className="pt-4 space-y-5">
                     <div className="grid sm:grid-cols-3 gap-3">
                       {[
-                        { icon: Mail,     color: 'bg-blue-500/10 text-blue-500',   title: 'Gmail',          desc: 'Read and send emails within the app. All threads with lead emails are synced to the Inbox and Lead Emails tab.' },
-                        { icon: Calendar, color: 'bg-violet-500/10 text-violet-500',title: 'Google Calendar',desc: 'Sync meeting activities to Calendar. Auto-generate Meet links and send invites to attendees.' },
-                        { icon: MessageCircle, color:'bg-emerald-500/10 text-emerald-500',title: 'Slack',    desc: 'Post notifications to a Slack channel for lead events, stage changes, tasks, follow-ups, and a morning MTD lead report.' },
+                        { icon: Mail,     color: 'bg-info/10 text-info',   title: 'Gmail',          desc: 'Read and send emails within the app. All threads with lead emails are synced to the Inbox and Lead Emails tab.' },
+                        { icon: Calendar, color: 'bg-violet/10 text-violet',title: 'Google Calendar',desc: 'Sync meeting activities to Calendar. Auto-generate Meet links and send invites to attendees.' },
+                        { icon: MessageCircle, color:'bg-success/10 text-success',title: 'Slack',    desc: 'Post notifications to a Slack channel for lead events, stage changes, tasks, follow-ups, and a morning MTD lead report.' },
                       ].map(({ icon: Icon, color, title, desc }) => (
                         <div key={title} className="flex flex-col gap-2 rounded-xl border border-border/60 bg-card p-4">
                           <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl', color)}>
@@ -677,7 +677,7 @@ export default function Help() {
                 </AccordionTrigger>
                 <AccordionContent className="px-5 pb-6 space-y-5 border-t border-border/60 bg-muted/5">
                   <div className="pt-4 space-y-5">
-                    <SubHeading><CheckCircle2 className="h-4 w-4 text-emerald-500" />Daily workflow</SubHeading>
+                    <SubHeading><CheckCircle2 className="h-4 w-4 text-success" />Daily workflow</SubHeading>
                     <div className="grid sm:grid-cols-2 gap-2">
                       {[
                         { n: '1', tip: 'Start with Dashboard — check hot leads and overdue tasks' },
@@ -690,7 +690,7 @@ export default function Help() {
                         { n: '8', tip: 'Check Reports weekly for pipeline health and velocity' },
                       ].map(({ n, tip }) => (
                         <div key={n} className="flex items-center gap-3 rounded-lg border border-border/40 bg-card px-3.5 py-2.5 text-sm">
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold shrink-0">{n}</span>
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-success/15 text-success-ink text-[11px] font-bold shrink-0">{n}</span>
                           <span className="text-muted-foreground">{tip}</span>
                         </div>
                       ))}
@@ -781,7 +781,7 @@ export default function Help() {
                 ].map(([type, pts]) => (
                   <div key={type} className="flex items-center justify-between py-1.5 text-xs border-b border-border/30 last:border-0">
                     <span className="text-muted-foreground">{type}</span>
-                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{pts}</span>
+                    <span className="font-mono font-bold text-success-ink">{pts}</span>
                   </div>
                 ))}
               </div>

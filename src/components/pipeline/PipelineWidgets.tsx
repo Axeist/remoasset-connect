@@ -84,7 +84,7 @@ const ACTIVITY_META: Record<string, { label: string; color: string; icon: React.
   meeting: { label: 'Meeting', color: '#3B9B6D', icon: Calendar },
   whatsapp: { label: 'WhatsApp', color: '#25d366', icon: MessageCircle },
   linkedin: { label: 'LinkedIn', color: '#6E7180', icon: Linkedin },
-  nda: { label: 'NDA', color: '#30282B', icon: ShieldCheck },
+  nda: { label: 'NDA', color: '#8A7B83', icon: ShieldCheck },
   quotation: { label: 'Quotation', color: '#d97706', icon: FileText },
 };
 
@@ -181,7 +181,7 @@ export function PipelineWidgets({ viewMode, leads, statuses, lastActivityMap, is
         label="Avg Score"
         value={stats.avgScore}
         subLabel={`${stats.totalScore} total pts`}
-        color="text-amber-600"
+        color="text-warning-ink"
       />
 
       {viewMode === 'status' ? (
@@ -191,14 +191,14 @@ export function PipelineWidgets({ viewMode, leads, statuses, lastActivityMap, is
             label="Won Rate"
             value={`${stats.wonRate}%`}
             subLabel={`${stats.wonCount} of ${stats.total} leads`}
-            color="text-emerald-600"
+            color="text-success-ink"
           />
           <Widget
             icon={TrendingUp}
             label="Top Lead"
             value={stats.highScoreLead?.company_name ?? '—'}
             subLabel={stats.highScoreLead ? `Score: ${stats.highScoreLead.lead_score ?? 0}` : undefined}
-            color="text-violet-600"
+            color="text-violet-ink"
           />
           <MiniBar segments={statusSegments} total={stats.total} />
         </>
@@ -209,14 +209,14 @@ export function PipelineWidgets({ viewMode, leads, statuses, lastActivityMap, is
             label="Activity Coverage"
             value={`${stats.activityCoverage}%`}
             subLabel={`${stats.leadsWithActivity} active, ${stats.noActivity} idle`}
-            color="text-emerald-600"
+            color="text-success-ink"
           />
           <Widget
             icon={Target}
             label="Top Activity"
             value={stats.topActivity ? (ACTIVITY_META[stats.topActivity[0]]?.label ?? stats.topActivity[0]) : '—'}
             subLabel={stats.topActivity ? `${stats.topActivity[1]} leads` : undefined}
-            color="text-violet-600"
+            color="text-violet-ink"
           />
           <MiniBar segments={activitySegments} total={stats.total} />
         </>
@@ -230,7 +230,7 @@ export function PipelineWidgets({ viewMode, leads, statuses, lastActivityMap, is
               label="Top Performer"
               value={stats.topPerformer.full_name ?? 'Unknown'}
               subLabel={`${stats.topPerformerWon} won`}
-              color="text-pink-600"
+              color="text-violet-ink"
             />
           )}
           {stats.unassigned > 0 && (
@@ -239,7 +239,7 @@ export function PipelineWidgets({ viewMode, leads, statuses, lastActivityMap, is
               label="Unassigned"
               value={stats.unassigned}
               subLabel="Need an owner"
-              color="text-red-500"
+              color="text-destructive"
             />
           )}
         </>

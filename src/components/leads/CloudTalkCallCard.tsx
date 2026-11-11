@@ -42,10 +42,10 @@ function humanOutcome(meta: CloudTalkCallMeta): string {
 
 function statusTone(outcome: string) {
   const s = outcome.toLowerCase();
-  if (s.includes('answer') || s === 'completed') return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400';
-  if (s.includes('voice')) return 'bg-sky-500/15 text-sky-700 dark:text-sky-400';
+  if (s.includes('answer') || s === 'completed') return 'bg-success/15 text-success-ink';
+  if (s.includes('voice')) return 'bg-info/15 text-info-ink';
   if (s.includes('miss') || s.includes('busy') || s.includes('cancel') || s.includes('fail')) {
-    return 'bg-amber-500/15 text-amber-700 dark:text-amber-400';
+    return 'bg-warning/15 text-warning-ink';
   }
   return 'bg-muted text-muted-foreground';
 }
@@ -58,11 +58,11 @@ function sentimentTone(raw: unknown): { label: string; className: string } | nul
       : '';
   if (!text) return null;
   const l = text.toLowerCase();
-  if (l.includes('very positive')) return { label: text, className: 'bg-emerald-600/15 text-emerald-700' };
-  if (l.includes('positive')) return { label: text, className: 'bg-emerald-500/15 text-emerald-700' };
-  if (l.includes('very negative')) return { label: text, className: 'bg-red-600/15 text-red-700' };
-  if (l.includes('negative')) return { label: text, className: 'bg-red-500/15 text-red-700' };
-  return { label: text, className: 'bg-slate-500/15 text-slate-700' };
+  if (l.includes('very positive')) return { label: text, className: 'bg-success/15 text-success-ink' };
+  if (l.includes('positive')) return { label: text, className: 'bg-success/15 text-success-ink' };
+  if (l.includes('very negative')) return { label: text, className: 'bg-destructive/15 text-destructive-ink' };
+  if (l.includes('negative')) return { label: text, className: 'bg-destructive/15 text-destructive-ink' };
+  return { label: text, className: 'bg-muted-foreground text-foreground/80' };
 }
 
 function ciText(ci: Record<string, unknown> | undefined, keys: string[]): string | null {
@@ -177,15 +177,15 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
   return (
     <div
       className={cn(
-        'rounded-xl border border-violet-500/20 overflow-hidden',
-        'bg-gradient-to-br from-violet-500/[0.07] via-card to-indigo-500/[0.05]',
+        'rounded-xl border border-violet/20 overflow-hidden',
+        'bg-gradient-to-br from-violet/[0.07] via-card to-info/[0.05]',
       )}
     >
-      <div className="flex items-center gap-2 px-3 py-2 bg-violet-500/10 border-b border-violet-500/15">
-        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-violet-600 text-white shadow-sm">
+      <div className="flex items-center gap-2 px-3 py-2 bg-violet/10 border-b border-violet/15">
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-violet text-white shadow-sm">
           {inbound ? <PhoneIncoming className="h-3.5 w-3.5" /> : <PhoneOutgoing className="h-3.5 w-3.5" />}
         </div>
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-violet-ink">
           {inbound ? 'Inbound call' : 'Outbound call'}
         </span>
         <Badge className={cn('ml-auto border-0 text-[11px] font-semibold', statusTone(outcome))}>
@@ -202,7 +202,7 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
 
         {meta.notes && (
           <p className={cn('text-muted-foreground flex gap-1.5', compact ? 'text-[11px]' : 'text-xs', !expanded && 'line-clamp-1')}>
-            <StickyNote className="h-3.5 w-3.5 text-violet-500 shrink-0 mt-0.5" />
+            <StickyNote className="h-3.5 w-3.5 text-violet shrink-0 mt-0.5" />
             {meta.notes}
           </p>
         )}
@@ -215,7 +215,7 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
           <>
             {(from || to) && (
               <div className="flex items-center gap-1.5 min-w-0 text-xs font-medium">
-                <Hash className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                <Hash className="h-3.5 w-3.5 text-violet shrink-0" />
                 <span className="truncate">{from || '—'}</span>
                 <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
                 <span className="truncate">{to || '—'}</span>
@@ -243,9 +243,9 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
 
             {meta.tags && meta.tags.length > 0 && (
               <div className="flex flex-wrap items-center gap-1">
-                <Tags className="h-3 w-3 text-violet-500" />
+                <Tags className="h-3 w-3 text-violet" />
                 {meta.tags.map((t) => (
-                  <span key={t} className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-violet-300">
+                  <span key={t} className="rounded-full bg-violet/10 px-2 py-0.5 text-[11px] font-medium text-violet-ink">
                     {t}
                   </span>
                 ))}
@@ -253,8 +253,8 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
             )}
 
             {hasRecording ? (
-              <div className="rounded-lg border border-violet-500/15 bg-background/70 px-2.5 py-2 space-y-2">
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-violet-700 dark:text-violet-300">
+              <div className="rounded-lg border border-violet/15 bg-background/70 px-2.5 py-2 space-y-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-violet-ink">
                   <AudioLines className="h-3.5 w-3.5" />
                   Recording
                 </div>
@@ -266,7 +266,7 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1.5 rounded-md border border-violet-500/20 bg-violet-500/10 px-2.5 py-1.5 text-[11px] font-medium text-violet-800 dark:text-violet-200 hover:bg-violet-500/15 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-violet/20 bg-violet/10 px-2.5 py-1.5 text-[11px] font-medium text-violet-ink hover:bg-violet/15 disabled:opacity-50"
                     disabled={busy !== null}
                     onClick={listen}
                   >
@@ -294,7 +294,7 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
             {(sent || summary || smart) && (
               <div className="rounded-lg border border-border/60 bg-background/50 p-2.5 space-y-2">
                 <div className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
-                  <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                  <Sparkles className="h-3.5 w-3.5 text-violet" />
                   Conversation intelligence
                   {sent && <Badge className={cn('ml-auto border-0 text-[11px] capitalize', sent.className)}>{sent.label}</Badge>}
                 </div>
@@ -311,7 +311,7 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
               <div>
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 dark:text-violet-300"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-ink"
                   onClick={(e) => {
                     e.stopPropagation();
                     setOpenTranscript((v) => !v);
@@ -335,7 +335,7 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 hover:underline"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-ink hover:underline"
                 >
                   Open in CloudTalk <ExternalLink className="h-3 w-3" />
                 </a>
@@ -346,7 +346,7 @@ export function CloudTalkCallCard({ description, attachments, compact, expanded 
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 hover:underline"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-ink hover:underline"
                 >
                   Analytics <ExternalLink className="h-3 w-3" />
                 </a>
@@ -377,7 +377,7 @@ function Stat({
 }) {
   return (
     <div className="flex items-start gap-1.5 min-w-0">
-      <Icon className={cn('h-3.5 w-3.5 mt-0.5 shrink-0', muted ? 'text-muted-foreground' : 'text-violet-500')} />
+      <Icon className={cn('h-3.5 w-3.5 mt-0.5 shrink-0', muted ? 'text-muted-foreground' : 'text-violet')} />
       <div className="min-w-0">
         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
         <p className="text-xs font-medium truncate">{value}</p>

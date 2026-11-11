@@ -376,7 +376,7 @@ export default function Settings() {
                   <div className="relative p-5">
                     <div className="flex items-center justify-between mb-5">
                       <div className="flex items-start gap-3.5">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white shadow-md ring-1 ring-black/[0.08]">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-card shadow-md ring-1 ring-black/[0.08]">
                           <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none"><path d="M18.316 5.684H5.684v12.632h12.632V5.684z" fill="#fff" /><path d="M18.316 24l5.684-5.684h-5.684V24z" fill="#EA4335" /><path d="M24 5.684V0h-5.684v5.684H24z" fill="#188038" /><path d="M18.316 18.316H24V5.684h-5.684v12.632z" fill="#34A853" /><path d="M0 18.316v5.684h5.684v-5.684H0z" fill="#4285F4" /><path d="M0 5.684h5.684V0H0v5.684z" fill="#FBBC04" /><path d="M0 18.316h5.684V5.684H0v12.632z" fill="#FBBC04" /><path d="M5.684 5.684h12.632V0H5.684v5.684z" fill="#EA4335" opacity=".25" /><path d="M8.954 16.087c-.618-.42-1.044-1.032-1.278-1.836l1.272-.522c.132.504.36.9.684 1.188.324.288.714.432 1.17.432.468 0 .864-.156 1.188-.468.324-.312.486-.702.486-1.17 0-.48-.168-.87-.504-1.176-.336-.306-.756-.456-1.26-.456h-.78v-1.254h.702c.432 0 .798-.138 1.098-.414.3-.276.45-.636.45-1.08 0-.396-.138-.72-.414-.972s-.63-.378-1.062-.378c-.42 0-.756.126-1.008.378-.252.252-.432.564-.54.936l-1.254-.522c.168-.552.492-1.026.972-1.422.48-.396 1.086-.594 1.818-.594.54 0 1.026.114 1.458.342.432.228.768.546 1.008.954.24.408.36.87.36 1.386 0 .528-.114.984-.342 1.368a2.38 2.38 0 01-.882.888v.072c.42.216.77.54 1.05.972.28.432.42.93.42 1.494 0 .564-.144 1.068-.432 1.512a3.01 3.01 0 01-1.17 1.05c-.492.258-1.044.384-1.656.384-.72 0-1.362-.21-1.98-.63zM16.17 8.646l-1.398 1.008-.696-1.056 2.466-1.776h.96V16.2h-1.332V8.646z" fill="#4285F4" /></svg>
                         </div>
                         <div>
@@ -465,8 +465,8 @@ export default function Settings() {
                       <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />Loading…
                     </span>
                   ) : slackActive ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-500/20 shrink-0">
-                      <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />Active
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success-ink ring-1 ring-success/20 shrink-0">
+                      <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />Active
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground ring-1 ring-border shrink-0">

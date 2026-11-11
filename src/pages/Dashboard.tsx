@@ -147,7 +147,7 @@ export default function Dashboard() {
             <Card className="card-shadow rounded-xl border-border/80 animate-inner-card-hover animate-fade-in-up animate-fade-in-up-delay-5">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-display">
-                  <Flame className="h-5 w-5 text-orange-500" />
+                  <Flame className="h-5 w-5 text-warning" />
                   My Hot Leads
                 </CardTitle>
               </CardHeader>

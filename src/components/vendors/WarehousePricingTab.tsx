@@ -136,9 +136,9 @@ export function WarehousePricingTab() {
             ${stats.minT.toFixed(0)} → ${stats.maxT.toFixed(0)}
           </p>
         </Card>
-        <Card className="p-3 border-green-500/20 bg-green-500/5">
+        <Card className="p-3 border-success/20 bg-success/5">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium mb-1"><CalendarClock className="h-3.5 w-3.5" /> Valid quotes</div>
-          <p className="text-xl font-bold text-green-700 dark:text-green-400">{stats.validCt}</p>
+          <p className="text-xl font-bold text-success-ink">{stats.validCt}</p>
         </Card>
         <Card className="p-3 border-destructive/20 bg-destructive/5">
           <div className="text-muted-foreground text-xs font-medium mb-1">Expired</div>
@@ -178,7 +178,7 @@ export function WarehousePricingTab() {
                     ))}
                     <TableHead className="text-right font-bold">Grand Total</TableHead>
                     <TableHead className="text-right font-semibold text-primary">Client PAYG Σ</TableHead>
-                    <TableHead className="text-right font-semibold text-amber-600 dark:text-amber-400">Client Sub Σ</TableHead>
+                    <TableHead className="text-right font-semibold text-warning-ink">Client Sub Σ</TableHead>
                     <TableHead>Quote Status</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
@@ -197,7 +197,7 @@ export function WarehousePricingTab() {
                         <TableCell className="text-right tabular-nums text-sm font-semibold text-primary">
                           ${Number((row as any).client_grand_total ?? 0).toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums text-sm font-semibold text-amber-600 dark:text-amber-400">
+                        <TableCell className="text-right tabular-nums text-sm font-semibold text-warning-ink">
                           ${Number((row as any).client_sub_grand_total ?? 0).toFixed(2)}
                         </TableCell>
                         <TableCell><Badge variant={qs.variant} className="text-xs">{qs.label}</Badge></TableCell>

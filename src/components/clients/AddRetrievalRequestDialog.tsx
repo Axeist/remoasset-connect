@@ -322,7 +322,7 @@ export function AddRetrievalRequestDialog({ open, onOpenChange, onSuccess, clien
         <DialogHeader className="px-6 pt-6 pb-4 pr-14 space-y-4 shrink-0 border-b border-border/60">
           <div>
             <DialogTitle className="text-xl flex items-center gap-2">
-              <Warehouse className="h-5 w-5 text-violet-500" />
+              <Warehouse className="h-5 w-5 text-violet" />
               Retrieval, storage & redeployment
             </DialogTitle>
             <DialogDescription className="text-sm mt-1.5">
