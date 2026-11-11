@@ -670,3 +670,13 @@ img[src="/logo.png"] {
   height: 3rem;
 }
 
+
+
+/* Notification bell */
+@keyframes bell-ring { 0%,100%{transform:rotate(0)} 20%{transform:rotate(-14deg)} 40%{transform:rotate(10deg)} 60%{transform:rotate(-6deg)} 80%{transform:rotate(3deg)} }
+@keyframes badge-pulse { 0%{box-shadow:0 0 0 0 hsl(var(--primary) / .55)} 100%{box-shadow:0 0 0 8px hsl(var(--primary) / 0)} }
+.animate-bell-ring { animation: bell-ring .6s ease-in-out; transform-origin: 50% 0; }
+.animate-badge-pulse { animation: badge-pulse .7s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

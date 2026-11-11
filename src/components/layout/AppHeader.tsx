@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTheme } from 'next-themes';
 import { Bell, Search, Sun, Moon, Menu, X } from 'lucide-react';
@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 type NotifPrefs = {
   sound?: boolean;
@@ -56,7 +57,7 @@ interface AppNotification {
   type: string;
   is_read: boolean;
   created_at: string;
-  metadata?: { threadId?: string; leadId?: string; rfqId?: string } | null;
+  metadata?: { threadId?: string; leadId?: string; rfqId?: string; taskId?: string; followUpId?: string } | null;
 }
 
 export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
@@ -65,17 +66,28 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const { theme, setTheme } = useTheme();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [ringing, setRinging] = useState(false);
+  const ringTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     if (!user) return;
     const fetchNotifications = async () => {
-      const { data } = await supabase
-        .from('notifications')
-        .select('id, title, message, type, is_read, created_at, metadata')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(20);
+      const [{ data }, { count }] = await Promise.all([
+        supabase
+          .from('notifications')
+          .select('id, title, message, type, is_read, created_at, metadata')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('is_read', false),
+      ]);
       setNotifications((data as AppNotification[]) ?? []);
+      setUnreadCount(count ?? 0);
     };
     fetchNotifications();
     const channel = supabase
@@ -89,8 +101,19 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          fetchNotifications();
-          if (payload.eventType === 'INSERT') playNotificationSound();
+          if (payload.eventType === 'INSERT') {
+            const n = payload.new as AppNotification;
+            // Apply the new row directly instead of refetching the whole list.
+            setNotifications((prev) => (prev.some((x) => x.id === n.id) ? prev : [n, ...prev].slice(0, 20)));
+            setUnreadCount((c) => c + 1);
+            setRinging(true);
+            clearTimeout(ringTimer.current);
+            ringTimer.current = setTimeout(() => setRinging(false), 900);
+            playNotificationSound();
+            toast(n.title, { description: n.message, duration: 5000 });
+          } else {
+            fetchNotifications();
+          }
         }
       )
       .subscribe();
@@ -99,19 +122,63 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
     };
   }, [user?.id]);
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
   const isMobile = useIsMobile();
 
   const markAsRead = async (id: string) => {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    const target = notifications.find((n) => n.id === id);
+    if (!target || target.is_read) return;
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+    setUnreadCount((c) => Math.max(0, c - 1));
+    const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    if (error) {
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: false } : n)));
+      setUnreadCount((c) => c + 1);
+      toast.error('Could not mark notification as read');
+    }
   };
+
+  const markAllRead = async () => {
+    if (!user || unreadCount === 0) return;
+    const before = notifications;
+    const beforeCount = unreadCount;
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setUnreadCount(0);
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', user.id)
+      .eq('is_read', false);
+    if (error) {
+      setNotifications(before);
+      setUnreadCount(beforeCount);
+      toast.error('Could not mark all as read');
+    }
+  };
+
+  const notificationLink = useCallback((n: AppNotification): string | null => {
+    const meta = n.metadata ?? undefined;
+    if (n.type === 'email' && meta?.leadId) {
+      return `/leads/${meta.leadId}?tab=emails${meta.threadId ? `&thread=${meta.threadId}` : ''}`;
+    }
+    if (meta?.rfqId) return `/rfq/${meta.rfqId}?tab=bids`;
+    if (meta?.followUpId) return '/follow-ups';
+    if (meta?.taskId) return '/tasks';
+    if (meta?.leadId) return `/leads/${meta.leadId}`;
+    return null;
+  }, []);
 
   const deleteNotification = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    await supabase.from('notifications').delete().eq('id', id).eq('user_id', user!.id);
+    const removed = notifications.find((n) => n.id === id);
     setNotifications((prev) => prev.filter((n) => n.id !== id));
+    if (removed && !removed.is_read) setUnreadCount((c) => Math.max(0, c - 1));
+    const { error } = await supabase.from('notifications').delete().eq('id', id).eq('user_id', user!.id);
+    if (error && removed) {
+      setNotifications((prev) => [removed, ...prev].sort((a, b) => b.created_at.localeCompare(a.created_at)));
+      if (!removed.is_read) setUnreadCount((c) => c + 1);
+      toast.error('Could not delete notification');
+    }
   };
 
   return (
@@ -153,31 +220,43 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
         </Button>
         <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="relative h-9 w-9">
-            <Bell className="h-[19px] w-[19px]" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative h-9 w-9"
+            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+          >
+            <Bell className={`h-[19px] w-[19px] ${ringing ? 'animate-bell-ring' : ''}`} />
             {unreadCount > 0 && (
-              <Badge 
-                className="absolute -top-0.5 -right-0.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] gradient-accent border-0"
+              <Badge
+                key={unreadCount}
+                className={`absolute -top-1 -right-1 h-4 min-w-4 px-1 flex items-center justify-center text-[10px] gradient-accent border-0 ${ringing ? 'animate-badge-pulse' : ''}`}
               >
-                {unreadCount}
+                {unreadCount > 9 ? '9+' : unreadCount}
               </Badge>
             )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-80">
-          <div className="p-2 border-b border-border">
+          <div className="p-2 border-b border-border flex items-center justify-between">
             <h4 className="font-semibold text-sm">Notifications</h4>
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={markAllRead}
+                className="text-xs text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary rounded"
+              >
+                Mark all read
+              </button>
+            )}
           </div>
+          <div className="max-h-[60vh] overflow-y-auto">
           {notifications.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">No notifications</div>
           ) : (
             notifications.map((notification) => {
               const meta = notification.metadata as { threadId?: string; leadId?: string; rfqId?: string } | undefined;
-              const inboxLink = notification.type === 'email' && meta?.leadId
-                ? `/leads/${meta.leadId}?tab=emails${meta.threadId ? `&thread=${meta.threadId}` : ''}`
-                : meta?.rfqId
-                  ? `/rfq/${meta.rfqId}?tab=bids`
-                  : null;
+              const inboxLink = notificationLink(notification);
               return (
                 <DropdownMenuItem
                   key={notification.id}
@@ -217,6 +296,12 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
               );
             })
           )}
+          </div>
+          <div className="border-t border-border p-1">
+            <DropdownMenuItem asChild className="justify-center text-sm text-primary cursor-pointer">
+              <Link to="/notifications">View all notifications</Link>
+            </DropdownMenuItem>
+          </div>
         </DropdownMenuContent>
         </DropdownMenu>
       </div>

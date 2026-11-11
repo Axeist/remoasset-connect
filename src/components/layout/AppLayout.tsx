@@ -2,7 +2,6 @@ import { ReactNode, createContext, useContext, useState, useEffect } from 'react
 import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { useMailNotificationPoller } from '@/hooks/useMailNotificationPoller';
-import { useTaskAndFollowUpNotificationPoller } from '@/hooks/useTaskAndFollowUpNotificationPoller';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, X } from 'lucide-react';
@@ -63,7 +62,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 function AppLayoutShell({ children }: AppLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   useMailNotificationPoller();
-  useTaskAndFollowUpNotificationPoller();
+  // Task/follow-up reminders are now created server-side (send_due_reminders, every minute).
   return (
     <div className="min-h-screen flex w-full bg-background">
       <AppSidebar mobileOpen={mobileMenuOpen} onMobileOpenChange={setMobileMenuOpen} />
